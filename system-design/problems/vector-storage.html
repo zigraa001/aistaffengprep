@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design Multi-Tenant Vector Storage - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
+                <li><a href="../../company-specific/index.html">Companies</a></li>
+                <li><a href="../../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Problem Breakdowns</div>
+                    <a href="url-shortener.html" class="sidebar-link">URL Shortener</a>
+                    <a href="news-feed.html" class="sidebar-link">News Feed</a>
+                    <a href="chat-system.html" class="sidebar-link">Chat System</a>
+                    <a href="video-streaming.html" class="sidebar-link">Video Streaming</a>
+                    <a href="vector-storage.html" class="sidebar-link active">Vector Storage</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Back to Course</div>
+                    <a href="../index.html" class="sidebar-link">System Design Home</a>
+                    <a href="../module-06.html" class="sidebar-link">Common Problems</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Multi-Tenant Vector Storage</h1>
+            <p class="text-muted">Examples: Pinecone, Weaviate, Qdrant Cloud, Milvus, Amazon OpenSearch Serverless</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, #e74c3c22, #9b59b622);">
+                <strong>Difficulty:</strong> Hard (Staff-Level) | <strong>Time:</strong> 45-60 minutes |
+                <strong>Why it's asked:</strong> Tests knowledge of ANN algorithms, resource isolation, distributed storage, and the intersection of ML infrastructure with traditional systems design.
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. REQUIREMENTS -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Upsert vectors:</strong> Insert or update vectors with associated metadata (e.g., 1536-d OpenAI embeddings with JSON payload)</li>
+                        <li><strong>k-NN search:</strong> Given a query vector, return the top-k most similar vectors within a tenant's namespace</li>
+                        <li><strong>Metadata filtering:</strong> Pre-filter or post-filter results by arbitrary metadata predicates (e.g., <code>category = "tech" AND date &gt; 2024-01-01</code>)</li>
+                        <li><strong>Namespace/collection management:</strong> Each tenant can create multiple collections with different dimensionality and distance metrics</li>
+                        <li><strong>Delete vectors:</strong> By ID or by metadata filter</li>
+                        <li><strong>Multi-tenancy:</strong> Strict data isolation between tenants &mdash; Tenant A must never see Tenant B's vectors</li>
+                        <li><strong>Batch operations:</strong> Bulk upsert (100K+ vectors in a single call) for initial data loading</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Low-latency queries:</strong> p50 &lt; 20ms, p99 &lt; 100ms for top-10 search over 10M vectors</li>
+                        <li><strong>High availability:</strong> 99.95% uptime SLA &mdash; RAG pipelines are in the critical path of user-facing LLM applications</li>
+                        <li><strong>Scalability:</strong> Support 10,000+ tenants, 1B+ total vectors, auto-scale with demand</li>
+                        <li><strong>Freshness:</strong> Newly upserted vectors should be searchable within seconds (near-real-time indexing)</li>
+                        <li><strong>Noisy-neighbor isolation:</strong> A single tenant running heavy queries must not degrade performance for others</li>
+                        <li><strong>Cost efficiency:</strong> Support tenants ranging from 1K to 100M vectors; don't over-provision small tenants</li>
+                        <li><strong>Durability:</strong> Zero data loss &mdash; vectors represent expensive embedding computation</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> The core tension in this design is between <em>query performance</em> (which wants purpose-built in-memory indexes) and <em>cost efficiency</em> (which wants dense packing of tenants onto shared infrastructure). A junior candidate treats this as "just a database with vectors" &mdash; a staff candidate designs around the unique properties of ANN indexes: they're large, must be memory-resident for performance, and expensive to rebuild.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. CAPACITY ESTIMATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Assumptions:</strong><br>
+                        - 10,000 tenants, 1B total vectors<br>
+                        - Average dimension: 1536 (OpenAI text-embedding-3-large)<br>
+                        - Vector stored as float32 &rarr; 1536 &times; 4 bytes = 6 KB per vector<br>
+                        - Average metadata: 500 bytes per vector<br>
+                        - 80/20 distribution: 20% of tenants hold 80% of vectors<br><br>
+
+                        <strong>Raw Vector Storage:</strong><br>
+                        1B &times; 6 KB = 6 TB (raw vectors alone)<br><br>
+
+                        <strong>HNSW Index Overhead:</strong><br>
+                        ~1.5&times; raw vector size (graph edges + metadata) &asymp; 9 TB index memory<br>
+                        With M=16, ef_construction=200: each vector stores ~32 edges &times; 8 bytes = 256 bytes overhead<br>
+                        Total index: 6 TB + 256 GB (edges) &asymp; 6.25 TB<br><br>
+
+                        <strong>Metadata Storage:</strong><br>
+                        1B &times; 500 bytes = 500 GB<br><br>
+
+                        <strong>Total Working Set:</strong><br>
+                        ~7 TB must be memory-resident for low-latency queries<br><br>
+
+                        <strong>Query QPS:</strong><br>
+                        - Peak: 50,000 queries/second across all tenants<br>
+                        - Average query scans ~200-500 nodes in HNSW graph<br>
+                        - Single core handles ~1,000 HNSW queries/sec on 1M vectors<br><br>
+
+                        <strong>Write QPS:</strong><br>
+                        - 10,000 upserts/second steady state<br>
+                        - Burst: 100,000/sec during batch loads<br><br>
+
+                        <strong>Cluster Size (memory-optimized nodes):</strong><br>
+                        Using r6g.8xlarge (256 GB RAM): 7 TB / 200 GB usable = ~35 nodes<br>
+                        With replication factor 2: ~70 nodes
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Why this matters for staff interviews:</strong> Interviewers test whether you understand that vector search is fundamentally a <em>memory-bound</em> problem. Unlike traditional databases where data lives on disk with an in-memory index, vector indexes (HNSW) need the full graph in memory. This drives every architectural decision &mdash; from sharding to tenant placement to cost optimization.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. API DESIGN -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. API Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Core APIs (gRPC + REST)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+// Collection Management
+POST   /v1/collections
+  Body: { "name": "products", "dimension": 1536, "metric": "cosine",
+          "hnsw_config": { "m": 16, "ef_construction": 200 } }
+  Resp: { "collection_id": "col_abc123", "status": "CREATING" }
+
+DELETE /v1/collections/{collection_id}
+
+// Vector Operations
+POST   /v1/collections/{collection_id}/vectors/upsert
+  Body: { "vectors": [
+    { "id": "vec_001", "values": [0.1, 0.2, ...], "metadata": {"category": "tech"} }
+  ]}
+
+POST   /v1/collections/{collection_id}/query
+  Body: { "vector": [0.1, 0.2, ...],
+          "top_k": 10,
+          "filter": { "category": { "$eq": "tech" }, "date": { "$gte": "2024-01-01" } },
+          "include_metadata": true,
+          "include_vectors": false }
+  Resp: { "matches": [
+    { "id": "vec_042", "score": 0.95, "metadata": {"category": "tech", ...} }
+  ]}
+
+DELETE /v1/collections/{collection_id}/vectors
+  Body: { "ids": ["vec_001"] }
+  -- OR --
+  Body: { "filter": { "category": { "$eq": "deprecated" } } }
+
+// Batch Operations
+POST   /v1/collections/{collection_id}/vectors/bulk-upsert
+  Body: multipart/stream of vector batches
+  Resp: { "task_id": "task_xyz", "status": "IN_PROGRESS" }
+
+GET    /v1/tasks/{task_id}
+  Resp: { "status": "COMPLETED", "vectors_indexed": 150000 }
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">API Design Decisions</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Decision</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Choice</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">gRPC for data plane</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Binary protobuf</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1536-d float vector is 6KB &mdash; JSON encoding doubles it; protobuf is 1:1</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">REST for control plane</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">JSON/HTTP</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Collection CRUD is infrequent; developer ergonomics matter more</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tenant ID in auth header</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">API key &rarr; tenant mapping</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prevents tenants from accidentally querying each other's data at the API layer</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Async bulk upsert</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Task-based with polling</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100K+ vector uploads take minutes; synchronous calls would timeout</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. DATA MODEL -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Data Model &amp; Storage Engine</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Storage Layers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Hot Layer - Memory"
+        HNSW["HNSW Graph Index<br/>(in-memory, mmap)"]
+        META["Metadata Index<br/>(inverted index in RAM)"]
+    end
+    subgraph "Warm Layer - Local SSD"
+        WAL["Write-Ahead Log"]
+        SNAP["Segment Snapshots"]
+    end
+    subgraph "Cold Layer - Object Storage"
+        S3["S3/GCS Segments<br/>(compressed vectors + index)"]
+        BKUP["Periodic Backups"]
+    end
+    HNSW --> SNAP
+    META --> SNAP
+    WAL --> SNAP
+    SNAP --> S3
+    S3 --> BKUP
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Segment-Based Architecture</h4>
+                    <p>Vectors are organized into <strong>segments</strong> &mdash; immutable files containing vectors, the HNSW graph, and a metadata index. This is similar to LSM-tree segments in databases like Cassandra.</p>
+
+                    <div class="code-block">
+                        <code>
+Segment Layout (on disk and in S3):
++------------------------------------------------------+
+| Segment Header                                        |
+|   - segment_id: uuid                                  |
+|   - tenant_id: string                                 |
+|   - collection_id: string                             |
+|   - vector_count: uint64                              |
+|   - dimension: uint32                                 |
+|   - metric: enum (cosine|euclidean|dot_product)       |
+|   - created_at: timestamp                             |
++------------------------------------------------------+
+| Raw Vectors (memory-mapped)                           |
+|   - Contiguous float32 array: count x dimension       |
+|   - Offset table: vector_id -> byte_offset            |
++------------------------------------------------------+
+| HNSW Graph                                            |
+|   - Layer 0: all nodes, M*2 neighbors each            |
+|   - Layer 1..L: subset of nodes, M neighbors each     |
+|   - Entry point node ID                               |
++------------------------------------------------------+
+| Metadata Inverted Index                               |
+|   - field_name -> { value -> [vector_id_list] }       |
+|   - Supports: eq, range, in, prefix                   |
++------------------------------------------------------+
+| Bloom Filter (for point lookups by vector ID)         |
++------------------------------------------------------+
+| Footer + Checksum                                     |
++------------------------------------------------------+
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Write Path</h4>
+                    <ol>
+                        <li><strong>Append to WAL</strong> &mdash; Durably persist the upsert before acknowledging</li>
+                        <li><strong>Insert into in-memory buffer</strong> &mdash; A mutable "active segment" (like memtable in LSM)</li>
+                        <li><strong>Background flush</strong> &mdash; When the buffer reaches threshold (e.g., 50K vectors), seal it as an immutable segment and build HNSW index</li>
+                        <li><strong>Segment compaction</strong> &mdash; Periodically merge small segments into larger ones (reduces segment count, improves query performance)</li>
+                        <li><strong>Upload to object storage</strong> &mdash; For durability and recovery</li>
+                    </ol>
+
+                    <h4 class="mt-3">Read Path</h4>
+                    <ol>
+                        <li><strong>Query hits all segments</strong> for the tenant's collection (both active buffer and sealed segments)</li>
+                        <li><strong>Metadata filter</strong> applied first using inverted index to produce a bitmap of candidate vectors</li>
+                        <li><strong>HNSW search</strong> constrained to candidate set &mdash; skip nodes not in bitmap during graph traversal</li>
+                        <li><strong>Merge results</strong> from all segments using a min-heap, return global top-k</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. HIGH-LEVEL ARCHITECTURE -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. High-Level Architecture</h2>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+flowchart TB
+    subgraph "Clients"
+        SDK["Client SDKs<br/>(Python, JS, Go)"]
+    end
+
+    subgraph "API Gateway Layer"
+        GW["API Gateway<br/>(auth, rate limit, routing)"]
+    end
+
+    subgraph "Control Plane"
+        CP["Control Plane Service"]
+        SCHED["Tenant Scheduler<br/>(placement, scaling)"]
+        CATALOG["Collection Catalog<br/>(PostgreSQL)"]
+    end
+
+    subgraph "Data Plane"
+        QR["Query Router"]
+        subgraph "Shard Group A"
+            SA1["Shard Node A-1<br/>(primary)"]
+            SA2["Shard Node A-2<br/>(replica)"]
+        end
+        subgraph "Shard Group B"
+            SB1["Shard Node B-1<br/>(primary)"]
+            SB2["Shard Node B-2<br/>(replica)"]
+        end
+        subgraph "Shard Group N"
+            SN1["Shard Node N-1<br/>(primary)"]
+            SN2["Shard Node N-2<br/>(replica)"]
+        end
+    end
+
+    subgraph "Ingestion Pipeline"
+        IQ["Ingest Queue<br/>(Kafka)"]
+        IDX["Index Builder<br/>(batch + streaming)"]
+    end
+
+    subgraph "Storage"
+        S3["Object Storage<br/>(S3/GCS)"]
+        ETCD["etcd<br/>(shard map, leader election)"]
+    end
+
+    SDK --> GW
+    GW --> CP
+    GW --> QR
+    CP --> SCHED
+    CP --> CATALOG
+    SCHED --> ETCD
+    QR --> SA1 & SB1 & SN1
+    SA1 --> SA2
+    SB1 --> SB2
+    SN1 --> SN2
+    GW --> IQ --> IDX
+    IDX --> SA1 & SB1 & SN1
+    SA1 & SB1 & SN1 --> S3
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Component Responsibilities</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Component</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Role</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Key Design Choice</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>API Gateway</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auth, rate limiting, request validation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-tenant rate limits; API key &rarr; tenant_id mapping</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Control Plane</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Collection CRUD, tenant onboarding, schema management</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stores metadata in PostgreSQL; manages shard assignments</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Tenant Scheduler</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Decides which shard nodes host which tenant collections</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bin-packing algorithm; memory-aware placement; auto-scaling triggers</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Query Router</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Routes queries to the right shard node(s)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reads shard map from etcd; scatter-gather for multi-shard collections</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Shard Node</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hosts HNSW indexes in memory, executes queries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Each node may host segments from many tenants; resource quotas per tenant</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Index Builder</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Builds HNSW index from raw vectors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Separate pool for batch index builds to avoid impacting query latency</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Object Storage</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Durable segment storage, backup</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Segments uploaded after compaction; used for node recovery</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. VECTOR INDEXING DEEP DIVE -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Vector Indexing Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>HNSW (Hierarchical Navigable Small World)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>HNSW is the dominant algorithm for production vector search. It builds a multi-layer graph where each layer is a "small world" network with progressively fewer nodes.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Layer 2 - Skip layer (few nodes)"
+        L2A((A)) --- L2D((D))
+    end
+    subgraph "Layer 1 - Middle layer"
+        L1A((A)) --- L1B((B))
+        L1B --- L1D((D))
+        L1D --- L1F((F))
+        L1A --- L1F
+    end
+    subgraph "Layer 0 - Base layer (all nodes)"
+        L0A((A)) --- L0B((B))
+        L0B --- L0C((C))
+        L0C --- L0D((D))
+        L0D --- L0E((E))
+        L0E --- L0F((F))
+        L0A --- L0C
+        L0B --- L0E
+        L0D --- L0F
+        L0A --- L0F
+    end
+    L2A -.-> L1A
+    L2D -.-> L1D
+    L1A -.-> L0A
+    L1B -.-> L0B
+    L1D -.-> L0D
+    L1F -.-> L0F
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">How HNSW Search Works</h4>
+                    <ol>
+                        <li>Start at the <strong>entry point</strong> on the highest layer</li>
+                        <li>Greedily traverse toward the query vector (each hop moves closer in distance)</li>
+                        <li>When no closer neighbor exists in the current layer, <strong>descend</strong> to the layer below</li>
+                        <li>At <strong>layer 0</strong>, perform a more thorough search using <code>ef_search</code> candidates</li>
+                        <li>Return top-k from the candidate list</li>
+                    </ol>
+
+                    <h4 class="mt-3">Critical Parameters</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Parameter</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Effect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Typical Value</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trade-off</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><code>M</code></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Max edges per node per layer</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">16</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Higher = better recall, more memory (M&times;2 at layer 0)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><code>ef_construction</code></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Candidate list size during index building</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">200</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Higher = better graph quality, slower build</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><code>ef_search</code></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Candidate list size during query</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Higher = better recall, higher latency. Must be &ge; top_k</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Memory per vector (HNSW with M=16, d=1536):</strong><br>
+                        Vector: 1536 &times; 4 = 6,144 bytes<br>
+                        Graph edges: ~32 edges &times; 8 bytes = 256 bytes<br>
+                        Overhead (node metadata): ~64 bytes<br>
+                        <strong>Total: ~6.5 KB per vector</strong><br><br>
+                        For 10M vectors: ~65 GB of RAM per shard
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Alternative: IVF-PQ (for cost optimization)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Inverted File Index + Product Quantization</strong> compresses vectors by 10-50x, enabling disk-based search for cost-sensitive workloads.</p>
+
+                    <h4>How It Works</h4>
+                    <ol>
+                        <li><strong>IVF:</strong> K-means clusters vectors into <code>nlist</code> partitions (e.g., 1024). At query time, only the nearest <code>nprobe</code> partitions are searched.</li>
+                        <li><strong>PQ:</strong> Each 1536-d vector is split into 192 sub-vectors of 8 dimensions. Each sub-vector is quantized to 1 byte (256 centroids). Result: 1536 &times; 4 bytes &rarr; 192 bytes (32x compression).</li>
+                    </ol>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Metric</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">HNSW</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">IVF-PQ</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory per 1M vectors (d=1536)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~6.5 GB</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~200 MB</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Recall@10</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">99%+</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">90-95%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Query latency (10M vectors)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1-5ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5-20ms</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Build time</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Incremental (online)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requires training (offline)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best for</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency-critical, &lt;100M vectors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost-sensitive, &gt;100M vectors</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Answer:</strong> Use a <em>tiered approach</em>. Hot tenants (paying for performance SLA) get HNSW on memory-optimized instances. Smaller or free-tier tenants get IVF-PQ on storage-optimized instances with NVMe. This is exactly what Pinecone does with "serverless" vs "pod" indexes.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Filtered Search: The Hard Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Combining vector similarity with metadata filters is deceptively hard. It's the most common follow-up question in interviews.</p>
+
+                    <h4>Three Strategies</h4>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How It Works</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pros</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cons</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Pre-filter</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Run metadata filter first, then search only matching vectors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Exact filter, no wasted distance computations</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">If filter is very selective (&lt;1% pass), HNSW graph is too sparse to navigate efficiently</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Post-filter</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Run HNSW search, then filter results</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Full graph quality, simple implementation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">May return fewer than k results; wastes compute on filtered-out vectors</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>In-traversal filter</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Check filter during HNSW traversal; skip non-matching nodes but continue navigation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best of both worlds; always returns k results</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex to implement; may visit many extra nodes</td>
+                        </tr>
+                    </table>
+
+                    <div class="code-block">
+                        <code>
+# In-traversal filtered HNSW search (pseudocode)
+
+def filtered_hnsw_search(query, k, filter_fn, ef_search=100):
+    """HNSW search that respects metadata filters during traversal."""
+    candidates = MinHeap()   # by distance (closest first)
+    result = MaxHeap(k)      # by distance (farthest first, bounded by k)
+    visited = set()
+
+    entry = graph.entry_point
+    candidates.push(distance(query, entry), entry)
+
+    while candidates:
+        dist, node = candidates.pop()
+
+        # Prune: if farthest result is closer than current candidate, stop
+        if result.size == k and dist > result.peek_max():
+            break
+
+        if node in visited:
+            continue
+        visited.add(node)
+
+        # Check filter DURING traversal (the key insight)
+        if filter_fn(node.metadata):
+            result.push(dist, node)
+
+        # ALWAYS expand neighbors (even if current node doesn't pass filter)
+        # This maintains graph connectivity
+        for neighbor in graph.neighbors(node):
+            if neighbor not in visited:
+                d = distance(query, neighbor)
+                candidates.push(d, neighbor)
+
+    return result.to_sorted_list()
+                        </code>
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Production systems use adaptive strategy selection:</strong> If the filter selectivity is &gt;20%, use pre-filter. If &lt;1%, use post-filter with over-fetching. For everything in between, use in-traversal filtering. Qdrant and Weaviate both implement this adaptive approach.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. MULTI-TENANCY STRATEGIES -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. Multi-Tenancy Strategies (The Core Challenge)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Isolation Models Compared</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Model A: Shared Index"
+        direction TB
+        SI["Single HNSW Index"]
+        T1A["Tenant A vectors"]
+        T2A["Tenant B vectors"]
+        T3A["Tenant C vectors"]
+        T1A & T2A & T3A --> SI
+    end
+    subgraph "Model B: Index-per-Tenant"
+        direction TB
+        I1["HNSW Index A"]
+        I2["HNSW Index B"]
+        I3["HNSW Index C"]
+    end
+    subgraph "Model C: Cluster-per-Tenant"
+        direction TB
+        C1["Dedicated Cluster A"]
+        C2["Dedicated Cluster B"]
+        C3["Dedicated Cluster C"]
+    end
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Model</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Data Isolation</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Performance Isolation</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost Efficiency</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Operational Complexity</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>A: Shared Index</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Weak (tenant_id filter)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">None</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>B: Index-per-Tenant</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strong (separate index)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Moderate (shared CPU/memory)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>C: Cluster-per-Tenant</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complete</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complete</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Worst (waste)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (N clusters)</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Answer: Hybrid Model (what Pinecone/Weaviate actually do)</strong><br><br>
+                        <strong>Tier 1 &mdash; Enterprise ($$$):</strong> Dedicated cluster (Model C). Full isolation, custom SLA, VPC peering.<br>
+                        <strong>Tier 2 &mdash; Pro:</strong> Dedicated indexes on shared infrastructure (Model B). Separate HNSW graphs on shared shard nodes. Memory quotas enforced per tenant.<br>
+                        <strong>Tier 3 &mdash; Free/Starter:</strong> Shared indexes with tenant_id filtering (Model A). Vectors stored with tenant_id in metadata. Coldstart: index loaded on-demand from object storage.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Index-per-Tenant on Shared Infrastructure (Deep Dive)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>This is the most nuanced model and the one interviewers will probe. Each tenant has a logically separate HNSW index, but multiple tenant indexes are packed onto the same physical shard nodes.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Shard Node (256 GB RAM)"
+        direction TB
+        MEM["Memory Manager<br/>Quota Enforcement"]
+        subgraph "Loaded Indexes (hot)"
+            IA["Tenant A Index<br/>45 GB - 7M vectors"]
+            IB["Tenant B Index<br/>12 GB - 2M vectors"]
+            IC["Tenant C Index<br/>3 GB - 500K vectors"]
+        end
+        subgraph "Offloaded (warm - on SSD)"
+            ID["Tenant D Index<br/>800 MB - 120K vectors"]
+            IE["Tenant E Index<br/>200 MB - 30K vectors"]
+        end
+        MEM --> IA & IB & IC
+    end
+    subgraph "Object Storage (cold)"
+        IF["Tenant F-Z Indexes<br/>(loaded on demand)"]
+    end
+    ID & IE -.-> IF
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Tenant Placement Algorithm</h4>
+                    <div class="code-block">
+                        <code>
+# Tenant placement: bin-packing with memory as the constraint
+
+class TenantScheduler:
+    def place_collection(self, tenant_id, estimated_memory_gb):
+        """Place a new collection onto a shard node using best-fit decreasing."""
+        nodes = self.get_nodes_sorted_by_available_memory()
+
+        for node in nodes:
+            available = node.total_memory - node.used_memory
+            # Reserve 15% headroom for spikes and OS overhead
+            if available * 0.85 >= estimated_memory_gb:
+                # Check affinity: prefer nodes already hosting this tenant
+                # (reduces cross-node queries for multi-collection tenants)
+                if node.hosts_tenant(tenant_id):
+                    return self.assign(node, tenant_id, estimated_memory_gb)
+
+        # No existing node has affinity + space; find best-fit
+        for node in nodes:
+            available = node.total_memory - node.used_memory
+            if available * 0.85 >= estimated_memory_gb:
+                return self.assign(node, tenant_id, estimated_memory_gb)
+
+        # No node has capacity; trigger scale-out
+        new_node = self.provision_node()
+        return self.assign(new_node, tenant_id, estimated_memory_gb)
+
+    def rebalance(self):
+        """Periodically rebalance to fix memory skew."""
+        nodes = self.get_all_nodes()
+        avg_utilization = mean(n.memory_utilization for n in nodes)
+
+        for node in nodes:
+            if node.memory_utilization > avg_utilization * 1.3:  # 30% above avg
+                # Find smallest tenant index to migrate
+                victim = node.get_smallest_index()
+                target = self.find_least_loaded_node()
+                self.migrate_index(victim, node, target)
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Hot/Cold Index Management</h4>
+                    <p>Not all tenant indexes can fit in memory simultaneously. We need a strategy for loading/unloading indexes.</p>
+                    <ul>
+                        <li><strong>Active tenants:</strong> Indexes stay memory-resident. Defined by query activity in last N minutes.</li>
+                        <li><strong>Idle tenants:</strong> Indexes are evicted from memory (but segments remain on S3). First query triggers a load (~2-5 seconds for a 1GB index from SSD, ~10-30 seconds from S3).</li>
+                        <li><strong>Serverless model:</strong> Charge per-query instead of per-provisioned-capacity. Automatically scale index memory up/down. This is Pinecone's "serverless" offering.</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Cold-start latency budget:</strong><br>
+                        - SSD read: 1 GB in ~300ms (NVMe, ~3.5 GB/s sequential)<br>
+                        - S3 read: 1 GB in ~1-2s (multi-part parallel download)<br>
+                        - HNSW deserialization: ~500ms for 1 GB index<br>
+                        <strong>Total cold-start: 1-3 seconds (SSD) or 2-5 seconds (S3)</strong><br><br>
+                        Mitigate with: predictive pre-loading (load at first API call of the day), keep-warm API for premium tenants.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. SHARDING & PARTITIONING -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Sharding &amp; Partitioning</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Sharding Strategy for Large Collections</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When a single tenant's collection exceeds what one node can hold (e.g., 100M vectors = 650 GB), we must shard the collection across multiple nodes.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    QR["Query Router"]
+    subgraph "Collection 'products' (100M vectors, 4 shards)"
+        S1["Shard 1<br/>25M vectors<br/>Node A"]
+        S2["Shard 2<br/>25M vectors<br/>Node B"]
+        S3["Shard 3<br/>25M vectors<br/>Node C"]
+        S4["Shard 4<br/>25M vectors<br/>Node D"]
+    end
+    QR -->|"scatter query"| S1 & S2 & S3 & S4
+    S1 & S2 & S3 & S4 -->|"top-k results"| QR
+    QR -->|"merge & return global top-k"| RES["Client Response"]
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Scatter-Gather Query Flow</h4>
+                    <ol>
+                        <li>Query Router looks up shard map from etcd: collection "products" &rarr; [shard_1@nodeA, shard_2@nodeB, shard_3@nodeC, shard_4@nodeD]</li>
+                        <li>Sends the query vector to <strong>all shards in parallel</strong></li>
+                        <li>Each shard runs HNSW search locally and returns its local top-k</li>
+                        <li>Router <strong>merges</strong> results using a min-heap: 4 shards &times; k results &rarr; global top-k</li>
+                        <li>Latency = max(shard latencies) + merge time (typically &lt;1ms)</li>
+                    </ol>
+
+                    <h4 class="mt-3">Shard Assignment Strategies</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Random assignment</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">hash(vector_id) % num_shards</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Even distribution; works for most cases</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cluster-based</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">K-means on vector space; each cluster = 1 shard</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Can prune shards at query time (skip distant clusters)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Metadata-based</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Partition by metadata field (e.g., date range)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">When queries always filter on partition key</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> Random sharding is simpler and usually preferred. Cluster-based sharding <em>sounds</em> appealing (skip irrelevant shards) but in practice, high-dimensional vectors spread across many clusters, limiting pruning benefit. The extra complexity of maintaining cluster centroids and rebalancing rarely pays off. Save cluster-based for very large collections (&gt;500M vectors) where reducing scatter fan-out from 20 shards to 5 materially impacts latency.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. NOISY NEIGHBOR & RESOURCE ISOLATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Noisy Neighbor &amp; Resource Isolation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Problem and Solutions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When Tenant A runs a burst of heavy queries (large ef_search, complex filters, large top_k), it monopolizes CPU and memory bandwidth, causing latency spikes for Tenant B on the same node. This is the #1 operational challenge in multi-tenant vector databases.</p>
+
+                    <h4>Multi-Layer Defense</h4>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Layer 1: API Gateway"
+        RL["Per-Tenant Rate Limits<br/>QPS caps, burst quotas"]
+    end
+    subgraph "Layer 2: Query Router"
+        QC["Query Complexity Estimator<br/>Reject queries that would scan too many vectors"]
+        QQ["Priority Queues<br/>Premium tenants get priority"]
+    end
+    subgraph "Layer 3: Shard Node"
+        CP["CPU Scheduling<br/>cgroups / thread pools per tenant"]
+        MB["Memory Budget<br/>Per-tenant memory caps"]
+        IO["I/O Scheduling<br/>Bandwidth limits for cold-start loads"]
+    end
+    RL --> QC --> QQ --> CP & MB & IO
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Implementation Details</h4>
+
+                    <div class="code-block">
+                        <code>
+# Per-tenant resource controller on each shard node
+
+class TenantResourceController:
+    def __init__(self, node_config):
+        self.tenant_quotas = {}  # tenant_id -> ResourceQuota
+        self.query_semaphores = {}  # tenant_id -> asyncio.Semaphore
+
+    def register_tenant(self, tenant_id, tier):
+        if tier == "enterprise":
+            quota = ResourceQuota(
+                max_concurrent_queries=100,
+                max_ef_search=500,
+                max_top_k=1000,
+                memory_limit_gb=None,  # dedicated, no limit
+                priority=10
+            )
+        elif tier == "pro":
+            quota = ResourceQuota(
+                max_concurrent_queries=20,
+                max_ef_search=200,
+                max_top_k=100,
+                memory_limit_gb=50,
+                priority=5
+            )
+        else:  # free
+            quota = ResourceQuota(
+                max_concurrent_queries=2,
+                max_ef_search=64,
+                max_top_k=10,
+                memory_limit_gb=1,
+                priority=1
+            )
+        self.tenant_quotas[tenant_id] = quota
+        self.query_semaphores[tenant_id] = asyncio.Semaphore(
+            quota.max_concurrent_queries
+        )
+
+    async def execute_query(self, tenant_id, query):
+        quota = self.tenant_quotas[tenant_id]
+
+        # Enforce parameter limits
+        query.ef_search = min(query.ef_search, quota.max_ef_search)
+        query.top_k = min(query.top_k, quota.max_top_k)
+
+        # Concurrency control via semaphore
+        async with self.query_semaphores[tenant_id]:
+            # Execute with timeout based on tier
+            timeout = 30.0 if quota.priority >= 5 else 5.0
+            return await asyncio.wait_for(
+                self.shard_engine.search(query),
+                timeout=timeout
+            )
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Admission Control: Query Complexity Estimation</h4>
+                    <p>Before executing a query, estimate its cost to prevent expensive queries from starving others:</p>
+                    <div class="code-block">
+                        <code>
+def estimate_query_cost(query, collection_stats):
+    """Estimate CPU cost units for a query."""
+    base_cost = collection_stats.vector_count / 1_000_000  # scale with size
+
+    # HNSW search cost scales with ef_search
+    search_cost = base_cost * (query.ef_search / 100)
+
+    # Filter cost depends on selectivity
+    if query.filter:
+        selectivity = estimate_filter_selectivity(query.filter, collection_stats)
+        if selectivity < 0.01:
+            # Very selective filter = expensive (sparse graph traversal)
+            search_cost *= 3.0
+        elif selectivity < 0.1:
+            search_cost *= 1.5
+
+    return search_cost
+
+# Reject if estimated cost exceeds tenant's budget
+if estimate_query_cost(query, stats) > tenant_quota.max_cost_per_query:
+    raise QueryTooExpensive("Simplify filter or reduce ef_search")
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. CONSISTENCY & FRESHNESS -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">10. Consistency &amp; Freshness</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Write-to-Read Visibility</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>After a vector is upserted, how quickly is it visible in search results? This is uniquely challenging for vector databases because HNSW index updates are expensive.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant IngestQueue as Kafka
+    participant ShardNode
+    participant WAL
+    participant Buffer as Mutable Buffer
+    participant HNSW as HNSW Index
+
+    Client->>Gateway: Upsert vector
+    Gateway->>IngestQueue: Enqueue
+    Gateway-->>Client: ACK (202 Accepted)
+    IngestQueue->>ShardNode: Deliver batch
+    ShardNode->>WAL: Append (durable)
+    ShardNode->>Buffer: Insert into mutable buffer
+    Note over Buffer: Searchable immediately via brute-force scan
+    Note over Buffer: Buffer holds up to 50K vectors
+    ShardNode->>HNSW: Background: merge buffer into HNSW index
+    Note over HNSW: ~1-5 seconds for incremental insertion
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Two-Phase Searchability</h4>
+                    <ul>
+                        <li><strong>Phase 1 (immediate, &lt;1 second):</strong> Vector is in the mutable buffer. Search queries scan both the HNSW index AND the buffer. Buffer scan is brute-force but cheap for &lt;50K vectors.</li>
+                        <li><strong>Phase 2 (&lt;5 seconds):</strong> Background thread adds the vector to the HNSW graph. Now it participates in efficient approximate search.</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> The key trade-off is between <em>freshness</em> and <em>index quality</em>. Inserting into HNSW immediately (with the graph's dynamic insert) gives ~95% of the recall of a rebuilt index. For truly latency-sensitive RAG applications, this is acceptable. For recommendation systems that need maximum recall, periodic full rebuilds are worth the cost.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Replication &amp; Durability</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Replication Strategy</h4>
+                    <ul>
+                        <li><strong>Synchronous WAL replication:</strong> Primary writes to WAL, replicates to 1+ followers before ACK. Ensures zero data loss.</li>
+                        <li><strong>Asynchronous index replication:</strong> HNSW index is <em>not</em> replicated synchronously (too expensive). Instead, replicas independently build indexes from the replicated WAL.</li>
+                        <li><strong>Read replicas serve queries:</strong> Distribute query load. Replicas may lag by a few seconds in HNSW index freshness &mdash; acceptable for most use cases.</li>
+                    </ul>
+
+                    <h4 class="mt-3">Failure Recovery</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Recovery Strategy</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">RTO</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Shard node crash</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Promote replica to primary; replay WAL for unindexed entries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;30 seconds</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Disk failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rebuild from S3 segments + replay WAL from Kafka</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minutes (depends on index size)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">AZ failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Replicas in other AZ serve queries; re-provision in surviving AZs</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;1 minute (for reads)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Corrupt HNSW index</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rebuild from raw vectors in S3 + checksum verification</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minutes to hours (offline rebuild)</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 11. PRODUCTION IMPLEMENTATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">11. Production Implementation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Query Router (Python)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+# query_router.py - Scatter-gather query router
+
+import asyncio
+import heapq
+from dataclasses import dataclass
+from typing import List, Optional
+import grpc
+
+@dataclass
+class VectorMatch:
+    id: str
+    score: float
+    metadata: dict
+
+@dataclass
+class ShardInfo:
+    node_address: str
+    shard_id: str
+
+class QueryRouter:
+    def __init__(self, catalog_client, etcd_client):
+        self.catalog = catalog_client      # collection -> shard mapping
+        self.etcd = etcd_client            # shard -> node mapping
+        self.shard_stubs = {}              # gRPC stubs to shard nodes
+
+    async def query(
+        self,
+        tenant_id: str,
+        collection_id: str,
+        vector: List[float],
+        top_k: int = 10,
+        filter_expr: Optional[dict] = None,
+        ef_search: int = 100
+    ) -> List[VectorMatch]:
+        # 1. Resolve which shards hold this collection
+        shards = await self.catalog.get_shards(tenant_id, collection_id)
+
+        if not shards:
+            raise CollectionNotFound(f"{tenant_id}/{collection_id}")
+
+        # 2. Scatter: send query to all shards in parallel
+        tasks = []
+        for shard in shards:
+            stub = self._get_stub(shard.node_address)
+            task = asyncio.create_task(
+                self._query_shard(stub, shard.shard_id, vector,
+                                  top_k, filter_expr, ef_search)
+            )
+            tasks.append(task)
+
+        # 3. Gather: collect results with timeout
+        shard_results = await asyncio.gather(
+            *tasks, return_exceptions=True
+        )
+
+        # 4. Merge: combine results using min-heap
+        merged = []
+        for result in shard_results:
+            if isinstance(result, Exception):
+                # Log error, continue with partial results
+                # (degraded mode: return results from surviving shards)
+                continue
+            merged.extend(result)
+
+        # 5. Return global top-k by score (descending)
+        merged.sort(key=lambda m: m.score, reverse=True)
+        return merged[:top_k]
+
+    async def _query_shard(
+        self, stub, shard_id, vector, top_k, filter_expr, ef_search
+    ) -> List[VectorMatch]:
+        request = QueryRequest(
+            shard_id=shard_id,
+            vector=vector,
+            top_k=top_k,
+            filter=filter_expr,
+            ef_search=ef_search
+        )
+        # gRPC call with deadline
+        response = await stub.Query(
+            request, timeout=5.0  # 5-second deadline per shard
+        )
+        return [
+            VectorMatch(id=m.id, score=m.score, metadata=m.metadata)
+            for m in response.matches
+        ]
+
+    def _get_stub(self, address):
+        if address not in self.shard_stubs:
+            channel = grpc.aio.insecure_channel(address)
+            self.shard_stubs[address] = ShardServiceStub(channel)
+        return self.shard_stubs[address]
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Shard Node Engine (Python)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+# shard_engine.py - Core vector search engine on each shard node
+
+import numpy as np
+import hnswlib
+from threading import Lock
+from collections import defaultdict
+
+class ShardEngine:
+    """Manages multiple tenant collection indexes on a single node."""
+
+    def __init__(self, memory_budget_gb: float):
+        self.indexes = {}          # (tenant_id, collection_id) -> HNSWIndex
+        self.buffers = {}          # (tenant_id, collection_id) -> MutableBuffer
+        self.metadata_store = {}   # (tenant_id, collection_id) -> MetadataIndex
+        self.memory_budget = memory_budget_gb * 1e9
+        self.memory_used = 0
+        self.lock = Lock()
+
+    def upsert(self, tenant_id, collection_id, vectors, ids, metadata_list):
+        """Insert vectors into mutable buffer (immediately searchable)."""
+        key = (tenant_id, collection_id)
+
+        if key not in self.buffers:
+            self.buffers[key] = MutableBuffer(max_size=50_000)
+            self.metadata_store[key] = MetadataIndex()
+
+        buffer = self.buffers[key]
+        meta_idx = self.metadata_store[key]
+
+        for vec, vid, meta in zip(vectors, ids, metadata_list):
+            buffer.add(vid, vec)
+            meta_idx.add(vid, meta)
+
+        # If buffer is full, flush to HNSW
+        if buffer.size >= buffer.max_size:
+            self._flush_buffer(key)
+
+    def search(self, tenant_id, collection_id, query_vector,
+               top_k, filter_fn=None, ef_search=100):
+        """Search across HNSW index + mutable buffer."""
+        key = (tenant_id, collection_id)
+        results = []
+
+        # Search HNSW index (approximate)
+        if key in self.indexes:
+            idx = self.indexes[key]
+            idx.set_ef(ef_search)
+
+            if filter_fn:
+                # Use filter function during HNSW search
+                labels, distances = idx.knn_query(
+                    query_vector, k=top_k * 3,  # over-fetch for filtering
+                    filter=filter_fn
+                )
+            else:
+                labels, distances = idx.knn_query(query_vector, k=top_k)
+
+            for label, dist in zip(labels[0], distances[0]):
+                if label != -1:
+                    results.append((label, 1.0 - dist))  # cosine: 1 - distance
+
+        # Search mutable buffer (brute force)
+        if key in self.buffers:
+            buffer = self.buffers[key]
+            buffer_results = buffer.brute_force_search(
+                query_vector, top_k, filter_fn
+            )
+            results.extend(buffer_results)
+
+        # Merge and return top-k
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+    def _flush_buffer(self, key):
+        """Seal buffer and merge into HNSW index."""
+        buffer = self.buffers[key]
+        vectors, ids = buffer.get_all()
+
+        if key not in self.indexes:
+            # Create new HNSW index
+            dim = vectors.shape[1]
+            idx = hnswlib.Index(space='cosine', dim=dim)
+            idx.init_index(
+                max_elements=1_000_000,
+                ef_construction=200,
+                M=16
+            )
+            self.indexes[key] = idx
+
+        idx = self.indexes[key]
+
+        # Resize if needed
+        if idx.get_current_count() + len(ids) > idx.get_max_elements():
+            idx.resize_index(idx.get_max_elements() * 2)
+
+        idx.add_items(vectors, ids)
+
+        # Reset buffer
+        self.buffers[key] = MutableBuffer(max_size=50_000)
+
+        # Update memory tracking
+        self.memory_used = sum(
+            self._estimate_index_memory(idx)
+            for idx in self.indexes.values()
+        )
+
+    def _estimate_index_memory(self, idx):
+        """Estimate memory usage of an HNSW index."""
+        count = idx.get_current_count()
+        dim = idx.dim
+        M = idx.M
+        # Vectors + graph edges + overhead
+        return count * (dim * 4 + M * 2 * 8 + 64)
+
+
+class MutableBuffer:
+    """In-memory buffer for recently upserted vectors (brute-force search)."""
+
+    def __init__(self, max_size=50_000):
+        self.vectors = []
+        self.ids = []
+        self.max_size = max_size
+
+    @property
+    def size(self):
+        return len(self.ids)
+
+    def add(self, vid, vector):
+        self.vectors.append(vector)
+        self.ids.append(vid)
+
+    def brute_force_search(self, query, top_k, filter_fn=None):
+        if not self.vectors:
+            return []
+
+        query = np.array(query)
+        vectors = np.array(self.vectors)
+
+        # Cosine similarity via dot product (assumes normalized vectors)
+        scores = vectors @ query
+
+        results = []
+        for i, score in enumerate(scores):
+            if filter_fn is None or filter_fn(self.ids[i]):
+                results.append((self.ids[i], float(score)))
+
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+
+    def get_all(self):
+        return np.array(self.vectors), self.ids
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 12. COST OPTIMIZATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">12. Cost Optimization</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Reducing Infrastructure Costs at Scale</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Technique</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Savings</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trade-off</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Scalar Quantization</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">float32 &rarr; int8 (per-dimension min/max scaling)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">4x memory reduction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;1% recall loss for most embeddings</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Binary Quantization</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">float32 &rarr; 1-bit (sign of each dimension)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">32x memory reduction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5-10% recall loss; use as first-pass with re-ranking</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Matryoshka Embeddings</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Use first N dimensions of embedding (e.g., 256 of 1536)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">6x memory reduction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-5% recall loss; model must support it (OpenAI does)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Disk-based ANN</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Keep PQ codes in memory, full vectors on NVMe SSD</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10x memory reduction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5-10x latency increase; good for cost-tier</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Auto-scaling to zero</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Evict idle tenant indexes; load on-demand</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pay only when queried</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cold-start penalty (2-5 seconds)</td>
+                        </tr>
+                    </table>
+
+                    <div class="code-block">
+                        <code>
+# Scalar quantization: float32 -> int8 with minimal recall loss
+
+import numpy as np
+
+class ScalarQuantizer:
+    def __init__(self):
+        self.mins = None
+        self.maxs = None
+
+    def fit(self, vectors: np.ndarray):
+        """Compute per-dimension min/max from training data."""
+        self.mins = vectors.min(axis=0)
+        self.maxs = vectors.max(axis=0)
+        self.ranges = self.maxs - self.mins
+        self.ranges[self.ranges == 0] = 1.0  # avoid div by zero
+
+    def encode(self, vectors: np.ndarray) -> np.ndarray:
+        """Quantize float32 vectors to uint8."""
+        normalized = (vectors - self.mins) / self.ranges
+        return (normalized * 255).clip(0, 255).astype(np.uint8)
+
+    def decode(self, quantized: np.ndarray) -> np.ndarray:
+        """Reconstruct approximate float32 vectors from uint8."""
+        return (quantized.astype(np.float32) / 255) * self.ranges + self.mins
+
+# Usage:
+# Original: 1M vectors x 1536 dims x 4 bytes = 6.14 GB
+# Quantized: 1M vectors x 1536 dims x 1 byte  = 1.54 GB (4x savings)
+# Recall@10 drop: typically < 1% for OpenAI/Cohere embeddings
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 13. FAILURE HANDLING -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">13. Failure Scenarios &amp; Mitigations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Complete Failure Matrix</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scenario</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Detection</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Shard node OOM</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">All indexes on node lost from memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Health checks, memory alerts at 85%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Replicas serve queries; evict LRU tenant indexes proactively at 80%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HNSW index corruption</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wrong results or segfault</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Checksum validation on segment load; canary queries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rebuild from raw vectors in S3; fallback to brute-force while rebuilding</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Split brain (network partition)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Two nodes think they're primary for same shard</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">etcd lease expiry</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fencing tokens on writes; only the node holding the etcd lease can accept upserts</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Embedding model version change</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">New vectors incompatible with old index</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dimension mismatch, drift detection</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Track embedding model version per collection; require re-indexing on model change</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Kafka ingestion lag</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Freshness SLA breached</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Consumer lag monitoring</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auto-scale ingest workers; alert at 10-second lag</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tenant deletes all vectors, then queries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Empty results (correct), but wasted resources</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Collection stats monitoring</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tombstone compaction; release memory after compaction</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 14. OBSERVABILITY -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">14. Observability &amp; SLOs</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Key Metrics &amp; Dashboards</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Metric</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">SLO Target</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Alert Threshold</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Query latency p50 / p99</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">p50 &lt; 20ms, p99 &lt; 100ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">p99 &gt; 200ms for 5 minutes</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Upsert-to-searchable latency</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 5 seconds p99</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 30 seconds</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Availability</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">99.95%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Any 5xx spike</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Recall@10 (canary queries)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 95%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 90% (index degradation)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory utilization per node</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 80%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 85% (trigger eviction or scale-out)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Kafka consumer lag</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 1,000 messages</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 10,000 messages</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> The unique metric for vector databases is <em>recall quality</em>. Traditional databases have deterministic correctness &mdash; a query either returns the right rows or it doesn't. ANN search is <em>probabilistic</em> &mdash; you can return results that are "close enough" but miss the true nearest neighbors. Running periodic canary queries against a brute-force ground truth is essential for detecting index degradation.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 15. INTERVIEW SUMMARY -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">15. Summary &amp; Interview Tips</h2>
+
+            <div class="card">
+                <h4>Architecture Summary</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Total vectors</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">1B across 10K tenants</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Memory footprint</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~7 TB (HNSW, d=1536, M=16)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Query latency</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">p50 &lt; 20ms, p99 &lt; 100ms</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Indexing algorithm</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">HNSW (hot) + IVF-PQ (cost tier)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Tenancy model</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Hybrid: dedicated cluster / shared index-per-tenant / shared index</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Sharding</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Random assignment, scatter-gather queries</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Durability</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">WAL + S3 segments + replication</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Cluster size</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~70 nodes (r6g.8xlarge with replication)</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Common Interview Follow-Ups</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>"How would you handle a tenant with 500M vectors?"</strong> &rarr; Shard across 20+ nodes; scatter-gather queries; consider IVF-PQ for memory savings; cluster-based sharding for pruning.</li>
+                        <li><strong>"What happens when a new embedding model comes out?"</strong> &rarr; Collections are tied to a model version. Tenants must create a new collection, re-embed, and backfill. Support shadow indexing to build new index while old one serves traffic.</li>
+                        <li><strong>"How do you ensure tenant A can't see tenant B's data?"</strong> &rarr; Separate HNSW indexes (no shared graph traversal); tenant_id validated at API gateway from auth token; access logs audited; for enterprise: dedicated nodes + network isolation.</li>
+                        <li><strong>"How does filtered search interact with HNSW?"</strong> &rarr; Three strategies (pre/post/in-traversal); adaptive selection based on filter selectivity. This is the hardest part &mdash; discuss the sparse graph traversal problem.</li>
+                        <li><strong>"How do you do zero-downtime index migration?"</strong> &rarr; Build new index on shadow shard nodes; when ready, atomically swap shard map in etcd; old nodes drain and decommission. Similar to blue-green deployment.</li>
+                        <li><strong>"What about hybrid search (vector + keyword)?"</strong> &rarr; Maintain a parallel inverted index (BM25) alongside HNSW. Run both searches, combine scores with reciprocal rank fusion (RRF). This is what Weaviate and Vespa do.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What Distinguishes Staff-Level Answers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Topic</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior Answer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff Answer</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Indexing</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Use HNSW for vector search"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"HNSW for hot path with M=16; tiered with IVF-PQ for cost; discuss memory-performance tradeoff of ef_search"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-tenancy</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Add tenant_id filter"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Hybrid model: per-tenant indexes on shared infra for most; dedicated clusters for enterprise; serverless cold-start for free tier"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Isolation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Rate limit tenants"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Multi-layer: API rate limits + query complexity estimation + per-tenant concurrency semaphores + CPU cgroups"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Filtering</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Filter after search"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Adaptive pre/post/in-traversal based on selectivity; discuss sparse graph problem with pre-filter"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Use bigger machines"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Scalar quantization for 4x savings; Matryoshka embeddings; disk-based ANN for cold tier; auto-scale to zero"</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="video-streaming.html" class="btn btn-secondary">&larr; Previous: Video Streaming</a>
+                <a href="../module-06.html" class="btn btn-primary">Back to Problems &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        });
+    </script>
+</body>
+</html>
