@@ -288,7 +288,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <h1>System Design Cheat Sheet</h1>
-            <p class="text-muted mb-3">High-signal, opinionated summaries for 20 staff-level system design problems. Perfect for last-minute review.</p>
+            <p class="text-muted mb-3">High-signal, opinionated summaries for 21 staff-level system design problems. Perfect for last-minute review.</p>
 
             <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
 
@@ -315,6 +315,7 @@
                 <a href="#collaborative-editing" class="toc-link">Collaborative Editing</a>
                 <a href="#stock-exchange" class="toc-link">Stock Exchange</a>
                 <a href="#booking-system" class="toc-link">Booking System</a>
+                <a href="#vector-storage" class="toc-link">Vector Storage</a>
             </div>
 
             <!-- ==================== URL SHORTENER ==================== -->
@@ -1631,6 +1632,86 @@
                             <a href="https://github.com/tssovi/grokking-the-object-oriented-design-interview/blob/master/object-oriented-design-case-studies/design-airbnb.md" target="_blank" class="practice-link">
                                 <span>Airbnb OOD</span>
                                 <span class="source">GitHub</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== MULTI-TENANT VECTOR STORAGE ==================== -->
+            <div class="cheat-sheet-problem" id="vector-storage">
+                <h3>Multi-Tenant Vector Storage (Pinecone/Weaviate) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
+                <div class="problem-layout">
+                    <div class="problem-content">
+                        <h4>1) Key Algorithms & Core Tradeoffs</h4>
+                        <ul>
+                            <li><strong>HNSW (Hierarchical Navigable Small World):</strong> Multi-layer skip-list graph — O(log N) search, 99%+ recall, but requires full index in memory (~6.5 KB/vector at d=1536, M=16)</li>
+                            <li><strong>IVF-PQ (Inverted File + Product Quantization):</strong> K-means clustering + vector compression — 32x memory savings but 90-95% recall, requires offline training</li>
+                            <li><strong>Tradeoff:</strong> HNSW for latency-critical hot path; IVF-PQ for cost-sensitive cold tier. Tiered approach (like Pinecone serverless vs pods)</li>
+                            <li><strong>Filtered search:</strong> Pre-filter (selective >20%), post-filter (<1% selectivity), or in-traversal filter (adaptive). Sparse graph traversal is the hard sub-problem</li>
+                            <li><strong>Key params:</strong> <code>M</code> (edges/node), <code>ef_construction</code> (build quality), <code>ef_search</code> (query recall vs latency)</li>
+                        </ul>
+
+                        <h4>2) Read vs Write Pattern & Latency</h4>
+                        <ul>
+                            <li><strong>Read:Write ratio:</strong> 50:1 — RAG pipelines query far more than they index</li>
+                            <li><strong>P50/P99 latency:</strong> Queries 5ms/50ms (HNSW, 10M vectors); Upserts async via Kafka</li>
+                            <li><strong>Freshness:</strong> Two-phase — mutable buffer (brute-force, <1s) then HNSW merge (<5s)</li>
+                            <li><strong>Cold start:</strong> Idle tenant index load: 1-3s (SSD) or 2-5s (S3)</li>
+                        </ul>
+
+                        <h4>3) Core Data Stores</h4>
+                        <ul>
+                            <li><strong>HNSW index (in-memory/mmap):</strong> Primary search structure — graph must be memory-resident for low latency</li>
+                            <li><strong>WAL + Kafka:</strong> Durability — append-only log replicated before ACK</li>
+                            <li><strong>S3/GCS:</strong> Segment storage — immutable segments (vectors + graph + metadata index) for recovery and cold-start</li>
+                            <li><strong>etcd:</strong> Shard map, leader election — which node owns which tenant's index</li>
+                            <li><strong>PostgreSQL:</strong> Collection catalog — tenant/collection metadata, billing</li>
+                        </ul>
+
+                        <h4>4) Multi-Tenancy Model (The Core Challenge)</h4>
+                        <ul>
+                            <li><strong>Enterprise:</strong> Dedicated cluster — full isolation, custom SLA, VPC peering</li>
+                            <li><strong>Pro:</strong> Index-per-tenant on shared nodes — separate HNSW graphs, memory quotas, bin-packing placement</li>
+                            <li><strong>Free:</strong> Shared index with <code>tenant_id</code> filter — coldstart from S3, scale-to-zero</li>
+                            <li><strong>Noisy neighbor defense:</strong> Per-tenant concurrency semaphores + query complexity estimation + API rate limits + cgroups</li>
+                        </ul>
+
+                        <h4>5) One Failure Story</h4>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Large tenant batch-upserts 5M vectors, triggering HNSW index rebuild that OOMs the shared shard node<br>
+                            <strong>Who feels pain:</strong> All tenants co-located on that node — queries timeout; replicas diverge<br>
+                            <strong>Mitigation:</strong> Separate index builder pool (not on query nodes); memory budget enforcement at 80% with LRU eviction; async bulk upsert routed to dedicated ingest workers
+                        </div>
+
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.pinecone.io/learn/series/faiss/hnsw/" target="_blank">Pinecone: HNSW Explained</a> — Deep dive on HNSW algorithm, parameters, and recall-latency tradeoffs</li>
+                            <li><a href="https://weaviate.io/blog/multi-tenancy-vector-search" target="_blank">Weaviate: Multi-Tenancy in Vector Search</a> — Production multi-tenancy design with hot/cold index management</li>
+                            <li><a href="https://qdrant.tech/articles/filtrable-hnsw/" target="_blank">Qdrant: Filterable HNSW</a> — How filtered vector search actually works in production</li>
+                        </ul>
+                    </div>
+                    <div class="practice-sidebar">
+                        <h4>Practice Problems</h4>
+                        <div class="practice-section">
+                            <h5>Algorithm Practice</h5>
+                            <a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank" class="practice-link">
+                                <span>973. K Closest Points</span>
+                                <span class="difficulty medium">Med</span>
+                                <span class="source">LC</span>
+                            </a>
+                            <a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank" class="practice-link">
+                                <span>347. Top K Frequent</span>
+                                <span class="difficulty medium">Med</span>
+                                <span class="source">LC</span>
+                            </a>
+                        </div>
+                        <div class="practice-section">
+                            <h5>Deep Dive</h5>
+                            <a href="problems/vector-storage.html" class="practice-link">
+                                <span>Full Problem Breakdown</span>
+                                <span class="difficulty hard">Hard</span>
+                                <span class="source">Local</span>
                             </a>
                         </div>
                     </div>
