@@ -258,6 +258,8 @@
                     <a href="problems/news-feed.html" class="sidebar-link">News Feed</a>
                     <a href="problems/chat-system.html" class="sidebar-link">Chat System</a>
                     <a href="problems/video-streaming.html" class="sidebar-link">Video Streaming</a>
+                    <a href="problems/vector-storage.html" class="sidebar-link">Vector Storage</a>
+                    <a href="problems/airbnb-booking.html" class="sidebar-link">Airbnb Booking</a>
                 </div>
 
                 <div class="sidebar-section">
@@ -315,6 +317,7 @@
                 <a href="#collaborative-editing" class="toc-link">Collaborative Editing</a>
                 <a href="#stock-exchange" class="toc-link">Stock Exchange</a>
                 <a href="#booking-system" class="toc-link">Booking System</a>
+                <a href="#airbnb-booking" class="toc-link">Airbnb Booking</a>
                 <a href="#vector-storage" class="toc-link">Vector Storage</a>
             </div>
 
@@ -1574,7 +1577,7 @@
 
             <!-- ==================== BOOKING SYSTEM ==================== -->
             <div class="cheat-sheet-problem" id="booking-system">
-                <h3>Hotel/Flight Booking (Booking.com/Expedia) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
+                <h3>Hotel/Flight Booking (Booking.com/Expedia) <span class="difficulty-tag difficulty-medium">Medium</span> &nbsp;<a href="problems/airbnb-booking.html" style="font-size: 0.8rem; font-weight: normal;">Deep Dive: Airbnb Booking &rarr;</a></h3>
                 <div class="problem-layout">
                     <div class="problem-content">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
@@ -1632,6 +1635,79 @@
                             <a href="https://github.com/tssovi/grokking-the-object-oriented-design-interview/blob/master/object-oriented-design-case-studies/design-airbnb.md" target="_blank" class="practice-link">
                                 <span>Airbnb OOD</span>
                                 <span class="source">GitHub</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== AIRBNB BOOKING ==================== -->
+            <div class="cheat-sheet-problem" id="airbnb-booking">
+                <h3>Airbnb Booking System <span class="difficulty-tag difficulty-hard">Hard</span> &nbsp;<a href="problems/airbnb-booking.html" style="font-size: 0.8rem; font-weight: normal;">Full Deep Dive &rarr;</a></h3>
+                <div class="problem-layout">
+                    <div class="problem-content">
+                        <h4>1) Key Algorithms & Core Tradeoffs</h4>
+                        <ul>
+                            <li><strong>Calendar locking:</strong> SELECT FOR UPDATE on (listing_id, date) rows &mdash; simplicity vs distributed lock overhead</li>
+                            <li><strong>Availability bitmap:</strong> 365-day bitmap per listing in ES &mdash; search speed vs freshness (CDC lag)</li>
+                            <li><strong>Optimistic search + pessimistic booking:</strong> Eventual consistency for search, strong consistency for booking</li>
+                            <li><strong>Saga orchestration:</strong> Multi-step booking (lock &rarr; pay &rarr; confirm) with compensation</li>
+                            <li><strong>Dynamic pricing:</strong> ML model + rule engine, precomputed into Redis (7M &times; 365 = ~20 GB)</li>
+                        </ul>
+
+                        <h4>2) Read vs Write Pattern & Latency</h4>
+                        <ul>
+                            <li><strong>Read:Write ratio:</strong> 50,000:1 &mdash; search QPS dwarfs booking TPS</li>
+                            <li><strong>P50/P99 latency:</strong> Search 200ms/800ms; Booking 500ms/2s (includes payment auth)</li>
+                            <li><strong>Optimization:</strong> ES with bitmap for search; PG row locks for booking; Redis for pricing</li>
+                        </ul>
+
+                        <h4>3) Core Data Stores</h4>
+                        <ul>
+                            <li><strong>PostgreSQL:</strong> Bookings, Calendar (ACID), Payments &mdash; source of truth for correctness</li>
+                            <li><strong>Elasticsearch:</strong> Search (geo_distance + availability bitmap + filters)</li>
+                            <li><strong>Redis:</strong> Precomputed prices, session, rate limiting</li>
+                            <li><strong>Kafka + Debezium:</strong> CDC pipeline PG &rarr; ES for near-real-time search freshness</li>
+                        </ul>
+
+                        <h4>4) One Failure Story</h4>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> CDC pipeline lag during peak &mdash; search shows stale availability<br>
+                            <strong>Who feels pain:</strong> Guest &mdash; finds listing "available" in search, gets 409 Conflict at booking<br>
+                            <strong>Mitigation:</strong> Monitor Kafka consumer lag; auto-scale consumers; show "just booked" graceful error; optimistic search is a feature, not a bug
+                        </div>
+
+                        <h4>5) Best Reference</h4>
+                        <ul>
+                            <li><a href="problems/airbnb-booking.html">Full Airbnb Booking Deep Dive</a> &mdash; Complete staff-level breakdown with code</li>
+                            <li><a href="https://medium.com/airbnb-engineering/how-airbnb-avoids-double-payments-f93e3a83fe6e" target="_blank">Airbnb Engineering: Avoiding Double Payments</a> &mdash; Idempotency in payment systems</li>
+                        </ul>
+                    </div>
+                    <div class="practice-sidebar">
+                        <h4>Practice Problems</h4>
+                        <div class="practice-section">
+                            <h5>Algorithm Practice</h5>
+                            <a href="https://leetcode.com/problems/my-calendar-i/" target="_blank" class="practice-link">
+                                <span>729. My Calendar I</span>
+                                <span class="difficulty medium">Med</span>
+                                <span class="source">LC</span>
+                            </a>
+                            <a href="https://leetcode.com/problems/meeting-rooms-ii/" target="_blank" class="practice-link">
+                                <span>253. Meeting Rooms II</span>
+                                <span class="difficulty medium">Med</span>
+                                <span class="source">LC</span>
+                            </a>
+                            <a href="https://leetcode.com/problems/my-calendar-iii/" target="_blank" class="practice-link">
+                                <span>732. My Calendar III</span>
+                                <span class="difficulty hard">Hard</span>
+                                <span class="source">LC</span>
+                            </a>
+                        </div>
+                        <div class="practice-section">
+                            <h5>System Design Practice</h5>
+                            <a href="problems/airbnb-booking.html" class="practice-link">
+                                <span>Airbnb Booking Deep Dive</span>
+                                <span class="source">Here</span>
                             </a>
                         </div>
                     </div>

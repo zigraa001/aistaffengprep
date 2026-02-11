@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design Airbnb Booking System - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
+                <li><a href="../../company-specific/index.html">Companies</a></li>
+                <li><a href="../../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Problem Breakdowns</div>
+                    <a href="url-shortener.html" class="sidebar-link">URL Shortener</a>
+                    <a href="news-feed.html" class="sidebar-link">News Feed</a>
+                    <a href="chat-system.html" class="sidebar-link">Chat System</a>
+                    <a href="video-streaming.html" class="sidebar-link">Video Streaming</a>
+                    <a href="vector-storage.html" class="sidebar-link">Vector Storage</a>
+                    <a href="airbnb-booking.html" class="sidebar-link active">Airbnb Booking</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Back to Course</div>
+                    <a href="../index.html" class="sidebar-link">System Design Home</a>
+                    <a href="../module-06.html" class="sidebar-link">Common Problems</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Airbnb Booking System</h1>
+            <p class="text-muted">Examples: Airbnb, Vrbo, Booking.com, Agoda</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, #e74c3c22, #9b59b622);">
+                <strong>Difficulty:</strong> Hard (Staff-Level) | <strong>Time:</strong> 45-60 minutes |
+                <strong>Why it's asked:</strong> Tests two-sided marketplace dynamics, calendar-based locking, geo-spatial search, dynamic pricing, payment orchestration, and the critical tension between consistency (no double-booking) and availability (fast search).
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. REQUIREMENTS -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Listing management (hosts):</strong> Create/edit listings with photos, amenities, house rules, and per-night pricing calendars</li>
+                        <li><strong>Search (guests):</strong> Search by location (geo), check-in/check-out dates, guest count, price range, amenities, property type &mdash; return ranked results</li>
+                        <li><strong>Booking flow:</strong> Instant Book (auto-confirm) or Request to Book (host approval within 24h)</li>
+                        <li><strong>Availability calendar:</strong> Per-day pricing with blocked dates, minimum stay requirements, and seasonal adjustments</li>
+                        <li><strong>Payment splitting:</strong> Guest pays total &rarr; platform holds &rarr; host paid out 24h after check-in (minus platform fee)</li>
+                        <li><strong>Reviews:</strong> Dual-blind review system &mdash; both guest and host write reviews, revealed simultaneously after 14 days</li>
+                        <li><strong>Cancellation policies:</strong> Flexible, Moderate, Strict &mdash; each with different refund rules and host payout timelines</li>
+                        <li><strong>Messaging:</strong> In-app messaging between guest and host pre- and post-booking</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Strong consistency for bookings:</strong> No double-booking &mdash; if two guests try to book the same listing for overlapping dates, exactly one succeeds</li>
+                        <li><strong>Low-latency search:</strong> p50 &lt; 200ms, p99 &lt; 800ms for geo+date+filter queries</li>
+                        <li><strong>High availability:</strong> 99.99% for search; 99.95% for booking (degraded search is better than no search)</li>
+                        <li><strong>Global scale:</strong> 7M active listings, 150M users, 2M bookings/day peak (summer), 5K search QPS peak</li>
+                        <li><strong>Eventual consistency OK for:</strong> Search index (stale availability by minutes is acceptable), reviews, analytics</li>
+                        <li><strong>Multi-currency:</strong> Support 40+ currencies with real-time conversion at booking time</li>
+                        <li><strong>Idempotent payments:</strong> Network failures must not cause double charges</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> The core architectural tension is between <em>search availability</em> (eventual consistency, cache-friendly, read-optimized) and <em>booking correctness</em> (strong consistency, ACID transactions, write-optimized). A two-sided marketplace adds host availability dynamics &mdash; calendars change constantly, pricing is dynamic, and supply is heterogeneous &mdash; that are absent in single-sided systems like e-commerce.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. CAPACITY ESTIMATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Assumptions:</strong><br>
+                        - 7M active listings, 150M registered users<br>
+                        - 2M bookings/day peak &rarr; ~23 bookings/sec avg, ~100 TPS peak<br>
+                        - 5,000 search QPS peak (50x more than booking) <br>
+                        - Average listing: 10 photos &times; 500KB = 5MB<br><br>
+
+                        <strong>Calendar Data:</strong><br>
+                        7M listings &times; 365 days &times; ~100 bytes/day = ~250 GB<br>
+                        (each day row: listing_id, date, price, available, min_stay, booking_id)<br><br>
+
+                        <strong>Listing Metadata:</strong><br>
+                        7M &times; 10 KB avg (title, description, amenities, rules, location) = ~70 GB<br><br>
+
+                        <strong>Photos:</strong><br>
+                        7M listings &times; 5 MB avg = ~35 TB (S3 + CDN)<br><br>
+
+                        <strong>Search Index:</strong><br>
+                        7M documents &times; 5 KB/doc (denormalized) + availability bitmaps = ~50 GB in Elasticsearch<br><br>
+
+                        <strong>Booking Records:</strong><br>
+                        2M/day &times; 365 &times; 1 KB = ~700 GB/year
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> The read/write asymmetry is extreme: search is 50,000&times; more frequent than booking. This drives a fundamental architectural split &mdash; optimize search for throughput and cache-friendliness (Elasticsearch + CDN), optimize booking for correctness and consistency (PostgreSQL + row-level locks). Don't try to use a single data store for both.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. API DESIGN -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. API Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Core REST APIs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+// Search
+GET /v1/search?lat=37.77&amp;lng=-122.42&amp;radius=15km
+    &amp;check_in=2025-08-01&amp;check_out=2025-08-05
+    &amp;guests=4&amp;min_price=100&amp;max_price=300
+    &amp;amenities=wifi,pool&amp;property_type=entire_home
+    &amp;sort=relevance&amp;page=1&amp;page_size=20
+Resp: { "results": [...], "total": 342, "facets": {...} }
+
+// Listing Detail
+GET /v1/listings/{listing_id}
+Resp: { "id": "...", "title": "...", "host": {...},
+        "photos": [...], "amenities": [...], "reviews_summary": {...} }
+
+// Calendar / Availability
+GET /v1/listings/{listing_id}/calendar?start=2025-08-01&amp;end=2025-08-31
+Resp: { "days": [
+    { "date": "2025-08-01", "available": true, "price": 180, "min_stay": 2 },
+    { "date": "2025-08-02", "available": false, "booking_id": "..." },
+    ...
+]}
+
+PUT /v1/listings/{listing_id}/calendar
+Body: { "dates": [{"date": "2025-08-10", "price": 200, "available": true}] }
+
+// Booking
+POST /v1/bookings
+Headers: Idempotency-Key: "uuid-v4-here"
+Body: { "listing_id": "...", "check_in": "2025-08-01",
+        "check_out": "2025-08-05", "guests": 4,
+        "payment_method_id": "pm_xxx", "currency": "USD",
+        "special_requests": "Late check-in around 10pm" }
+Resp: { "booking_id": "bk_abc123", "status": "CONFIRMED" | "PENDING_HOST",
+        "total_price": 920, "service_fee": 130.64, ... }
+
+// Payment (internal, triggered by booking service)
+POST /v1/payments/authorize
+Body: { "booking_id": "...", "amount": 920, "currency": "USD",
+        "idempotency_key": "...", "payment_method_id": "pm_xxx" }
+
+POST /v1/payments/capture   // at check-in
+POST /v1/payments/refund    // on cancellation
+
+// Reviews
+POST /v1/bookings/{booking_id}/reviews
+Body: { "rating": 5, "text": "Amazing stay!", "category_ratings": {...} }
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">API Design Decisions</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Decision</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GET for search (not POST)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cacheable by CDN/proxy; shareable URLs; browser back-button friendly</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Idempotency-Key header on booking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Client retries on network failure won't create duplicate bookings or charges</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Separate calendar endpoint</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Calendar changes frequently (host updates pricing); don't cache with listing detail</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Async payment capture</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Authorize at booking, capture at check-in &mdash; supports cancellation window</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. DATA MODEL & STORAGE -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Data Model &amp; Storage</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Core Schemas</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+-- PostgreSQL: Booking & Calendar (source of truth)
+
+CREATE TABLE listings (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    host_id     UUID NOT NULL REFERENCES users(id),
+    title       VARCHAR(200) NOT NULL,
+    description TEXT,
+    property_type VARCHAR(50),   -- entire_home, private_room, shared_room
+    lat         DECIMAL(9,6) NOT NULL,
+    lng         DECIMAL(9,6) NOT NULL,
+    city        VARCHAR(100),
+    country     VARCHAR(2),      -- ISO 3166-1 alpha-2
+    max_guests  SMALLINT NOT NULL,
+    bedrooms    SMALLINT,
+    bathrooms   SMALLINT,
+    amenities   JSONB,           -- ["wifi", "pool", "parking", ...]
+    house_rules JSONB,
+    cancellation_policy VARCHAR(20) DEFAULT 'moderate',
+    instant_book BOOLEAN DEFAULT true,
+    base_price  INTEGER NOT NULL, -- cents, default nightly price
+    currency    VARCHAR(3) DEFAULT 'USD',
+    status      VARCHAR(20) DEFAULT 'active',
+    created_at  TIMESTAMPTZ DEFAULT now(),
+    updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- THE HEART OF THE SYSTEM: one row per listing per date
+CREATE TABLE calendar (
+    listing_id  UUID NOT NULL REFERENCES listings(id),
+    date        DATE NOT NULL,
+    price       INTEGER NOT NULL,        -- cents for this specific night
+    available   BOOLEAN DEFAULT true,
+    min_stay    SMALLINT DEFAULT 1,
+    booking_id  UUID REFERENCES bookings(id),  -- NULL if available
+    PRIMARY KEY (listing_id, date),
+    -- THIS CONSTRAINT PREVENTS DOUBLE-BOOKING AT THE DB LEVEL
+    CONSTRAINT unique_booking_per_date
+        UNIQUE (listing_id, date, booking_id)
+);
+
+CREATE TABLE bookings (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    listing_id      UUID NOT NULL REFERENCES listings(id),
+    guest_id        UUID NOT NULL REFERENCES users(id),
+    check_in        DATE NOT NULL,
+    check_out       DATE NOT NULL,
+    guests          SMALLINT NOT NULL,
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
+        -- pending, confirmed, cancelled, completed
+    nightly_total   INTEGER NOT NULL,    -- sum of per-night prices (cents)
+    service_fee     INTEGER NOT NULL,    -- platform fee (cents)
+    total_price     INTEGER NOT NULL,    -- nightly + cleaning + service fee
+    currency        VARCHAR(3) NOT NULL,
+    cancellation_policy VARCHAR(20) NOT NULL,
+    idempotency_key VARCHAR(64) UNIQUE,  -- prevents duplicate bookings
+    created_at      TIMESTAMPTZ DEFAULT now(),
+    updated_at      TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX idx_bookings_listing ON bookings(listing_id, check_in, check_out);
+CREATE INDEX idx_bookings_guest   ON bookings(guest_id, status);
+
+CREATE TABLE payments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id      UUID NOT NULL REFERENCES bookings(id),
+    type            VARCHAR(20) NOT NULL, -- authorization, capture, refund, payout
+    amount          INTEGER NOT NULL,     -- cents
+    currency        VARCHAR(3) NOT NULL,
+    status          VARCHAR(20) NOT NULL, -- pending, succeeded, failed
+    provider_ref    VARCHAR(100),         -- Stripe charge ID etc
+    idempotency_key VARCHAR(64) UNIQUE,
+    created_at      TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE reviews (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id  UUID NOT NULL REFERENCES bookings(id),
+    author_id   UUID NOT NULL REFERENCES users(id),
+    target_id   UUID NOT NULL REFERENCES users(id), -- host or guest
+    listing_id  UUID NOT NULL REFERENCES listings(id),
+    rating      SMALLINT CHECK (rating BETWEEN 1 AND 5),
+    text        TEXT,
+    revealed    BOOLEAN DEFAULT false, -- blind until both submit or 14 days
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Database Choice by Component</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Store</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Used For</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why This Store</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>PostgreSQL</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bookings, Calendar, Payments, Users</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ACID transactions, row-level locking for double-booking prevention, strong consistency</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Elasticsearch</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search (geo + text + filters + availability)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">geo_distance queries, faceted search, full-text, bitmap filters for availability</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Redis</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Price cache, session, rate limiting, hot listing counts</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sub-ms reads; precomputed price lookups during search</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>S3 + CDN</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Listing photos, user avatars</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">35 TB of images; CDN edge caching for global low-latency delivery</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Kafka + ClickHouse</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Event streaming, analytics, CDC pipeline</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Async propagation from PG &rarr; ES; real-time analytics dashboards</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> The <code>calendar</code> table with <code>(listing_id, date)</code> as the composite primary key is the heart of the entire system. Every booking operation is ultimately a transactional update to calendar rows. The <code>booking_id</code> column being NOT NULL for booked dates (plus the uniqueness constraint) is the database-level guard against double-booking. This is simpler and more reliable than application-level locks.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. HIGH-LEVEL ARCHITECTURE -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. High-Level Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Clients"
+        WEB["Web App"]
+        MOB["Mobile App"]
+    end
+
+    subgraph "Edge"
+        CDN["CDN (CloudFront)"]
+        AG["API Gateway / LB"]
+    end
+
+    subgraph "Core Services"
+        SS["Search Service"]
+        LS["Listing Service"]
+        CS["Calendar Service"]
+        BS["Booking Service"]
+        PS["Payment Service"]
+        PR["Pricing Engine"]
+        RS["Review Service"]
+        NS["Notification Service"]
+        MS["Messaging Service"]
+    end
+
+    subgraph "Data Stores"
+        PG["PostgreSQL\n(Bookings, Calendar)"]
+        ES["Elasticsearch\n(Search Index)"]
+        RD["Redis\n(Cache, Pricing)"]
+        S3["S3 + CDN\n(Photos)"]
+    end
+
+    subgraph "Async"
+        KF["Kafka"]
+        CDC["CDC Pipeline\n(Debezium)"]
+        AN["ClickHouse\n(Analytics)"]
+    end
+
+    WEB & MOB --> CDN --> AG
+    AG --> SS & LS & CS & BS & PS & RS & MS
+    SS --> ES & RD
+    LS --> PG & S3
+    CS --> PG & RD
+    BS --> PG & PS & CS & NS
+    PS -->|"Stripe/Adyen"| EXT["Payment Provider"]
+    PR --> RD
+    RS --> PG
+
+    PG --> CDC --> KF
+    KF --> ES & AN & NS
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Component Responsibilities</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Service</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Responsibility</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Consistency</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Geo + date + filter queries against ES; facets; ranking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Eventual (stale by minutes OK)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Calendar Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Manages per-day availability, pricing, min-stay rules</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strong (PG transactions)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Orchestrates the booking saga: validate &rarr; lock &rarr; pay &rarr; confirm</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strong (saga with compensation)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Payment Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auth holds, captures, refunds, host payouts</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strong (idempotent operations)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pricing Engine</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic pricing suggestions, precomputed price cache</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Eventual (batch-updated)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CDC Pipeline</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Streams PG changes to Kafka &rarr; ES + Analytics</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Eventual (&lt;10s lag)</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. DEEP DIVE: SEARCH -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Deep Dive &mdash; Search (Geo + Availability + Pricing)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Search Challenge</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Airbnb search must intersect three dimensions simultaneously: <strong>geographic proximity</strong>, <strong>temporal availability</strong> (specific dates), and <strong>attribute filters</strong> (price, amenities, property type). Doing this efficiently at 5K QPS over 7M listings is the hardest part of the system.</p>
+
+                    <h4 class="mt-3">Naive Approach (and why it fails)</h4>
+                    <p>Query Elasticsearch for geo + filters, then for each result, query PostgreSQL calendar to check availability. At 5K QPS with 200 results each, that's 1M calendar lookups/second &mdash; PostgreSQL collapses.</p>
+
+                    <h4 class="mt-3">Recommended: Availability Bitmap Approach</h4>
+                    <p>Precompute a 365-day availability bitmap per listing and store it in Elasticsearch alongside listing data. During search, filter by bitmap at query time. Re-check availability in PostgreSQL only at booking time.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Guest
+    participant API as API Gateway
+    participant Search as Search Service
+    participant ES as Elasticsearch
+    participant Redis
+    participant PG as PostgreSQL
+
+    Guest->>API: GET /search?lat,lng,dates,filters
+    API->>Search: Forward query
+    Search->>ES: geo_distance + bitmap_check(dates) + filters
+    ES-->>Search: 200 matching listings (pre-filtered by availability)
+    Search->>Redis: Batch fetch prices for date range
+    Redis-->>Search: Per-night prices for top 20
+    Search-->>API: Ranked results with total prices
+    API-->>Guest: Search results page
+
+    Note over Guest,PG: Later, at booking time...
+    Guest->>API: POST /bookings {listing_id, dates}
+    API->>PG: SELECT FOR UPDATE calendar WHERE dates AND available=true
+    PG-->>API: Confirmed available (real-time check)
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Availability Bitmap in Elasticsearch</h4>
+                    <div class="code-block">
+                        <code>
+# Elasticsearch document per listing (denormalized)
+{
+    "listing_id": "lst_abc123",
+    "location": { "lat": 37.7749, "lon": -122.4194 },
+    "property_type": "entire_home",
+    "max_guests": 6,
+    "bedrooms": 3,
+    "amenities": ["wifi", "pool", "parking"],
+    "base_price": 180,
+    "rating": 4.8,
+    "review_count": 127,
+    "instant_book": true,
+
+    # 365-day availability bitmap: 1 = available, 0 = booked/blocked
+    # Day 0 = today, Day 1 = tomorrow, ...
+    "availability_bitmap": "11111110001111111100011111111000..."
+    # (365 chars, updated via CDC pipeline)
+}
+
+# Search query: find listings near SF, available Aug 1-5, with wifi
+GET /listings/_search
+{
+    "query": {
+        "bool": {
+            "must": [
+                { "geo_distance": {
+                    "distance": "15km",
+                    "location": { "lat": 37.77, "lon": -122.42 }
+                }},
+                { "term": { "property_type": "entire_home" }},
+                { "range": { "max_guests": { "gte": 4 } }},
+                { "terms": { "amenities": ["wifi"] }}
+            ],
+            "filter": [
+                # Script filter checks bitmap positions for requested dates
+                { "script": {
+                    "script": {
+                        "source": """
+                            def bitmap = doc['availability_bitmap'].value;
+                            for (int d = params.start_day; d < params.end_day; d++) {
+                                if (d >= bitmap.length() || bitmap.charAt(d) == '0') return false;
+                            }
+                            return true;
+                        """,
+                        "params": { "start_day": 120, "end_day": 124 }
+                    }
+                }}
+            ]
+        }
+    },
+    "sort": [
+        { "_score": "desc" },
+        { "rating": "desc" }
+    ]
+}
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Search Index Update Pipeline (CDC)</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    PG["PostgreSQL\n(calendar table)"]
+    DEB["Debezium\n(CDC)"]
+    KF["Kafka\n(calendar-changes topic)"]
+    CONS["Bitmap Builder\n(Consumer)"]
+    ES["Elasticsearch\n(update bitmap field)"]
+
+    PG -->|"WAL stream"| DEB --> KF --> CONS --> ES
+
+    style PG fill:#336791,color:#fff
+    style ES fill:#f0db4f,color:#333
+    style KF fill:#231f20,color:#fff
+                        </div>
+                    </div>
+                    <p>When a host blocks dates or a booking is confirmed, the CDC pipeline captures the calendar change, the consumer recalculates the 365-day bitmap, and updates the ES document. Typical propagation latency: 2-10 seconds.</p>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight &mdash; "Optimistic Search, Pessimistic Booking":</strong> This is the key architectural pattern. Search uses eventually-consistent bitmaps (fast, scalable, but may show a listing as available when it was just booked). Booking uses a real-time PostgreSQL transaction with row-level locking (slow but correct). The worst case is a guest sees a listing in search results that turns out to be unavailable when they try to book &mdash; a minor UX annoyance, not a correctness violation.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. DEEP DIVE: DOUBLE-BOOKING PREVENTION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. Deep Dive &mdash; Double-Booking Prevention</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Concurrency Control Strategies</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When two guests simultaneously try to book the same listing for overlapping dates, exactly one must succeed. This is the single most important correctness requirement.</p>
+
+                    <h4 class="mt-3">Approach Comparison</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How It Works</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pros</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cons</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>SELECT FOR UPDATE (Recommended)</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lock calendar rows for the date range within a transaction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple, battle-tested, ACID guarantees</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Holds row locks during payment auth (~500ms)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Optimistic Concurrency (version check)</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">UPDATE ... WHERE available=true AND version=X; check rowcount</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No blocking; good for low contention</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retry storms under high contention</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Distributed Lock (Redis Redlock)</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Acquire lock on listing_id before booking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Works for hot listings with extreme contention</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extra infrastructure; lock expiry edge cases</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Serializable Isolation</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SET TRANSACTION ISOLATION LEVEL SERIALIZABLE</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strongest guarantee</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High abort rate under contention; expensive</td>
+                        </tr>
+                    </table>
+
+                    <h4 class="mt-3">Recommended: Two-Phase Calendar Locking</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant G1 as Guest 1
+    participant G2 as Guest 2
+    participant BS as Booking Service
+    participant PG as PostgreSQL
+
+    G1->>BS: Book listing X, Aug 1-5
+    G2->>BS: Book listing X, Aug 3-7
+
+    BS->>PG: BEGIN; SELECT FROM calendar WHERE listing_id=X AND date IN (Aug 1-5) AND available=true FOR UPDATE
+    Note over PG: Rows locked for Guest 1
+
+    BS->>PG: BEGIN; SELECT FROM calendar WHERE listing_id=X AND date IN (Aug 3-7) FOR UPDATE
+    Note over PG: Guest 2 BLOCKS on rows Aug 3-5 (held by Guest 1)
+
+    PG-->>BS: Guest 1: 5 rows returned (all available)
+    BS->>PG: UPDATE calendar SET available=false, booking_id=bk_1 WHERE listing_id=X AND date IN (Aug 1-5)
+    BS->>PG: COMMIT
+
+    Note over PG: Guest 2 unblocks, reads updated rows
+    PG-->>BS: Guest 2: only 2 of 5 rows available (Aug 3-5 already booked)
+    BS->>PG: ROLLBACK
+    BS-->>G2: 409 Conflict: dates no longer available
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Implementation</h4>
+                    <div class="code-block">
+                        <code>
+# booking_service.py - Calendar locking with SELECT FOR UPDATE
+
+import asyncpg
+from datetime import date, timedelta
+from typing import List
+from uuid import uuid4
+
+async def create_booking(
+    pool: asyncpg.Pool,
+    listing_id: str,
+    guest_id: str,
+    check_in: date,
+    check_out: date,
+    idempotency_key: str
+) -> dict:
+    """Atomically lock calendar dates and create booking."""
+
+    # Generate date range
+    num_nights = (check_out - check_in).days
+    dates = [check_in + timedelta(days=i) for i in range(num_nights)]
+
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            # 1. Check idempotency (replay protection)
+            existing = await conn.fetchrow(
+                "SELECT id, status FROM bookings WHERE idempotency_key = $1",
+                idempotency_key
+            )
+            if existing:
+                return {"booking_id": existing["id"], "status": existing["status"]}
+
+            # 2. Lock calendar rows (SELECT FOR UPDATE)
+            #    ORDER BY date prevents deadlocks between concurrent txns
+            rows = await conn.fetch("""
+                SELECT date, price, available, booking_id
+                FROM calendar
+                WHERE listing_id = $1 AND date = ANY($2)
+                ORDER BY date
+                FOR UPDATE
+            """, listing_id, dates)
+
+            # 3. Validate all dates are available
+            if len(rows) != num_nights:
+                raise BookingError("Calendar not configured for all dates")
+
+            unavailable = [r["date"] for r in rows if not r["available"]]
+            if unavailable:
+                raise BookingError(
+                    f"Dates unavailable: {unavailable}"
+                )
+
+            # 4. Calculate total price from per-night prices
+            nightly_total = sum(r["price"] for r in rows)
+            service_fee = int(nightly_total * 0.142)  # 14.2% guest fee
+            total_price = nightly_total + service_fee
+
+            # 5. Create booking record
+            booking_id = str(uuid4())
+            await conn.execute("""
+                INSERT INTO bookings
+                    (id, listing_id, guest_id, check_in, check_out,
+                     guests, status, nightly_total, service_fee,
+                     total_price, currency, idempotency_key)
+                VALUES ($1,$2,$3,$4,$5,$6,'confirmed',$7,$8,$9,'USD',$10)
+            """, booking_id, listing_id, guest_id, check_in, check_out,
+                 1, nightly_total, service_fee, total_price, idempotency_key)
+
+            # 6. Mark calendar dates as booked (atomic with booking)
+            await conn.execute("""
+                UPDATE calendar
+                SET available = false, booking_id = $1
+                WHERE listing_id = $2 AND date = ANY($3)
+            """, booking_id, listing_id, dates)
+
+            return {
+                "booking_id": booking_id,
+                "status": "confirmed",
+                "total_price": total_price
+            }
+                        </code>
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> At Airbnb's scale (~100 booking TPS peak across 7M listings), the average contention per listing is ~0.01 bookings/sec/listing. This is extremely low &mdash; database-level row locking (SELECT FOR UPDATE) is more than sufficient. You don't need Redis distributed locks or complex conflict resolution. Always add the unique constraint on <code>(listing_id, date, booking_id)</code> as a safety net &mdash; even if the application logic has a bug, the DB won't allow double-booking.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. DEEP DIVE: BOOKING SAGA -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Deep Dive &mdash; Booking Saga (Orchestration)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Step Booking Flow</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A booking involves multiple services (calendar, payment, notification) that must either all succeed or all roll back. We use an <strong>orchestrator-based saga</strong> pattern with compensation actions.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Guest
+    participant BS as Booking Service<br/>(Orchestrator)
+    participant CS as Calendar Service
+    participant PS as Payment Service
+    participant NS as Notification Service
+    participant Host
+
+    Guest->>BS: POST /bookings
+    BS->>BS: Validate request & idempotency check
+
+    rect rgb(200, 230, 200)
+        Note over BS,PS: Happy Path
+        BS->>CS: Lock dates (SELECT FOR UPDATE)
+        CS-->>BS: Dates locked OK
+
+        BS->>PS: Authorize payment hold
+        PS-->>BS: Auth hold OK (hold_id: hld_123)
+
+        alt Instant Book
+            BS->>BS: Set status = CONFIRMED
+        else Request to Book
+            BS->>BS: Set status = PENDING_HOST
+            BS->>NS: Notify host (24h to respond)
+            Host-->>BS: Host approves
+            BS->>BS: Set status = CONFIRMED
+        end
+
+        BS->>NS: Confirm booking notification (guest + host)
+        BS-->>Guest: 200 OK {booking_id, status: CONFIRMED}
+    end
+
+    rect rgb(255, 200, 200)
+        Note over BS,PS: Compensation Path (if payment fails)
+        BS->>CS: Lock dates OK
+        BS->>PS: Authorize payment
+        PS-->>BS: PAYMENT DECLINED
+        BS->>CS: COMPENSATE: Unlock dates (set available=true)
+        BS-->>Guest: 402 Payment Failed
+    end
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Compensation Actions</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Step</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Forward Action</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Compensation</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trigger</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lock calendar dates</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Unlock dates (set available=true, booking_id=NULL)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Payment failure, host decline, timeout</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Authorize payment hold</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Void authorization / release hold</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Host decline, timeout, guest cancel</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Host approval (Request to Book)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auto-decline after 24h timeout</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Timer expiry</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">4</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Send confirmation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">(no compensation needed &mdash; notification is idempotent)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">N/A</td>
+                        </tr>
+                    </table>
+
+                    <h4 class="mt-3">Saga Orchestrator State Machine</h4>
+                    <div class="code-block">
+                        <code>
+# booking_saga.py - State machine for booking orchestration
+
+from enum import Enum
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+
+class SagaState(Enum):
+    INITIATED       = "initiated"
+    DATES_LOCKED    = "dates_locked"
+    PAYMENT_HELD    = "payment_held"
+    PENDING_HOST    = "pending_host"
+    CONFIRMED       = "confirmed"
+    FAILED          = "failed"
+    COMPENSATING    = "compensating"
+
+@dataclass
+class BookingSaga:
+    booking_id: str
+    state: SagaState
+    listing_id: str
+    dates: list
+    hold_id: str = None
+    failure_reason: str = None
+
+    async def execute(self, services):
+        """Drive the saga forward from current state."""
+        try:
+            if self.state == SagaState.INITIATED:
+                await services.calendar.lock_dates(
+                    self.listing_id, self.dates, self.booking_id
+                )
+                self.state = SagaState.DATES_LOCKED
+
+            if self.state == SagaState.DATES_LOCKED:
+                self.hold_id = await services.payment.authorize(
+                    self.booking_id
+                )
+                self.state = SagaState.PAYMENT_HELD
+
+            if self.state == SagaState.PAYMENT_HELD:
+                listing = await services.listing.get(self.listing_id)
+                if listing.instant_book:
+                    self.state = SagaState.CONFIRMED
+                else:
+                    self.state = SagaState.PENDING_HOST
+                    await services.notification.notify_host(
+                        self.listing_id, self.booking_id,
+                        deadline=datetime.utcnow() + timedelta(hours=24)
+                    )
+
+            if self.state == SagaState.CONFIRMED:
+                await services.notification.confirm_booking(
+                    self.booking_id
+                )
+
+        except Exception as e:
+            self.failure_reason = str(e)
+            await self.compensate(services)
+
+    async def compensate(self, services):
+        """Undo completed steps in reverse order."""
+        self.state = SagaState.COMPENSATING
+
+        if self.hold_id:
+            await services.payment.void_hold(self.hold_id)
+            self.hold_id = None
+
+        await services.calendar.unlock_dates(
+            self.listing_id, self.dates, self.booking_id
+        )
+
+        self.state = SagaState.FAILED
+                        </code>
+                    </div>
+
+                    <h4 class="mt-3">Edge Cases</h4>
+                    <ul>
+                        <li><strong>Host timeout (24h):</strong> A scheduled job checks PENDING_HOST bookings older than 24h. Auto-declines and runs compensation (void payment hold, unlock dates). This penalizes the host's response rate.</li>
+                        <li><strong>Payment hold expiry:</strong> Stripe auth holds expire after 7 days. For Request-to-Book, if the host takes close to 24h, re-authorize if needed. Track hold expiry timestamps.</li>
+                        <li><strong>Saga orchestrator crash:</strong> Persist saga state to database. On restart, load incomplete sagas and resume from last completed step. This is why idempotent steps are critical &mdash; replaying a completed step must be safe.</li>
+                        <li><strong>Partial date lock:</strong> If only 3 of 5 dates can be locked (race condition), the transaction rolls back atomically since it's a single PG transaction.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. DEEP DIVE: DYNAMIC PRICING -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Deep Dive &mdash; Dynamic Pricing</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Pricing Engine Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Airbnb's Smart Pricing suggests prices to hosts based on multiple factors. The pricing engine must serve two use cases: real-time price suggestions (host dashboard) and batch price precomputation (search optimization).</p>
+
+                    <h4 class="mt-3">Pricing Factors</h4>
+                    <ul>
+                        <li><strong>Seasonality:</strong> Historical demand patterns by location and time of year (Christmas in NYC, summer in Barcelona)</li>
+                        <li><strong>Local events:</strong> Concerts, conferences, sports events drive demand spikes (Super Bowl, CES)</li>
+                        <li><strong>Supply/demand balance:</strong> Ratio of available listings to search volume for a location+date</li>
+                        <li><strong>Booking lead time:</strong> Last-minute bookings often command higher prices; far-future bookings lower</li>
+                        <li><strong>Listing attributes:</strong> Quality signals (reviews, Superhost status, photos quality score)</li>
+                        <li><strong>Competitive pricing:</strong> Similar listings in the area and their current pricing</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Input Features"
+        HIST["Historical Demand\n(by location+season)"]
+        EVENTS["Event Calendar\n(concerts, sports)"]
+        SUPPLY["Real-time Supply\n(available listings)"]
+        DEMAND["Search Volume\n(recent queries)"]
+        LISTING["Listing Features\n(rating, amenities)"]
+    end
+
+    subgraph "Pricing Engine"
+        ML["ML Model\n(gradient boosted trees)"]
+        RULES["Rule Engine\n(min/max bounds,\nhost overrides)"]
+    end
+
+    subgraph "Output"
+        CACHE["Redis Price Cache\n(7M listings x 365 days\n= ~20 GB)"]
+        HOST["Host Dashboard\n(price suggestions)"]
+    end
+
+    HIST & EVENTS & SUPPLY & DEMAND & LISTING --> ML
+    ML --> RULES
+    RULES --> CACHE & HOST
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Price Cache Design</h4>
+                    <div class="code-block">
+                        <code>
+# Redis key structure for price cache
+# Key: price:{listing_id}:{date}  Value: price_cents
+# TTL: 24 hours (re-computed daily by batch job)
+
+# Batch precomputation (runs daily at 2 AM UTC)
+# 7M listings x 365 days = 2.555B keys
+# Each key: ~30 bytes key + 4 bytes value = ~34 bytes
+# Total: 2.555B * 34 bytes ≈ 87 GB
+# With Redis hash packing: ~20 GB (hash key = listing_id, field = date)
+
+# Hash structure (more memory efficient):
+# HSET price:lst_abc123 2025-08-01 18000 2025-08-02 18500 ...
+
+# Search flow: when returning results, batch-fetch prices
+# HMGET price:lst_abc123 2025-08-01 2025-08-02 2025-08-03 2025-08-04
+# Returns: [18000, 18500, 19000, 18000] (cents per night)
+# Total for 4 nights: $735.00
+                        </code>
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight:</strong> Precomputing prices into Redis means the search path never needs to call the pricing engine or query per-night calendar prices from PostgreSQL. At 5K search QPS with 20 results each, that's 100K Redis HMGET/sec &mdash; trivial for a Redis cluster. The daily batch job takes ~30 minutes on a Spark cluster. Hosts who manually set prices override the ML suggestion, and their prices go directly into the cache.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. DEEP DIVE: PAYMENT SPLITTING -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">10. Deep Dive &mdash; Payment Splitting</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Payment Flow &amp; Split Calculation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Guest
+    participant BS as Booking Service
+    participant PS as Payment Service
+    participant Stripe
+    participant Host
+
+    Note over Guest,Host: At Booking Time
+    Guest->>BS: POST /bookings
+    BS->>PS: Authorize $920 (total)
+    PS->>Stripe: Create PaymentIntent (auth only)
+    Stripe-->>PS: pi_xxx (authorized, not captured)
+    PS-->>BS: Hold confirmed
+
+    Note over Guest,Host: At Check-in (T+0)
+    BS->>PS: Capture $920
+    PS->>Stripe: Capture PaymentIntent pi_xxx
+    Stripe-->>PS: Captured
+
+    Note over Guest,Host: 24 Hours After Check-in (T+1)
+    PS->>PS: Calculate split
+    Note over PS: Guest paid: $920<br/>Service fee (14.2%): $130.64<br/>Host fee (3%): $23.69<br/>Host payout: $920 - $130.64 - $23.69 = $765.67
+    PS->>Stripe: Transfer $765.67 to host Connected Account
+    Stripe-->>Host: Payout initiated
+
+    Note over Guest,Host: On Cancellation (if applicable)
+    Guest->>BS: Cancel booking
+    BS->>PS: Calculate refund per cancellation policy
+    PS->>Stripe: Refund (full/partial based on policy)
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Key Payment Design Decisions</h4>
+                    <ul>
+                        <li><strong>Auth hold at booking, capture at check-in:</strong> Gives a cancellation window without immediately charging. Holds typically expire after 7 days, so for bookings far in advance, charge a deposit and hold the remainder closer to check-in.</li>
+                        <li><strong>24h payout delay:</strong> If the guest reports issues on check-in day, the platform has time to intervene before the host is paid.</li>
+                        <li><strong>Idempotency keys on every payment call:</strong> Network retries must never cause double charges. Map booking_id to Stripe PaymentIntent ID.</li>
+                        <li><strong>Multi-currency:</strong> Guest is charged in their local currency. Host receives payout in their preferred currency. Platform records the exchange rate at booking time and absorbs FX risk (or passes it to the host).</li>
+                        <li><strong>Reconciliation:</strong> Daily batch job compares internal payment records with Stripe's records. Flag discrepancies (missed captures, orphaned holds) for manual review.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 11. DEEP DIVE: TRUST & SAFETY -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">11. Deep Dive &mdash; Trust &amp; Safety</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Review System &amp; Fraud Detection</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Blind Double-Review System</h4>
+                    <p>Both guest and host submit reviews independently. Reviews are hidden (revealed = false) until <strong>both</strong> submit or <strong>14 days</strong> pass after checkout, whichever comes first. This prevents retaliatory reviews.</p>
+                    <ul>
+                        <li>Both submit &rarr; both reviews revealed simultaneously</li>
+                        <li>Only one submits within 14 days &rarr; that review is revealed; the other party's window closes</li>
+                        <li>Neither submits &rarr; no reviews for this booking</li>
+                    </ul>
+
+                    <h4 class="mt-3">Fraud Detection Pipeline</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Event Sources"
+        BOOK["Booking Events"]
+        PAY["Payment Events"]
+        MSG["Message Events"]
+        SRCH["Search Patterns"]
+    end
+
+    subgraph "Processing"
+        KF["Kafka\n(event stream)"]
+        FLINK["Flink\n(real-time scoring)"]
+        ML["ML Model\n(fraud probability)"]
+    end
+
+    subgraph "Actions"
+        BLOCK["Block Booking"]
+        FLAG["Flag for Review"]
+        ALLOW["Allow"]
+    end
+
+    BOOK & PAY & MSG & SRCH --> KF --> FLINK --> ML
+    ML -->|"score > 0.9"| BLOCK
+    ML -->|"0.5 < score < 0.9"| FLAG
+    ML -->|"score < 0.5"| ALLOW
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Fraud Signals</h4>
+                    <ul>
+                        <li><strong>New account + expensive first booking:</strong> High-risk signal for stolen credit cards</li>
+                        <li><strong>Host and guest in same geo + short stay:</strong> Possible fake booking for review farming</li>
+                        <li><strong>Rapid booking pattern:</strong> Bot activity or scalping (booking and immediately cancelling to block competitors)</li>
+                        <li><strong>Message content analysis:</strong> Attempts to move communication off-platform (sharing phone numbers, emails) to avoid platform fees</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 12. DEEP DIVE: MULTI-REGION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">12. Deep Dive &mdash; Global Multi-Region Deployment</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Region Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "US-West (Primary for Americas)"
+        AG1["API Gateway"]
+        SS1["Search + ES"]
+        BS1["Booking + PG Primary"]
+        RD1["Redis"]
+    end
+
+    subgraph "EU-West (Primary for EMEA)"
+        AG2["API Gateway"]
+        SS2["Search + ES"]
+        BS2["Booking + PG Primary"]
+        RD2["Redis"]
+    end
+
+    subgraph "AP-Southeast (Primary for APAC)"
+        AG3["API Gateway"]
+        SS3["Search + ES"]
+        BS3["Booking + PG Primary"]
+        RD3["Redis"]
+    end
+
+    BS1 <-->|"Cross-region\nreplication"| BS2 <-->|"Cross-region\nreplication"| BS3
+    SS1 <-->|"ES cross-cluster\nsearch"| SS2 <-->|"ES cross-cluster\nsearch"| SS3
+
+    GLB["Global Load Balancer\n(Route53 / GeoDNS)"]
+    GLB --> AG1 & AG2 & AG3
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Consistency Model per Component</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Component</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search (ES)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Replicate globally; query local cluster</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low latency; eventual consistency is fine for search</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking (PG)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Partition by listing region; route booking to listing's home region</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Strong consistency for booking; avoid cross-region transactions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Price Cache (Redis)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Replicate globally (read replicas per region)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prices are batch-computed; staleness by hours is acceptable</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Photos (S3+CDN)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">S3 cross-region replication; CDN serves from edge</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Immutable content; replicate once, cache forever</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff Insight &mdash; Geographic Affinity:</strong> The key insight is that a listing is physically located in one region, and all bookings for that listing should be routed to the PG primary in that region. A guest in the US searching for apartments in Paris will see search results from their local ES cluster (fast), but when they click "Book", the booking request is routed to EU-West where the listing's calendar lives (strong consistency, slightly higher latency from cross-region hop &mdash; acceptable since booking is a one-time action, not a repeated query).
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 13. WORKING IMPLEMENTATION -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">13. Working Implementation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Booking Service (FastAPI)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+# booking_api.py - FastAPI booking service
+
+from fastapi import FastAPI, HTTPException, Header
+from pydantic import BaseModel
+from datetime import date
+import asyncpg
+import uuid
+
+app = FastAPI()
+pool: asyncpg.Pool = None
+
+@app.on_event("startup")
+async def startup():
+    global pool
+    pool = await asyncpg.create_pool(
+        "postgresql://booking_user:pass@pg-primary:5432/airbnb",
+        min_size=10, max_size=50
+    )
+
+class BookingRequest(BaseModel):
+    listing_id: str
+    check_in: date
+    check_out: date
+    guests: int
+    payment_method_id: str
+    currency: str = "USD"
+
+@app.post("/v1/bookings")
+async def create_booking_endpoint(
+    req: BookingRequest,
+    idempotency_key: str = Header(..., alias="Idempotency-Key")
+):
+    try:
+        result = await create_booking(
+            pool=pool,
+            listing_id=req.listing_id,
+            guest_id="current_user_id",  # from auth middleware
+            check_in=req.check_in,
+            check_out=req.check_out,
+            idempotency_key=idempotency_key
+        )
+
+        # Async: authorize payment (would normally call payment service)
+        # await payment_service.authorize(result["booking_id"], ...)
+
+        return result
+
+    except BookingError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+class BookingError(Exception):
+    pass
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Search Query Builder</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+# search_service.py - Elasticsearch query builder
+
+from elasticsearch import AsyncElasticsearch
+from datetime import date, timedelta
+
+es = AsyncElasticsearch(["http://es-cluster:9200"])
+
+async def search_listings(
+    lat: float, lng: float, radius: str,
+    check_in: date, check_out: date,
+    guests: int, min_price: int = None,
+    max_price: int = None, amenities: list = None,
+    property_type: str = None,
+    page: int = 1, page_size: int = 20
+) -> dict:
+    # Calculate bitmap day offsets from today
+    today = date.today()
+    start_day = (check_in - today).days
+    end_day = (check_out - today).days
+
+    must_clauses = [
+        {"geo_distance": {
+            "distance": radius,
+            "location": {"lat": lat, "lon": lng}
+        }},
+        {"range": {"max_guests": {"gte": guests}}}
+    ]
+
+    if property_type:
+        must_clauses.append({"term": {"property_type": property_type}})
+    if amenities:
+        for amenity in amenities:
+            must_clauses.append({"term": {"amenities": amenity}})
+    if min_price:
+        must_clauses.append({"range": {"base_price": {"gte": min_price}}})
+    if max_price:
+        must_clauses.append({"range": {"base_price": {"lte": max_price}}})
+
+    # Availability bitmap filter
+    filter_clauses = [
+        {"script": {
+            "script": {
+                "source": """
+                    def bm = doc['availability_bitmap'].value;
+                    for (int d = params.s; d &lt; params.e; d++) {
+                        if (d >= bm.length() || bm.charAt(d) == '0')
+                            return false;
+                    }
+                    return true;
+                """,
+                "params": {"s": start_day, "e": end_day}
+            }
+        }}
+    ]
+
+    body = {
+        "query": {
+            "bool": {
+                "must": must_clauses,
+                "filter": filter_clauses
+            }
+        },
+        "sort": [
+            {"_score": "desc"},
+            {"rating": "desc"},
+            {"review_count": "desc"}
+        ],
+        "from": (page - 1) * page_size,
+        "size": page_size
+    }
+
+    result = await es.search(index="listings", body=body)
+    return {
+        "results": [hit["_source"] for hit in result["hits"]["hits"]],
+        "total": result["hits"]["total"]["value"]
+    }
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 14. FAILURE HANDLING -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">14. Failure Scenarios &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Complete Failure Matrix</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scenario</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL primary down</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No new bookings; search still works (ES unaffected)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Automatic failover to synchronous replica (RTO &lt;30s); queue booking requests during failover</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Elasticsearch cluster down</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search unavailable; existing bookings unaffected</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-AZ ES deployment; fallback to cached search results or PG geo query (degraded)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Payment provider timeout</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking stuck in "payment pending" state</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retry with idempotency key; circuit breaker; dates remain locked with 15-min TTL</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CDC pipeline lag (&gt;5 min)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search shows stale availability; guests see "available" but booking fails</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Monitor Kafka consumer lag; auto-scale consumers; graceful "just booked" message to user</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Double charge (network retry)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Guest charged twice for same booking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Idempotency keys on all payment operations; daily reconciliation job</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking service crash mid-saga</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dates locked but booking incomplete; "ghost lock"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Saga state persisted in DB; recovery job resumes or compensates incomplete sagas</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hot listing (celebrity property)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lock contention on calendar rows; booking latency spike</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Queue bookings per-listing (serialize via Redis lock); return "pending" status immediately</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Redis price cache failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search results missing total prices</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fallback to base_price from ES document; show "estimated price" badge</td>
+                        </tr>
+                    </table>
+
+                    <h4 class="mt-3">Disaster Recovery Targets</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Component</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">RPO (data loss)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">RTO (recovery time)</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking DB (PostgreSQL)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">0 (synchronous replication)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;30 seconds</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search Index (ES)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minutes (rebuilt from PG via CDC)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;5 minutes</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Price Cache (Redis)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hours (batch recomputed daily)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;30 minutes (warm cache from backup)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Photos (S3)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">0 (S3 cross-region replication)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Instant (failover to replica region)</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 15. SUMMARY -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">15. Summary &amp; Interview Tips</h2>
+
+            <div class="card">
+                <h4>Architecture Summary</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Scale</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">7M listings, 150M users, 2M bookings/day, 5K search QPS</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Search</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Elasticsearch with availability bitmap + geo_distance + filters</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Booking consistency</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">PostgreSQL SELECT FOR UPDATE on calendar rows</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Key pattern</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Optimistic search (eventual) + Pessimistic booking (strong)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Saga orchestration</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Lock dates &rarr; Auth payment &rarr; Host approval &rarr; Confirm</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Pricing</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">ML model + rule engine; precomputed into Redis (~20 GB)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Payment</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Auth hold at booking, capture at check-in, host payout at T+24h</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Multi-region</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Geographic affinity: booking routes to listing's home region</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Common Interview Follow-Ups</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>"How do you prevent double-booking?"</strong> &rarr; Calendar table with (listing_id, date) PK; SELECT FOR UPDATE in a transaction; unique constraint as safety net. At 0.01 bookings/sec/listing, DB locking is sufficient.</li>
+                        <li><strong>"How does search handle availability checking efficiently?"</strong> &rarr; Precomputed 365-day availability bitmap in ES, updated via CDC pipeline. Check bitmap at query time; re-verify in PG only at booking time.</li>
+                        <li><strong>"What happens if the payment provider is down?"</strong> &rarr; Circuit breaker pattern; dates stay locked with a 15-min TTL; retry with idempotency key; saga compensates if payment ultimately fails.</li>
+                        <li><strong>"How do you handle a celebrity listing with thousands of concurrent booking attempts?"</strong> &rarr; Serialize booking attempts per-listing with a Redis queue; return "pending" immediately; process sequentially. First successful booking wins.</li>
+                        <li><strong>"How would you add Experiences (tours, cooking classes)?"</strong> &rarr; Same calendar model but with capacity (10 spots vs 1 for a house). Change calendar check from "available = true" to "booked_count &lt; capacity". Decrement atomically.</li>
+                        <li><strong>"How do you handle timezone issues for check-in/check-out?"</strong> &rarr; All dates stored as listing-local dates (DATE type, not TIMESTAMP). A listing in Tokyo has its check-in at "2025-08-01" in JST. The guest in NYC sees "Aug 1" regardless of their timezone.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What Distinguishes Staff-Level Answers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Topic</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior Answer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff Answer</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Use Elasticsearch for geo search"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"ES with precomputed availability bitmaps; CDC pipeline for freshness; optimistic search, pessimistic booking"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Booking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Lock the dates in the database"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Calendar table with composite PK; SELECT FOR UPDATE; saga orchestrator with compensation; contention analysis shows DB locks sufficient at this scale"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Payment</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Charge the guest when they book"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Auth hold at booking, capture at check-in, 24h delayed host payout; idempotency keys on all calls; daily reconciliation"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-region</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Deploy in multiple regions"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Geographic affinity: partition booking DB by listing region; replicate search globally; route bookings to listing's home region for strong consistency"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pricing</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Store prices in the database"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"ML pricing engine with daily batch precomputation into Redis; 7M x 365 days fits in ~20 GB; search never hits PG for pricing"</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="vector-storage.html" class="btn btn-secondary">&larr; Previous: Vector Storage</a>
+                <a href="../module-06.html" class="btn btn-primary">Back to Problems &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        });
+    </script>
+</body>
+</html>
