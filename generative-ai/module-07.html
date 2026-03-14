@@ -286,6 +286,11 @@
                     <li>Flash Attention and memory-efficient attention mechanisms</li>
                     <li>Speculative decoding for faster generation</li>
                     <li>Pruning strategies for model compression</li>
+                    <li><strong>Transformer Inference Arithmetic:</strong> FLOPs vs memory boundedness, the roofline model, arithmetic intensity threshold (A100: 156 FLOPs/byte)</li>
+                    <li><strong>Prefill vs Decode:</strong> Two distinct performance regimes — compute-bound vs memory-bandwidth-bound</li>
+                    <li><strong>KV cache memory calculations:</strong> Exact formulas for cache size, max sequence length, and MQA/GQA reduction</li>
+                    <li><strong>Batch size effects:</strong> Why and when larger batches cross from memory-bound to compute-bound</li>
+                    <li><strong>Tensor parallelism overhead:</strong> Communication latency in multi-GPU inference</li>
                 </ul>
             </div>
 
@@ -2304,6 +2309,363 @@ print(f"Sparsity: {zero_params / total_params:.2%}")</code>
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION 8: INFERENCE ARITHMETIC -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">8. Transformer Inference Arithmetic: FLOPs vs Memory Boundedness</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Roofline Model: Are You Compute-Bound or Memory-Bound?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>The Core Insight:</strong> Every GPU operation is either throttled by <em>compute throughput</em> (FLOPs/sec) or by <em>memory bandwidth</em> (bytes/sec). The ratio of operations to bytes loaded — called <strong>arithmetic intensity</strong> — determines which regime you're in. This single number explains why batch size, KV cache, and quantization affect latency the way they do.
+                    </div>
+
+                    <h4>A100 Hardware Numbers (the baseline for all calculations)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Resource</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">A100 80GB SXM</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">H100 SXM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Peak FP16 FLOPs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">312 × 10¹² FLOPs/sec</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">989 × 10¹² FLOPs/sec</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HBM Memory Bandwidth</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2.0 × 10¹² bytes/sec</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">3.35 × 10¹² bytes/sec</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory Capacity</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">80 GB HBM2e</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">80 GB HBM3</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">NVLink Bandwidth</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">600 GB/sec (bidirectional)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">900 GB/sec (bidirectional)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Arithmetic Intensity Threshold</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>312e12 ÷ 2.0e12 ≈ 156 FLOPs/byte</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>≈ 295 FLOPs/byte</strong></td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-info">
+                        <div class="callout-title">The Threshold Rule</div>
+                        <p>If your operation performs <strong>&lt; 156 FLOPs per byte loaded</strong> on an A100, you're <strong>memory bandwidth-bound</strong> — throwing more compute at it does nothing. If &gt; 156, you're <strong>compute-bound</strong> — more memory bandwidth won't help.</p>
+                        <p>The roofline time is: <code>time = max(FLOPs / 312e12, bytes / 2.0e12)</code></p>
+                    </div>
+
+                    <h4>Arithmetic Intensity of Each Transformer Layer Operation</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Operation</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">FLOPs / byte loaded</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Bound at batch=1?</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Crosses threshold at batch=?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Q, K, V projection</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B × d_model / (d_model)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory (1 × d_model / d_model = 1)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B ≈ 156</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Output projection</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B × d_model / (d_model)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B ≈ 156</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">FFN expand (×4)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B × 4 × d_model / (4 × d_model)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B ≈ 156</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Attention scores (QKᵀ)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">B × n_seq × d_head / (B × n_seq × d_head)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Depends on seq length</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="key-insight">
+                        <strong>Key insight for decoding:</strong> At batch=1, every weight matrix multiply during decoding is memory-bandwidth bound. You're paying to load ~2 bytes per weight but only doing 2 FLOPs with it (one multiply-add). The GPU's 312 TFLOPs is almost entirely wasted. This is why decoding is slow — it's limited by HBM bandwidth, not compute.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Prefill vs Decode: Two Completely Different Performance Regimes</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A single LLM inference request has two distinct phases with radically different performance characteristics:</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Dimension</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Prefill (Prompt Processing)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Decode (Token Generation)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">What it does</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Processes all prompt tokens at once in parallel</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Generates one token at a time, autoregressively</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Parallelism</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Full matrix-matrix multiply (all tokens simultaneously)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Matrix-vector multiply (one token)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Arithmetic intensity</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High — O(seq_len × d_model²) FLOPs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Low — O(d_model²) FLOPs per step</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Bottleneck</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Compute-bound</strong> for long prompts</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Memory bandwidth-bound</strong> at small batch sizes</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">What determines TTFT</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Prompt token count × compute FLOPs/token</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">N/A (TTFT = end of prefill)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">What determines TPOT</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">N/A</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Model size / (GPU bandwidth × batch utilization)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPU utilization</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~50–70% MFU (model FLOPs utilization)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~5–15% MFU (most compute wasted)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant User
+    participant GPU as GPU (Prefill)
+    participant GPU2 as GPU (Decode)
+    participant Cache as KV Cache
+
+    User->>GPU: "Explain transformer inference" (512 tokens)
+    Note over GPU: Prefill: Process 512 tokens in parallel<br/>Compute-bound, ~40ms on A100<br/>Writes K,V for all 512 tokens to cache
+    GPU->>Cache: Store K,V for 512 prompt tokens
+    GPU->>GPU2: Hand off to decode phase
+    loop Generate each output token
+        GPU2->>Cache: Read all K,V (grows each step)
+        Note over GPU2: Memory-bandwidth bound<br/>~10-25ms/token at batch=1
+        GPU2->>User: Stream next token
+        GPU2->>Cache: Append new K,V
+    end
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>KV Cache Memory Arithmetic: Exact Calculations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>KV Cache Size Formula</h4>
+                    <div class="code-block">
+<code># KV Cache memory per token (bytes, in FP16/BF16):
+# 2 (K and V) × n_layers × n_heads × d_head × 2 bytes (FP16)
+# = 4 × n_layers × d_model bytes   (since n_heads × d_head = d_model)
+
+def kv_cache_bytes_per_token(n_layers, d_model):
+    """Assumes FP16/BF16, standard MHA where n_heads × d_head = d_model."""
+    return 4 * n_layers * d_model  # bytes
+
+# Real model examples:
+# Llama-2-7B:   32 layers, d_model=4096  → 4 × 32 × 4096  = 524 KB/token
+# Llama-2-13B:  40 layers, d_model=5120  → 4 × 40 × 5120  = 819 KB/token
+# Llama-2-70B:  80 layers, d_model=8192  → 4 × 80 × 8192  = 2.5 MB/token
+# GPT-3 175B:   96 layers, d_model=12288 → 4 × 96 × 12288 = 4.7 MB/token
+
+# Maximum sequence length given available GPU memory:
+def max_kv_tokens(gpu_memory_bytes, model_weights_bytes, n_layers, d_model):
+    available = gpu_memory_bytes - model_weights_bytes
+    per_token = kv_cache_bytes_per_token(n_layers, d_model)
+    return int(available / per_token)
+
+# Llama-2-7B on 1× A100 80GB:
+# Model weights (FP16): 7B × 2 bytes = 14 GB
+# Available for KV: 80 - 14 = 66 GB
+# Max tokens: 66e9 / 524_288 ≈ 126,000 tokens (limited by memory, not model)
+
+# Llama-2-70B on 1× A100 80GB:
+# Model weights (FP16): 70B × 2 bytes = 140 GB → DOESN'T FIT on one GPU
+# Need 2× A100 = 160GB: available = 160 - 140 = 20 GB
+# Max tokens: 20e9 / 2_621_440 ≈ 7,600 tokens</code>
+                    </div>
+
+                    <h4>Why KV Cache Makes Decode Memory-Bandwidth Bound</h4>
+                    <p>At each decode step, the GPU must:</p>
+                    <ol>
+                        <li>Load all model weights: <strong>2 × P bytes</strong> (FP16, one full forward pass)</li>
+                        <li>Load the entire KV cache: <strong>4 × n_layers × d_model × seq_len bytes</strong></li>
+                        <li>Perform <strong>2P FLOPs</strong> (two multiply-adds per weight)</li>
+                    </ol>
+                    <div class="callout callout-info">
+                        <div class="callout-title">The Weight Loading Dominates</div>
+                        <p>For a 7B model at batch=1: loading weights = 14 GB. At 2 TB/s bandwidth, that's <strong>7ms per token</strong> minimum — just to read the weights. This is the memory bandwidth wall. The only way to escape it: (1) use bigger batches to amortize weight loading, (2) reduce model size (quantization), (3) reduce weights loaded (MQA/GQA).</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Batch Size: Escaping the Memory Bandwidth Wall</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>The Key Trick:</strong> With batch_size=B, you load the model weights <em>once</em> but do B independent forward passes. This multiplies arithmetic intensity by B — the same weights produce B times more useful output. At B=156 (for A100), you cross from memory-bound to compute-bound.
+                    </div>
+
+                    <h4>Latency vs Throughput as Batch Size Grows (7B model, A100)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Batch Size</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Regime</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Latency/token</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">System Throughput (tok/s)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">GPU Utilization</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory-bound</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~7–10ms</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~80–130 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;5%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">16</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Memory-bound</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~12ms</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~1,300 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~15%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">64</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Transitional</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~18ms</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~3,500 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~40%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">156 (critical)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Crossover point</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~25ms</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~6,000 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~50%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">512</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Compute-bound</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~75ms</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~6,800 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~90%</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">The Latency-Throughput Tradeoff is Fundamental</div>
+                        <p>Larger batches improve GPU utilization and throughput but increase latency per request (tokens have to wait for the batch to fill). You cannot simultaneously minimize per-request latency and maximize throughput. In production: use continuous batching (vLLM, TGI) to get the best of both — requests are added to mid-flight batches so you never wait for a full batch to accumulate.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Query &amp; Grouped-Query Attention: Reducing KV Cache Bottleneck</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Standard Multi-Head Attention (MHA) caches K and V for <em>every</em> head separately. This is expensive. MQA and GQA reduce the number of K,V heads without much accuracy loss:</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Variant</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">KV heads</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">KV Cache Size</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Bandwidth Reduction</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Quality Impact</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Adopted By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MHA</strong> (baseline)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">n_heads (e.g., 32)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2 × n_layers × n_heads × d_head</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">—</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Best quality</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPT-3, Llama-2-7B</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MQA</strong> (Multi-Query)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 shared KV head</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">÷ n_heads vs MHA</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Up to 32× smaller KV cache</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~1–2% accuracy drop</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Falcon, PaLM</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>GQA</strong> (Grouped-Query)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">G groups (e.g., 8)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">÷ (n_heads/G) vs MHA</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">4–8× smaller (e.g., G=8 → 4× reduction)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;0.5% drop</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-2-70B, Llama 3, Mistral, Gemma</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block">
+<code>import torch
+import torch.nn.functional as F
+
+class GroupedQueryAttention(torch.nn.Module):
+    """GQA: n_kv_heads < n_heads. Each KV group is shared by (n_heads // n_kv_heads) query heads."""
+
+    def __init__(self, d_model=4096, n_heads=32, n_kv_heads=8):
+        super().__init__()
+        assert n_heads % n_kv_heads == 0
+        self.n_heads = n_heads
+        self.n_kv_heads = n_kv_heads
+        self.n_rep = n_heads // n_kv_heads  # queries per KV group
+        self.d_head = d_model // n_heads
+
+        self.q_proj = torch.nn.Linear(d_model, d_model, bias=False)
+        self.k_proj = torch.nn.Linear(d_model, n_kv_heads * self.d_head, bias=False)  # Smaller!
+        self.v_proj = torch.nn.Linear(d_model, n_kv_heads * self.d_head, bias=False)  # Smaller!
+        self.o_proj = torch.nn.Linear(d_model, d_model, bias=False)
+
+    def forward(self, x, kv_cache=None):
+        B, T, C = x.shape
+        q = self.q_proj(x).view(B, T, self.n_heads, self.d_head).transpose(1, 2)
+        k = self.k_proj(x).view(B, T, self.n_kv_heads, self.d_head).transpose(1, 2)
+        v = self.v_proj(x).view(B, T, self.n_kv_heads, self.d_head).transpose(1, 2)
+
+        if kv_cache is not None:
+            k = torch.cat([kv_cache["k"], k], dim=2)
+            v = torch.cat([kv_cache["v"], v], dim=2)
+
+        # Repeat K,V for each query in the group
+        k = k.repeat_interleave(self.n_rep, dim=1)  # (B, n_heads, T, d_head)
+        v = v.repeat_interleave(self.n_rep, dim=1)
+
+        out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+        return self.o_proj(out.transpose(1, 2).reshape(B, T, C))</code>
+                    </div>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> GQA is now the default in modern LLMs (Llama 3, Mistral, Gemma) because it gives near-MHA quality with 4–8× smaller KV cache. When discussing inference optimization at staff level, mention that KV cache size scales with <em>both</em> sequence length and batch size — that's why long-context models (128K tokens) are so memory-hungry even with GQA.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Tensor Parallelism: Communication Overhead in Multi-GPU Inference</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When a model doesn't fit on one GPU, weights are sharded across devices (tensor parallelism). Each decode step requires 4 all-reduce communications — one per weight matrix multiply that crosses shard boundaries:</p>
+
+                    <div class="code-block">
+<code># Communication cost per decode step with tensor parallelism (N GPUs):
+# 4 all-reduces per layer × n_layers
+# Each all-reduce moves: 2 × (N-1)/N × d_model bytes  ≈ 2 × d_model bytes
+
+# Compute time (memory-bandwidth bound, batch=1):
+# time_compute = (2 × P_params) / (N × bandwidth_per_gpu)
+
+# Communication time:
+# time_comms = 4 × n_layers × 8μs (NVLink latency, not bandwidth-limited for small tensors)
+
+# Example: 70B model on 8× A100s (NVLink, latency ≈ 8μs/hop):
+n_layers = 80
+nvlink_latency_us = 8
+comms_time_ms = (4 * n_layers * nvlink_latency_us) / 1000
+# = 4 × 80 × 8μs = 2.56ms per token
+
+# Compute time (70B on 8× A100):
+P = 70e9
+N = 8
+bw = 2e12  # bytes/sec per GPU
+compute_time_ms = (2 * P) / (N * bw) * 1000
+# = 140e9 / (16e12) × 1000 = 8.75ms per token
+
+# Total: ~8.75 + 2.56 = ~11.3ms per token
+# (Communications add ~29% overhead — significant!)
+print(f"Compute: {compute_time_ms:.1f}ms, Comms: {comms_time_ms:.1f}ms")</code>
+                    </div>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Communication Latency Scales with Layer Count, Not Model Size</div>
+                        <p>Adding more GPUs reduces compute time but communication overhead stays constant (4 × n_layers × latency). This creates a <strong>scaling cliff</strong>: beyond a certain number of GPUs, adding more GPUs helps compute but communication latency dominates. For Llama-2-70B, 8× A100 is near optimal; 16× A100 provides minimal additional benefit for single-request latency.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Speculative Decoding: Exploiting the Compute-Bound Gap</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>The Insight:</strong> During prefill, the GPU is ~50-70% utilized (compute-bound). During decode, it's &lt;5% utilized (memory-bound). Speculative decoding exploits this asymmetry: use a small "draft" model to generate K candidate tokens, then verify all K with the target model in a single prefill-like forward pass (compute-bound, efficient).
+                    </div>
+
+                    <h4>Speedup Formula</h4>
+                    <div class="code-block">
+<code># Speculative decoding speedup:
+# - Draft model generates K tokens (fast, small model)
+# - Target model verifies all K in one batched forward pass
+# - Expected accepted tokens per verification: K × acceptance_rate
+#   where acceptance_rate = P(draft_token == target_top1_token) ≈ 0.7-0.9
+
+# Speedup = (expected_accepted_tokens) / (time for K draft + 1 target verification)
+#          ≈ K × alpha / (K × t_draft/t_target + 1)
+# where alpha = token acceptance rate, t_draft/t_target = latency ratio
+
+# Example: Llama-3 70B (target) + Llama-3 8B (draft) on A100
+K = 5          # draft tokens per speculation
+alpha = 0.80   # acceptance rate (depends on task, typically 0.7-0.9)
+# Latency ratio: 8B/70B = roughly 0.15 (8B is ~7x faster)
+t_ratio = 0.15
+
+expected_accepted = K * alpha  # = 4.0 tokens
+time_per_cycle = K * t_ratio + 1  # = 5 × 0.15 + 1 = 1.75 target-equivalent steps
+speedup = expected_accepted / time_per_cycle
+print(f"Expected speedup: {speedup:.1f}×")  # → ~2.3×
+
+# Real-world speedups: 1.5–3× depending on task and models
+# Coding tasks: higher acceptance (~0.85) → ~2.5–3× speedup
+# Creative writing: lower acceptance (~0.65) → ~1.5–2× speedup</code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- STAFF-LEVEL METRICS REFERENCE -->
             <!-- ============================================ -->
             <h2 class="mt-4">Staff-Level Metrics Reference</h2>
@@ -2755,8 +3117,12 @@ if __name__ == "__main__":
                     <li><strong>LoRA:</strong> Fine-tune only low-rank adapter matrices (~0.1% of parameters). Enables fine-tuning on consumer hardware.</li>
                     <li><strong>QLoRA:</strong> Combine 4-bit quantization with LoRA for fine-tuning 70B models on single GPUs.</li>
                     <li><strong>Flash Attention:</strong> Tile attention computation to fit in SRAM, avoiding O(N^2) memory. 2-4x speedup.</li>
-                    <li><strong>Speculative Decoding:</strong> Use small model to draft, large model to verify. Works because LLM inference is memory-bound.</li>
+                    <li><strong>Speculative Decoding:</strong> Use small model to draft, large model to verify. Works because LLM inference is memory-bound. Speedup formula: K×α / (K×t_ratio + 1). Expect 1.5–3×.</li>
                     <li><strong>Pruning:</strong> Remove unimportant weights. Structured pruning gives direct speedup, unstructured needs sparse hardware.</li>
+                    <li><strong>Inference Arithmetic:</strong> Decode is memory-bandwidth-bound at small batch. A100 threshold: 156 FLOPs/byte. Escape it with larger batches, quantization (INT4 = 8× memory reduction), or GQA (4–8× smaller KV cache).</li>
+                    <li><strong>Prefill vs Decode:</strong> Prefill is compute-bound (parallel), decode is memory-bound (sequential). TTFT is dominated by prefill; TPOT by weight loading bandwidth.</li>
+                    <li><strong>MQA/GQA:</strong> GQA (used in Llama 3, Mistral, Gemma) reduces KV cache 4–8× with &lt;0.5% quality loss. Default in modern LLMs.</li>
+                    <li><strong>Tensor Parallelism:</strong> Communication adds 4 × n_layers × 8μs latency per token. For 70B on 8× A100: ~2.5ms overhead (~29% of compute time).</li>
                 </ul>
 
                 <h4 class="mt-3">How This Connects Forward</h4>
