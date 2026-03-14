@@ -1647,6 +1647,153 @@ Use the available tools when needed."""
             </div>
 
             <!-- ============================================ -->
+            <!-- STAFF-LEVEL METRICS REFERENCE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">Staff-Level Metrics Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Agent Evaluation Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Agents are significantly harder to evaluate than single-turn LLM calls. You need metrics that capture the full trajectory, not just the final answer.</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Definition</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Target</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">How to Measure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Task Completion Rate (TCR)</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of tasks where the agent fully accomplishes the goal</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;80% for production</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LLM judge evaluates final state vs goal</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Tool Call Accuracy</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of tool invocations with correct name + valid parameters</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;90%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Schema validation + golden set comparison</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Average Steps to Completion</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Mean number of Thought→Action→Observation cycles</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Close to optimal path length</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Compare to human-defined optimal plan</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Cost per Successful Task</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Total tokens (input + output) for completed tasks ÷ TCR</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Define budget per task type</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Track total_tokens × $/token / TCR</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Error Recovery Rate</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of tool errors the agent successfully recovers from</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;70%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Inject synthetic errors; measure task completion</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Loop/Cycle Rate</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of tasks where agent enters a repetitive loop</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;2%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Detect repeated (tool, args) pairs in trajectory</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Hallucinated Tool Call Rate</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of calls to tools that don't exist in the schema</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0% (critical failure)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Schema validation at runtime</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block">
+<code>class AgentMetricsTracker:
+    """Track key agent evaluation metrics in production."""
+
+    def __init__(self):
+        self.trajectories = []
+
+    def record(self, task_id, goal, steps, final_state, total_tokens, success):
+        self.trajectories.append({
+            "task_id": task_id,
+            "goal": goal,
+            "steps": steps,
+            "final_state": final_state,
+            "total_tokens": total_tokens,
+            "success": success,
+            "tool_calls": [s for s in steps if s["type"] == "action"],
+            "errors": [s for s in steps if s.get("error")],
+        })
+
+    def compute_metrics(self):
+        n = len(self.trajectories)
+        successful = [t for t in self.trajectories if t["success"]]
+        tcr = len(successful) / n
+
+        avg_steps = sum(len(t["steps"]) for t in self.trajectories) / n
+        avg_cost_per_success = (
+            sum(t["total_tokens"] for t in successful) / len(successful)
+            if successful else float("inf")
+        )
+
+        # Detect loops: same tool+args called twice in a row
+        loop_count = sum(
+            1 for t in self.trajectories
+            if any(
+                t["tool_calls"][i]["tool"] == t["tool_calls"][i+1]["tool"] and
+                t["tool_calls"][i]["args"] == t["tool_calls"][i+1]["args"]
+                for i in range(len(t["tool_calls"]) - 1)
+            )
+        )
+
+        return {
+            "task_completion_rate": tcr,                   # target > 0.80
+            "avg_steps_to_completion": avg_steps,
+            "cost_per_successful_task_tokens": avg_cost_per_success,
+            "loop_rate": loop_count / n,                   # target < 0.02
+        }</code>
+                    </div>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When asked how you'd evaluate an agent, break it into: (1) trajectory quality — did it take an efficient path? (2) tool use quality — correct tools, valid params? (3) final outcome quality — did it actually complete the task? Interviewers at staff level expect you to know that task completion rate is the north-star metric but you need the others to diagnose failures.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Agent Benchmarks &amp; Leaderboards</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Benchmark</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Tests</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">SOTA Score</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Human Baseline</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>SWE-bench Verified</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Resolve real GitHub issues in Python repos</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~49% (Claude 3.5 Sonnet)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~87%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>GAIA</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Real-world tasks requiring tools + reasoning</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~75% (GPT-4 + plugins)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">92%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>WebArena</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Web navigation tasks (shopping, email, etc.)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~36%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~78%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>HotPotQA (agent)</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Multi-hop question answering with retrieval</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~68% F1 (ReAct)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~90% F1</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">Active Recall Questions</h2>

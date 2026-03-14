@@ -2304,6 +2304,167 @@ print(f"Sparsity: {zero_params / total_params:.2%}")</code>
             </div>
 
             <!-- ============================================ -->
+            <!-- STAFF-LEVEL METRICS REFERENCE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">Staff-Level Metrics Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Serving & Latency Metrics: What You Must Know Cold</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Three Core Serving Metrics</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Definition</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Good</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Acceptable</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Poor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>TTFT</strong><br><small>Time to First Token</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Time from request to first token in response stream</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;200ms</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">200–500ms</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;1s</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>TPOT</strong><br><small>Time per Output Token</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Average latency per generated token after first</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;25ms/token</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">25–50ms/token</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;100ms/token</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Throughput</strong><br><small>Tokens/second</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Total output tokens generated per second (system-wide)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1000+ tok/s</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">200–1000</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;50 tok/s</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="key-insight">
+                        <strong>TTFT vs TPOT Tradeoff:</strong> Continuous batching optimizes throughput (TPOT) at the cost of TTFT because requests queue before processing. For interactive chat, optimize TTFT. For batch jobs, optimize throughput. You often can't maximize both simultaneously.
+                    </div>
+
+                    <h4>Real-World Throughput Numbers (A100 80GB SXM)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Model + Precision</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Tokens/sec (single req)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Tokens/sec (batched)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">GPU Memory</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-2-7B (FP16)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~80 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~1,500 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">14GB</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-2-7B (INT4)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~60 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~3,000 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">4.5GB</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-2-70B (FP16)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~15 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~350 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">140GB (2× A100)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-2-70B (INT4)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~12 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~700 tok/s</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">37GB (1× A100)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Quantization Quality vs Speed Tradeoff</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Precision</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Bits/weight</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Memory vs FP32</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Perplexity increase</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Throughput gain</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">FP32 (baseline)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">32</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1×</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1×</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">BF16 / FP16</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">16</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.5×</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;0.1% (negligible)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2×</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">INT8 (GPTQ/AWQ)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">8</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.25×</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~1-2%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.5–2×</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">INT4 (GPTQ/AWQ)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">4</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.125×</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~3-5%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2–4×</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">INT2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0625×</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~10-20% (significant)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">4–6×</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-info">
+                        <div class="callout-title">INT4 is the Production Sweet Spot</div>
+                        <p>INT4 (specifically AWQ or GPTQ) gives you 8× memory reduction with only 3-5% perplexity increase. This is generally acceptable for most production use cases. Go INT8 if quality is critical; go INT4 if cost/memory is critical.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>LoRA Rank vs Quality: Choosing the Right r</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">LoRA rank (r)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Trainable params (7B model)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Use Case</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Quality</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">r=4</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~1M (0.014%)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Style/tone adaptation, small domain shift</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Light tuning</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">r=16</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~4M (0.057%)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Domain adaptation, instruction following</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Balanced (recommended default)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">r=64</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~16M (0.23%)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Complex task learning, code generation</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High quality, more memory</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">r=256</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~65M (0.93%)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Approaching full fine-tune quality</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Diminishing returns beyond r=64</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When asked about fine-tuning efficiency, mention that r=16 with alpha=32 (alpha=2r) is the standard starting point. The alpha/r ratio controls the learning rate scaling — keeping alpha=2r prevents the LoRA updates from being too small relative to pretrained weights.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Cost per Token: API vs Self-Hosted Economics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Model</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Input ($/1M tokens)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Output ($/1M tokens)</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Breakeven at (req/day)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPT-4o</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$2.50</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$10.00</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High volume → self-host Llama</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPT-4o-mini</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$0.15</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$0.60</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Good for moderate volume</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Claude 3.5 Sonnet</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$3.00</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">$15.00</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Best quality/cost among frontier</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Llama-3.1-70B (self-hosted, A100)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~$0.05–0.10</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~$0.05–0.10</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Break-even at ~500K req/day</td></tr>
+                        </tbody>
+                    </table>
+                    <div class="callout callout-info">
+                        <div class="callout-title">Staff-Level Decision Framework</div>
+                        <p>Rule of thumb: API is cheaper below ~$10K/month spend. Above that, evaluate self-hosting. Key question: what's the cost per <em>successful</em> task (not just per token)? Include retry costs, failed requests, and human review overhead.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">Active Recall Questions</h2>

@@ -1613,6 +1613,179 @@ print(f"\nAttention weights for first example: {attention_weights[0][:10]}")
             </div>
 
             <!-- ============================================ -->
+            <!-- STAFF-LEVEL METRICS REFERENCE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">Staff-Level Metrics Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Perplexity: The Core LLM Quality Metric</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>What is Perplexity?</strong> Perplexity measures how "surprised" a language model is by a text sequence. Lower = better. A perplexity of 10 means the model is as uncertain as if it had to choose uniformly among 10 equally likely options at each token. It equals 2^(cross-entropy loss).
+                    </div>
+
+                    <h4>Formula</h4>
+                    <div class="code-block">
+<code>import torch
+
+def perplexity(model, tokenizer, text):
+    tokens = tokenizer(text, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**tokens, labels=tokens["input_ids"])
+    loss = outputs.loss  # cross-entropy loss
+    return torch.exp(loss).item()
+
+# PPL = exp(average cross-entropy loss across all tokens)
+# PPL = exp(- (1/N) * sum(log P(w_i | w_1...w_{i-1})))</code>
+                    </div>
+
+                    <h4>Perplexity Benchmarks on Penn Treebank (PTB)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Model Era</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">PTB Perplexity</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Interpretation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">N-gram (3-gram)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~141</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Pre-neural baseline</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LSTM (2016)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~58</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Neural language models</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPT-2 (117M)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~35</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Early transformers</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">GPT-3 (175B)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~20</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Large-scale pretraining</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Modern LLMs (2024+)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;10</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">State of the art</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Perplexity Caveats</div>
+                        <p>Perplexity is dataset-specific — a model trained on web data may have low perplexity on Wikipedia but high on legal documents. Never compare perplexity across different tokenizers — a model with a larger vocabulary will naturally have lower perplexity. Use it for comparing models on the <em>same</em> test set with the <em>same</em> tokenizer.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>LLM Benchmark Suite: What Every Staff Engineer Must Know</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>In interviews and production decisions, you'll be asked to compare models. These are the benchmarks that matter:</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Benchmark</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Tests</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">GPT-4o</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Claude 3.5 Sonnet</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Llama 3.1 70B</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Human baseline</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MMLU</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">57-subject knowledge (law, medicine, science…)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">88.7%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">88.7%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">82.6%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~89%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>HumanEval</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Python coding problems (pass@1)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">90.2%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">92%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">80.5%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~67%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>HellaSwag</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Commonsense NLI / sentence completion</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">95.3%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">95.4%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">87.0%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">95.6%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>ARC-Challenge</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Grade-school science reasoning</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">96.7%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">96.4%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">92.9%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~85%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>TruthfulQA</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Factual accuracy / hallucination resistance</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~59%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~61%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~52%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">94% (with Google)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MATH</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Competition-level math problems</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">76.6%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">71.1%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">68.0%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~40% (non-expert)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>GSM8K</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Grade-school word math problems</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">97.0%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">96.4%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">93.0%</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~87%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When asked to compare models, mention MMLU for general knowledge, HumanEval for coding, and TruthfulQA for hallucination resistance. Point out that benchmark saturation is real — models trained on benchmark-adjacent data can inflate scores. Mention LMSYS Chatbot Arena (Elo-based human preference ranking) as a more reliable real-world signal.
+                    </div>
+
+                    <h4>How to Read benchmark names:</h4>
+                    <ul>
+                        <li><strong>0-shot / 5-shot:</strong> How many examples were given in the prompt. 0-shot = no examples, 5-shot = 5 examples. Higher shot counts raise scores.</li>
+                        <li><strong>pass@k:</strong> HumanEval asks: does at least one of k generated solutions pass all test cases? pass@1 = single attempt.</li>
+                        <li><strong>CoT prompting:</strong> Chain-of-thought prompting can boost MATH scores by 20-30%. Always note whether CoT was used.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Embedding Quality: MTEB Leaderboard Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>MTEB (Massive Text Embedding Benchmark) is the gold standard for comparing embedding models across 56 tasks.</p>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Model</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">MTEB Avg</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Params</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">text-embedding-3-large</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">64.6</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">—</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">API, production (OpenAI)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">BAAI/bge-large-en-v1.5</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">64.2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">335M</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Best open-source quality</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">E5-large-v2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">62.2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">335M</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Strong open-source alternative</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">all-MiniLM-L6-v2</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">56.3</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">22M</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Fast, low-memory</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">Active Recall Questions</h2>

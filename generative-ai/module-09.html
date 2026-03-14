@@ -2231,6 +2231,102 @@ if __name__ == "__main__":
             </div>
 
             <!-- ============================================ -->
+            <!-- STAFF-LEVEL METRICS REFERENCE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">Staff-Level Metrics Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Retrieval Ranking Metrics: MRR, NDCG, MAP, Hit Rate</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Precision@k and Recall@k measure <em>whether</em> relevant chunks were retrieved. These metrics measure <em>where</em> they appear in the ranked list — critical because LLMs suffer from "lost in the middle" and give more weight to top-ranked context.</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Formula / Intuition</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Best For</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Production Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MRR</strong><br><small>Mean Reciprocal Rank</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Average of 1/rank of the first relevant result. MRR=1.0 if correct is always #1.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Single-answer Q&A (one right chunk per query)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;0.7</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>NDCG@k</strong><br><small>Normalized DCG</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Rewards relevant results at top positions with log-discount. Handles graded relevance (very relevant, somewhat relevant, not relevant).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Multi-document queries with graded relevance</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;0.75 at k=5</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Hit Rate@k</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">% of queries where at least one relevant chunk is in the top-k results. Binary — doesn't penalize rank position.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Checking "did we find anything useful at all?"</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;85% at k=5</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MAP</strong><br><small>Mean Average Precision</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Average precision calculated at each relevant rank position, averaged over queries. Penalizes both missing and misranking.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Multi-relevant retrieval where all relevant chunks matter</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;0.65</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block">
+<code>def mrr(relevant_ranks):
+    """relevant_ranks: list of rank positions (1-indexed) of first relevant result per query.
+       Returns MRR across all queries."""
+    return sum(1.0 / r for r in relevant_ranks) / len(relevant_ranks)
+
+def ndcg_at_k(relevances, k):
+    """relevances: list of relevance scores (0 or 1) for top-k retrieved docs.
+       Returns NDCG@k for a single query."""
+    import math
+    dcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(relevances[:k]))
+    ideal = sorted(relevances, reverse=True)[:k]
+    idcg = sum(rel / math.log2(i + 2) for i, rel in enumerate(ideal))
+    return dcg / idcg if idcg > 0 else 0.0
+
+def hit_rate_at_k(queries_results, k):
+    """queries_results: list of lists, each containing relevance labels for top-k docs."""
+    hits = sum(1 for docs in queries_results if any(d > 0 for d in docs[:k]))
+    return hits / len(queries_results)
+
+# Example evaluation
+queries = [
+    {"retrieved_relevances": [0, 1, 0, 1, 0]},  # relevant at rank 2 and 4
+    {"retrieved_relevances": [1, 1, 0, 0, 0]},  # relevant at ranks 1 and 2
+    {"retrieved_relevances": [0, 0, 0, 0, 1]},  # relevant only at rank 5
+]
+
+first_relevant_ranks = [2, 1, 5]
+print(f"MRR: {mrr(first_relevant_ranks):.3f}")  # (0.5 + 1.0 + 0.2) / 3 = 0.567
+print(f"NDCG@5: {sum(ndcg_at_k(q['retrieved_relevances'], 5) for q in queries) / len(queries):.3f}")
+print(f"Hit Rate@3: {hit_rate_at_k([q['retrieved_relevances'] for q in queries], 3):.3f}")</code>
+                    </div>
+
+                    <div class="interview-tip">
+                        <strong>Which metric to use?</strong>
+                        <ul>
+                            <li><strong>MRR</strong> → when there's one right answer per query (e.g., a single FAQ chunk)</li>
+                            <li><strong>NDCG</strong> → when results have graded relevance (highly relevant, partially relevant)</li>
+                            <li><strong>Hit Rate@k</strong> → quick sanity check; "did we find anything at all?"</li>
+                            <li><strong>MAP</strong> → comprehensive evaluation when all relevant chunks must be retrieved</li>
+                            <li>In practice: report Hit Rate@5, MRR, and NDCG@5 together for a full picture.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- SECTION 4: ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">4. Active Recall Questions</h2>
