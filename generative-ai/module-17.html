@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 17: Traditional ML, DS Collaboration &amp; AI Tradeoffs - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .model-card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #667eea;
+            color: white;
+        }
+        .model-card.tree    { border-left-color: #48bb78; }
+        .model-card.linear  { border-left-color: #4facfe; }
+        .model-card.ensemble{ border-left-color: #f6ad55; }
+        .model-card.unsup   { border-left-color: #ed64a6; }
+        .algo-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.4rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin: 0.2rem;
+        }
+        .badge-green  { background: rgba(72,187,120,0.2); color: #48bb78; }
+        .badge-blue   { background: rgba(102,126,234,0.2); color: #667eea; }
+        .badge-orange { background: rgba(246,173,85,0.2); color: #f6ad55; }
+        .badge-red    { background: rgba(252,129,129,0.2); color: #fc8181; }
+        .decision-flow {
+            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 1.5rem 0;
+        }
+        .flow-question {
+            background: rgba(102,126,234,0.2);
+            border: 2px solid #667eea;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+            margin: 0.5rem 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .flow-question:hover { background: rgba(102,126,234,0.35); }
+        .flow-answer {
+            background: rgba(72,187,120,0.15);
+            border: 2px solid #48bb78;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        .recall-question {
+            background: linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%);
+            border: 1px solid rgba(139,92,246,0.3);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin: 0.75rem 0;
+        }
+        .recall-question summary { cursor: pointer; font-weight: 600; color: #8b5cf6; }
+        .recall-question .answer { margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(139,92,246,0.3); }
+        .tradeoff-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        @media (max-width: 700px) { .tradeoff-row { grid-template-columns: 1fr; } }
+        .tradeoff-cell {
+            background: rgba(255,255,255,0.05);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            text-align: center;
+        }
+        .partner-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.04);
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+            border-left: 3px solid #667eea;
+        }
+        .partner-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Gen AI</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Setup + Core Math</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>Terminology + MNIST</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">LLM Deep Dive</div>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>LLM Basics</a>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Attention Mechanisms</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>LLM Coding: GPT</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Training at Scale</a>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Optimization Hacks</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">RAG &amp; Retrieval</div>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>RAG Fundamentals</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>RAG Implementation</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Agents &amp; Systems</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>AI Agents</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Context Engineering</a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>AI Engineering</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced Topics</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Thinking Models</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Multi-modal Models</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">ML &amp; Collaboration</div>
+                    <a href="module-17.html" class="sidebar-link active" data-module="17"><span class="sidebar-link-number">17</span>Traditional ML &amp; DS Teams</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Capstone &amp; Career</div>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Capstone Project</a>
+                    <a href="module-16.html" class="sidebar-link" data-module="16"><span class="sidebar-link-number">16</span>Career Goals</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 17: Traditional ML, DS Collaboration &amp; AI Tradeoffs</h1>
+            <p class="text-muted mb-3">What every staff engineer must know about classical ML models, partnering with Data Science teams, and making principled AI technology decisions.</p>
+
+            <div class="card mt-3" style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.1));border:2px solid rgba(139,92,246,0.3);">
+                <h3 style="color:#8b5cf6;">Why This Module Exists</h3>
+                <p>Staff engineers at AI-native companies are expected to do more than ship LLM features. You will be asked: <em>"Why not a simpler model?"</em>, <em>"How do you work with Data Science?"</em>, and <em>"What are the tradeoffs of this AI approach?"</em> This module gives you the vocabulary and frameworks to answer those questions cold.</p>
+                <h4 class="mt-2">What You'll Learn</h4>
+                <ul>
+                    <li>The full landscape of classical ML algorithms and when each wins</li>
+                    <li>Key ML metrics: classification, regression, ranking, clustering</li>
+                    <li>The ML vs DL vs LLM decision framework with concrete criteria</li>
+                    <li>How to partner effectively with Data Science and ML teams</li>
+                    <li>MLOps: feature stores, model registries, experiment tracking, deployment patterns</li>
+                    <li>AI tradeoffs that interviewers ask about: accuracy vs latency, explainability vs performance, build vs buy</li>
+                    <li>AI-native application design patterns</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: TRADITIONAL ML LANDSCAPE                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Traditional ML Model Landscape</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Supervised Learning: The Workhorse Models</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="model-card linear">
+                        <h4>Linear &amp; Logistic Regression</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Interpretable</span> <span class="algo-badge badge-green">Fast</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Fits a weighted sum of features (+ bias) to the target. Logistic adds a sigmoid to produce probabilities.</li>
+                            <li><strong>Key hyperparameters:</strong> regularization type (L1=Lasso → sparse features, L2=Ridge → small weights), C (inverse of regularization strength)</li>
+                            <li><strong>When to use:</strong> Baseline model, interpretability required, features are mostly linear, low latency needed, small datasets (&lt;100K rows)</li>
+                            <li><strong>When to avoid:</strong> Non-linear relationships, high-cardinality categoricals without feature engineering, image/text/audio input</li>
+                            <li><strong>Metrics to monitor:</strong> Classification: AUC-ROC, log loss, F1. Regression: RMSE, MAE, R²</li>
+                        </ul>
+                        <div class="code-block" style="margin-top:0.75rem;">
+<code>from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+# Classification
+clf = Pipeline([
+    ("scaler", StandardScaler()),
+    ("model", LogisticRegression(C=1.0, penalty="l2", max_iter=1000, solver="lbfgs"))
+])
+clf.fit(X_train, y_train)
+
+# Coefficients tell you feature importance (after scaling)
+coef = dict(zip(feature_names, clf["model"].coef_[0]))
+print(sorted(coef.items(), key=lambda x: abs(x[1]), reverse=True)[:5])</code>
+                        </div>
+                    </div>
+
+                    <div class="model-card tree">
+                        <h4>Decision Trees</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Interpretable</span> <span class="algo-badge badge-orange">Prone to overfit</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Recursively splits data by the feature+threshold that maximises information gain (Gini impurity or entropy for classification; variance reduction for regression).</li>
+                            <li><strong>Key hyperparameters:</strong> <code>max_depth</code> (most important — controls overfit), <code>min_samples_leaf</code>, <code>min_samples_split</code></li>
+                            <li><strong>When to use:</strong> Exploring feature interactions, explainability for stakeholders, handling mixed feature types without preprocessing</li>
+                            <li><strong>When to avoid:</strong> Standalone for production — almost always outperformed by ensembles. High-cardinality categoricals cause issues.</li>
+                            <li><strong>Staff insight:</strong> Decision trees are the building block of random forests and gradient boosting. Understand them deeply — interviewers test this.</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card ensemble">
+                        <h4>Random Forest</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Robust</span> <span class="algo-badge badge-green">Handles missing values</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Trains N decision trees on bootstrapped data subsets (bagging) + random feature subsets. Averages predictions (regression) or votes (classification). Decorrelated trees reduce variance.</li>
+                            <li><strong>Key hyperparameters:</strong> <code>n_estimators</code> (100–500), <code>max_features</code> (sqrt for classification, 1/3 for regression), <code>max_depth</code></li>
+                            <li><strong>When to use:</strong> Tabular data, feature importance needed, robust baseline, missing values (set <code>max_features</code> appropriately)</li>
+                            <li><strong>Feature importance:</strong> Mean decrease in impurity (MDI) — but biased toward high-cardinality features. Use permutation importance for unbiased estimates.</li>
+                            <li><strong>Metrics to watch:</strong> OOB (out-of-bag) error — free validation without a separate set.</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card ensemble">
+                        <h4>Gradient Boosting: XGBoost / LightGBM / CatBoost</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-orange">Needs tuning</span> <span class="algo-badge badge-green">SOTA tabular</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Builds trees <em>sequentially</em>. Each new tree corrects the residual error of all previous trees. Uses gradient descent in function space. Much more powerful than random forest for structured data.</li>
+                            <li><strong>XGBoost vs LightGBM vs CatBoost:</strong>
+                                <ul>
+                                    <li><strong>XGBoost:</strong> Level-wise tree growth, column subsampling, most widely deployed</li>
+                                    <li><strong>LightGBM:</strong> Leaf-wise growth → faster training on large datasets, better for high-cardinality features</li>
+                                    <li><strong>CatBoost:</strong> Native categorical support (no one-hot needed), ordered boosting to prevent target leakage</li>
+                                </ul>
+                            </li>
+                            <li><strong>Key hyperparameters:</strong> <code>learning_rate</code> (0.01–0.3), <code>n_estimators</code> (100–2000), <code>max_depth</code> (3–8), <code>subsample</code>, <code>reg_alpha/lambda</code> (L1/L2)</li>
+                            <li><strong>Production tip:</strong> Always use early stopping with a validation set. SHAP values for explainability.</li>
+                        </ul>
+                        <div class="code-block" style="margin-top:0.75rem;">
+<code>import lightgbm as lgb
+import shap
+
+model = lgb.LGBMClassifier(
+    n_estimators=500,
+    learning_rate=0.05,
+    max_depth=6,
+    num_leaves=63,          # LightGBM: use num_leaves, not max_depth alone
+    subsample=0.8,
+    colsample_bytree=0.8,
+    reg_alpha=0.1,          # L1 regularization
+    reg_lambda=1.0,         # L2 regularization
+    early_stopping_rounds=50,
+)
+model.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.log_evaluation(50)])
+
+# SHAP values for explainability — critical for enterprise / regulated industries
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_val)
+shap.summary_plot(shap_values, X_val, feature_names=feature_names)</code>
+                        </div>
+                    </div>
+
+                    <div class="model-card linear">
+                        <h4>Support Vector Machines (SVM)</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression (SVR)</span> <span class="algo-badge badge-orange">Slow on large data</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Finds the hyperplane with maximum margin between classes. Kernel trick (RBF, polynomial) maps to high-dimensional space for non-linear boundaries.</li>
+                            <li><strong>When to use:</strong> Small-to-medium datasets (&lt;100K), high-dimensional sparse data (text with TF-IDF), clear margin of separation</li>
+                            <li><strong>When to avoid:</strong> Large datasets (O(n²–n³) training time), noisy data with overlapping classes, need for probability outputs (platt scaling required)</li>
+                            <li><strong>Key hyperparameters:</strong> <code>C</code> (margin hardness), <code>kernel</code> (rbf is default), <code>gamma</code> (RBF width)</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card linear">
+                        <h4>k-Nearest Neighbours (kNN)</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">No training</span> <span class="algo-badge badge-red">Slow inference</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> At inference time, finds the k closest training examples (by distance) and returns their majority class / average value.</li>
+                            <li><strong>When to use:</strong> Recommendation systems (approximate kNN), anomaly detection, when you don't have labeled data but have similar items</li>
+                            <li><strong>Production note:</strong> Exact kNN is O(n) per query. In production, use HNSW (Faiss, Qdrant) for approximate nearest-neighbour search — this is the engine behind vector databases.</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card linear">
+                        <h4>Naive Bayes</h4>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-green">Very fast</span> <span class="algo-badge badge-green">Works with small data</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Applies Bayes' theorem assuming feature independence (naive). P(class|features) ∝ P(features|class) × P(class).</li>
+                            <li><strong>Variants:</strong> Multinomial NB (text/counts), Gaussian NB (continuous features), Bernoulli NB (binary features)</li>
+                            <li><strong>When to use:</strong> Text classification baseline, spam filtering, very limited compute, streaming/online learning, real-time classification at microsecond latency</li>
+                            <li><strong>Classic example:</strong> Gmail spam filter used NB for years. Still the fastest option when accuracy vs speed tradeoff matters.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Unsupervised Learning: Clustering, Dimensionality Reduction</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="model-card unsup">
+                        <h4>K-Means Clustering</h4>
+                        <p><span class="algo-badge badge-blue">Clustering</span> <span class="algo-badge badge-green">Fast</span> <span class="algo-badge badge-orange">Requires k upfront</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Initializes k centroids, assigns each point to nearest centroid, updates centroids to cluster means. Repeats until convergence. Minimizes within-cluster sum of squares (inertia).</li>
+                            <li><strong>Choose k with:</strong> Elbow method (inertia vs k), Silhouette score (max = best), Gap statistic</li>
+                            <li><strong>Metrics:</strong> Inertia (within-cluster SS), Silhouette score (-1 to 1, target &gt;0.5), Davies-Bouldin index (lower = better)</li>
+                            <li><strong>Limitations:</strong> Assumes spherical clusters, sensitive to outliers, scale-dependent (must standardize). Use DBSCAN for arbitrary shapes, HDBSCAN for varying densities.</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card unsup">
+                        <h4>DBSCAN / HDBSCAN</h4>
+                        <p><span class="algo-badge badge-blue">Clustering</span> <span class="algo-badge badge-green">No k needed</span> <span class="algo-badge badge-green">Finds outliers</span></p>
+                        <ul>
+                            <li><strong>DBSCAN:</strong> Core points (≥min_samples within eps radius) form clusters. Border points attach to nearest core. Noise points (outliers) get label -1.</li>
+                            <li><strong>HDBSCAN:</strong> Hierarchical extension. Handles varying densities. More robust than DBSCAN — preferred for production. Used in the Hierarchical RAG section of module-08.</li>
+                            <li><strong>When to use:</strong> Unknown number of clusters, expect outliers, non-spherical cluster shapes, document clustering in RAG pipelines</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card unsup">
+                        <h4>PCA — Principal Component Analysis</h4>
+                        <p><span class="algo-badge badge-blue">Dimensionality Reduction</span> <span class="algo-badge badge-green">Linear</span> <span class="algo-badge badge-green">Interpretable components</span></p>
+                        <ul>
+                            <li><strong>How it works:</strong> Finds orthogonal directions (principal components) of maximum variance in the data. Projects data onto top-k components. SVD under the hood.</li>
+                            <li><strong>When to use:</strong> Remove correlated features, speed up downstream models, visualize high-dimensional data (with 2 components), noise reduction</li>
+                            <li><strong>Key metric:</strong> Explained variance ratio — keep enough components to explain 90–95% of variance</li>
+                            <li><strong>Limitation:</strong> Linear only. Use UMAP/t-SNE for non-linear structure.</li>
+                        </ul>
+                    </div>
+
+                    <div class="model-card unsup">
+                        <h4>t-SNE / UMAP — Non-linear Visualization</h4>
+                        <p><span class="algo-badge badge-blue">Visualization</span> <span class="algo-badge badge-orange">Not for new points (t-SNE)</span></p>
+                        <ul>
+                            <li><strong>t-SNE:</strong> Preserves local structure. Great for visualization. Cannot project new points without refitting. Perplexity parameter (5–50) controls neighborhood size.</li>
+                            <li><strong>UMAP:</strong> Faster, preserves both local and global structure, can project new points. Preferred for production and embedding visualization.</li>
+                            <li><strong>Use case:</strong> Visualize LLM embedding clusters, debug RAG retrieval quality, explore customer segmentation</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: ML METRICS                                        -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. ML Metrics: The Complete Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Classification Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Formula</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Use When</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Accuracy</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">(TP+TN) / Total</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Balanced classes only</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Baseline ≥ majority class rate</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Precision</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">TP / (TP+FP)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">False positives are costly (spam filter)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.9 for high-stakes</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Recall (Sensitivity)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">TP / (TP+FN)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">False negatives are costly (cancer detection)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.95 for safety-critical</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>F1 Score</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">2 × P×R / (P+R)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Imbalanced classes, need balance of P &amp; R</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.8 typical production</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>AUC-ROC</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Area under TPR vs FPR curve</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Threshold-agnostic model comparison</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.85 good; &gt;0.95 excellent; 0.5 = random</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>AUC-PR</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Area under Precision-Recall curve</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Highly imbalanced datasets (fraud, rare events)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Baseline = class prevalence</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Log Loss</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-mean(y·log(p) + (1-y)·log(1-p))</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">When calibrated probabilities matter</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower is better; 0 = perfect</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Matthews Correlation Coefficient</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">(TP×TN − FP×FN) / √(...)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Most reliable single metric for imbalanced binary classification</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; &gt;0.6 good</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">The Precision-Recall Tradeoff (Staff Must Know)</div>
+                        <p>Adjusting the classification threshold shifts precision and recall in opposite directions. Lower threshold → more positives predicted → higher recall, lower precision. Higher threshold → fewer positives → higher precision, lower recall. The right threshold depends on your <strong>cost asymmetry</strong>: how much does a false positive cost vs a false negative? In fraud detection, a missed fraud (FN) is far costlier than a false alarm (FP), so optimize recall.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Regression &amp; Clustering Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Regression Metrics</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(72,187,120,0.15);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Formula</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Good For</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Sensitive to Outliers?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MAE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean(|y - ŷ|)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Interpretable average error; use when outliers are real</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No (linear penalty)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MSE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean((y - ŷ)²)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training loss; differentiable, drives gradient descent</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes (squares errors)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RMSE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">√MSE</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Same units as target; standard reporting metric</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>R² (Coefficient of Determination)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1 - SS_res/SS_tot</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">How much variance the model explains. 1.0 = perfect, 0 = mean baseline</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Moderate</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MAPE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean(|y - ŷ| / |y|) × 100%</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Relative error — good for scale-agnostic comparison across datasets</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Undefined when y=0</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Huber Loss</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">MSE for small errors, MAE for large</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Robust to outliers while staying differentiable everywhere</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Moderate (by design)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Clustering Metrics</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(246,173,85,0.15);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">What It Measures</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Range / Target</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Needs Ground Truth?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Silhouette Score</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">How similar a point is to its own cluster vs neighbours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; &gt;0.5 good clusters</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Inertia</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Sum of squared distances to nearest centroid</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower = better; use elbow method to pick k</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Davies-Bouldin Index</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Ratio of within-cluster scatter to between-cluster separation</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower = better; 0 = perfect</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>ARI</strong> (Adjusted Rand Index)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Measures similarity between predicted and true cluster assignments, adjusted for chance</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; 1 = perfect</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: ML vs DL vs LLM DECISION FRAMEWORK               -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. ML vs DL vs LLM: Decision Framework</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Decision Tree (Ironic but Apt)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[New ML Problem] --> B{Structured tabular\ndata?}
+    B -->|Yes| C{&lt; 100K rows\nor need interpretability?}
+    C -->|Yes| D[Logistic Regression\nor Decision Tree]
+    C -->|No| E{Labels available?}
+    E -->|Yes| F[XGBoost / LightGBM\nSTATE OF THE ART for tabular]
+    E -->|No| G[K-Means / HDBSCAN\nfor clustering]
+    B -->|No - Images/Audio/Video| H[CNN / Vision Transformer\nDiffusion for generation]
+    B -->|No - Text| I{Need domain knowledge\nor few-shot?}
+    I -->|Yes| J{Task complexity?}
+    J -->|Simple classification| K[Fine-tune BERT/RoBERTa\nSmaller, cheaper]
+    J -->|Complex / open-ended| L[LLM with prompting\nor RAG]
+    B -->|No - Time series| M{Length &amp; complexity?}
+    M -->|Short, structured| N[XGBoost with lag features\nor ARIMA]
+    M -->|Long, complex patterns| O[LSTM / Transformer\nor PatchTST]
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">The Honest Tradeoff Table</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Criterion</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Classical ML</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Deep Learning</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">LLM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">100s–100Ks rows</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">10Ks–millions</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">0 (zero-shot) to thousands (fine-tuning)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Inference latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;1ms (microseconds)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">100ms–30s</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Interpretability</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (LR, trees)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (black box)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (chain of thought helps)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Compute cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Very low</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium–high</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High ($0.002–$0.015 per call)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Input type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Structured / tabular</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Images, audio, sequences</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Text (+ images for VLMs)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Regulatory compliance</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Easiest (explainable)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Harder</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hardest (hallucinations)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feature engineering needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Heavy</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal (prompt engineering instead)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Handles new tasks zero-shot?</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Staff-Level Interview Answer:</strong> "My default is to start with the simplest model that could work. If the data is tabular and labeled, I reach for LightGBM first — it trains in seconds, gives feature importance, and beats neural nets on most tabular benchmarks. I only move to LLMs when the task involves language understanding, zero-shot generalization, or when the business needs natural language I/O. LLMs are a last resort on cost and latency grounds, not a first reach."
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: PARTNERING WITH DS/ML TEAMS                      -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Partnering with Data Science &amp; ML Teams</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Staff Engineer's Role in ML Projects</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>The Core Tension:</strong> Data Scientists optimize for model accuracy. Engineers optimize for reliability, scalability, and maintainability. Staff engineers bridge this gap — they need enough ML literacy to ask the right questions, and enough systems experience to build the right infrastructure.
+                    </div>
+
+                    <h4>What Data Scientists Expect from a Staff Engineer</h4>
+                    <div class="partner-step">
+                        <div class="partner-icon">🏗️</div>
+                        <div>
+                            <strong>Build reliable ML infrastructure</strong>
+                            <p>Feature stores (Feast, Tecton, Hopsworks), model training pipelines (Kubeflow, Vertex AI Pipelines, SageMaker Pipelines), experiment tracking (MLflow, W&amp;B), model registries.</p>
+                        </div>
+                    </div>
+                    <div class="partner-step">
+                        <div class="partner-icon">🚀</div>
+                        <div>
+                            <strong>Own model deployment and serving</strong>
+                            <p>Serve models via REST/gRPC (TorchServe, Triton Inference Server, BentoML). Manage A/B testing infrastructure. Handle rollbacks. Maintain SLOs for model latency and throughput.</p>
+                        </div>
+                    </div>
+                    <div class="partner-step">
+                        <div class="partner-icon">📊</div>
+                        <div>
+                            <strong>Build monitoring and observability</strong>
+                            <p>Track prediction drift, feature drift, data quality. Alert on performance degradation. Build dashboards for model performance metrics. Handle retraining triggers.</p>
+                        </div>
+                    </div>
+                    <div class="partner-step">
+                        <div class="partner-icon">🔒</div>
+                        <div>
+                            <strong>Enforce data quality and contracts</strong>
+                            <p>Define schema contracts for features. Validate data at ingestion (Great Expectations, Soda). Prevent training-serving skew — the #1 cause of silent model failures in production.</p>
+                        </div>
+                    </div>
+                    <div class="partner-step">
+                        <div class="partner-icon">💬</div>
+                        <div>
+                            <strong>Translate between ML and product</strong>
+                            <p>Help DS frame the problem correctly (prediction vs recommendation vs anomaly). Ensure metrics align with business outcomes. Push back when the ML solution is over-engineered for the problem.</p>
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Questions a Staff Engineer Should Ask When Reviewing an ML Project</h4>
+                    <ul>
+                        <li>What is the <strong>offline-to-online gap</strong>? Does the eval set reflect production data distribution?</li>
+                        <li>What happens when the <strong>model is wrong</strong>? Is there a fallback? Can the user override?</li>
+                        <li>What is the <strong>retraining strategy</strong>? Scheduled (daily/weekly), trigger-based (drift threshold), or continuous?</li>
+                        <li>How are <strong>features computed at serving time</strong>? Do they match how they were computed at training time?</li>
+                        <li>Does the model need to be <strong>explainable</strong> to regulators, users, or support teams?</li>
+                        <li>What is the <strong>label latency</strong>? If ground truth arrives hours later, how do you handle it?</li>
+                        <li>What is the <strong>data lineage</strong>? Can you trace any prediction back to the exact features used?</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>MLOps Stack: What Every Staff Engineer Must Know</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Data Layer"
+        A[Raw Data\nData Lake] --> B[Feature Store\nFeast/Tecton]
+        B --> C[Training Dataset\nOffline Features]
+        B --> D[Online Features\nLow-latency lookup]
+    end
+    subgraph "Training Layer"
+        C --> E[Experiment Tracking\nMLflow / W&B]
+        E --> F[Model Registry\nMLflow / Vertex]
+    end
+    subgraph "Serving Layer"
+        F --> G[Model Server\nTriton / TorchServe]
+        D --> G
+        G --> H[A/B Testing\nSplit traffic]
+        H --> I[Production Traffic]
+    end
+    subgraph "Monitoring Layer"
+        I --> J[Prediction Logs]
+        J --> K[Drift Detection\nEvidently AI]
+        K -->|drift alert| L[Retrain Trigger\nKubeflow Pipeline]
+        L --> E
+    end
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Feature Store: The Most Important Infrastructure Piece</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Component</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Purpose</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Technology</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Offline store</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Historical features for training. Point-in-time correct joins to prevent target leakage.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Parquet / Hive / BigQuery</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Online store</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low-latency (&lt;5ms) feature lookup at serving time. Must match training features exactly.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Redis / DynamoDB / Cassandra</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feature registry</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Catalog of feature definitions, owners, and lineage. Enables reuse across teams.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feast, Tecton, Hopsworks</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Materialization pipeline</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Batch/streaming job that computes features and writes to online + offline stores.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Spark / Flink / Dataflow</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-danger">
+                        <div class="callout-title">Training-Serving Skew: The Silent Killer</div>
+                        <p>Training-serving skew occurs when features are computed differently at training time vs serving time. Example: at training, "user's total purchases" is computed from the full history. At serving, it's computed from the last 30 days due to a caching optimization. The model was never trained on that distribution. The model <em>appears</em> to work but silently underperforms.</p>
+                        <p><strong>Fix:</strong> Use the <em>same feature computation code</em> for training and serving. Feature stores enforce this by having one feature definition used for both offline and online retrieval.</p>
+                    </div>
+
+                    <h4 class="mt-3">Experiment Tracking with MLflow</h4>
+                    <div class="code-block">
+<code>import mlflow
+import mlflow.sklearn
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import roc_auc_score
+
+mlflow.set_experiment("churn-prediction-v2")
+
+with mlflow.start_run(run_name="lgbm-baseline"):
+    # Log hyperparameters
+    params = {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 6}
+    mlflow.log_params(params)
+
+    model = GradientBoostingClassifier(**params)
+    model.fit(X_train, y_train)
+
+    # Log metrics
+    train_auc = roc_auc_score(y_train, model.predict_proba(X_train)[:, 1])
+    val_auc   = roc_auc_score(y_val,   model.predict_proba(X_val)[:, 1])
+    mlflow.log_metric("train_auc", train_auc)
+    mlflow.log_metric("val_auc", val_auc)
+    mlflow.log_metric("overfit_gap", train_auc - val_auc)  # ← flag if > 0.05
+
+    # Log model artifact + schema
+    signature = mlflow.models.infer_signature(X_train, model.predict(X_train))
+    mlflow.sklearn.log_model(model, "model", signature=signature)
+
+    # Register in model registry for deployment
+    mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model",
+                          "churn-prediction-prod")</code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: AI TRADEOFFS                                      -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. AI Tradeoffs: The Staff Engineer's Framework</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Big Tradeoffs You'll Be Asked About</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="callout callout-info">
+                        <div class="callout-title">How to Answer Tradeoff Questions</div>
+                        <p>Never say one option is always better. Frame your answer as: (1) name the axes of the tradeoff, (2) give concrete thresholds where you'd flip, (3) mention what you'd measure to decide.</p>
+                    </div>
+
+                    <h4>Accuracy vs Latency</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">If latency matters more</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Lever</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">If accuracy matters more</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Use a smaller model</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model size</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Use a larger model (async, background)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Quantize to INT4</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Precision</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Run FP16 or full precision</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Rule-based pre-filter</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Architecture</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Cascade: cheap model first, expensive on hard cases</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Return cached result</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Caching</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Always compute fresh</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Classical ML (&lt;1ms)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">LLM (100ms–5s)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Explainability vs Performance</h4>
+                    <div class="tradeoff-row">
+                        <div class="tradeoff-cell">
+                            <strong style="color:#48bb78;">High Explainability</strong>
+                            <p style="font-size:0.85rem;margin:0.5rem 0;">Logistic Regression, Decision Trees, Linear SVMs, GAMs</p>
+                            <p style="font-size:0.8rem;color:#a0aec0;">Required by: banking (credit scoring), healthcare, GDPR Article 22, hiring algorithms</p>
+                        </div>
+                        <div class="tradeoff-cell">
+                            <strong style="color:#f6ad55;">Middle Ground</strong>
+                            <p style="font-size:0.85rem;margin:0.5rem 0;">XGBoost + SHAP, Random Forest + feature importance, LIME for local explanations</p>
+                            <p style="font-size:0.8rem;color:#a0aec0;">Good enough for most enterprise use cases</p>
+                        </div>
+                        <div class="tradeoff-cell">
+                            <strong style="color:#fc8181;">High Performance</strong>
+                            <p style="font-size:0.85rem;margin:0.5rem 0;">Deep neural networks, LLMs, ensemble of ensembles</p>
+                            <p style="font-size:0.8rem;color:#a0aec0;">Use when: accuracy gain &gt; explainability cost, task isn't regulated</p>
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Build vs Buy vs Fine-tune vs Prompt</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Option</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Cost</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Speed to Production</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Data Privacy</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">When to Choose</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Prompt engineering</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Per-call API cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Prototyping, &lt;$10K/mo spend, no proprietary data</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RAG</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">API cost + vector DB</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Days</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Dynamic knowledge, can't fine-tune every update</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Fine-tuning (LoRA)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training + API/hosting</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–2 weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data exposed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Consistent style/format, domain-specific knowledge, reduce prompt length</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Train from scratch</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">$1M–$100M+</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Months</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Only for frontier labs, specialized domains (bio, legal), or regulatory requirements</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Self-host open model</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">GPU infra + eng time</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;500K req/day, data privacy, &gt;$50K/mo API spend</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Online vs Batch Inference</h4>
+                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);"></th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Online (Real-time)</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Near Real-time (Streaming)</th>
+                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Batch (Scheduled)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Seconds</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours–days acceptable</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Examples</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Fraud detection, content moderation, search ranking</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Clickstream analysis, ride-sharing pricing</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Churn prediction, recommendations pre-computed overnight</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Infrastructure</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model server + feature store online</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Kafka + Flink + model server</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Spark / BigQuery + storage</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (always-on replicas)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (spot instances)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: AI-NATIVE APPLICATION PATTERNS                   -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. AI-Native Application Design Patterns</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Makes an Application "AI-Native"</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>An AI-native app is one where AI is not a feature but the <em>core product mechanism</em>. The UX, data model, and architecture are all shaped around the model. Staff engineers at AI-native companies must design for:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    subgraph "AI-Native App Architecture"
+        U[User Input] --> GW[API Gateway]
+        GW --> S[Safety/Guardrail Layer]
+        S --> R[Router\nSimple vs Complex]
+        R -->|Simple| FM[Fast Model\nsmall/cached]
+        R -->|Complex| LM[Large Model\nRAG + Tools]
+        FM --> C[Context Manager]
+        LM --> C
+        C --> FB[Feedback Collection]
+        FB --> FT[Fine-tune Pipeline\ndata flywheel]
+        FT --> LM
+    end
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">The 6 Core AI-Native Patterns</h4>
+
+                    <div class="model-card">
+                        <h4>1. Model Cascade (Cheap → Expensive)</h4>
+                        <p>Route easy requests to a small cheap model; escalate hard ones to a large expensive model. The fast model classifies difficulty first.</p>
+                        <p><strong>Example:</strong> Tier-1 support: GPT-4o-mini handles 70% of tickets (&lt;$0.001 each). Complex edge cases go to GPT-4o ($0.01 each). 3× cost reduction, &lt;5% quality degradation.</p>
+                        <div class="code-block">
+<code>def smart_route(query: str, threshold: float = 0.8) -> str:
+    # Fast classifier to assess query complexity
+    complexity_score = complexity_classifier.predict([query])[0]
+
+    if complexity_score < threshold:
+        return call_model("gpt-4o-mini", query)   # cheap, fast
+    else:
+        return call_model("gpt-4o", query,         # expensive, accurate
+                          tools=all_tools, rag=True)</code>
+                        </div>
+                    </div>
+
+                    <div class="model-card tree">
+                        <h4>2. Human-in-the-Loop (HITL)</h4>
+                        <p>For high-stakes or low-confidence decisions, route to a human reviewer instead of auto-accepting the model output.</p>
+                        <p><strong>Triggers for HITL:</strong> Confidence below threshold, novel input distribution, high-value transaction, regulated domain (medical, legal, financial).</p>
+                        <p><strong>Key metric:</strong> Auto-accept rate (target &gt;85% for cost efficiency). Track FP rate of auto-accepts — if it creeps up, lower the threshold.</p>
+                    </div>
+
+                    <div class="model-card ensemble">
+                        <h4>3. Data Flywheel</h4>
+                        <p>User interactions generate labeled data → label data is used to fine-tune → fine-tuned model is better → attracts more users → more data. Compounding advantage over time.</p>
+                        <p><strong>Staff engineer's role:</strong> Build the data collection pipeline, define quality filters, automate the fine-tuning trigger, A/B test the new model before full rollout.</p>
+                    </div>
+
+                    <div class="model-card linear">
+                        <h4>4. Model-as-Feature (Embedding Features)</h4>
+                        <p>Use a pre-trained model to generate embedding features, then feed those embeddings into a lightweight classical ML model (logistic regression, XGBoost). Best of both worlds: rich representation from the foundation model + fast, interpretable downstream model.</p>
+                        <p><strong>Example:</strong> Embed product descriptions with text-embedding-3-small → feed 1536-dim vectors to LightGBM for price prediction. Trains in minutes, inference in &lt;5ms.</p>
+                    </div>
+
+                    <div class="model-card unsup">
+                        <h4>5. Guardrail Layer (Input + Output)</h4>
+                        <p><strong>Input guardrails:</strong> PII detection, prompt injection detection, topic classification (refuse off-topic requests).<br>
+                        <strong>Output guardrails:</strong> Hallucination detection (faithfulness check via RAGAS), toxicity filtering (Perspective API), PII scrubbing in outputs, schema validation for structured outputs.</p>
+                        <p><strong>Latency budget:</strong> Guardrails add 50–200ms. Budget this into your TTFT SLO. Run input guardrails in parallel with model prefill to hide latency.</p>
+                    </div>
+
+                    <div class="model-card ensemble">
+                        <h4>6. Async / Background AI Processing</h4>
+                        <p>Not every AI task needs to be synchronous. Move expensive AI operations to background queues (Celery, SQS + Lambda, Pub/Sub). Return a job ID immediately; stream results when ready or notify via webhook.</p>
+                        <p><strong>Use cases:</strong> Document analysis, report generation, batch embedding, retraining pipelines, nightly recommendation pre-computation.</p>
+                        <p><strong>Pattern:</strong> POST /analyze → 202 Accepted + job_id → GET /results/{job_id} → 200 with results when complete.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: ACTIVE RECALL                                     -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">Active Recall Questions</h2>
+
+            <details class="recall-question">
+                <summary>1. A product team wants to build a churn prediction model. Walk me through your model selection process.</summary>
+                <div class="answer">
+                    <p>Start with the simplest model that could work. For churn (tabular data, binary classification): (1) EDA to understand class imbalance and feature types. (2) Logistic regression as interpretable baseline. (3) LightGBM with early stopping as the likely production model. (4) Use SHAP values to explain predictions to stakeholders. Would only consider an LLM if churn signals are embedded in free-text customer support tickets, in which case I'd embed the tickets and use them as features for LightGBM rather than calling an LLM at inference time.</p>
+                </div>
+            </details>
+
+            <details class="recall-question">
+                <summary>2. What is training-serving skew and how do you prevent it?</summary>
+                <div class="answer">
+                    <p>Training-serving skew is when features are computed differently at training time vs serving time, causing silent model degradation. Prevent it by: (1) Using a feature store where the same feature definition is used for both offline training data retrieval and online serving lookups. (2) Integration tests that compute features on a sample request and compare training vs serving values. (3) Adding feature distribution monitoring in production and alerting on drift. (4) Logging all feature values used for each prediction so you can reproduce and debug.</p>
+                </div>
+            </details>
+
+            <details class="recall-question">
+                <summary>3. When would you choose XGBoost over an LLM for a classification problem?</summary>
+                <div class="answer">
+                    <p>Almost always for structured tabular data. XGBoost: (1) Trains in seconds/minutes vs hours/days. (2) Inference in microseconds vs 100ms–seconds. (3) 10–100× cheaper. (4) More interpretable via SHAP. (5) No hallucination risk. I'd only consider an LLM if: the input is unstructured text, I need zero-shot generalization to unseen categories, or the task requires reasoning steps that can't be captured in features. Even then I might embed the text and use XGBoost downstream rather than calling an LLM at inference time.</p>
+                </div>
+            </details>
+
+            <details class="recall-question">
+                <summary>4. You have AUC-ROC = 0.95 but your product team is unhappy with the model. What questions do you ask?</summary>
+                <div class="answer">
+                    <p>(1) Is AUC-ROC the right metric? For highly imbalanced data, a model with 0.95 AUC can still have terrible precision — check AUC-PR. (2) What threshold is being used? AUC is threshold-agnostic but the business is experiencing a specific threshold. (3) Is the eval set representative? 0.95 on a clean held-out set but 0.70 on production data suggests distribution shift. (4) Are there subgroup failures? Overall AUC can mask poor performance on important customer segments. (5) What does the confusion matrix look like? Understand where errors are — FP or FN — and which error type costs more.</p>
+                </div>
+            </details>
+
+            <details class="recall-question">
+                <summary>5. How do you explain to a stakeholder why your LLM-based feature sometimes gives wrong answers?</summary>
+                <div class="answer">
+                    <p>Frame it in business terms: "LLMs are probabilistic, not deterministic — they predict the most likely correct answer based on patterns learned from billions of documents, not a lookup table. For well-supported facts, they're &gt;95% reliable. For edge cases or very recent events, confidence is lower. This is why we have: (1) RAG to ground answers in authoritative sources, (2) faithfulness scoring to detect when the model makes claims not supported by the context, and (3) a human review queue for answers below our confidence threshold. We target &lt;2% error rate on supported queries, similar to a well-trained customer support agent."</p>
+                </div>
+            </details>
+
+            <details class="recall-question">
+                <summary>6. What's the difference between presence_penalty and repetition_penalty?</summary>
+                <div class="answer">
+                    <p><strong>presence_penalty</strong> (OpenAI): additive flat penalty subtracted from any token that appeared at least once. Binary — doesn't grow with frequency. Used to encourage topic variety. <strong>frequency_penalty</strong> (OpenAI): additive penalty proportional to count — the more times a token appears, the larger the penalty. <strong>repetition_penalty</strong> (HuggingFace/llama.cpp): multiplicative — divides the logit of previously seen tokens by the penalty value. 1.0 = off, 1.3 = strong. The additive vs multiplicative difference means they interact differently with temperature scaling.</p>
+                </div>
+            </details>
+
+            <!-- ============================================================ -->
+            <!-- CHECKPOINT SUMMARY                                           -->
+            <!-- ============================================================ -->
+            <div class="checkpoint-summary mt-4">
+                <h2>Checkpoint Summary</h2>
+                <p>After this module, you can:</p>
+                <ul>
+                    <li>Describe the main classical ML algorithms, when each wins, and their key hyperparameters</li>
+                    <li>Choose the right metric for classification (AUC-ROC vs AUC-PR vs F1), regression (MAE vs RMSE), and clustering (silhouette score)</li>
+                    <li>Apply the ML vs DL vs LLM decision framework to any new problem</li>
+                    <li>Explain the staff engineer's role in ML projects: feature stores, training-serving skew, MLOps pipelines</li>
+                    <li>Articulate the key AI tradeoffs: accuracy/latency, explainability/performance, build/buy/fine-tune/prompt</li>
+                    <li>Design AI-native applications using cascades, HITL, data flywheels, and guardrail layers</li>
+                </ul>
+
+                <h4 class="mt-3">Connects To</h4>
+                <ul>
+                    <li><strong>Module 12 (AI Engineering):</strong> Eval frameworks, fine-tuning decisions, and production deployment</li>
+                    <li><strong>Module 8–9 (RAG):</strong> Vector search is approximate kNN; HDBSCAN is used in hierarchical RAG</li>
+                    <li><strong>Module 7 (Optimization):</strong> Quantization, serving latency — feeds directly into accuracy vs latency tradeoff</li>
+                    <li><strong>Module 16 (Career):</strong> Articulating DS partnership experience in behavioral interviews</li>
+                </ul>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-16.html" class="btn btn-secondary">&larr; Previous: Career Goals</a>
+                <a href="index.html" class="btn btn-primary">Back to Course Overview &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        }
+    </script>
+</body>
+</html>
