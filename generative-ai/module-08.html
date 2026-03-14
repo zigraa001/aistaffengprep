@@ -327,6 +327,9 @@
                     <li>Vector databases: Pinecone, Chroma, Weaviate, Qdrant</li>
                     <li>Indexing strategies: HNSW, IVF, PQ</li>
                     <li>Reranking and hybrid search</li>
+                    <li>Semantic collapse: why flat RAG breaks at 50K+ documents (Stanford research)</li>
+                    <li>Hierarchical RAG: routing, HDBSCAN clustering, and graph-based retrieval</li>
+                    <li>Evaluating RAG with RAGAS: Faithfulness, Answer Relevancy, Context Precision/Recall</li>
                 </ul>
             </div>
 
@@ -1892,6 +1895,256 @@ for r in results:
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION 7: RAG AT SCALE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">7. RAG at Scale: Semantic Collapse &amp; Hierarchical RAG</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Stanford's Warning: The Scale Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="callout callout-danger" style="margin-bottom:1rem;">
+                        <div class="callout-title">Critical Finding from Stanford Research</div>
+                        <p>As vector collections grow, retrieval precision <strong>collapses</strong>. Researchers found an <strong>87% precision drop</strong> when document counts exceeded 50K. This is not a chunking problem or a model-size problem — it is a fundamental property of high-dimensional embedding spaces.</p>
+                    </div>
+
+                    <h4>Semantic Collapse by the Numbers</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Corpus Size</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Retrieval Precision</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">95%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">✅ Healthy</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">10K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">65%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">⚠️ Degrading</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">50K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">15%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">❌ Collapsed</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">100K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">12%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">💀 Worse than keyword search</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="key-insight">
+                        <strong>Why this happens:</strong> As more vectors are added to the embedding space, distances between points converge. The angular separation that semantic search relies on becomes increasingly indistinct. At 50K+ documents, a query vector is nearly equidistant from hundreds of unrelated chunks — so top-k retrieval becomes near-random.
+                    </div>
+
+                    <h4>Why Common Fixes Are Band-Aids</h4>
+                    <ul>
+                        <li><strong>Re-ranking:</strong> Adds latency but still operates on a noisy, semantically-collapsed retrieval set. Re-ranking bad candidates doesn't surface the right answer.</li>
+                        <li><strong>Hybrid search:</strong> Marginally better — keyword signals help — but doesn't address the root cause of vector distance convergence.</li>
+                        <li><strong>Smaller chunks:</strong> Counter-productive. More granular chunks = more vectors = faster collapse. This accelerates the problem.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Real Fix: Hierarchical RAG</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The core insight is to <strong>never search all documents at once</strong>. Instead, reduce the search space before semantic search begins. Hierarchical RAG adds routing, clustering, and graph traversal layers above the embedding layer.</p>
+
+                    <h4>Flat RAG vs Hierarchical RAG (Side by Side)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Dimension</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Flat RAG</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Hierarchical RAG</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Search scope</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All 50K documents</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~45 documents (after routing)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Latency</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2.3 seconds</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.3 seconds (10×)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Accuracy</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">41%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">94% (2×)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Scales to 1M docs?</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    Q[User Query] --> R[Document Router / Classifier]
+    R -->|Finance domain| FC[Finance Cluster]
+    R -->|Legal domain| LC[Legal Cluster]
+    R -->|Tech domain| TC[Tech Cluster]
+    FC --> MF[Metadata Filter<br>Budgets category]
+    MF --> SS[Semantic Search<br>on ~45 docs]
+    SS --> GR[Graph Expansion<br>2-3 hops]
+    GR --> RR[Rerank by similarity<br>+ graph centrality]
+    RR --> LLM[LLM Generation]
+                        </div>
+                    </div>
+
+                    <h4>The Three Architectural Pillars</h4>
+
+                    <div class="callout callout-info" style="margin-bottom:1rem;">
+                        <div class="callout-title">Pillar 1: Document Routing &amp; Classification</div>
+                        <p>Train a lightweight classifier (few-shot learning works well) that assigns each document to primary and secondary domains by extracting keywords, entities, and topics. When a query arrives, route it to the matching domain first. This alone can reduce search space by 90%+.</p>
+                        <div class="code-block" style="margin-top:0.75rem;">
+<code>from sklearn.linear_model import LogisticRegression
+from sentence_transformers import SentenceTransformer
+
+# Lightweight router: embed doc summary, classify into domain
+def build_router(labeled_examples):
+    encoder = SentenceTransformer("all-MiniLM-L6-v2")
+    embeddings = encoder.encode([e["text"] for e in labeled_examples])
+    labels = [e["domain"] for e in labeled_examples]
+
+    clf = LogisticRegression(max_iter=1000)
+    clf.fit(embeddings, labels)
+    return clf, encoder
+
+def route_query(query, clf, encoder):
+    emb = encoder.encode([query])
+    domain = clf.predict(emb)[0]
+    proba = clf.predict_proba(emb).max()
+    # Fall back to full search if confidence is low
+    return domain if proba > 0.7 else "all"</code>
+                        </div>
+                    </div>
+
+                    <div class="callout callout-info" style="margin-bottom:1rem;">
+                        <div class="callout-title">Pillar 2: HDBSCAN Clustering</div>
+                        <p>After routing to a domain, cluster the documents within that domain. <strong>HDBSCAN</strong> (Hierarchical DBSCAN) outperforms k-means here because it handles varying cluster densities and can mark outliers rather than forcing them into a cluster. Optimal cluster size: 50–200 documents.</p>
+                        <div class="code-block" style="margin-top:0.75rem;">
+<code>import hdbscan
+import numpy as np
+from sentence_transformers import SentenceTransformer
+
+def cluster_documents(docs, min_cluster_size=50):
+    encoder = SentenceTransformer("BAAI/bge-large-en-v1.5")
+    # Embed full document summaries (not chunks)
+    embeddings = encoder.encode([d["summary"] for d in docs])
+
+    clusterer = hdbscan.HDBSCAN(
+        min_cluster_size=min_cluster_size,
+        metric="euclidean",
+        cluster_selection_method="eom"  # Excess of Mass: better for varied densities
+    )
+    labels = clusterer.fit_predict(embeddings)
+
+    clusters = {}
+    for doc, label in zip(docs, labels):
+        if label == -1:  # Noise/outlier — goes into a catch-all bucket
+            label = "misc"
+        clusters.setdefault(label, []).append(doc)
+    return clusters</code>
+                        </div>
+                    </div>
+
+                    <div class="callout callout-info" style="margin-bottom:1rem;">
+                        <div class="callout-title">Pillar 3: Graph-Based Retrieval</div>
+                        <p>Build a knowledge graph over clusters and documents. Nodes are document clusters; edges represent topical overlap or citation relationships. When retrieving, find matching nodes then expand 2–3 hops to surface related context. Rank final candidates by <strong>similarity score × graph centrality × connection strength</strong>.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- SECTION 8: EVALUATING RAG -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">8. Evaluating RAG: The RAGAS Framework</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Evaluation Is Non-Negotiable</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>RAGAS Insight:</strong> You don't need human-annotated ground truth for every metric. LLM-as-judge can evaluate faithfulness, relevance, and context quality at scale. This makes continuous evaluation practical in production.
+                    </div>
+
+                    <p>RAG has two separable failure modes: <strong>retrieval failures</strong> (wrong or missing context) and <strong>generation failures</strong> (LLM ignores context or hallucinates). RAGAS metrics target each independently.</p>
+
+                    <h4>Core RAGAS Metrics</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Measures</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Alert Threshold</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Failure Mode Diagnosed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Faithfulness</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Every claim in the answer is grounded in the retrieved context</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt; 0.8 → LLM is hallucinating</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Generation failure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Answer Relevancy</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">How pertinent the answer is to the original question</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt; 0.7 → answer is off-topic</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Generation failure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Context Precision</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Are relevant chunks ranked at the top of retrieved results?</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt; 0.6 → retrieval ordering is poor</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Retrieval/reranking failure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Context Recall</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">What fraction of the ground-truth answer is covered by retrieved context?</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt; 0.7 → retrieval is missing information</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Retrieval failure</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout callout-danger">
+                        <div class="callout-title">Faithfulness is the Most Critical Metric</div>
+                        <p>A faithfulness score below <strong>0.8</strong> means your LLM is generating claims not supported by retrieved context — i.e., it's hallucinating. This is true even when retrieval is working perfectly. Always monitor faithfulness in production.</p>
+                    </div>
+
+                    <div class="code-block">
+<code>from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall
+)
+from datasets import Dataset
+
+# Prepare evaluation dataset
+data = {
+    "question":  ["What is the refund policy?", ...],
+    "answer":    ["Refunds are processed within 5 days...", ...],  # LLM output
+    "contexts":  [["Our policy states...", "Section 4.2..."], ...],  # Retrieved chunks
+    "ground_truth": ["Refunds within 5 business days...", ...]      # Reference answer
+}
+
+dataset = Dataset.from_dict(data)
+
+result = evaluate(
+    dataset,
+    metrics=[faithfulness, answer_relevancy, context_precision, context_recall]
+)
+print(result)
+# {'faithfulness': 0.83, 'answer_relevancy': 0.91,
+#  'context_precision': 0.72, 'context_recall': 0.68}
+
+# Interpretation:
+# Faithfulness 0.83 → acceptable, but watch for drift
+# Context recall 0.68 → retrieval is missing ~30% of needed information
+#   → investigate chunking strategy and k value</code>
+                    </div>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When asked how you'd evaluate a RAG system, mention that you separate retrieval quality (context precision/recall) from generation quality (faithfulness/answer relevancy). This shows you understand that RAG has two distinct failure modes requiring different fixes.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">Active Recall Questions</h2>
@@ -1907,6 +2160,11 @@ for r in results:
                     <li class="mb-2"><strong>Explain the "lost in the middle" problem and how RAG helps address it.</strong></li>
                     <li class="mb-2"><strong>What's the purpose of parent-child chunking?</strong></li>
                     <li class="mb-2"><strong>How do you decide between Pinecone, Chroma, and pgvector for a new project?</strong></li>
+                    <li class="mb-2"><strong>What is semantic collapse and at what corpus size does it typically become critical?</strong></li>
+                    <li class="mb-2"><strong>Why does adding smaller chunks make semantic collapse worse rather than better?</strong></li>
+                    <li class="mb-2"><strong>Describe the three pillars of Hierarchical RAG and how each reduces retrieval search space.</strong></li>
+                    <li class="mb-2"><strong>What does a RAGAS Faithfulness score below 0.8 indicate, and how do you fix it?</strong></li>
+                    <li class="mb-2"><strong>Differentiate between Context Precision and Context Recall. Which one would be low if your retriever fetches irrelevant chunks?</strong></li>
                 </ol>
             </div>
 
@@ -2429,13 +2687,16 @@ if __name__ == "__main__":
             <div class="card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%); border: 2px solid rgba(16, 185, 129, 0.3);">
                 <h4>Key Takeaways</h4>
                 <ul>
-                    <li><strong>RAG Pipeline:</strong> Chunk -> Embed -> Store -> Retrieve -> Rerank -> Generate</li>
+                    <li><strong>RAG Pipeline:</strong> Chunk → Embed → Store → Retrieve → Rerank → Generate</li>
                     <li><strong>Chunking:</strong> Use recursive splitting with overlap. Consider document structure.</li>
                     <li><strong>Embeddings:</strong> OpenAI for ease, BGE/E5 for quality, MiniLM for speed.</li>
                     <li><strong>Vector DBs:</strong> Chroma for dev, Pinecone/Qdrant for production.</li>
                     <li><strong>Indexing:</strong> HNSW is the default. Use IVF for very large scale.</li>
                     <li><strong>Reranking:</strong> Always rerank! Cross-encoders significantly improve quality.</li>
                     <li><strong>Hybrid Search:</strong> Combine dense (semantic) and sparse (keyword) for best results.</li>
+                    <li><strong>Semantic Collapse:</strong> Flat RAG precision drops from 95% → 12% as corpus grows from 1K → 100K docs. Use Hierarchical RAG (routing + clustering + graph) for large corpora.</li>
+                    <li><strong>Hierarchical RAG:</strong> Route by domain → cluster with HDBSCAN → semantic search on ~50 docs. 10× faster and 2× more accurate than flat RAG at scale.</li>
+                    <li><strong>RAGAS Evaluation:</strong> Faithfulness &lt; 0.8 = hallucination; Context Recall &lt; 0.7 = retrieval gaps. Measure both to diagnose which stage is failing.</li>
                 </ul>
 
                 <h4 class="mt-3">How This Connects Forward</h4>
