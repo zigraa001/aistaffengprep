@@ -1899,81 +1899,338 @@ graph LR
                     <span class="collapsible-icon">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
-                    <p>These are the knobs you turn when calling any LLM API or running local inference. Understanding them lets you control quality, creativity, and consistency precisely.</p>
+                    <p>These are the knobs you turn when calling any LLM API or running local inference. Organized by category — sampling, repetition, length, beam search, output control, and advanced local methods.</p>
 
-                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                    <!-- CATEGORY 1: SAMPLING -->
+                    <h4 style="color:#667eea; margin:1.2rem 0 0.5rem;">🎲 Sampling &amp; Randomness</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
                         <thead>
                             <tr style="background:rgba(102,126,234,0.2);">
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
-                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Effect of increasing</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Available In</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>temperature</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Scales logits before softmax. Controls how "sharp" or "flat" the probability distribution is.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Divides logits before softmax. Low = sharper (deterministic), high = flatter (random). At 0 = greedy argmax.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 2.0</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">More random, creative, unexpected outputs</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All APIs &amp; frameworks</td>
                             </tr>
                             <tr>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>top_p</strong> (nucleus)</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Only consider tokens whose cumulative probability ≥ p. Nucleus size adapts to model confidence.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>top_p</strong> <small>(nucleus)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Keep only tokens whose <em>cumulative</em> probability ≥ p. Nucleus shrinks when model is confident, grows when uncertain.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 (disabled)</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Larger vocabulary pool → more diverse outputs</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All APIs &amp; frameworks</td>
                             </tr>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>top_k</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Only sample from the k most likely tokens. Fixed cutoff regardless of distribution shape.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hard cutoff: keep only top k tokens regardless of how confident the model is. Simpler but less adaptive than top_p.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – vocab_size</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 (disabled)</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">More tokens considered → more diversity</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace, llama.cpp, some APIs</td>
                             </tr>
-                            <tr>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>max_tokens</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hard limit on output length. Generation stops when hit.</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – context_window</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Model-dependent</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Longer outputs, higher cost</td>
+                            <tr style="background:rgba(102,126,234,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>min_p</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Discard any token whose probability &lt; min_p × (top token probability). Scales with context — keeps candidates that are "at least X% as likely as the best option." More stable than top_k across varied distributions.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">llama.cpp, Ollama, LM Studio, vLLM</td>
                             </tr>
+                            <tr style="background:rgba(102,126,234,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>typical_p</strong> <small>(locally typical sampling)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Keeps tokens whose information content is closest to the expected entropy of the distribution. Removes both too-likely (boring) and too-unlikely (surprising) tokens. Produces more human-like text than top_p.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers, llama.cpp</td>
+                            </tr>
+                            <tr style="background:rgba(102,126,234,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>eta_cutoff</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Entropy-adaptive cutoff. Filters tokens below a dynamic threshold computed from the entropy of the distribution. A softer alternative to top_k.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- CATEGORY 2: REPETITION -->
+                    <h4 style="color:#48bb78; margin:1.2rem 0 0.5rem;">🔁 Repetition Control</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
+                        <thead>
+                            <tr style="background:rgba(72,187,120,0.15);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Available In</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>presence_penalty</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Subtracts a fixed penalty from logits of tokens that have appeared at least once. Discourages repeating <em>any</em> previously used token.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Subtract a flat penalty from any token that appeared <em>at least once</em>. Binary: appears? penalise. Doesn't grow with frequency.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">-2.0 – 2.0</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">More topic variety, avoids looping on same ideas</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, Anthropic, Azure</td>
                             </tr>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>frequency_penalty</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Subtracts a penalty proportional to how <em>many times</em> a token has appeared. Penalizes frequent repetition more than rare.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Subtract <code>penalty × count</code> from each token's logit. The more times a token has been used, the harder it is to use again.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">-2.0 – 2.0</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Reduces word-level repetition in long outputs</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, Anthropic, Azure</td>
                             </tr>
+                            <tr style="background:rgba(72,187,120,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>repetition_penalty</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><em>Multiplicative</em> penalty from HuggingFace/llama.cpp. Divides logits of previously seen tokens by the penalty value (or multiplies if logit is negative). 1.0 = no effect; 1.3 = strong discouragement. Different from OpenAI's additive penalties.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 – 2.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace, llama.cpp, Ollama</td>
+                            </tr>
+                            <tr style="background:rgba(72,187,120,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>no_repeat_ngram_size</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hard ban: if a sequence of n tokens has already appeared in the output, ban all continuations that would create the same n-gram again. 3 or 4 prevents copy-paste loops without harming quality.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 – any int</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr style="background:rgba(72,187,120,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>repeat_last_n</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Window size for repetition_penalty in llama.cpp. Only tokens within the last N positions are penalised. 0 = disabled, -1 = entire context.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">-1 – context_size</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">64</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">llama.cpp, Ollama, LM Studio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- CATEGORY 3: LENGTH -->
+                    <h4 style="color:#f6ad55; margin:1.2rem 0 0.5rem;">📏 Length Control</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
+                        <thead>
+                            <tr style="background:rgba(246,173,85,0.15);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Available In</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             <tr>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>seed</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Fix random seed for reproducible outputs. Same prompt + same seed = same output.</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Any integer</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Random</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">N/A — enables deterministic testing</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>max_tokens</strong> <small>(max_new_tokens)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hard upper limit on generated tokens. Generation stops when this count is reached, even mid-sentence. Also called <code>max_new_tokens</code> in HuggingFace (excludes prompt length).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – context_window</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Model-dependent</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All APIs &amp; frameworks</td>
+                            </tr>
+                            <tr style="background:rgba(246,173,85,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>min_length</strong> <small>(min_new_tokens)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Forces the model to generate at least N tokens before it can emit an EOS token. Prevents degenerate one-word answers in summarization or dialogue tasks.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 – max_tokens</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr style="background:rgba(246,173,85,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>length_penalty</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Applied during <em>beam search only</em>. Divides sequence score by length^length_penalty. &gt;1 favours longer sequences, &lt;1 favours shorter. Has no effect on sampling.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">any float</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
                             </tr>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>stop sequences</strong></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">List of strings that halt generation immediately when produced.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">List of strings that immediately halt generation when produced. Use <code>"\n\n"</code> to stop at paragraph breaks, <code>"###"</code> to stop after a section header, or <code>"}"</code> after single JSON objects.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">List of strings</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">[]</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">N/A — controls output boundaries</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All APIs &amp; frameworks</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- CATEGORY 4: BEAM SEARCH -->
+                    <h4 style="color:#fc8181; margin:1.2rem 0 0.5rem;">🔦 Beam Search Family</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
+                        <thead>
+                            <tr style="background:rgba(252,129,129,0.15);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Available In</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>num_beams</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Number of beams to maintain in parallel. 1 = greedy. Higher values explore more paths and find higher-probability complete sequences, but are slower (cost scales linearly with beams).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – ~20</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>early_stopping</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Stop beam search when all beams hit EOS. <code>True</code> = stop as soon as num_beams complete sequences found. <code>False</code> = continue until max_tokens. <code>"never"</code> = always run to max_tokens.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">True / False / "never"</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">False</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr style="background:rgba(252,129,129,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>num_beam_groups</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Divides beams into groups for <em>diverse beam search</em>. Each group is penalised for similarity to other groups, forcing diverse output sequences. Requires <code>num_beams</code> divisible by this value.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – num_beams</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 (off)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr style="background:rgba(252,129,129,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>diversity_penalty</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">With diverse beam search: penalises tokens that were chosen by previous beam groups at the same position. Higher value = more distinct completions returned.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – ∞</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>num_return_sequences</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Return the top N beam candidates. Must be ≤ num_beams. With diverse beam search, returns one per group.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – num_beams</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">HuggingFace transformers</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- CATEGORY 5: OUTPUT CONTROL -->
+                    <h4 style="color:#76e4f7; margin:1.2rem 0 0.5rem;">📤 Output Control</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
+                        <thead>
+                            <tr style="background:rgba(118,228,247,0.15);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Available In</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>n</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Generate n independent completions in a single API call. Each uses the same prompt but different random seeds. Useful for self-consistency voting, A/B idea generation.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – ~20</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, Azure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>best_of</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Generate <code>best_of</code> completions server-side, return only the one with the highest log-probability. You pay for all <code>best_of</code> completions but receive only 1. Improves quality at cost of latency and tokens.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1 – ~20</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI (legacy completions)</td>
+                            </tr>
+                            <tr style="background:rgba(118,228,247,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>logprobs</strong> / <strong>top_logprobs</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Return the log-probabilities of generated tokens (and optionally the top-N alternatives at each position). Critical for: calibration checks, uncertainty quantification, detecting hallucinations, building re-ranking systems.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">bool / 0–20</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">false / null</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, Azure, HuggingFace</td>
+                            </tr>
+                            <tr style="background:rgba(118,228,247,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>logit_bias</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Dictionary of <code>{token_id: bias}</code>. Add bias to a token's logit before sampling. +100 = force the token; -100 = ban the token; ±1–10 = nudge. Use to: ban profanity tokens, force specific response formats, or restrict to a controlled vocabulary.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">{token_id: -100 to 100}</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">{}</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, Azure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>response_format</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Force structured output: <code>{"type": "json_object"}</code> guarantees valid JSON; <code>{"type": "json_schema", "json_schema": {...}}</code> validates against a schema. Internally uses constrained decoding — only tokens that keep the output valid are allowed.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">object</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">text</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI gpt-4o+, Azure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>seed</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Fix the random seed for reproducible outputs. Same prompt + same seed ≈ same output (not guaranteed across API versions). Essential for eval harnesses and regression tests.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">any integer</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">random</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI, HuggingFace, llama.cpp</td>
+                            </tr>
+                            <tr style="background:rgba(118,228,247,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>stream</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Return tokens incrementally via SSE (Server-Sent Events) as they are generated instead of waiting for the full response. Dramatically improves perceived TTFT for the user. Required for chat UIs.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">bool</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">false</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All APIs &amp; frameworks</td>
+                            </tr>
+                            <tr style="background:rgba(118,228,247,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>grammar</strong> / <strong>json_schema</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Constrained generation via a formal grammar (GBNF in llama.cpp) or JSON schema. At each step only tokens that keep the partial output grammar-valid are allowed. Guarantees 100% valid structured output without post-processing.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">grammar string / schema object</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">null</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">llama.cpp, Ollama, Outlines (HF)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- CATEGORY 6: ADVANCED LOCAL -->
+                    <h4 style="color:#b794f4; margin:1.2rem 0 0.5rem;">🦙 Advanced / Local Inference (llama.cpp, Ollama)</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:0 0 1rem;">
+                        <thead>
+                            <tr style="background:rgba(183,148,244,0.15);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Parameter</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Does</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Default</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>mirostat</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Adaptive sampling algorithm that targets a specific perplexity level (<code>mirostat_tau</code>) instead of using static top_k/top_p. Automatically adjusts the candidate pool each step to maintain steady text quality. Mode 1 or 2 (2 is more accurate).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 (off), 1, 2</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>mirostat_tau</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Target entropy (perplexity) for mirostat. Lower = more focused/coherent (like low temperature). Higher = more creative. Typical range: 3–8. Tau=5 is a good default.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 10.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">5.0</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>mirostat_eta</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Learning rate for mirostat's internal state update. Controls how quickly it adapts to match tau. Low = stable but slow to adapt; high = responsive but noisier.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.1</td>
+                            </tr>
+                            <tr style="background:rgba(183,148,244,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>tfs_z</strong> <small>(tail free sampling)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Removes tokens in the "tail" of the distribution by analysing the second derivative of sorted probabilities. Better at cutting off degenerate tokens than top_p while preserving the meaningful distribution. z=1.0 disables it.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.0 – 1.0</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1.0 (off)</td>
+                            </tr>
+                            <tr style="background:rgba(183,148,244,0.05);">
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>num_ctx</strong> <small>(context window)</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">The context window size loaded for this request. Larger = more memory, allows longer conversations. Must be ≤ model's trained max (e.g. 8192 for Llama-2, 131072 for Llama-3.1).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">512 – model_max</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2048</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>n_gpu_layers</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Number of model layers to offload to GPU. Remaining layers run on CPU. -1 = all layers on GPU. Used for partial GPU offload when model doesn't fit entirely in VRAM.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">-1 – n_layers</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 (CPU only)</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div class="callout callout-warning">
-                        <div class="callout-title">Don't Use temperature AND top_p Together at Extreme Values</div>
-                        <p>temperature and top_p both control randomness from different angles. Using temperature=2.0 AND top_p=0.99 compounds randomness unpredictably. OpenAI recommends altering one, not both. A safe default: <code>temperature=0.7, top_p=1.0</code> or <code>temperature=1.0, top_p=0.9</code>.</p>
+                        <div class="callout-title">Don't Stack Multiple Sampling Methods</div>
+                        <p>temperature, top_p, top_k, min_p, mirostat — each controls randomness from a different angle. Combining them all multiplies uncertainty. Start with just temperature + one of {top_p, top_k, min_p, mirostat}. The recommended default for most tasks: <code>temperature=0.7, top_p=1.0</code> or <code>temperature=1.0, top_p=0.9</code>. For local inference with llama.cpp: <code>temperature=0.8, top_k=40, top_p=0.9, repeat_penalty=1.1</code>.</p>
                     </div>
                 </div>
             </div>
@@ -2134,6 +2391,263 @@ def generate_token(logits, temperature=0.7, top_k=50, top_p=0.9):
     probs /= probs.sum()                   # renormalize
     return torch.multinomial(probs, 1).item()</code>
                     </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Beam Search vs Sampling: Choosing the Right Decoding Strategy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Strategy</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">How It Works</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Best For</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Avoid For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Greedy</strong><br><small>num_beams=1, temp=0</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Always pick argmax at each step. Fast, deterministic.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Ultra-low latency classification, structured extraction</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Anything needing variety or longer coherent text</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Beam Search</strong><br><small>num_beams=4–10</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Maintain top-B sequences, choose best full sequence by log-probability.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Machine translation, summarization (fixed-length), seq2seq tasks</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Open-ended generation, decoder-only LLMs (GPT-style) — produces repetitive, dull output</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Diverse Beam Search</strong><br><small>num_beam_groups>1</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Groups of beams penalise overlap with other groups, forcing distinct sequences.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Returning multiple diverse candidate responses</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Real-time inference (slow), creative tasks</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Sampling</strong><br><small>temp>0, top_p/top_k</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Sample from filtered distribution at each step. Stochastic.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Chat, creative writing, brainstorming, any open-ended text</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Tasks needing byte-perfect reproducibility</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Contrastive Search</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">At each step, pick token that maximises (probability − similarity to previous context embeddings). Avoids repetition without a penalty parameter.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Long coherent text generation with low repetition</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High-throughput serving (extra computation per step)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block">
+<code>from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+
+model = AutoModelForCausalLM.from_pretrained("gpt2")
+tokenizer = AutoTokenizer.from_pretrained("gpt2")
+inputs = tokenizer("The best way to learn programming is", return_tensors="pt")
+
+# Greedy — deterministic, fast
+greedy = model.generate(**inputs, max_new_tokens=40)
+
+# Beam search — best log-prob complete sequence
+beam = model.generate(**inputs, max_new_tokens=40,
+    num_beams=5, early_stopping=True, length_penalty=1.2,
+    no_repeat_ngram_size=3)
+
+# Diverse beam search — 3 groups of 3 beams → 3 distinct outputs
+diverse = model.generate(**inputs, max_new_tokens=40,
+    num_beams=9, num_beam_groups=3,
+    diversity_penalty=1.0, num_return_sequences=3)
+
+# Sampling with nucleus
+sampled = model.generate(**inputs, max_new_tokens=40,
+    do_sample=True, temperature=0.8, top_p=0.9, top_k=50)
+
+# Mirostat (llama.cpp via ctransformers / llama-cpp-python)
+# from llama_cpp import Llama
+# llm = Llama(model_path="llama-3.1-8b.gguf")
+# out = llm("The best way to learn programming is",
+#           max_tokens=40, mirostat_mode=2, mirostat_tau=5.0, mirostat_eta=0.1)
+
+for label, output in [("Greedy", greedy), ("Beam", beam), ("Sampled", sampled)]:
+    print(f"\n{label}:", tokenizer.decode(output[0], skip_special_tokens=True))</code>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>logprobs &amp; logit_bias: The Power User Parameters</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>logprobs — Reading the Model's Confidence</h4>
+                    <div class="key-insight">
+                        <strong>Why logprobs matter at staff level:</strong> The raw output text doesn't tell you whether the model was 99% confident or 51% confident. logprobs expose this. Low log-probabilities on factual claims are a leading indicator of hallucination. Building a reliable production system without monitoring logprobs means flying blind.
+                    </div>
+
+                    <div class="code-block">
+<code>from openai import OpenAI
+import math
+
+client = OpenAI()
+
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "What is the capital of France?"}],
+    logprobs=True,
+    top_logprobs=5,   # return top 5 alternatives at each position
+)
+
+# Inspect per-token confidence
+for token_logprob in response.choices[0].logprobs.content:
+    prob = math.exp(token_logprob.logprob)  # convert log-prob → probability
+    print(f"Token: {token_logprob.token!r:15} prob={prob:.3f}  logprob={token_logprob.logprob:.2f}")
+    # Show top alternatives
+    for alt in token_logprob.top_logprobs:
+        print(f"   alt: {alt.token!r:12} prob={math.exp(alt.logprob):.3f}")
+
+# Output example:
+# Token: 'Paris'         prob=0.987  logprob=-0.013
+#    alt: ' Paris'       prob=0.009
+#    alt: 'Lyon'         prob=0.002      ← low confidence in alternatives = reliable answer
+
+# ── DETECTING HALLUCINATION ───────────────────────────────────────────────────
+def is_likely_hallucination(response, threshold=-2.0):
+    """Flag responses where any token has logprob below threshold."""
+    suspicious_tokens = []
+    for t in response.choices[0].logprobs.content:
+        if t.logprob < threshold:  # exp(-2.0) = 0.135 = model only 13.5% confident
+            suspicious_tokens.append((t.token, t.logprob))
+    return len(suspicious_tokens) > 0, suspicious_tokens</code>
+                    </div>
+
+                    <h4 style="margin-top:1.5rem;">logit_bias — Surgical Token Control</h4>
+                    <div class="code-block">
+<code>import tiktoken
+
+enc = tiktoken.encoding_for_model("gpt-4o")
+
+# Example: Force the model to answer only "Yes" or "No"
+yes_id = enc.encode("Yes")[0]   # token ID for "Yes"
+no_id  = enc.encode("No")[0]    # token ID for "No"
+
+# All other tokens: bias to -100 (effectively banned)
+# Only allowed: Yes (id) and No (id)
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Is Python a compiled language? Answer only Yes or No."}],
+    logit_bias={yes_id: 10, no_id: 10},  # heavily favour these two
+    max_tokens=1,
+    temperature=0.0,
+)
+# Output will be exactly "No"
+
+# ── BAN SPECIFIC TOKENS ───────────────────────────────────────────────────────
+# Ban a profanity: find all token IDs for that word across casing/spacing variants
+def ban_tokens(enc, word):
+    variants = [word, word.upper(), word.capitalize(), " " + word]
+    ids = [enc.encode(v)[0] for v in variants if len(enc.encode(v)) == 1]
+    return {id: -100 for id in ids}
+
+# ── FORCE JSON START ──────────────────────────────────────────────────────────
+# Force first token to be "{" to guide structured output
+brace_id = enc.encode("{")[0]
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Extract name and age from: John is 30."}],
+    logit_bias={brace_id: 20},
+    temperature=0.0,
+)</code>
+                    </div>
+
+                    <div class="interview-tip">
+                        <strong>Staff-Level Use Cases for logit_bias:</strong>
+                        <ul>
+                            <li>Restrict a classifier to exactly N output tokens (e.g., sentiment → "positive"/"negative"/"neutral")</li>
+                            <li>Ban competitor names or regulated terms from appearing in outputs</li>
+                            <li>Force structured output to start with <code>{</code> when JSON mode isn't available</li>
+                            <li>Nudge the model toward a preferred writing style by up-weighting style-indicative tokens</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Mirostat: Target-Entropy Sampling</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>The Problem Mirostat Solves:</strong> With fixed top_p or top_k, the effective "surprise" level of the text varies wildly — some steps have a near-deterministic choice (boring), others have a nearly uniform distribution (incoherent). Mirostat dynamically adjusts the cutoff each step to maintain a <em>constant perplexity target</em> (tau), producing text with consistent surprise throughout.
+                    </div>
+
+                    <h4>How it works (simplified)</h4>
+                    <div class="code-block">
+<code># Mirostat v2 in plain Python (illustrative):
+import math
+
+def mirostat_v2(logits, tau=5.0, eta=0.1, mu=None):
+    """
+    tau  = target entropy (perplexity target). Lower = more focused.
+    eta  = learning rate for updating mu (surprise estimate).
+    mu   = running estimate of 2 * tau (adjusted each step).
+    """
+    if mu is None:
+        mu = 2 * tau
+
+    # Sort tokens by probability (descending)
+    probs = softmax(logits)
+    sorted_pairs = sorted(enumerate(probs), key=lambda x: -x[1])
+
+    # Compute how many tokens to keep so that we hit the target entropy
+    # by truncating the "surprising" tail
+    cumulative = 0.0
+    candidates = []
+    for token_id, p in sorted_pairs:
+        if cumulative + p > 1 - math.exp(-mu):
+            break
+        candidates.append((token_id, p))
+        cumulative += p
+
+    # Sample from the kept candidates
+    ids, ps = zip(*candidates) if candidates else ([sorted_pairs[0][0]], [1.0])
+    ps = [p / sum(ps) for p in ps]   # renormalise
+    chosen_id = random.choices(ids, weights=ps)[0]
+    chosen_p = dict(sorted_pairs)[chosen_id]
+
+    # Update mu based on surprise of chosen token (online learning)
+    surprise = -math.log2(chosen_p)
+    mu = mu - eta * (surprise - tau)
+
+    return chosen_id, mu
+
+# Typical settings in llama.cpp / Ollama:
+# mirostat=2, mirostat_tau=5.0, mirostat_eta=0.1
+# For more creative: tau=7-8
+# For more factual:  tau=3-4</code>
+                    </div>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">tau value</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Behaviour</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Comparable to</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">τ = 2–3</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Very focused, low entropy</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">temperature ≈ 0.3–0.5</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">τ = 5</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Balanced (default)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">temperature ≈ 0.7, top_p=0.9</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">τ = 7–8</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High entropy, creative</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">temperature ≈ 1.0–1.2</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
