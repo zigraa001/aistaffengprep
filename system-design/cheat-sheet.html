@@ -6,6 +6,113 @@
     <title>System Design Cheat Sheet - Staff Engineer Prep</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <style>
+        /* Dark theme support */
+        [data-theme="dark"] {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #e2e8f0;
+            --border-color: #334155;
+            --primary-color: #3b82f6;
+            --code-bg: #0f172a;
+            --text-muted: #94a3b8;
+            --primary-hover: #2563eb;
+        }
+        [data-theme="dark"] body {
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        [data-theme="dark"] .navbar {
+            background: #1e293b;
+            border-bottom-color: #334155;
+        }
+        [data-theme="dark"] .sidebar {
+            background: #1e293b;
+            border-right-color: #334155;
+        }
+        [data-theme="dark"] .failure-story {
+            background: rgba(255, 107, 107, 0.15);
+        }
+        [data-theme="dark"] .practice-sidebar {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+        }
+        [data-theme="dark"] .tradeoffs-grid .tradeoff-row:nth-child(even) {
+            background: rgba(255, 255, 255, 0.03);
+        }
+        [data-theme="dark"] .tradeoffs-grid .tradeoff-header {
+            background: #2563eb;
+        }
+
+        .theme-toggle-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 9rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+            font-size: 1.1rem;
+        }
+        .theme-toggle-btn:hover {
+            background: var(--primary-hover);
+        }
+        @media print {
+            .theme-toggle-btn { display: none !important; }
+        }
+
+        /* Tradeoffs grid */
+        .tradeoffs-grid {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        .tradeoffs-grid .tradeoff-header,
+        .tradeoffs-grid .tradeoff-row {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr 1.3fr 1.3fr;
+            gap: 0;
+            min-width: 800px;
+        }
+        .tradeoffs-grid .tradeoff-header {
+            background: var(--primary-color, #3b82f6);
+            color: white;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 8px 8px 0 0;
+        }
+        .tradeoffs-grid .tradeoff-header > div,
+        .tradeoffs-grid .tradeoff-row > div {
+            padding: 0.65rem 0.85rem;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            line-height: 1.45;
+        }
+        .tradeoffs-grid .tradeoff-row > div {
+            border-right: 1px solid var(--border-color);
+            font-size: 0.85rem;
+        }
+        .tradeoffs-grid .tradeoff-row > div:last-child,
+        .tradeoffs-grid .tradeoff-header > div:last-child {
+            border-right: none;
+        }
+        .tradeoffs-grid .tradeoff-row {
+            border-bottom: 1px solid var(--border-color);
+        }
+        .tradeoffs-grid .tradeoff-row:last-child {
+            border-bottom: none;
+        }
+        .tradeoffs-grid .tradeoff-row:nth-child(even) {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        .tradeoffs-grid .tradeoff-row > div:first-child {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
         .cheat-sheet-problem {
             background: var(--card-bg);
             border: 1px solid var(--border-color);
@@ -52,6 +159,7 @@
             border-left: 3px solid #ff6b6b;
             padding: 0.75rem 1rem;
             margin-top: 0.5rem;
+            margin-bottom: 0.75rem;
             border-radius: 0 4px 4px 0;
         }
         .toc-grid {
@@ -105,7 +213,7 @@
             background: var(--primary-hover);
         }
         @media print {
-            .sidebar, .navbar, .sidebar-toggle, .print-btn { display: none !important; }
+            .sidebar, .navbar, .sidebar-toggle, .print-btn, .theme-toggle-btn { display: none !important; }
             .main-content { margin: 0 !important; max-width: 100% !important; }
             .cheat-sheet-problem { break-inside: avoid; page-break-inside: avoid; }
         }
@@ -293,10 +401,12 @@
             <p class="text-muted mb-3">High-signal, opinionated summaries for 21 staff-level system design problems. Perfect for last-minute review.</p>
 
             <button class="print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+            <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle dark mode">🌙</button>
 
             <!-- Table of Contents -->
             <h2 class="mt-4 mb-3">Quick Navigation</h2>
             <div class="toc-grid">
+                <a href="#tradeoffs-section" class="toc-link" style="background: var(--primary-color); color: white; font-weight: 600;">⚖️ Tradeoffs</a>
                 <a href="#url-shortener" class="toc-link">URL Shortener</a>
                 <a href="#news-feed" class="toc-link">News Feed</a>
                 <a href="#chat-system" class="toc-link">Chat System</a>
@@ -319,6 +429,89 @@
                 <a href="#booking-system" class="toc-link">Booking System</a>
                 <a href="#airbnb-booking" class="toc-link">Airbnb Booking</a>
                 <a href="#vector-storage" class="toc-link">Vector Storage</a>
+            </div>
+
+            <!-- ==================== KEY TRADEOFFS ==================== -->
+            <h2 class="mt-4 mb-3" id="tradeoffs-section">Key Tradeoffs Cheat Sheet</h2>
+            <p class="text-muted mb-2">The recurring tensions that come up in every system design interview. Master these and you can reason about any problem.</p>
+            <div class="tradeoffs-grid">
+                <div class="tradeoff-header">
+                    <div>Tradeoff</div>
+                    <div>Option A</div>
+                    <div>Option B</div>
+                    <div>When to Pick A</div>
+                    <div>When to Pick B</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Consistency vs Availability</div>
+                    <div>Strong consistency (CP)</div>
+                    <div>High availability (AP)</div>
+                    <div>Financial transactions, inventory</div>
+                    <div>Social feeds, analytics, DNS</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Latency vs Throughput</div>
+                    <div>Optimize for low latency</div>
+                    <div>Optimize for high throughput</div>
+                    <div>User-facing APIs, trading systems</div>
+                    <div>Batch processing, ETL pipelines</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Read vs Write Optimization</div>
+                    <div>Denormalize, cache, pre-compute</div>
+                    <div>Normalize, write-optimized</div>
+                    <div>Read-heavy (100:1+), dashboards</div>
+                    <div>Write-heavy, event sourcing, logs</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Push vs Pull</div>
+                    <div>Push (fan-out on write)</div>
+                    <div>Pull (fan-out on read)</div>
+                    <div>Small fan-out, real-time needs</div>
+                    <div>Celebrity problem, large fan-out</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>SQL vs NoSQL</div>
+                    <div>Relational (ACID)</div>
+                    <div>NoSQL (flexible schema)</div>
+                    <div>Complex queries, transactions</div>
+                    <div>High write throughput, key-value access</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Sync vs Async</div>
+                    <div>Synchronous processing</div>
+                    <div>Async with message queues</div>
+                    <div>Payment, booking confirmation</div>
+                    <div>Notifications, analytics, email</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Monolith vs Microservices</div>
+                    <div>Single deployable unit</div>
+                    <div>Independent services</div>
+                    <div>Early stage, small team</div>
+                    <div>Scale teams independently, polyglot</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Cache-Aside vs Write-Through</div>
+                    <div>App manages cache</div>
+                    <div>Cache auto-populated on write</div>
+                    <div>Read-heavy, tolerance for stale</div>
+                    <div>Write-heavy, consistency critical</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Batch vs Stream Processing</div>
+                    <div>MapReduce/Spark batch</div>
+                    <div>Flink/Kafka Streams real-time</div>
+                    <div>Historical analytics, ML training</div>
+                    <div>Fraud detection, live dashboards</div>
+                </div>
+                <div class="tradeoff-row">
+                    <div>Replication vs Sharding</div>
+                    <div>Copy data across nodes</div>
+                    <div>Split data across nodes</div>
+                    <div>Read scalability, fault tolerance</div>
+                    <div>Write scalability, data too large for one node</div>
+                </div>
             </div>
 
             <!-- ==================== URL SHORTENER ==================== -->
@@ -348,11 +541,21 @@
                             <li><strong>Distributed ID Generator (Snowflake):</strong> Unique IDs without coordination overhead</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Cache cluster fails during traffic spike<br>
                             <strong>Who feels pain:</strong> All users — redirects slow to 200ms+, DB gets hammered<br>
                             <strong>Mitigation:</strong> Cache-aside pattern with TTL; circuit breaker to DB; pre-warm cache from DB on recovery
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Hash collision on popular URL — two different URLs map to same short code<br>
+                            <strong>Who feels pain:</strong> Users — clicking short link goes to wrong destination<br>
+                            <strong>Mitigation:</strong> Collision detection with retry; append random suffix; use DB unique constraint as safety net
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Distributed ID generator (Snowflake) clock skew — duplicate IDs generated across data centers<br>
+                            <strong>Who feels pain:</strong> System — silent data corruption, URL overwrites<br>
+                            <strong>Mitigation:</strong> NTP sync monitoring; include datacenter ID in key; idempotent writes with IF NOT EXISTS
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -414,11 +617,21 @@
                             <li><strong>Blob Storage + CDN:</strong> Media (images, videos) — posts reference media IDs</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Celebrity posts to 50M followers — write amplification explodes<br>
                             <strong>Who feels pain:</strong> System — queue backlog grows, feed freshness degrades for everyone<br>
                             <strong>Mitigation:</strong> Detect high-follower accounts; switch to pull model; rate limit fan-out workers
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Ranking model returns all zero scores after bad ML deployment — feed shows random/stale posts<br>
+                            <strong>Who feels pain:</strong> All users — engagement drops 40% before oncall notices<br>
+                            <strong>Mitigation:</strong> Shadow scoring with canary; minimum engagement threshold check; automatic rollback on metric regression
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Redis sorted set for user timeline exceeds memory limit — OOM kills cascade across cluster<br>
+                            <strong>Who feels pain:</strong> Users — empty feeds, 500 errors<br>
+                            <strong>Mitigation:</strong> Cap timeline size (e.g., 800 posts); TTL on cold timelines; memory alerts at 80%
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -480,11 +693,21 @@
                             <li><strong>Message Queue (Kafka):</strong> Async delivery to offline users — durability guarantee</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Chat server crashes — 100K WebSocket connections drop<br>
                             <strong>Who feels pain:</strong> Users — messages appear undelivered, reconnection storm<br>
                             <strong>Mitigation:</strong> Sticky sessions with failover; exponential backoff on reconnect; message queue buffers during outage
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Message ordering diverges between sender and recipient — group chat shows messages in wrong order<br>
+                            <strong>Who feels pain:</strong> Users — confusing conversations, replies appear before the message they reference<br>
+                            <strong>Mitigation:</strong> Server-assigned sequence numbers per chat; client-side reordering buffer; conflict resolution UI
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> End-to-end encryption key rotation fails — new device can't decrypt old messages<br>
+                            <strong>Who feels pain:</strong> User — message history appears blank on new phone<br>
+                            <strong>Mitigation:</strong> Key escrow with user-held recovery code; signal protocol session renegotiation; "request key from other device" flow
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -546,11 +769,21 @@
                             <li><strong>Metadata DB (MySQL + Redis):</strong> Video info, user data — relational for complex queries</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Origin storage region goes down — CDN cache expires<br>
                             <strong>Who feels pain:</strong> Users globally — buffering, failed playback for cache-missed content<br>
                             <strong>Mitigation:</strong> Multi-region origin replication; extend CDN TTLs during incidents; serve stale content
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Transcoding pipeline backlog — new uploads stuck in queue for hours during peak<br>
+                            <strong>Who feels pain:</strong> Creators — video appears as "processing" indefinitely, miss viral window<br>
+                            <strong>Mitigation:</strong> Priority lanes for popular creators; progressive quality (480p fast, 4K async); auto-scale transcoding fleet
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Adaptive bitrate manifest stale — client requests segment that was purged from CDN<br>
+                            <strong>Who feels pain:</strong> Users — playback stutters with 404 errors mid-stream<br>
+                            <strong>Mitigation:</strong> Versioned manifests; segment TTL > manifest TTL; graceful fallback to lower quality
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -612,11 +845,21 @@
                             <li><strong>ZooKeeper/etcd:</strong> Cluster membership — track which nodes are alive</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Hot key (viral post) — single shard overwhelmed<br>
                             <strong>Who feels pain:</strong> All users accessing that key — timeouts, cascade to DB<br>
                             <strong>Mitigation:</strong> Key replication across shards; local caching; request coalescing for same key
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Thundering herd after cache invalidation — thousands of requests hit DB simultaneously for same key<br>
+                            <strong>Who feels pain:</strong> Database — connection pool exhausted, cascading failures<br>
+                            <strong>Mitigation:</strong> Request coalescing (singleflight); stale-while-revalidate; probabilistic early expiration (cache stampede protection)
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Split-brain during network partition — two Redis masters accept conflicting writes<br>
+                            <strong>Who feels pain:</strong> Users — inconsistent data, last-write-wins causes silent data loss<br>
+                            <strong>Mitigation:</strong> Redis Sentinel with quorum; fencing tokens; reconciliation on partition heal
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -678,11 +921,16 @@
                             <li><strong>Config store (etcd):</strong> Rate limit rules — which endpoints, what limits</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Redis cluster fails — rate limiter loses state<br>
                             <strong>Who feels pain:</strong> Ops — either over-limit legit users (fail closed) or let attacks through (fail open)<br>
                             <strong>Mitigation:</strong> Local fallback with conservative limits; distributed rate limiting with sync intervals
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Fixed window boundary — attacker sends 100 requests at 11:59:59 and 100 more at 12:00:00, effectively 200/min<br>
+                            <strong>Who feels pain:</strong> Backend services — receive 2x expected load in a 1-second window<br>
+                            <strong>Mitigation:</strong> Sliding window counter; token bucket with gradual refill; combine global + per-window limits
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -744,11 +992,21 @@
                             <li><strong>PostgreSQL:</strong> Notification history + analytics — queryable delivery status</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> APNs/FCM rate limit hit — push notifications queue up<br>
                             <strong>Who feels pain:</strong> Users — delayed or missing notifications for time-sensitive events<br>
                             <strong>Mitigation:</strong> Exponential backoff; fallback to email/SMS; surface delivery failures in app
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Deduplication service down — user receives same notification 5 times<br>
+                            <strong>Who feels pain:</strong> Users — annoyed, lose trust, disable notifications entirely<br>
+                            <strong>Mitigation:</strong> Client-side dedup by notification ID; idempotency at every layer; circuit breaker on dedup service with "skip" vs "block" policy
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Template rendering bug sends PII (account balance) to wrong user via email<br>
+                            <strong>Who feels pain:</strong> Company — GDPR violation, security incident, user trust destroyed<br>
+                            <strong>Mitigation:</strong> Template sandbox testing; PII access audit log; per-user template variable binding validation; staged rollout for template changes
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -810,11 +1068,16 @@
                             <li><strong>Kafka + Flink:</strong> Aggregating search logs — build frequency counts offline</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Trending topic causes cache miss storm for new prefix<br>
                             <strong>Who feels pain:</strong> Users — slow suggestions during breaking news/viral moments<br>
                             <strong>Mitigation:</strong> Request coalescing; real-time trending detection; fallback to cached stale data
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Offensive suggestion surfaces for common prefix — PR nightmare<br>
+                            <strong>Who feels pain:</strong> Company — brand damage, user complaints, media coverage<br>
+                            <strong>Mitigation:</strong> Blocklist of offensive terms; human review for top-K suggestions; real-time content moderation layer
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -876,11 +1139,16 @@
                             <li><strong>Object Storage (S3):</strong> Raw HTML content — cheap, durable, append-only</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Spider trap — infinite URL generation (calendars, session IDs)<br>
                             <strong>Who feels pain:</strong> Crawler — wastes resources on one domain, starves others<br>
                             <strong>Mitigation:</strong> Max depth per domain; URL pattern detection; domain-level crawl budgets
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> DNS resolution bottleneck — crawler stalls waiting for DNS for millions of unique domains<br>
+                            <strong>Who feels pain:</strong> Crawl freshness — pages not re-crawled within SLA, stale index<br>
+                            <strong>Mitigation:</strong> Local DNS cache (TTL-aware); pre-resolve batch of URLs; multiple DNS resolvers; async DNS lookups
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -942,11 +1210,16 @@
                             <li><strong>Notification Service:</strong> Real-time sync events — push changes to other devices</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Metadata DB leader failover during bulk upload<br>
                             <strong>Who feels pain:</strong> Users — uploads stuck, file tree inconsistent across devices<br>
                             <strong>Mitigation:</strong> Client-side journaling; idempotent uploads with block hashes; reconciliation on reconnect
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Conflict resolution picks wrong version — user's 3-hour work overwritten by stale version from another device<br>
+                            <strong>Who feels pain:</strong> User — lost work, may not notice until much later<br>
+                            <strong>Mitigation:</strong> Never auto-delete versions; show conflict UI; keep both versions with "conflicted copy" naming (like Dropbox); version history with 30-day retention
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1008,11 +1281,16 @@
                             <li><strong>PostgreSQL + PostGIS:</strong> Trip history, user data — spatial queries for analytics</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Location service lag during concert end — 50K people request rides simultaneously<br>
                             <strong>Who feels pain:</strong> Riders — long match times, phantom drivers, ETA jumps<br>
                             <strong>Mitigation:</strong> Pre-position drivers for events; queue with ETA; degrade to larger radius search
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Surge pricing algorithm feedback loop — high price reduces demand, price drops, demand spikes, price re-surges<br>
+                            <strong>Who feels pain:</strong> Riders — unpredictable pricing, frustration, switch to competitor<br>
+                            <strong>Mitigation:</strong> Surge price dampening (max change per interval); commitment pricing ("lock this price for 5 min"); transparent surge communication
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1074,11 +1352,16 @@
                             <li><strong>Redis:</strong> Sessions, cart, real-time inventory counts — sub-ms reads</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Flash sale — 100K users add same item simultaneously<br>
                             <strong>Who feels pain:</strong> Users — cart shows item but checkout fails; overselling nightmare<br>
                             <strong>Mitigation:</strong> Queue-based checkout; inventory soft-reserve with TTL; honest stock counts
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Search index out of sync with inventory — user finds product, clicks through, sees "out of stock"<br>
+                            <strong>Who feels pain:</strong> Users — frustrating experience, cart abandonment increases<br>
+                            <strong>Mitigation:</strong> Near-real-time inventory sync to search index; "low stock" badges; graceful "similar items" fallback
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1140,11 +1423,21 @@
                             <li><strong>Kafka:</strong> Event sourcing — complete audit trail, replay capability</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Network partition during payment — client retries, potential double charge<br>
                             <strong>Who feels pain:</strong> Customer — charged twice; merchant — refund overhead, trust loss<br>
                             <strong>Mitigation:</strong> Idempotency keys mandatory; pending state with timeout; reconciliation jobs
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Saga compensation fails — payment captured but order creation failed, refund also fails<br>
+                            <strong>Who feels pain:</strong> Customer — money taken, no order, refund stuck<br>
+                            <strong>Mitigation:</strong> Dead letter queue for failed compensations; human escalation workflow; reconciliation job that detects orphaned payments; customer-facing status page
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Currency conversion race condition — price displayed in EUR, charged in USD at different rate<br>
+                            <strong>Who feels pain:</strong> Customer — charged more than displayed price, disputes, chargebacks<br>
+                            <strong>Mitigation:</strong> Lock exchange rate at cart time with TTL; show final amount in charge currency; FX rate cache with staleness check
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1206,11 +1499,16 @@
                             <li><strong>Consumer offset storage:</strong> Kafka internal topic or external DB — exactly-once semantics</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Slow consumer — consumer group rebalances repeatedly<br>
                             <strong>Who feels pain:</strong> All consumers in group — processing halts during rebalance, duplicates<br>
                             <strong>Mitigation:</strong> Tune session timeout; static membership; isolate slow consumers to separate group
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Uncompacted topic grows to 50TB — broker disk fills up, new messages rejected<br>
+                            <strong>Who feels pain:</strong> All producers — message loss or backpressure cascading upstream<br>
+                            <strong>Mitigation:</strong> Retention policies enforced; disk usage monitoring with auto-alert at 70%; topic-level quotas; tiered storage to S3
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1272,11 +1570,16 @@
                             <li><strong>Cluster state:</strong> Metadata in memory — index mappings, shard allocation</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Mapping explosion — too many fields, cluster state bloats<br>
                             <strong>Who feels pain:</strong> Cluster — OOM on master nodes, cluster goes red<br>
                             <strong>Mitigation:</strong> Strict mappings; field limit settings; template governance
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Stop-the-world GC pause on data node during merge — queries to that shard timeout<br>
+                            <strong>Who feels pain:</strong> Users — partial search results or slow responses for 5-10 seconds<br>
+                            <strong>Mitigation:</strong> G1/ZGC garbage collector; limit merge thread count; replica shards absorb queries during GC; circuit breaker on heap usage
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1338,11 +1641,16 @@
                             <li><strong>Redis:</strong> Real-time counters for fraud detection — sub-second updates</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Kafka consumer lag during traffic spike — aggregations hours behind<br>
                             <strong>Who feels pain:</strong> Advertisers — dashboards show stale data, budget decisions delayed<br>
                             <strong>Mitigation:</strong> Auto-scaling consumers; sampling under load; SLA tiers for real-time vs batch
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Click fraud bot generates 10M fake clicks — advertiser billed for fraudulent activity<br>
+                            <strong>Who feels pain:</strong> Advertiser — wasted budget, loss of trust in platform<br>
+                            <strong>Mitigation:</strong> Real-time anomaly detection (click rate, IP clustering, user-agent fingerprinting); hold billing for 24h reconciliation window; refund pipeline for detected fraud
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1404,11 +1712,16 @@
                             <li><strong>PostgreSQL + PostGIS:</strong> Complex spatial queries — polygons, routes</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Geohash boundary — user at edge misses nearby results<br>
                             <strong>Who feels pain:</strong> User — restaurant 100m away not shown because different geohash<br>
                             <strong>Mitigation:</strong> Query adjacent geohash cells; use overlapping grid; post-filter by actual distance
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Stale business data — closed restaurant still showing as open in search<br>
+                            <strong>Who feels pain:</strong> Users — drive to restaurant, find it closed, leave 1-star review<br>
+                            <strong>Mitigation:</strong> Business verification cadence; user-reported corrections; cross-reference with Google/Yelp APIs; "hours may vary" disclaimer for stale data
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1470,11 +1783,16 @@
                             <li><strong>WebSocket servers:</strong> Real-time broadcast — stateful, sticky sessions</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Server crash loses in-flight ops — user edits vanish<br>
                             <strong>Who feels pain:</strong> Users — lost work, document diverges between collaborators<br>
                             <strong>Mitigation:</strong> Client-side op queue with ACK; server replication; periodic snapshots
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> OT transform function bug — two users editing same paragraph, one user's text duplicated/garbled<br>
+                            <strong>Who feels pain:</strong> Both users — document corruption, manual fix needed<br>
+                            <strong>Mitigation:</strong> Formal verification of OT transforms; extensive property-based testing (QuickCheck); snapshot + rollback capability; server-side validation of op sequences
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1536,11 +1854,16 @@
                             <li><strong>Time-series DB:</strong> Trade history, OHLC candles — analytics, regulatory</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Sequencer failover — 500ms gap, orders processed out of sequence<br>
                             <strong>Who feels pain:</strong> Traders — unfair fills, regulatory scrutiny, arbitrage losses<br>
                             <strong>Mitigation:</strong> Hot standby sequencer; sequence number validation; halt trading during recovery
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Market data multicast packet loss — some traders see stale quotes while others see current<br>
+                            <strong>Who feels pain:</strong> Traders with stale data — unfair fills, potential regulatory violations<br>
+                            <strong>Mitigation:</strong> Sequence numbers on all market data; gap detection with retransmission request; redundant multicast feeds (A/B); TCP recovery channel
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1602,11 +1925,16 @@
                             <li><strong>Redis:</strong> Availability cache, session — fast availability checks</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Flash sale on popular hotel — double booking same room<br>
                             <strong>Who feels pain:</strong> Guest — arrives to no room; hotel — angry customer, comped stay<br>
                             <strong>Mitigation:</strong> Serialized booking per room; inventory buffer; graceful overbooking policy
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Payment gateway timeout during booking — money captured but booking status unknown<br>
+                            <strong>Who feels pain:</strong> Guest — unsure if booked, may double-book; hotel — potentially overbooked<br>
+                            <strong>Mitigation:</strong> Idempotent payment capture with unique booking_id; async payment status polling; "pending" state with auto-cancel after TTL; webhook from payment provider
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1670,11 +1998,16 @@
                             <li><strong>Kafka + Debezium:</strong> CDC pipeline PG &rarr; ES for near-real-time search freshness</li>
                         </ul>
 
-                        <h4>4) One Failure Story</h4>
+                        <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> CDC pipeline lag during peak &mdash; search shows stale availability<br>
                             <strong>Who feels pain:</strong> Guest &mdash; finds listing "available" in search, gets 409 Conflict at booking<br>
                             <strong>Mitigation:</strong> Monitor Kafka consumer lag; auto-scale consumers; show "just booked" graceful error; optimistic search is a feature, not a bug
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Host cancels last-minute during peak season — guest stranded with no accommodation<br>
+                            <strong>Who feels pain:</strong> Guest — ruined trip, loss of trust in platform<br>
+                            <strong>Mitigation:</strong> Host cancellation penalties (Superhost status loss, fee); automatic rebooking with similar listings; guest protection insurance fund; incentivize hosts to honor commitments
                         </div>
 
                         <h4>5) Best Reference</h4>
@@ -1753,11 +2086,16 @@
                             <li><strong>Noisy neighbor defense:</strong> Per-tenant concurrency semaphores + query complexity estimation + API rate limits + cgroups</li>
                         </ul>
 
-                        <h4>5) One Failure Story</h4>
+                        <h4>5) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Large tenant batch-upserts 5M vectors, triggering HNSW index rebuild that OOMs the shared shard node<br>
                             <strong>Who feels pain:</strong> All tenants co-located on that node — queries timeout; replicas diverge<br>
                             <strong>Mitigation:</strong> Separate index builder pool (not on query nodes); memory budget enforcement at 80% with LRU eviction; async bulk upsert routed to dedicated ingest workers
+                        </div>
+                        <div class="failure-story">
+                            <strong>What breaks:</strong> Embedding model version upgrade — old vectors incompatible with new query vectors, recall drops from 95% to 40%<br>
+                            <strong>Who feels pain:</strong> All tenants — search quality degrades, RAG pipelines return irrelevant results<br>
+                            <strong>Mitigation:</strong> Model version tag on each collection; dual-write during migration (old + new embeddings); tenant-controlled migration schedule; rollback capability to old model version
                         </div>
 
                         <h4>6) Best Reference</h4>
@@ -1828,6 +2166,25 @@
                 target.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
         });
+
+        // Dark theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('cheat-sheet-theme', next);
+            document.querySelector('.theme-toggle-btn').textContent = next === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Apply saved theme on load
+        (function() {
+            const saved = localStorage.getItem('cheat-sheet-theme');
+            if (saved === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.querySelector('.theme-toggle-btn').textContent = '☀️';
+            }
+        })();
     </script>
 </body>
 </html>
