@@ -678,7 +678,7 @@
 
                         <h4>3) Core Data Stores</h4>
                         <ul>
-                            <li><strong>Redis Sorted Sets:</strong> User timelines — O(1) prepend, O(log N) range queries by score</li>
+                            <li><strong>Redis Sorted Sets:</strong> User timelines — O(log N) insert, O(log N + M) range queries by score</li>
                             <li><strong>Graph DB / Social Graph Service:</strong> Follower relationships — who follows whom</li>
                             <li><strong>Blob Storage + CDN:</strong> Media (images, videos) — posts reference media IDs</li>
                         </ul>
@@ -740,7 +740,7 @@
                                 </thead>
                                 <tbody>
                                     <tr><td>Fan-out Strategy</td><td>Fan-out on write (push)</td><td>Fan-out on read (pull)</td><td>Hybrid &mdash; push for normal users, pull for celebrities (&gt;10K followers)</td></tr>
-                                    <tr><td>Timeline Store</td><td>Redis Sorted Sets</td><td>Cassandra time-series</td><td>Redis &mdash; O(1) prepend, fits in memory for active users; Cassandra for archive</td></tr>
+                                    <tr><td>Timeline Store</td><td>Redis Sorted Sets</td><td>Cassandra time-series</td><td>Redis &mdash; O(log N) insert, fits in memory for active users; Cassandra for archive</td></tr>
                                     <tr><td>Ranking</td><td>Chronological</td><td>ML-ranked</td><td>ML-ranked &mdash; 20-50ms latency cost worth the engagement lift</td></tr>
                                     <tr><td>Media Storage</td><td>Same DB as posts</td><td>Separate blob store + CDN</td><td>Separate &mdash; decouple media lifecycle, CDN handles 95% of reads</td></tr>
                                     <tr><td>Social Graph</td><td>Relational (MySQL)</td><td>Graph DB (Neo4j/TAO)</td><td>Graph DB &mdash; optimized for &quot;friends of friends&quot; traversals at scale</td></tr>
@@ -780,8 +780,8 @@
 
                         <h4>6) Best Reference</h4>
                         <ul>
-                            <li><a href="https://www.erlang-solutions.com/blog/20-years-of-open-source-erlang-openerlang-interview-with-anton-lavrik-from-whatsapp/" target="_blank">Erlang Solutions: WhatsApp Interview</a> — Why Erlang powers 40B messages/day</li>
-                            <li><a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank">Discord Engineering: Scaling Elixir</a> — 5M concurrent users, WebSocket architecture</li>
+                            <li><a href="https://www.erlang-solutions.com/blog/20-years-of-open-source-erlang-openerlang-interview-with-anton-lavrik-from-whatsapp/" target="_blank">Erlang Solutions: WhatsApp Interview</a> — Why Erlang powers 100B+ messages/day</li>
+                            <li><a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank">Discord Engineering: Scaling Elixir</a> — 12M+ concurrent users, WebSocket architecture</li>
                         </ul>
                     </div>
                     <div class="problem-col-failures">
@@ -876,7 +876,7 @@
                         <h4>6) Best Reference</h4>
                         <ul>
                             <li><a href="https://netflixtechblog.com/behind-the-streams-live-at-netflix-part-1-d23f917c2f40" target="_blank">Netflix Tech Blog: Behind the Streams</a> — Live streaming architecture and transcoding</li>
-                            <li><a href="https://openconnect.netflix.com/en/" target="_blank">Netflix Open Connect</a> — How Netflix's CDN delivers 98% of traffic from edge</li>
+                            <li><a href="https://openconnect.netflix.com/en/" target="_blank">Netflix Open Connect</a> — How Netflix's CDN delivers 95%+ of traffic from edge</li>
                         </ul>
                     </div>
                     <div class="problem-col-failures">
@@ -1513,7 +1513,7 @@
 
                         <h4>3) Core Data Stores</h4>
                         <ul>
-                            <li><strong>Redis with geospatial:</strong> Real-time driver locations — <code>GEOADD</code>/<code>GEORADIUS</code></li>
+                            <li><strong>Redis with geospatial:</strong> Real-time driver locations — <code>GEOADD</code>/<code>GEOSEARCH</code> (GEORADIUS deprecated in 6.2)</li>
                             <li><strong>Kafka:</strong> Location event stream — replay for analytics, ML training</li>
                             <li><strong>PostgreSQL + PostGIS:</strong> Trip history, user data — spatial queries for analytics</li>
                         </ul>
@@ -1570,7 +1570,7 @@
                                 </thead>
                                 <tbody>
                                     <tr><td>Geo Index</td><td>Geohash</td><td>Quadtree</td><td>Geohash for storage/cache keys; quadtree for adaptive-density areas (city vs rural)</td></tr>
-                                    <tr><td>Location Store</td><td>Redis GEOADD</td><td>Custom in-memory index</td><td>Redis &mdash; built-in GEORADIUS, good enough to 1M drivers; custom for Uber-scale</td></tr>
+                                    <tr><td>Location Store</td><td>Redis GEOADD</td><td>Custom in-memory index</td><td>Redis &mdash; built-in GEOSEARCH (GEORADIUS deprecated 6.2), good enough to 1M drivers; custom for Uber-scale</td></tr>
                                     <tr><td>Matching</td><td>Nearest available</td><td>ML-optimized (ETA, driver preference)</td><td>ML &mdash; improves ETA accuracy and driver utilization by 15-20%</td></tr>
                                     <tr><td>Pricing</td><td>Fixed formula</td><td>ML dynamic pricing</td><td>Dynamic &mdash; matches supply/demand, but cap surge multiplier for user trust</td></tr>
                                     <tr><td>Trip DB</td><td>PostgreSQL + PostGIS</td><td>Cassandra</td><td>PostgreSQL &mdash; spatial queries, ACID for payments; Cassandra for raw GPS traces</td></tr>
@@ -1660,7 +1660,7 @@
                                 </thead>
                                 <tbody>
                                     <tr><td>Product Search</td><td>MySQL LIKE queries</td><td>Elasticsearch</td><td>Elasticsearch &mdash; full-text, faceted filters, relevance tuning, handles 10K+ QPS</td></tr>
-                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version check)</td><td>Optimistic &mdash; higher throughput; pessimistic only for flash sales on hot items</td></tr>
+                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version check)</td><td>Pessimistic for checkout &mdash; can't afford overselling; optimistic for browse/cart operations</td></tr>
                                     <tr><td>Cart Storage</td><td>MySQL</td><td>Redis with TTL</td><td>Redis &mdash; fast reads, natural TTL for abandoned carts; persist to MySQL on checkout</td></tr>
                                     <tr><td>Order DB</td><td>Single MySQL</td><td>Sharded by user_id</td><td>Sharded &mdash; order history grows linearly, user_id gives even distribution</td></tr>
                                     <tr><td>Payment</td><td>Synchronous in checkout flow</td><td>Async with webhook</td><td>Synchronous capture &mdash; user needs immediate confirmation; async for settlement</td></tr>
@@ -1796,7 +1796,7 @@
                         <h4>6) Best Reference</h4>
                         <ul>
                             <li><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank">LinkedIn Engineering: The Log</a> — Jay Kreps' seminal post on distributed logs and Kafka</li>
-                            <li><a href="https://engineering.linkedin.com/kafka/running-kafka-scale" target="_blank">LinkedIn Engineering: Kafka at Scale</a> — 800B messages/day, 1100+ brokers</li>
+                            <li><a href="https://engineering.linkedin.com/kafka/running-kafka-scale" target="_blank">LinkedIn Engineering: Kafka at Scale</a> — 7T+ messages/day, 4000+ brokers</li>
                         </ul>
                     </div>
                     <div class="problem-col-failures">
@@ -1844,7 +1844,7 @@
                                     <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td>Coordination</td><td>ZooKeeper</td><td>KRaft (built-in)</td><td>KRaft &mdash; eliminates ZK dependency, simpler ops, better scaling (Kafka 3.5+)</td></tr>
+                                    <tr><td>Coordination</td><td>ZooKeeper</td><td>KRaft (built-in)</td><td>KRaft &mdash; eliminates ZK dependency, simpler ops, better scaling (Kafka 4.0+ (ZK fully removed))</td></tr>
                                     <tr><td>Replication ACK</td><td>acks=1 (leader only)</td><td>acks=all (ISR)</td><td>acks=all for durability-critical; acks=1 for high-throughput metrics/logs</td></tr>
                                     <tr><td>Serialization</td><td>JSON</td><td>Avro with Schema Registry</td><td>Avro &mdash; 4x smaller, schema evolution, type safety; JSON for debugging simplicity</td></tr>
                                     <tr><td>Storage</td><td>Local disk only</td><td>Tiered storage (disk + S3)</td><td>Tiered &mdash; keep 7 days hot on disk, unlimited cold retention in S3 at 90% less cost</td></tr>
@@ -2027,7 +2027,7 @@
                                     <tr><td>Processing Engine</td><td>Flink (stream)</td><td>Spark (micro-batch)</td><td>Flink &mdash; true streaming, lower latency for real-time fraud detection; Spark for batch reprocessing</td></tr>
                                     <tr><td>OLAP Store</td><td>ClickHouse</td><td>Apache Druid</td><td>ClickHouse &mdash; faster ad-hoc queries; Druid for higher ingestion rate with real-time segments</td></tr>
                                     <tr><td>Counting</td><td>Exact counts</td><td>HyperLogLog (approximate)</td><td>Exact for billing (click counts); HLL for unique user counts (2% error acceptable)</td></tr>
-                                    <tr><td>Architecture</td><td>Lambda (batch + stream)</td><td>Kappa (stream only)</td><td>Kappa &mdash; simpler, Flink handles both real-time and reprocessing from Kafka</td></tr>
+                                    <tr><td>Architecture</td><td>Lambda (batch + stream)</td><td>Kappa (stream only)</td><td>Kappa trending &mdash; simpler with Flink; Lambda still used when batch accuracy is critical</td></tr>
                                     <tr><td>Fraud Detection</td><td>Rule-based</td><td>ML anomaly detection</td><td>Both &mdash; rules for known patterns (click flooding), ML for novel fraud signals</td></tr>
                                 </tbody>
                             </table>
@@ -2066,7 +2066,7 @@
                         <h4>6) Best Reference</h4>
                         <ul>
                             <li><a href="https://www.uber.com/blog/h3/" target="_blank">Uber Engineering: H3</a> — Hexagonal hierarchical spatial index (open source)</li>
-                            <li><a href="https://blog.yelp.com/2017/10/engineering-search-at-yelp/" target="_blank">Yelp Engineering: Search</a> — Geospatial search with Elasticsearch</li>
+                            <li><a href="https://blog.yelp.com/2017/10/engineering-search-at-yelp/" target="_blank">Yelp Engineering: Search</a> — Geospatial search (migrated from Elasticsearch to Nrtsearch)</li>
                         </ul>
                     </div>
                     <div class="problem-col-failures">
@@ -2155,7 +2155,7 @@
 
                         <h4>6) Best Reference</h4>
                         <ul>
-                            <li><a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/" target="_blank">Figma Engineering: Multiplayer</a> — CRDTs for real-time collaborative design</li>
+                            <li><a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/" target="_blank">Figma Engineering: Multiplayer</a> — CRDT-inspired approach for real-time collaborative design</li>
                             <li><a href="https://www.inkandswitch.com/local-first/" target="_blank">Ink & Switch: Local-First Software</a> — CRDTs vs OT deep dive with tradeoffs</li>
                         </ul>
                     </div>
@@ -2204,7 +2204,7 @@
                                     <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
                                 </thead>
                                 <tbody>
-                                    <tr><td>Conflict Resolution</td><td>OT (Operational Transform)</td><td>CRDT</td><td>OT for text (proven at Google Docs scale); CRDT for P2P / local-first (Figma)</td></tr>
+                                    <tr><td>Conflict Resolution</td><td>OT (Operational Transform)</td><td>CRDT</td><td>OT for text (proven at Google Docs scale); CRDT-inspired for P2P / local-first (Figma)</td></tr>
                                     <tr><td>Transport</td><td>WebSocket</td><td>WebRTC</td><td>WebSocket &mdash; simpler, server-mediated; WebRTC for P2P low-latency (Figma)</td></tr>
                                     <tr><td>Persistence</td><td>Periodic snapshots</td><td>Event sourcing (op log)</td><td>Both &mdash; op log for real-time + periodic snapshots for fast recovery</td></tr>
                                     <tr><td>Cursor Sync</td><td>Broadcast every keystroke</td><td>Throttled (100ms batch)</td><td>Throttled &mdash; reduces bandwidth 10x with imperceptible UX difference</td></tr>
@@ -2407,12 +2407,12 @@
                             <li><strong>Availability bitmap:</strong> 365-day bitmap per listing in ES &mdash; search speed vs freshness (CDC lag)</li>
                             <li><strong>Optimistic search + pessimistic booking:</strong> Eventual consistency for search, strong consistency for booking</li>
                             <li><strong>Saga orchestration:</strong> Multi-step booking (lock &rarr; pay &rarr; confirm) with compensation</li>
-                            <li><strong>Dynamic pricing:</strong> ML model + rule engine, precomputed into Redis (7M &times; 365 = ~20 GB)</li>
+                            <li><strong>Dynamic pricing:</strong> ML model + rule engine, precomputed into Redis (8M+ &times; 365 = ~23 GB)</li>
                         </ul>
 
                         <h4>2) Read vs Write Pattern & Latency</h4>
                         <ul>
-                            <li><strong>Read:Write ratio:</strong> 50,000:1 &mdash; search QPS dwarfs booking TPS</li>
+                            <li><strong>Read:Write ratio:</strong> 1,000:1+ &mdash; search QPS vastly exceeds booking TPS</li>
                             <li><strong>P50/P99 latency:</strong> Search 200ms/800ms; Booking 500ms/2s (includes payment auth)</li>
                             <li><strong>Optimization:</strong> ES with bitmap for search; PG row locks for booking; Redis for pricing</li>
                         </ul>
@@ -2483,7 +2483,7 @@
                                 <tbody>
                                     <tr><td>Calendar Store</td><td>One row per (listing, date)</td><td>Date-range rows per listing</td><td>Per-date rows &mdash; simpler overlap queries, SELECT FOR UPDATE per date, no range-split bugs</td></tr>
                                     <tr><td>Search &rarr; Booking Sync</td><td>Direct DB read</td><td>CDC pipeline (Debezium &rarr; Kafka &rarr; ES)</td><td>CDC &mdash; decouples search from booking DB, near-real-time freshness, search can scale independently</td></tr>
-                                    <tr><td>Pricing</td><td>Static host-set price</td><td>Dynamic ML + host rules</td><td>Dynamic &mdash; ML precomputes into Redis (7M listings &times; 365 days &asymp; 20GB), host sets bounds</td></tr>
+                                    <tr><td>Pricing</td><td>Static host-set price</td><td>Dynamic ML + host rules</td><td>Dynamic &mdash; ML precomputes into Redis (8M+ listings &times; 365 days &asymp; 23 GB), host sets bounds</td></tr>
                                     <tr><td>Booking Workflow</td><td>Single transaction</td><td>Saga (lock &rarr; pay &rarr; confirm)</td><td>Saga &mdash; spans multiple services (calendar, payment, messaging); compensation on failure</td></tr>
                                     <tr><td>Multi-region</td><td>Single region primary</td><td>Active-passive with read replicas</td><td>Active-passive &mdash; bookings are low-TPS (can route to primary); search reads from local replica</td></tr>
                                 </tbody>
@@ -2500,10 +2500,10 @@
                     <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
-                            <li><strong>HNSW (Hierarchical Navigable Small World):</strong> Multi-layer skip-list graph — O(log N) search, 99%+ recall, but requires full index in memory (~6.5 KB/vector at d=1536, M=16)</li>
+                            <li><strong>HNSW (Hierarchical Navigable Small World):</strong> Multi-layer skip-list graph — O(log N) search, 95-99%+ recall (depends on efSearch and dataset size), but requires full index in memory (~6.5 KB/vector at d=1536, M=16)</li>
                             <li><strong>IVF-PQ (Inverted File + Product Quantization):</strong> K-means clustering + vector compression — 32x memory savings but 90-95% recall, requires offline training</li>
                             <li><strong>Tradeoff:</strong> HNSW for latency-critical hot path; IVF-PQ for cost-sensitive cold tier. Tiered approach (like Pinecone serverless vs pods)</li>
-                            <li><strong>Filtered search:</strong> Pre-filter (selective >20%), post-filter (<1% selectivity), or in-traversal filter (adaptive). Sparse graph traversal is the hard sub-problem</li>
+                            <li><strong>Filtered search:</strong> Pre-filter for high selectivity (>60%), post-filter for low selectivity (<1%), in-traversal filter for mid-range (adaptive). Sparse graph traversal is the hard sub-problem</li>
                             <li><strong>Key params:</strong> <code>M</code> (edges/node), <code>ef_construction</code> (build quality), <code>ef_search</code> (query recall vs latency)</li>
                         </ul>
 
@@ -2589,7 +2589,7 @@
                                     <tr><td>Tenant Isolation</td><td>Shared index + tenant_id filter</td><td>Separate index per tenant</td><td>Separate index for Pro+ (isolation, custom tuning); shared for free tier (cost efficient)</td></tr>
                                     <tr><td>Vector Storage</td><td>All in-memory</td><td>Memory-mapped (mmap) from SSD</td><td>mmap &mdash; handles 10x more vectors per node; OS manages hot/cold pages automatically</td></tr>
                                     <tr><td>Durability</td><td>WAL on local disk</td><td>WAL + Kafka replication</td><td>Kafka &mdash; distributed durability, enables replay for new replicas without full index transfer</td></tr>
-                                    <tr><td>Filtered Search</td><td>Pre-filter then ANN</td><td>In-traversal filtering</td><td>In-traversal for low selectivity (&lt;20%); pre-filter for high selectivity (&gt;20%)</td></tr>
+                                    <tr><td>Filtered Search</td><td>Pre-filter then ANN</td><td>In-traversal filtering</td><td>Pre-filter for high selectivity (&gt;60%); in-traversal for mid-range; post-filter for low selectivity (&lt;1%)</td></tr>
                                 </tbody>
                             </table>
                         </div>
