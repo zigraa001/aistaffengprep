@@ -214,17 +214,29 @@
         }
         @media print {
             .sidebar, .navbar, .sidebar-toggle, .print-btn, .theme-toggle-btn { display: none !important; }
-            .main-content { margin: 0 !important; max-width: 100% !important; }
+            .main-content-wide { margin: 0 !important; max-width: 100% !important; }
             .cheat-sheet-problem { break-inside: avoid; page-break-inside: avoid; }
+            .problem-layout { grid-template-columns: 1fr 1fr 1fr; }
         }
-        /* Two-column layout for problem cards */
+        /* Three-column layout for problem cards */
         .problem-layout {
             display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 1.5rem;
+            grid-template-columns: 2fr 1.2fr 1.3fr;
+            gap: 1.25rem;
         }
-        .problem-content {
+        .problem-col-main {
             min-width: 0;
+        }
+        .problem-col-failures {
+            min-width: 0;
+        }
+        .problem-col-tradeoffs {
+            min-width: 0;
+        }
+        .problem-col-failures h4,
+        .problem-col-tradeoffs h4 {
+            font-size: 0.95rem;
+            margin-top: 0;
         }
         .practice-sidebar {
             background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05));
@@ -232,8 +244,6 @@
             border-radius: 8px;
             padding: 1rem;
             height: fit-content;
-            position: sticky;
-            top: 1rem;
         }
         .practice-sidebar h4 {
             margin: 0 0 0.75rem 0 !important;
@@ -288,12 +298,17 @@
             color: var(--text-muted);
             margin-left: auto;
         }
-        @media (max-width: 900px) {
+        @media (max-width: 1100px) {
+            .problem-layout {
+                grid-template-columns: 1fr 1fr;
+            }
+            .problem-col-tradeoffs {
+                grid-column: 1 / -1;
+            }
+        }
+        @media (max-width: 768px) {
             .problem-layout {
                 grid-template-columns: 1fr;
-            }
-            .practice-sidebar {
-                position: static;
             }
         }
         .tradeoff-table {
@@ -428,7 +443,7 @@
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content-wide" style="max-width: 1400px;">
             <h1>System Design Cheat Sheet</h1>
             <p class="text-muted mb-3">High-signal, opinionated summaries for 21 staff-level system design problems. Perfect for last-minute review.</p>
 
@@ -550,7 +565,7 @@
             <div class="cheat-sheet-problem" id="url-shortener">
                 <h3>URL Shortener (TinyURL/Bitly) <span class="difficulty-tag difficulty-easy">Easy</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Base62 encoding</strong> of auto-increment ID or random hash — simple, collision-free</li>
@@ -573,6 +588,13 @@
                             <li><strong>Distributed ID Generator (Snowflake):</strong> Unique IDs without coordination overhead</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://github.com/donnemartin/system-design-primer#design-pastebin" target="_blank">System Design Primer: URL Shortener</a> — Classic reference with Base62, hashing tradeoffs</li>
+                            <li><a href="https://instagram-engineering.com/sharding-ids-at-instagram-1cf5a71e5a5c" target="_blank">Instagram Engineering: Sharding & IDs</a> — How Instagram generates unique IDs at scale</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Cache cluster fails during traffic spike<br>
@@ -590,31 +612,8 @@
                             <strong>Mitigation:</strong> NTP sync monitoring; include datacenter ID in key; idempotent writes with IF NOT EXISTS
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>ID Generation</td><td>Auto-increment (MySQL)</td><td>Distributed Snowflake IDs</td><td>Snowflake &mdash; no single DB bottleneck, works multi-region</td></tr>
-                                    <tr><td>Storage</td><td>MySQL/PostgreSQL</td><td>DynamoDB/Cassandra</td><td>NoSQL &mdash; simple key-value access pattern, massive write throughput</td></tr>
-                                    <tr><td>Cache</td><td>Redis</td><td>Memcached</td><td>Redis &mdash; supports TTL natively, persistence for warm restart</td></tr>
-                                    <tr><td>Hash Strategy</td><td>Base62 of sequential ID</td><td>MD5 truncation + collision check</td><td>Base62 of Snowflake ID &mdash; collision-free, no extra DB lookup</td></tr>
-                                    <tr><td>Short Code Length</td><td>Fixed 7 chars</td><td>Variable (4-7, grow as needed)</td><td>Fixed 7 &mdash; simpler routing, 3.5T capacity is enough</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://github.com/donnemartin/system-design-primer#design-pastebin" target="_blank">System Design Primer: URL Shortener</a> — Classic reference with Base62, hashing tradeoffs</li>
-                            <li><a href="https://instagram-engineering.com/sharding-ids-at-instagram-1cf5a71e5a5c" target="_blank">Instagram Engineering: Sharding & IDs</a> — How Instagram generates unique IDs at scale</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/encode-and-decode-tinyurl/" target="_blank" class="practice-link">
@@ -635,6 +634,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>ID Generation</td><td>Auto-increment (MySQL)</td><td>Distributed Snowflake IDs</td><td>Snowflake &mdash; no single DB bottleneck, works multi-region</td></tr>
+                                    <tr><td>Storage</td><td>MySQL/PostgreSQL</td><td>DynamoDB/Cassandra</td><td>NoSQL &mdash; simple key-value access pattern, massive write throughput</td></tr>
+                                    <tr><td>Cache</td><td>Redis</td><td>Memcached</td><td>Redis &mdash; supports TTL natively, persistence for warm restart</td></tr>
+                                    <tr><td>Hash Strategy</td><td>Base62 of sequential ID</td><td>MD5 truncation + collision check</td><td>Base62 of Snowflake ID &mdash; collision-free, no extra DB lookup</td></tr>
+                                    <tr><td>Short Code Length</td><td>Fixed 7 chars</td><td>Variable (4-7, grow as needed)</td><td>Fixed 7 &mdash; simpler routing, 3.5T capacity is enough</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -643,7 +660,7 @@
             <div class="cheat-sheet-problem" id="news-feed">
                 <h3>News Feed / Timeline (Facebook/Twitter) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Fan-out on write:</strong> Push posts to follower feeds at write time — fast reads, expensive writes</li>
@@ -666,6 +683,13 @@
                             <li><strong>Blob Storage + CDN:</strong> Media (images, videos) — posts reference media IDs</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.fb.com/2021/01/26/ml-applications/news-feed-ranking/" target="_blank">Meta Engineering: News Feed Ranking</a> — ML-powered ranking at 2B+ users scale</li>
+                            <li><a href="https://engineering.fb.com/2016/10/20/networking-traffic/client-side-ranking-to-more-efficiently-show-people-stories-in-feed/" target="_blank">Meta Engineering: Client-Side Ranking</a> — Hybrid ranking architecture</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Celebrity posts to 50M followers — write amplification explodes<br>
@@ -683,31 +707,8 @@
                             <strong>Mitigation:</strong> Cap timeline size (e.g., 800 posts); TTL on cold timelines; memory alerts at 80%
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Fan-out Strategy</td><td>Fan-out on write (push)</td><td>Fan-out on read (pull)</td><td>Hybrid &mdash; push for normal users, pull for celebrities (&gt;10K followers)</td></tr>
-                                    <tr><td>Timeline Store</td><td>Redis Sorted Sets</td><td>Cassandra time-series</td><td>Redis &mdash; O(1) prepend, fits in memory for active users; Cassandra for archive</td></tr>
-                                    <tr><td>Ranking</td><td>Chronological</td><td>ML-ranked</td><td>ML-ranked &mdash; 20-50ms latency cost worth the engagement lift</td></tr>
-                                    <tr><td>Media Storage</td><td>Same DB as posts</td><td>Separate blob store + CDN</td><td>Separate &mdash; decouple media lifecycle, CDN handles 95% of reads</td></tr>
-                                    <tr><td>Social Graph</td><td>Relational (MySQL)</td><td>Graph DB (Neo4j/TAO)</td><td>Graph DB &mdash; optimized for &quot;friends of friends&quot; traversals at scale</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.fb.com/2021/01/26/ml-applications/news-feed-ranking/" target="_blank">Meta Engineering: News Feed Ranking</a> — ML-powered ranking at 2B+ users scale</li>
-                            <li><a href="https://engineering.fb.com/2016/10/20/networking-traffic/client-side-ranking-to-more-efficiently-show-people-stories-in-feed/" target="_blank">Meta Engineering: Client-Side Ranking</a> — Hybrid ranking architecture</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-twitter/" target="_blank" class="practice-link">
@@ -728,6 +729,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Fan-out Strategy</td><td>Fan-out on write (push)</td><td>Fan-out on read (pull)</td><td>Hybrid &mdash; push for normal users, pull for celebrities (&gt;10K followers)</td></tr>
+                                    <tr><td>Timeline Store</td><td>Redis Sorted Sets</td><td>Cassandra time-series</td><td>Redis &mdash; O(1) prepend, fits in memory for active users; Cassandra for archive</td></tr>
+                                    <tr><td>Ranking</td><td>Chronological</td><td>ML-ranked</td><td>ML-ranked &mdash; 20-50ms latency cost worth the engagement lift</td></tr>
+                                    <tr><td>Media Storage</td><td>Same DB as posts</td><td>Separate blob store + CDN</td><td>Separate &mdash; decouple media lifecycle, CDN handles 95% of reads</td></tr>
+                                    <tr><td>Social Graph</td><td>Relational (MySQL)</td><td>Graph DB (Neo4j/TAO)</td><td>Graph DB &mdash; optimized for &quot;friends of friends&quot; traversals at scale</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -736,7 +755,7 @@
             <div class="cheat-sheet-problem" id="chat-system">
                 <h3>Chat System (WhatsApp/Messenger) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>WebSocket connections:</strong> Persistent bi-directional — low latency, high server memory</li>
@@ -759,6 +778,13 @@
                             <li><strong>Message Queue (Kafka):</strong> Async delivery to offline users — durability guarantee</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.erlang-solutions.com/blog/20-years-of-open-source-erlang-openerlang-interview-with-anton-lavrik-from-whatsapp/" target="_blank">Erlang Solutions: WhatsApp Interview</a> — Why Erlang powers 40B messages/day</li>
+                            <li><a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank">Discord Engineering: Scaling Elixir</a> — 5M concurrent users, WebSocket architecture</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Chat server crashes — 100K WebSocket connections drop<br>
@@ -776,31 +802,8 @@
                             <strong>Mitigation:</strong> Key escrow with user-held recovery code; signal protocol session renegotiation; "request key from other device" flow
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Protocol</td><td>WebSocket</td><td>Long polling / SSE</td><td>WebSocket &mdash; true bidirectional, lower overhead for high-frequency messaging</td></tr>
-                                    <tr><td>Message Store</td><td>MySQL</td><td>Cassandra/ScyllaDB</td><td>Cassandra &mdash; time-series partition by (chat_id, time_bucket), massive write throughput</td></tr>
-                                    <tr><td>Ordering</td><td>Client timestamps</td><td>Server-assigned sequence numbers</td><td>Server sequence &mdash; single source of truth, prevents clock skew issues</td></tr>
-                                    <tr><td>Encryption</td><td>Server-side encryption</td><td>End-to-end (Signal protocol)</td><td>E2E &mdash; user trust, but sacrifices server-side search and backup features</td></tr>
-                                    <tr><td>Presence</td><td>Heartbeat-based</td><td>Connection-state based</td><td>Heartbeat &mdash; works across load balancers, tunable staleness (30s interval)</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.erlang-solutions.com/blog/20-years-of-open-source-erlang-openerlang-interview-with-anton-lavrik-from-whatsapp/" target="_blank">Erlang Solutions: WhatsApp Interview</a> — Why Erlang powers 40B messages/day</li>
-                            <li><a href="https://discord.com/blog/how-discord-scaled-elixir-to-5-000-000-concurrent-users" target="_blank">Discord Engineering: Scaling Elixir</a> — 5M concurrent users, WebSocket architecture</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-bounded-blocking-queue/" target="_blank" class="practice-link">
@@ -821,6 +824,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Protocol</td><td>WebSocket</td><td>Long polling / SSE</td><td>WebSocket &mdash; true bidirectional, lower overhead for high-frequency messaging</td></tr>
+                                    <tr><td>Message Store</td><td>MySQL</td><td>Cassandra/ScyllaDB</td><td>Cassandra &mdash; time-series partition by (chat_id, time_bucket), massive write throughput</td></tr>
+                                    <tr><td>Ordering</td><td>Client timestamps</td><td>Server-assigned sequence numbers</td><td>Server sequence &mdash; single source of truth, prevents clock skew issues</td></tr>
+                                    <tr><td>Encryption</td><td>Server-side encryption</td><td>End-to-end (Signal protocol)</td><td>E2E &mdash; user trust, but sacrifices server-side search and backup features</td></tr>
+                                    <tr><td>Presence</td><td>Heartbeat-based</td><td>Connection-state based</td><td>Heartbeat &mdash; works across load balancers, tunable staleness (30s interval)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -829,7 +850,7 @@
             <div class="cheat-sheet-problem" id="video-streaming">
                 <h3>Video Streaming (YouTube/Netflix) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Adaptive Bitrate (HLS/DASH):</strong> Client switches quality based on bandwidth — smooth playback vs quality</li>
@@ -852,6 +873,13 @@
                             <li><strong>Metadata DB (MySQL + Redis):</strong> Video info, user data — relational for complex queries</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://netflixtechblog.com/behind-the-streams-live-at-netflix-part-1-d23f917c2f40" target="_blank">Netflix Tech Blog: Behind the Streams</a> — Live streaming architecture and transcoding</li>
+                            <li><a href="https://openconnect.netflix.com/en/" target="_blank">Netflix Open Connect</a> — How Netflix's CDN delivers 98% of traffic from edge</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Origin storage region goes down — CDN cache expires<br>
@@ -869,31 +897,8 @@
                             <strong>Mitigation:</strong> Versioned manifests; segment TTL > manifest TTL; graceful fallback to lower quality
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Streaming Protocol</td><td>HLS</td><td>DASH</td><td>HLS &mdash; broader device support (iOS native); DASH for DRM flexibility</td></tr>
-                                    <tr><td>CDN</td><td>Single CDN (CloudFront)</td><td>Multi-CDN (CloudFront + Akamai)</td><td>Multi-CDN &mdash; failover, better geographic coverage, negotiate pricing</td></tr>
-                                    <tr><td>Transcoding</td><td>On-upload (eager)</td><td>On-demand (lazy)</td><td>Eager &mdash; pre-compute all resolutions; lazy only for long-tail content</td></tr>
-                                    <tr><td>Storage Tiering</td><td>All in S3 Standard</td><td>Hot (S3) + Cold (Glacier)</td><td>Tiered &mdash; 80% of views hit 5% of content, cold storage saves 70% on the rest</td></tr>
-                                    <tr><td>Codec</td><td>H.264</td><td>H.265/VP9/AV1</td><td>H.264 baseline + AV1 for new clients &mdash; best compatibility vs compression tradeoff</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://netflixtechblog.com/behind-the-streams-live-at-netflix-part-1-d23f917c2f40" target="_blank">Netflix Tech Blog: Behind the Streams</a> — Live streaming architecture and transcoding</li>
-                            <li><a href="https://openconnect.netflix.com/en/" target="_blank">Netflix Open Connect</a> — How Netflix's CDN delivers 98% of traffic from edge</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-video-sharing-platform/" target="_blank" class="practice-link">
@@ -914,6 +919,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Streaming Protocol</td><td>HLS</td><td>DASH</td><td>HLS &mdash; broader device support (iOS native); DASH for DRM flexibility</td></tr>
+                                    <tr><td>CDN</td><td>Single CDN (CloudFront)</td><td>Multi-CDN (CloudFront + Akamai)</td><td>Multi-CDN &mdash; failover, better geographic coverage, negotiate pricing</td></tr>
+                                    <tr><td>Transcoding</td><td>On-upload (eager)</td><td>On-demand (lazy)</td><td>Eager &mdash; pre-compute all resolutions; lazy only for long-tail content</td></tr>
+                                    <tr><td>Storage Tiering</td><td>All in S3 Standard</td><td>Hot (S3) + Cold (Glacier)</td><td>Tiered &mdash; 80% of views hit 5% of content, cold storage saves 70% on the rest</td></tr>
+                                    <tr><td>Codec</td><td>H.264</td><td>H.265/VP9/AV1</td><td>H.264 baseline + AV1 for new clients &mdash; best compatibility vs compression tradeoff</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -922,7 +945,7 @@
             <div class="cheat-sheet-problem" id="distributed-cache">
                 <h3>Distributed Cache (Redis/Memcached) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Consistent hashing:</strong> Minimize rebalancing on node add/remove — complexity vs even distribution</li>
@@ -945,6 +968,13 @@
                             <li><strong>ZooKeeper/etcd:</strong> Cluster membership — track which nodes are alive</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.fb.com/2013/06/25/core-infra/scaling-memcache-at-facebook/" target="_blank">Meta Engineering: Scaling Memcache</a> — Caching at Facebook's scale with consistency</li>
+                            <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank">Redis Official: Scaling Guide</a> — Consistent hashing, replication, cluster mode</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Hot key (viral post) — single shard overwhelmed<br>
@@ -962,31 +992,8 @@
                             <strong>Mitigation:</strong> Redis Sentinel with quorum; fencing tokens; reconciliation on partition heal
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Cache Product</td><td>Redis</td><td>Memcached</td><td>Redis &mdash; richer data structures, persistence, pub/sub; Memcached for pure KV simplicity</td></tr>
-                                    <tr><td>Partitioning</td><td>Consistent hashing</td><td>Hash slots (Redis Cluster)</td><td>Hash slots &mdash; deterministic, no virtual nodes needed, built-in resharding</td></tr>
-                                    <tr><td>Eviction Policy</td><td>LRU</td><td>LFU</td><td>LRU for general use; LFU when access frequency matters (e.g., hot products)</td></tr>
-                                    <tr><td>Invalidation</td><td>TTL-based</td><td>Event-driven (pub/sub)</td><td>TTL + event-driven hybrid &mdash; TTL as safety net, events for immediate consistency</td></tr>
-                                    <tr><td>Topology</td><td>Client-side sharding</td><td>Proxy-based (Twemproxy)</td><td>Proxy for simplicity at small scale; client-side for lower latency at large scale</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.fb.com/2013/06/25/core-infra/scaling-memcache-at-facebook/" target="_blank">Meta Engineering: Scaling Memcache</a> — Caching at Facebook's scale with consistency</li>
-                            <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/scaling/" target="_blank">Redis Official: Scaling Guide</a> — Consistent hashing, replication, cluster mode</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/lru-cache/" target="_blank" class="practice-link">
@@ -1007,6 +1014,24 @@
                                 <span class="source">Educative</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Cache Product</td><td>Redis</td><td>Memcached</td><td>Redis &mdash; richer data structures, persistence, pub/sub; Memcached for pure KV simplicity</td></tr>
+                                    <tr><td>Partitioning</td><td>Consistent hashing</td><td>Hash slots (Redis Cluster)</td><td>Hash slots &mdash; deterministic, no virtual nodes needed, built-in resharding</td></tr>
+                                    <tr><td>Eviction Policy</td><td>LRU</td><td>LFU</td><td>LRU for general use; LFU when access frequency matters (e.g., hot products)</td></tr>
+                                    <tr><td>Invalidation</td><td>TTL-based</td><td>Event-driven (pub/sub)</td><td>TTL + event-driven hybrid &mdash; TTL as safety net, events for immediate consistency</td></tr>
+                                    <tr><td>Topology</td><td>Client-side sharding</td><td>Proxy-based (Twemproxy)</td><td>Proxy for simplicity at small scale; client-side for lower latency at large scale</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1015,7 +1040,7 @@
             <div class="cheat-sheet-problem" id="rate-limiter">
                 <h3>Rate Limiter <span class="difficulty-tag difficulty-easy">Easy</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Token bucket:</strong> Smooth rate + burst allowance — flexible but memory per user</li>
@@ -1038,6 +1063,13 @@
                             <li><strong>Config store (etcd):</strong> Rate limit rules — which endpoints, what limits</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank">Cloudflare: Rate Limiting at Scale</a> — Sliding window algorithm for millions of domains</li>
+                            <li><a href="https://stripe.com/blog/rate-limiters" target="_blank">Stripe Engineering: Rate Limiters</a> — Token bucket implementation for API protection</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Redis cluster fails — rate limiter loses state<br>
@@ -1050,31 +1082,8 @@
                             <strong>Mitigation:</strong> Sliding window counter; token bucket with gradual refill; combine global + per-window limits
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Algorithm</td><td>Token bucket</td><td>Sliding window counter</td><td>Token bucket &mdash; allows controlled bursts, simple to implement with Redis INCR</td></tr>
-                                    <tr><td>Storage</td><td>Redis (centralized)</td><td>Local in-memory</td><td>Hybrid &mdash; local for per-instance, Redis for global cross-instance limiting</td></tr>
-                                    <tr><td>Failure Mode</td><td>Fail open (allow)</td><td>Fail closed (deny)</td><td>Fail open &mdash; better to serve some extra requests than block legitimate users</td></tr>
-                                    <tr><td>Granularity</td><td>Per-IP</td><td>Per-user + per-API key</td><td>Per-user for authenticated; per-IP for unauthenticated; per-API key for partners</td></tr>
-                                    <tr><td>Placement</td><td>API gateway</td><td>Application middleware</td><td>API gateway &mdash; single enforcement point, no per-service reimplementation</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://blog.cloudflare.com/counting-things-a-lot-of-different-things/" target="_blank">Cloudflare: Rate Limiting at Scale</a> — Sliding window algorithm for millions of domains</li>
-                            <li><a href="https://stripe.com/blog/rate-limiters" target="_blank">Stripe Engineering: Rate Limiters</a> — Token bucket implementation for API protection</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/logger-rate-limiter/" target="_blank" class="practice-link">
@@ -1095,6 +1104,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Algorithm</td><td>Token bucket</td><td>Sliding window counter</td><td>Token bucket &mdash; allows controlled bursts, simple to implement with Redis INCR</td></tr>
+                                    <tr><td>Storage</td><td>Redis (centralized)</td><td>Local in-memory</td><td>Hybrid &mdash; local for per-instance, Redis for global cross-instance limiting</td></tr>
+                                    <tr><td>Failure Mode</td><td>Fail open (allow)</td><td>Fail closed (deny)</td><td>Fail open &mdash; better to serve some extra requests than block legitimate users</td></tr>
+                                    <tr><td>Granularity</td><td>Per-IP</td><td>Per-user + per-API key</td><td>Per-user for authenticated; per-IP for unauthenticated; per-API key for partners</td></tr>
+                                    <tr><td>Placement</td><td>API gateway</td><td>Application middleware</td><td>API gateway &mdash; single enforcement point, no per-service reimplementation</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1103,7 +1130,7 @@
             <div class="cheat-sheet-problem" id="notification-system">
                 <h3>Notification System (Push/Email/SMS) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Priority queues:</strong> Urgent vs batch notifications — latency vs throughput</li>
@@ -1126,6 +1153,13 @@
                             <li><strong>PostgreSQL:</strong> Notification history + analytics — queryable delivery status</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.fb.com/2018/09/11/mobile/mobile-push-notifications/" target="_blank">Meta Engineering: Push Notifications</a> — Scaling push to billions of devices</li>
+                            <li><a href="https://firebase.google.com/docs/cloud-messaging/concept-options" target="_blank">Firebase Cloud Messaging Docs</a> — FCM architecture and delivery options</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> APNs/FCM rate limit hit — push notifications queue up<br>
@@ -1143,31 +1177,8 @@
                             <strong>Mitigation:</strong> Template sandbox testing; PII access audit log; per-user template variable binding validation; staged rollout for template changes
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Queue</td><td>Kafka</td><td>SQS/RabbitMQ</td><td>Kafka &mdash; high throughput, replay capability; SQS if you want managed simplicity</td></tr>
-                                    <tr><td>Delivery Priority</td><td>Single queue</td><td>Priority lanes (urgent/normal/bulk)</td><td>Priority lanes &mdash; 2FA codes can&#39;t wait behind marketing emails</td></tr>
-                                    <tr><td>Template Engine</td><td>Server-side rendering</td><td>Pre-compiled templates</td><td>Pre-compiled &mdash; faster rendering, validated at deploy time, fewer runtime errors</td></tr>
-                                    <tr><td>Push Provider</td><td>Firebase (FCM) only</td><td>FCM + APNs direct</td><td>FCM for Android; APNs direct for iOS &mdash; more control, better delivery rates</td></tr>
-                                    <tr><td>Dedup Strategy</td><td>DB-level unique constraint</td><td>Redis set with TTL</td><td>Redis &mdash; fast O(1) lookup; TTL auto-cleans; DB as backup for audit</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.fb.com/2018/09/11/mobile/mobile-push-notifications/" target="_blank">Meta Engineering: Push Notifications</a> — Scaling push to billions of devices</li>
-                            <li><a href="https://firebase.google.com/docs/cloud-messaging/concept-options" target="_blank">Firebase Cloud Messaging Docs</a> — FCM architecture and delivery options</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-bounded-blocking-queue/" target="_blank" class="practice-link">
@@ -1188,6 +1199,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Queue</td><td>Kafka</td><td>SQS/RabbitMQ</td><td>Kafka &mdash; high throughput, replay capability; SQS if you want managed simplicity</td></tr>
+                                    <tr><td>Delivery Priority</td><td>Single queue</td><td>Priority lanes (urgent/normal/bulk)</td><td>Priority lanes &mdash; 2FA codes can&#39;t wait behind marketing emails</td></tr>
+                                    <tr><td>Template Engine</td><td>Server-side rendering</td><td>Pre-compiled templates</td><td>Pre-compiled &mdash; faster rendering, validated at deploy time, fewer runtime errors</td></tr>
+                                    <tr><td>Push Provider</td><td>Firebase (FCM) only</td><td>FCM + APNs direct</td><td>FCM for Android; APNs direct for iOS &mdash; more control, better delivery rates</td></tr>
+                                    <tr><td>Dedup Strategy</td><td>DB-level unique constraint</td><td>Redis set with TTL</td><td>Redis &mdash; fast O(1) lookup; TTL auto-cleans; DB as backup for audit</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1196,7 +1225,7 @@
             <div class="cheat-sheet-problem" id="search-autocomplete">
                 <h3>Search Autocomplete (Typeahead) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Trie:</strong> Prefix tree for suggestions — fast lookup, high memory</li>
@@ -1219,6 +1248,13 @@
                             <li><strong>Kafka + Flink:</strong> Aggregating search logs — build frequency counts offline</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.linkedin.com/search/did-you-mean-galene" target="_blank">LinkedIn Engineering: Search Suggestions</a> — Typeahead with Galene and trie structures</li>
+                            <li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html" target="_blank">Elasticsearch: Completion Suggester</a> — Production-ready autocomplete implementation</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Trending topic causes cache miss storm for new prefix<br>
@@ -1231,31 +1267,8 @@
                             <strong>Mitigation:</strong> Blocklist of offensive terms; human review for top-K suggestions; real-time content moderation layer
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Data Structure</td><td>Trie (in-memory)</td><td>Redis sorted sets</td><td>Trie for low-latency custom ranking; Redis sorted sets for simpler ops</td></tr>
-                                    <tr><td>Suggestion Source</td><td>Search logs only</td><td>Logs + curated + trending</td><td>All three &mdash; logs for long-tail, curated for quality, trending for freshness</td></tr>
-                                    <tr><td>Update Frequency</td><td>Real-time</td><td>Batch (hourly/daily)</td><td>Batch for global suggestions; real-time only for trending/personalized</td></tr>
-                                    <tr><td>Personalization</td><td>None (global top-K)</td><td>User-specific history blend</td><td>Blend &mdash; 70% global popular + 30% user history for relevance</td></tr>
-                                    <tr><td>Client Strategy</td><td>Request per keystroke</td><td>Debounce 150ms + client cache</td><td>Debounce + cache &mdash; reduces backend load 80%, still feels instant</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.linkedin.com/search/did-you-mean-galene" target="_blank">LinkedIn Engineering: Search Suggestions</a> — Typeahead with Galene and trie structures</li>
-                            <li><a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-suggesters.html" target="_blank">Elasticsearch: Completion Suggester</a> — Production-ready autocomplete implementation</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-search-autocomplete-system/" target="_blank" class="practice-link">
@@ -1276,6 +1289,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Data Structure</td><td>Trie (in-memory)</td><td>Redis sorted sets</td><td>Trie for low-latency custom ranking; Redis sorted sets for simpler ops</td></tr>
+                                    <tr><td>Suggestion Source</td><td>Search logs only</td><td>Logs + curated + trending</td><td>All three &mdash; logs for long-tail, curated for quality, trending for freshness</td></tr>
+                                    <tr><td>Update Frequency</td><td>Real-time</td><td>Batch (hourly/daily)</td><td>Batch for global suggestions; real-time only for trending/personalized</td></tr>
+                                    <tr><td>Personalization</td><td>None (global top-K)</td><td>User-specific history blend</td><td>Blend &mdash; 70% global popular + 30% user history for relevance</td></tr>
+                                    <tr><td>Client Strategy</td><td>Request per keystroke</td><td>Debounce 150ms + client cache</td><td>Debounce + cache &mdash; reduces backend load 80%, still feels instant</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1284,7 +1315,7 @@
             <div class="cheat-sheet-problem" id="web-crawler">
                 <h3>Web Crawler (Googlebot) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>BFS vs DFS traversal:</strong> BFS for breadth coverage; DFS for depth — memory vs completeness</li>
@@ -1307,6 +1338,13 @@
                             <li><strong>Object Storage (S3):</strong> Raw HTML content — cheap, durable, append-only</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://blog.twitter.com/engineering/en_us/a/2011/spiderduck-twitters-real-time-url-fetcher" target="_blank">Twitter Engineering: SpiderDuck</a> — Real-time URL fetching with rate limiting per domain</li>
+                            <li><a href="https://research.google/pubs/web-search-for-a-planet-the-google-cluster-architecture/" target="_blank">Google Research: Web Search Architecture</a> — Crawling and indexing at Google scale</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Spider trap — infinite URL generation (calendars, session IDs)<br>
@@ -1319,31 +1357,8 @@
                             <strong>Mitigation:</strong> Local DNS cache (TTL-aware); pre-resolve batch of URLs; multiple DNS resolvers; async DNS lookups
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Traversal</td><td>BFS</td><td>DFS</td><td>BFS &mdash; ensures breadth of coverage; DFS risks getting trapped in deep sites</td></tr>
-                                    <tr><td>Dedup Store</td><td>Bloom filter</td><td>Redis/RocksDB set</td><td>Bloom filter &mdash; 10x less memory, false positives (re-crawl) acceptable vs false negatives</td></tr>
-                                    <tr><td>URL Frontier</td><td>Single queue</td><td>Priority queue per domain</td><td>Priority queue &mdash; respect politeness, prioritize high-value domains</td></tr>
-                                    <tr><td>Content Storage</td><td>S3 (raw HTML)</td><td>Compressed in HDFS</td><td>S3 &mdash; simpler ops, lifecycle policies; HDFS for MapReduce-heavy pipelines</td></tr>
-                                    <tr><td>DNS Resolution</td><td>System resolver</td><td>Local DNS cache (dnsjava)</td><td>Local cache &mdash; avoids DNS bottleneck, custom TTL management</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://blog.twitter.com/engineering/en_us/a/2011/spiderduck-twitters-real-time-url-fetcher" target="_blank">Twitter Engineering: SpiderDuck</a> — Real-time URL fetching with rate limiting per domain</li>
-                            <li><a href="https://research.google/pubs/web-search-for-a-planet-the-google-cluster-architecture/" target="_blank">Google Research: Web Search Architecture</a> — Crawling and indexing at Google scale</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/web-crawler/" target="_blank" class="practice-link">
@@ -1364,6 +1379,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Traversal</td><td>BFS</td><td>DFS</td><td>BFS &mdash; ensures breadth of coverage; DFS risks getting trapped in deep sites</td></tr>
+                                    <tr><td>Dedup Store</td><td>Bloom filter</td><td>Redis/RocksDB set</td><td>Bloom filter &mdash; 10x less memory, false positives (re-crawl) acceptable vs false negatives</td></tr>
+                                    <tr><td>URL Frontier</td><td>Single queue</td><td>Priority queue per domain</td><td>Priority queue &mdash; respect politeness, prioritize high-value domains</td></tr>
+                                    <tr><td>Content Storage</td><td>S3 (raw HTML)</td><td>Compressed in HDFS</td><td>S3 &mdash; simpler ops, lifecycle policies; HDFS for MapReduce-heavy pipelines</td></tr>
+                                    <tr><td>DNS Resolution</td><td>System resolver</td><td>Local DNS cache (dnsjava)</td><td>Local cache &mdash; avoids DNS bottleneck, custom TTL management</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1372,7 +1405,7 @@
             <div class="cheat-sheet-problem" id="cloud-storage">
                 <h3>Cloud Storage (Dropbox/Google Drive) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Block-level deduplication:</strong> Store unique 4MB blocks — storage cost vs upload latency</li>
@@ -1395,6 +1428,13 @@
                             <li><strong>Notification Service:</strong> Real-time sync events — push changes to other devices</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://dropbox.tech/infrastructure/magic-pocket-infrastructure" target="_blank">Dropbox Tech: Magic Pocket</a> — Exabyte-scale storage with block deduplication</li>
+                            <li><a href="https://dropbox.tech/infrastructure/rewriting-the-heart-of-our-sync-engine" target="_blank">Dropbox Tech: Sync Engine</a> — Delta sync and conflict resolution at scale</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Metadata DB leader failover during bulk upload<br>
@@ -1407,31 +1447,8 @@
                             <strong>Mitigation:</strong> Never auto-delete versions; show conflict UI; keep both versions with "conflicted copy" naming (like Dropbox); version history with 30-day retention
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Sync Strategy</td><td>Full file upload</td><td>Block-level delta sync</td><td>Delta sync &mdash; 90% bandwidth savings for large files, rsync-style diffs</td></tr>
-                                    <tr><td>Conflict Resolution</td><td>Last-write-wins</td><td>Fork + user-resolved merge</td><td>Fork &mdash; never lose data; show &quot;conflicted copy&quot; for user to resolve</td></tr>
-                                    <tr><td>Metadata DB</td><td>MySQL</td><td>Spanner/CockroachDB</td><td>Spanner for global consistency; MySQL with sharding for regional deployments</td></tr>
-                                    <tr><td>Block Storage</td><td>S3</td><td>Custom (Dropbox Magic Pocket)</td><td>S3 at start &mdash; proven durability; custom once you hit exabyte scale for cost</td></tr>
-                                    <tr><td>Dedup</td><td>Client-side hash check</td><td>Server-side dedup</td><td>Both &mdash; client skips upload if hash exists; server deduplicates across users</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://dropbox.tech/infrastructure/magic-pocket-infrastructure" target="_blank">Dropbox Tech: Magic Pocket</a> — Exabyte-scale storage with block deduplication</li>
-                            <li><a href="https://dropbox.tech/infrastructure/rewriting-the-heart-of-our-sync-engine" target="_blank">Dropbox Tech: Sync Engine</a> — Delta sync and conflict resolution at scale</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-file-system/" target="_blank" class="practice-link">
@@ -1452,6 +1469,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Sync Strategy</td><td>Full file upload</td><td>Block-level delta sync</td><td>Delta sync &mdash; 90% bandwidth savings for large files, rsync-style diffs</td></tr>
+                                    <tr><td>Conflict Resolution</td><td>Last-write-wins</td><td>Fork + user-resolved merge</td><td>Fork &mdash; never lose data; show &quot;conflicted copy&quot; for user to resolve</td></tr>
+                                    <tr><td>Metadata DB</td><td>MySQL</td><td>Spanner/CockroachDB</td><td>Spanner for global consistency; MySQL with sharding for regional deployments</td></tr>
+                                    <tr><td>Block Storage</td><td>S3</td><td>Custom (Dropbox Magic Pocket)</td><td>S3 at start &mdash; proven durability; custom once you hit exabyte scale for cost</td></tr>
+                                    <tr><td>Dedup</td><td>Client-side hash check</td><td>Server-side dedup</td><td>Both &mdash; client skips upload if hash exists; server deduplicates across users</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1460,7 +1495,7 @@
             <div class="cheat-sheet-problem" id="ride-sharing">
                 <h3>Ride Sharing (Uber/Lyft) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Geospatial indexing:</strong> Quadtree/Geohash for nearby drivers — precision vs query speed</li>
@@ -1483,6 +1518,13 @@
                             <li><strong>PostgreSQL + PostGIS:</strong> Trip history, user data — spatial queries for analytics</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.uber.com/blog/h3/" target="_blank">Uber Engineering: H3 Geospatial Index</a> — Hexagonal hierarchical spatial index for matching</li>
+                            <li><a href="https://www.uber.com/blog/engineering-an-efficient-dispatch-system/" target="_blank">Uber Engineering: Dispatch System</a> — Real-time matching optimization (DISCO)</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Location service lag during concert end — 50K people request rides simultaneously<br>
@@ -1495,31 +1537,8 @@
                             <strong>Mitigation:</strong> Surge price dampening (max change per interval); commitment pricing ("lock this price for 5 min"); transparent surge communication
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Geo Index</td><td>Geohash</td><td>Quadtree</td><td>Geohash for storage/cache keys; quadtree for adaptive-density areas (city vs rural)</td></tr>
-                                    <tr><td>Location Store</td><td>Redis GEOADD</td><td>Custom in-memory index</td><td>Redis &mdash; built-in GEORADIUS, good enough to 1M drivers; custom for Uber-scale</td></tr>
-                                    <tr><td>Matching</td><td>Nearest available</td><td>ML-optimized (ETA, driver preference)</td><td>ML &mdash; improves ETA accuracy and driver utilization by 15-20%</td></tr>
-                                    <tr><td>Pricing</td><td>Fixed formula</td><td>ML dynamic pricing</td><td>Dynamic &mdash; matches supply/demand, but cap surge multiplier for user trust</td></tr>
-                                    <tr><td>Trip DB</td><td>PostgreSQL + PostGIS</td><td>Cassandra</td><td>PostgreSQL &mdash; spatial queries, ACID for payments; Cassandra for raw GPS traces</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.uber.com/blog/h3/" target="_blank">Uber Engineering: H3 Geospatial Index</a> — Hexagonal hierarchical spatial index for matching</li>
-                            <li><a href="https://www.uber.com/blog/engineering-an-efficient-dispatch-system/" target="_blank">Uber Engineering: Dispatch System</a> — Real-time matching optimization (DISCO)</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank" class="practice-link">
@@ -1540,6 +1559,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Geo Index</td><td>Geohash</td><td>Quadtree</td><td>Geohash for storage/cache keys; quadtree for adaptive-density areas (city vs rural)</td></tr>
+                                    <tr><td>Location Store</td><td>Redis GEOADD</td><td>Custom in-memory index</td><td>Redis &mdash; built-in GEORADIUS, good enough to 1M drivers; custom for Uber-scale</td></tr>
+                                    <tr><td>Matching</td><td>Nearest available</td><td>ML-optimized (ETA, driver preference)</td><td>ML &mdash; improves ETA accuracy and driver utilization by 15-20%</td></tr>
+                                    <tr><td>Pricing</td><td>Fixed formula</td><td>ML dynamic pricing</td><td>Dynamic &mdash; matches supply/demand, but cap surge multiplier for user trust</td></tr>
+                                    <tr><td>Trip DB</td><td>PostgreSQL + PostGIS</td><td>Cassandra</td><td>PostgreSQL &mdash; spatial queries, ACID for payments; Cassandra for raw GPS traces</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1548,7 +1585,7 @@
             <div class="cheat-sheet-problem" id="e-commerce">
                 <h3>E-Commerce Platform (Amazon) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Inventory reservation:</strong> Optimistic locking vs distributed locks — throughput vs overselling</li>
@@ -1571,6 +1608,13 @@
                             <li><strong>Redis:</strong> Sessions, cart, real-time inventory counts — sub-ms reads</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.aboutamazon.com/news/aws/what-you-need-to-know-about-amazon-dynamodb" target="_blank">Amazon: DynamoDB Origin Story</a> — How Amazon built eventually consistent inventory at scale</li>
+                            <li><a href="https://shopify.engineering/how-shopify-manages-billions-of-dollars-in-flash-sales" target="_blank">Shopify Engineering: Flash Sales</a> — Inventory management during traffic spikes</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Flash sale — 100K users add same item simultaneously<br>
@@ -1583,31 +1627,8 @@
                             <strong>Mitigation:</strong> Near-real-time inventory sync to search index; "low stock" badges; graceful "similar items" fallback
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Product Search</td><td>MySQL LIKE queries</td><td>Elasticsearch</td><td>Elasticsearch &mdash; full-text, faceted filters, relevance tuning, handles 10K+ QPS</td></tr>
-                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version check)</td><td>Optimistic &mdash; higher throughput; pessimistic only for flash sales on hot items</td></tr>
-                                    <tr><td>Cart Storage</td><td>MySQL</td><td>Redis with TTL</td><td>Redis &mdash; fast reads, natural TTL for abandoned carts; persist to MySQL on checkout</td></tr>
-                                    <tr><td>Order DB</td><td>Single MySQL</td><td>Sharded by user_id</td><td>Sharded &mdash; order history grows linearly, user_id gives even distribution</td></tr>
-                                    <tr><td>Payment</td><td>Synchronous in checkout flow</td><td>Async with webhook</td><td>Synchronous capture &mdash; user needs immediate confirmation; async for settlement</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.aboutamazon.com/news/aws/what-you-need-to-know-about-amazon-dynamodb" target="_blank">Amazon: DynamoDB Origin Story</a> — How Amazon built eventually consistent inventory at scale</li>
-                            <li><a href="https://shopify.engineering/how-shopify-manages-billions-of-dollars-in-flash-sales" target="_blank">Shopify Engineering: Flash Sales</a> — Inventory management during traffic spikes</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-a-leaderboard/" target="_blank" class="practice-link">
@@ -1628,6 +1649,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Product Search</td><td>MySQL LIKE queries</td><td>Elasticsearch</td><td>Elasticsearch &mdash; full-text, faceted filters, relevance tuning, handles 10K+ QPS</td></tr>
+                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version check)</td><td>Optimistic &mdash; higher throughput; pessimistic only for flash sales on hot items</td></tr>
+                                    <tr><td>Cart Storage</td><td>MySQL</td><td>Redis with TTL</td><td>Redis &mdash; fast reads, natural TTL for abandoned carts; persist to MySQL on checkout</td></tr>
+                                    <tr><td>Order DB</td><td>Single MySQL</td><td>Sharded by user_id</td><td>Sharded &mdash; order history grows linearly, user_id gives even distribution</td></tr>
+                                    <tr><td>Payment</td><td>Synchronous in checkout flow</td><td>Async with webhook</td><td>Synchronous capture &mdash; user needs immediate confirmation; async for settlement</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1636,7 +1675,7 @@
             <div class="cheat-sheet-problem" id="payment-system">
                 <h3>Payment System (Stripe/PayPal) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Idempotency keys:</strong> Exactly-once payment processing — safety vs complexity</li>
@@ -1659,6 +1698,13 @@
                             <li><strong>Kafka:</strong> Event sourcing — complete audit trail, replay capability</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://stripe.com/blog/idempotency" target="_blank">Stripe Engineering: Idempotency</a> — Designing robust APIs for payment reliability</li>
+                            <li><a href="https://developer.squareup.com/blog/payments-integration-design-patterns" target="_blank">Square Developer: Payment Patterns</a> — Exactly-once semantics for transactions</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Network partition during payment — client retries, potential double charge<br>
@@ -1676,31 +1722,8 @@
                             <strong>Mitigation:</strong> Lock exchange rate at cart time with TTL; show final amount in charge currency; FX rate cache with staleness check
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Transaction Pattern</td><td>Two-phase commit (2PC)</td><td>Saga with compensation</td><td>Saga &mdash; better availability, works across services; 2PC only within single DB</td></tr>
-                                    <tr><td>Ledger DB</td><td>MySQL</td><td>PostgreSQL with serializable isolation</td><td>PostgreSQL &mdash; serializable by default, better JSON support for metadata</td></tr>
-                                    <tr><td>Idempotency Store</td><td>Redis with TTL</td><td>PostgreSQL unique constraint</td><td>Both &mdash; Redis for fast check, PostgreSQL as durable source of truth</td></tr>
-                                    <tr><td>Event Store</td><td>Kafka</td><td>PostgreSQL CDC (Debezium)</td><td>Kafka &mdash; native replay, higher throughput; Debezium bridges from existing PG</td></tr>
-                                    <tr><td>Reconciliation</td><td>Real-time</td><td>Batch (hourly/daily)</td><td>Both &mdash; real-time for critical paths; daily batch for comprehensive audit</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://stripe.com/blog/idempotency" target="_blank">Stripe Engineering: Idempotency</a> — Designing robust APIs for payment reliability</li>
-                            <li><a href="https://developer.squareup.com/blog/payments-integration-design-patterns" target="_blank">Square Developer: Payment Patterns</a> — Exactly-once semantics for transactions</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-underground-system/" target="_blank" class="practice-link">
@@ -1721,6 +1744,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Transaction Pattern</td><td>Two-phase commit (2PC)</td><td>Saga with compensation</td><td>Saga &mdash; better availability, works across services; 2PC only within single DB</td></tr>
+                                    <tr><td>Ledger DB</td><td>MySQL</td><td>PostgreSQL with serializable isolation</td><td>PostgreSQL &mdash; serializable by default, better JSON support for metadata</td></tr>
+                                    <tr><td>Idempotency Store</td><td>Redis with TTL</td><td>PostgreSQL unique constraint</td><td>Both &mdash; Redis for fast check, PostgreSQL as durable source of truth</td></tr>
+                                    <tr><td>Event Store</td><td>Kafka</td><td>PostgreSQL CDC (Debezium)</td><td>Kafka &mdash; native replay, higher throughput; Debezium bridges from existing PG</td></tr>
+                                    <tr><td>Reconciliation</td><td>Real-time</td><td>Batch (hourly/daily)</td><td>Both &mdash; real-time for critical paths; daily batch for comprehensive audit</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1729,7 +1770,7 @@
             <div class="cheat-sheet-problem" id="message-queue">
                 <h3>Distributed Message Queue (Kafka) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Partitioning:</strong> Horizontal scaling — ordering only within partition</li>
@@ -1752,6 +1793,13 @@
                             <li><strong>Consumer offset storage:</strong> Kafka internal topic or external DB — exactly-once semantics</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank">LinkedIn Engineering: The Log</a> — Jay Kreps' seminal post on distributed logs and Kafka</li>
+                            <li><a href="https://engineering.linkedin.com/kafka/running-kafka-scale" target="_blank">LinkedIn Engineering: Kafka at Scale</a> — 800B messages/day, 1100+ brokers</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Slow consumer — consumer group rebalances repeatedly<br>
@@ -1764,31 +1812,8 @@
                             <strong>Mitigation:</strong> Retention policies enforced; disk usage monitoring with auto-alert at 70%; topic-level quotas; tiered storage to S3
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Coordination</td><td>ZooKeeper</td><td>KRaft (built-in)</td><td>KRaft &mdash; eliminates ZK dependency, simpler ops, better scaling (Kafka 3.5+)</td></tr>
-                                    <tr><td>Replication ACK</td><td>acks=1 (leader only)</td><td>acks=all (ISR)</td><td>acks=all for durability-critical; acks=1 for high-throughput metrics/logs</td></tr>
-                                    <tr><td>Serialization</td><td>JSON</td><td>Avro with Schema Registry</td><td>Avro &mdash; 4x smaller, schema evolution, type safety; JSON for debugging simplicity</td></tr>
-                                    <tr><td>Storage</td><td>Local disk only</td><td>Tiered storage (disk + S3)</td><td>Tiered &mdash; keep 7 days hot on disk, unlimited cold retention in S3 at 90% less cost</td></tr>
-                                    <tr><td>Consumer Pattern</td><td>Push (Kafka default)</td><td>Pull with backpressure</td><td>Kafka&#39;s pull model &mdash; consumers control pace, natural backpressure handling</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying" target="_blank">LinkedIn Engineering: The Log</a> — Jay Kreps' seminal post on distributed logs and Kafka</li>
-                            <li><a href="https://engineering.linkedin.com/kafka/running-kafka-scale" target="_blank">LinkedIn Engineering: Kafka at Scale</a> — 800B messages/day, 1100+ brokers</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-bounded-blocking-queue/" target="_blank" class="practice-link">
@@ -1809,6 +1834,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Coordination</td><td>ZooKeeper</td><td>KRaft (built-in)</td><td>KRaft &mdash; eliminates ZK dependency, simpler ops, better scaling (Kafka 3.5+)</td></tr>
+                                    <tr><td>Replication ACK</td><td>acks=1 (leader only)</td><td>acks=all (ISR)</td><td>acks=all for durability-critical; acks=1 for high-throughput metrics/logs</td></tr>
+                                    <tr><td>Serialization</td><td>JSON</td><td>Avro with Schema Registry</td><td>Avro &mdash; 4x smaller, schema evolution, type safety; JSON for debugging simplicity</td></tr>
+                                    <tr><td>Storage</td><td>Local disk only</td><td>Tiered storage (disk + S3)</td><td>Tiered &mdash; keep 7 days hot on disk, unlimited cold retention in S3 at 90% less cost</td></tr>
+                                    <tr><td>Consumer Pattern</td><td>Push (Kafka default)</td><td>Pull with backpressure</td><td>Kafka&#39;s pull model &mdash; consumers control pace, natural backpressure handling</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1817,7 +1860,7 @@
             <div class="cheat-sheet-problem" id="search-engine">
                 <h3>Search Engine (Elasticsearch/Google) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Inverted index:</strong> Term → document IDs — fast lookup, expensive updates</li>
@@ -1840,6 +1883,13 @@
                             <li><strong>Cluster state:</strong> Metadata in memory — index mappings, shard allocation</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.elastic.co/blog/found-elasticsearch-from-the-bottom-up" target="_blank">Elastic Blog: Elasticsearch Bottom Up</a> — Inverted index, Lucene segments, and scoring</li>
+                            <li><a href="https://blog.twitter.com/engineering/en_us/a/2014/building-a-complete-tweet-index" target="_blank">Twitter Engineering: Tweet Index</a> — Indexing billions of tweets with Lucene</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Mapping explosion — too many fields, cluster state bloats<br>
@@ -1852,31 +1902,8 @@
                             <strong>Mitigation:</strong> G1/ZGC garbage collector; limit merge thread count; replica shards absorb queries during GC; circuit breaker on heap usage
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Index Format</td><td>Inverted index</td><td>Column store</td><td>Inverted index &mdash; purpose-built for full-text search; column store for analytics</td></tr>
-                                    <tr><td>Scoring</td><td>BM25</td><td>Custom ML ranking</td><td>BM25 as baseline + ML re-ranking top 100 &mdash; accuracy vs latency balance</td></tr>
-                                    <tr><td>Sharding</td><td>By document (random)</td><td>By term (keyword)</td><td>By document &mdash; even query distribution; term-based creates hot shards</td></tr>
-                                    <tr><td>Replication</td><td>Sync replicas</td><td>Async replicas</td><td>Async &mdash; better write throughput; accept briefly stale reads for search</td></tr>
-                                    <tr><td>Cluster Manager</td><td>Dedicated master nodes</td><td>Every node is master-eligible</td><td>Dedicated masters &mdash; prevents data nodes from being overwhelmed by cluster state</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.elastic.co/blog/found-elasticsearch-from-the-bottom-up" target="_blank">Elastic Blog: Elasticsearch Bottom Up</a> — Inverted index, Lucene segments, and scoring</li>
-                            <li><a href="https://blog.twitter.com/engineering/en_us/a/2014/building-a-complete-tweet-index" target="_blank">Twitter Engineering: Tweet Index</a> — Indexing billions of tweets with Lucene</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-add-and-search-words-data-structure/" target="_blank" class="practice-link">
@@ -1897,6 +1924,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Index Format</td><td>Inverted index</td><td>Column store</td><td>Inverted index &mdash; purpose-built for full-text search; column store for analytics</td></tr>
+                                    <tr><td>Scoring</td><td>BM25</td><td>Custom ML ranking</td><td>BM25 as baseline + ML re-ranking top 100 &mdash; accuracy vs latency balance</td></tr>
+                                    <tr><td>Sharding</td><td>By document (random)</td><td>By term (keyword)</td><td>By document &mdash; even query distribution; term-based creates hot shards</td></tr>
+                                    <tr><td>Replication</td><td>Sync replicas</td><td>Async replicas</td><td>Async &mdash; better write throughput; accept briefly stale reads for search</td></tr>
+                                    <tr><td>Cluster Manager</td><td>Dedicated master nodes</td><td>Every node is master-eligible</td><td>Dedicated masters &mdash; prevents data nodes from being overwhelmed by cluster state</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1905,7 +1950,7 @@
             <div class="cheat-sheet-problem" id="ad-click-aggregator">
                 <h3>Ad Click Aggregator (Google Ads) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Stream processing:</strong> Real-time aggregation (Flink/Spark) — latency vs accuracy (late events)</li>
@@ -1928,6 +1973,13 @@
                             <li><strong>Redis:</strong> Real-time counters for fraud detection — sub-second updates</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://engineering.fb.com/2016/06/28/core-infra/data-infrastructure-at-facebook/" target="_blank">Meta Engineering: Data Infrastructure</a> — Petabyte-scale real-time analytics</li>
+                            <li><a href="https://www.uber.com/blog/pinot-real-time-analytics/" target="_blank">Uber Engineering: Apache Pinot</a> — Real-time OLAP for click aggregation</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Kafka consumer lag during traffic spike — aggregations hours behind<br>
@@ -1940,31 +1992,8 @@
                             <strong>Mitigation:</strong> Real-time anomaly detection (click rate, IP clustering, user-agent fingerprinting); hold billing for 24h reconciliation window; refund pipeline for detected fraud
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Processing Engine</td><td>Flink (stream)</td><td>Spark (micro-batch)</td><td>Flink &mdash; true streaming, lower latency for real-time fraud detection; Spark for batch reprocessing</td></tr>
-                                    <tr><td>OLAP Store</td><td>ClickHouse</td><td>Apache Druid</td><td>ClickHouse &mdash; faster ad-hoc queries; Druid for higher ingestion rate with real-time segments</td></tr>
-                                    <tr><td>Counting</td><td>Exact counts</td><td>HyperLogLog (approximate)</td><td>Exact for billing (click counts); HLL for unique user counts (2% error acceptable)</td></tr>
-                                    <tr><td>Architecture</td><td>Lambda (batch + stream)</td><td>Kappa (stream only)</td><td>Kappa &mdash; simpler, Flink handles both real-time and reprocessing from Kafka</td></tr>
-                                    <tr><td>Fraud Detection</td><td>Rule-based</td><td>ML anomaly detection</td><td>Both &mdash; rules for known patterns (click flooding), ML for novel fraud signals</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://engineering.fb.com/2016/06/28/core-infra/data-infrastructure-at-facebook/" target="_blank">Meta Engineering: Data Infrastructure</a> — Petabyte-scale real-time analytics</li>
-                            <li><a href="https://www.uber.com/blog/pinot-real-time-analytics/" target="_blank">Uber Engineering: Apache Pinot</a> — Real-time OLAP for click aggregation</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/find-median-from-data-stream/" target="_blank" class="practice-link">
@@ -1985,6 +2014,24 @@
                                 <span class="source">Educative</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Processing Engine</td><td>Flink (stream)</td><td>Spark (micro-batch)</td><td>Flink &mdash; true streaming, lower latency for real-time fraud detection; Spark for batch reprocessing</td></tr>
+                                    <tr><td>OLAP Store</td><td>ClickHouse</td><td>Apache Druid</td><td>ClickHouse &mdash; faster ad-hoc queries; Druid for higher ingestion rate with real-time segments</td></tr>
+                                    <tr><td>Counting</td><td>Exact counts</td><td>HyperLogLog (approximate)</td><td>Exact for billing (click counts); HLL for unique user counts (2% error acceptable)</td></tr>
+                                    <tr><td>Architecture</td><td>Lambda (batch + stream)</td><td>Kappa (stream only)</td><td>Kappa &mdash; simpler, Flink handles both real-time and reprocessing from Kafka</td></tr>
+                                    <tr><td>Fraud Detection</td><td>Rule-based</td><td>ML anomaly detection</td><td>Both &mdash; rules for known patterns (click flooding), ML for novel fraud signals</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1993,7 +2040,7 @@
             <div class="cheat-sheet-problem" id="proximity-service">
                 <h3>Proximity Service (Yelp/Google Maps) <span class="difficulty-tag difficulty-medium">Medium</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Geohash:</strong> Encode lat/lng to string — prefix matching for nearby, boundary issues</li>
@@ -2016,6 +2063,13 @@
                             <li><strong>PostgreSQL + PostGIS:</strong> Complex spatial queries — polygons, routes</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.uber.com/blog/h3/" target="_blank">Uber Engineering: H3</a> — Hexagonal hierarchical spatial index (open source)</li>
+                            <li><a href="https://blog.yelp.com/2017/10/engineering-search-at-yelp/" target="_blank">Yelp Engineering: Search</a> — Geospatial search with Elasticsearch</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Geohash boundary — user at edge misses nearby results<br>
@@ -2028,31 +2082,8 @@
                             <strong>Mitigation:</strong> Business verification cadence; user-reported corrections; cross-reference with Google/Yelp APIs; "hours may vary" disclaimer for stale data
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Spatial Index</td><td>Geohash</td><td>R-tree (PostGIS)</td><td>Geohash for cache-friendly lookups; R-tree for complex polygon queries</td></tr>
-                                    <tr><td>Primary Store</td><td>Elasticsearch geo_point</td><td>PostgreSQL + PostGIS</td><td>Elasticsearch &mdash; combines text search + geo in one query; PostGIS for spatial analytics</td></tr>
-                                    <tr><td>Caching</td><td>Cache by geohash prefix</td><td>Cache by (lat, lng, radius)</td><td>Geohash prefix &mdash; natural grouping, high cache hit rate for popular areas</td></tr>
-                                    <tr><td>Distance Calc</td><td>Haversine (exact)</td><td>Flat-earth approximation</td><td>Haversine for ranking accuracy; flat-earth for pre-filter (&lt;50km radius is fine)</td></tr>
-                                    <tr><td>Update Model</td><td>Real-time writes</td><td>Batch update + CDC</td><td>Batch &mdash; business data changes infrequently, CDC keeps search index fresh within minutes</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.uber.com/blog/h3/" target="_blank">Uber Engineering: H3</a> — Hexagonal hierarchical spatial index (open source)</li>
-                            <li><a href="https://blog.yelp.com/2017/10/engineering-search-at-yelp/" target="_blank">Yelp Engineering: Search</a> — Geospatial search with Elasticsearch</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank" class="practice-link">
@@ -2073,6 +2104,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Spatial Index</td><td>Geohash</td><td>R-tree (PostGIS)</td><td>Geohash for cache-friendly lookups; R-tree for complex polygon queries</td></tr>
+                                    <tr><td>Primary Store</td><td>Elasticsearch geo_point</td><td>PostgreSQL + PostGIS</td><td>Elasticsearch &mdash; combines text search + geo in one query; PostGIS for spatial analytics</td></tr>
+                                    <tr><td>Caching</td><td>Cache by geohash prefix</td><td>Cache by (lat, lng, radius)</td><td>Geohash prefix &mdash; natural grouping, high cache hit rate for popular areas</td></tr>
+                                    <tr><td>Distance Calc</td><td>Haversine (exact)</td><td>Flat-earth approximation</td><td>Haversine for ranking accuracy; flat-earth for pre-filter (&lt;50km radius is fine)</td></tr>
+                                    <tr><td>Update Model</td><td>Real-time writes</td><td>Batch update + CDC</td><td>Batch &mdash; business data changes infrequently, CDC keeps search index fresh within minutes</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2081,7 +2130,7 @@
             <div class="cheat-sheet-problem" id="collaborative-editing">
                 <h3>Collaborative Editing (Google Docs) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Operational Transformation (OT):</strong> Transform concurrent ops — proven but complex server</li>
@@ -2104,6 +2153,13 @@
                             <li><strong>WebSocket servers:</strong> Real-time broadcast — stateful, sticky sessions</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/" target="_blank">Figma Engineering: Multiplayer</a> — CRDTs for real-time collaborative design</li>
+                            <li><a href="https://www.inkandswitch.com/local-first/" target="_blank">Ink & Switch: Local-First Software</a> — CRDTs vs OT deep dive with tradeoffs</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Server crash loses in-flight ops — user edits vanish<br>
@@ -2116,31 +2172,8 @@
                             <strong>Mitigation:</strong> Formal verification of OT transforms; extensive property-based testing (QuickCheck); snapshot + rollback capability; server-side validation of op sequences
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Conflict Resolution</td><td>OT (Operational Transform)</td><td>CRDT</td><td>OT for text (proven at Google Docs scale); CRDT for P2P / local-first (Figma)</td></tr>
-                                    <tr><td>Transport</td><td>WebSocket</td><td>WebRTC</td><td>WebSocket &mdash; simpler, server-mediated; WebRTC for P2P low-latency (Figma)</td></tr>
-                                    <tr><td>Persistence</td><td>Periodic snapshots</td><td>Event sourcing (op log)</td><td>Both &mdash; op log for real-time + periodic snapshots for fast recovery</td></tr>
-                                    <tr><td>Cursor Sync</td><td>Broadcast every keystroke</td><td>Throttled (100ms batch)</td><td>Throttled &mdash; reduces bandwidth 10x with imperceptible UX difference</td></tr>
-                                    <tr><td>Document Model</td><td>Plain text ops</td><td>Rich text (Quill Delta / ProseMirror)</td><td>Rich text &mdash; users expect formatting; use a proven CRDT library (Yjs, Automerge)</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.figma.com/blog/how-figmas-multiplayer-technology-works/" target="_blank">Figma Engineering: Multiplayer</a> — CRDTs for real-time collaborative design</li>
-                            <li><a href="https://www.inkandswitch.com/local-first/" target="_blank">Ink & Switch: Local-First Software</a> — CRDTs vs OT deep dive with tradeoffs</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-a-text-editor/" target="_blank" class="practice-link">
@@ -2161,6 +2194,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Conflict Resolution</td><td>OT (Operational Transform)</td><td>CRDT</td><td>OT for text (proven at Google Docs scale); CRDT for P2P / local-first (Figma)</td></tr>
+                                    <tr><td>Transport</td><td>WebSocket</td><td>WebRTC</td><td>WebSocket &mdash; simpler, server-mediated; WebRTC for P2P low-latency (Figma)</td></tr>
+                                    <tr><td>Persistence</td><td>Periodic snapshots</td><td>Event sourcing (op log)</td><td>Both &mdash; op log for real-time + periodic snapshots for fast recovery</td></tr>
+                                    <tr><td>Cursor Sync</td><td>Broadcast every keystroke</td><td>Throttled (100ms batch)</td><td>Throttled &mdash; reduces bandwidth 10x with imperceptible UX difference</td></tr>
+                                    <tr><td>Document Model</td><td>Plain text ops</td><td>Rich text (Quill Delta / ProseMirror)</td><td>Rich text &mdash; users expect formatting; use a proven CRDT library (Yjs, Automerge)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2169,7 +2220,7 @@
             <div class="cheat-sheet-problem" id="stock-exchange">
                 <h3>Stock Exchange (NASDAQ) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Order matching:</strong> Price-time priority FIFO — fairness vs throughput</li>
@@ -2192,6 +2243,13 @@
                             <li><strong>Time-series DB:</strong> Trade history, OHLC candles — analytics, regulatory</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.lmax.com/exchange/technical-papers" target="_blank">LMAX Exchange: Technical Papers</a> — Disruptor pattern for 6M orders/sec</li>
+                            <li><a href="https://queue.acm.org/detail.cfm?id=2658164" target="_blank">ACM Queue: Trading System Design</a> — Latency engineering for financial systems</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Sequencer failover — 500ms gap, orders processed out of sequence<br>
@@ -2204,31 +2262,8 @@
                             <strong>Mitigation:</strong> Sequence numbers on all market data; gap detection with retransmission request; redundant multicast feeds (A/B); TCP recovery channel
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Matching Engine</td><td>Single-threaded (LMAX)</td><td>Multi-threaded with locks</td><td>Single-threaded &mdash; eliminates lock contention, achieves microsecond latency (Disruptor pattern)</td></tr>
-                                    <tr><td>Order Book</td><td>Red-black tree</td><td>Skip list</td><td>Skip list &mdash; O(log n) with better cache locality; lock-free variants possible</td></tr>
-                                    <tr><td>Networking</td><td>TCP</td><td>Kernel bypass (DPDK/RDMA)</td><td>Kernel bypass &mdash; shaves 10-50&micro;s per hop, critical for HFT co-location</td></tr>
-                                    <tr><td>Journaling</td><td>Synchronous disk write</td><td>Memory-mapped + async flush</td><td>Sync write &mdash; regulatory requirement, data can&#39;t be lost; use NVMe for speed</td></tr>
-                                    <tr><td>Market Data</td><td>TCP unicast</td><td>UDP multicast</td><td>Multicast &mdash; one packet reaches all subscribers, lower latency; TCP for reliability recovery</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.lmax.com/exchange/technical-papers" target="_blank">LMAX Exchange: Technical Papers</a> — Disruptor pattern for 6M orders/sec</li>
-                            <li><a href="https://queue.acm.org/detail.cfm?id=2658164" target="_blank">ACM Queue: Trading System Design</a> — Latency engineering for financial systems</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/design-a-leaderboard/" target="_blank" class="practice-link">
@@ -2249,6 +2284,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Matching Engine</td><td>Single-threaded (LMAX)</td><td>Multi-threaded with locks</td><td>Single-threaded &mdash; eliminates lock contention, achieves microsecond latency (Disruptor pattern)</td></tr>
+                                    <tr><td>Order Book</td><td>Red-black tree</td><td>Skip list</td><td>Skip list &mdash; O(log n) with better cache locality; lock-free variants possible</td></tr>
+                                    <tr><td>Networking</td><td>TCP</td><td>Kernel bypass (DPDK/RDMA)</td><td>Kernel bypass &mdash; shaves 10-50&micro;s per hop, critical for HFT co-location</td></tr>
+                                    <tr><td>Journaling</td><td>Synchronous disk write</td><td>Memory-mapped + async flush</td><td>Sync write &mdash; regulatory requirement, data can&#39;t be lost; use NVMe for speed</td></tr>
+                                    <tr><td>Market Data</td><td>TCP unicast</td><td>UDP multicast</td><td>Multicast &mdash; one packet reaches all subscribers, lower latency; TCP for reliability recovery</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2257,7 +2310,7 @@
             <div class="cheat-sheet-problem" id="booking-system">
                 <h3>Hotel/Flight Booking (Booking.com/Expedia) <span class="difficulty-tag difficulty-medium">Medium</span> &nbsp;<a href="problems/airbnb-booking.html" style="font-size: 0.8rem; font-weight: normal;">Deep Dive: Airbnb Booking &rarr;</a></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Inventory management:</strong> Optimistic vs pessimistic locking — throughput vs overbooking</li>
@@ -2280,6 +2333,13 @@
                             <li><strong>Redis:</strong> Availability cache, session — fast availability checks</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://medium.com/airbnb-engineering/how-airbnb-avoids-double-payments-f93e3a83fe6e" target="_blank">Airbnb Engineering: Avoiding Double Payments</a> — Idempotency in booking transactions</li>
+                            <li><a href="https://blog.booking.com/architecture-systems-availability.html" target="_blank">Booking.com: Systems Availability</a> — High availability for reservation systems</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Flash sale on popular hotel — double booking same room<br>
@@ -2292,31 +2352,8 @@
                             <strong>Mitigation:</strong> Idempotent payment capture with unique booking_id; async payment status polling; "pending" state with auto-cancel after TTL; webhook from payment provider
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version column)</td><td>Pessimistic for booking &mdash; can&#39;t afford overbooking; optimistic for search/browse</td></tr>
-                                    <tr><td>Search</td><td>MySQL queries</td><td>Elasticsearch</td><td>Elasticsearch &mdash; complex filters (date, price, location, amenities) at scale</td></tr>
-                                    <tr><td>Payment Flow</td><td>Synchronous capture</td><td>Auth-hold then capture</td><td>Auth-hold &mdash; reserve funds, confirm after booking succeeds, refund on failure</td></tr>
-                                    <tr><td>Price Cache</td><td>Always fetch live</td><td>Cache with short TTL (5min)</td><td>Cache for search results; live fetch only at final booking confirmation</td></tr>
-                                    <tr><td>Availability</td><td>Per-row locking in RDBMS</td><td>Bitmap index in Elasticsearch</td><td>Both &mdash; bitmap for fast search filtering, RDBMS row lock for booking correctness</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://medium.com/airbnb-engineering/how-airbnb-avoids-double-payments-f93e3a83fe6e" target="_blank">Airbnb Engineering: Avoiding Double Payments</a> — Idempotency in booking transactions</li>
-                            <li><a href="https://blog.booking.com/architecture-systems-availability.html" target="_blank">Booking.com: Systems Availability</a> — High availability for reservation systems</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/my-calendar-i/" target="_blank" class="practice-link">
@@ -2337,6 +2374,24 @@
                                 <span class="source">GitHub</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Inventory Lock</td><td>Pessimistic (SELECT FOR UPDATE)</td><td>Optimistic (version column)</td><td>Pessimistic for booking &mdash; can&#39;t afford overbooking; optimistic for search/browse</td></tr>
+                                    <tr><td>Search</td><td>MySQL queries</td><td>Elasticsearch</td><td>Elasticsearch &mdash; complex filters (date, price, location, amenities) at scale</td></tr>
+                                    <tr><td>Payment Flow</td><td>Synchronous capture</td><td>Auth-hold then capture</td><td>Auth-hold &mdash; reserve funds, confirm after booking succeeds, refund on failure</td></tr>
+                                    <tr><td>Price Cache</td><td>Always fetch live</td><td>Cache with short TTL (5min)</td><td>Cache for search results; live fetch only at final booking confirmation</td></tr>
+                                    <tr><td>Availability</td><td>Per-row locking in RDBMS</td><td>Bitmap index in Elasticsearch</td><td>Both &mdash; bitmap for fast search filtering, RDBMS row lock for booking correctness</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2345,7 +2400,7 @@
             <div class="cheat-sheet-problem" id="airbnb-booking">
                 <h3>Airbnb Booking System <span class="difficulty-tag difficulty-hard">Hard</span> &nbsp;<a href="problems/airbnb-booking.html" style="font-size: 0.8rem; font-weight: normal;">Full Deep Dive &rarr;</a></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>Calendar locking:</strong> SELECT FOR UPDATE on (listing_id, date) rows &mdash; simplicity vs distributed lock overhead</li>
@@ -2370,6 +2425,13 @@
                             <li><strong>Kafka + Debezium:</strong> CDC pipeline PG &rarr; ES for near-real-time search freshness</li>
                         </ul>
 
+                        <h4>6) Best Reference</h4>
+                        <ul>
+                            <li><a href="problems/airbnb-booking.html">Full Airbnb Booking Deep Dive</a> &mdash; Complete staff-level breakdown with code</li>
+                            <li><a href="https://medium.com/airbnb-engineering/how-airbnb-avoids-double-payments-f93e3a83fe6e" target="_blank">Airbnb Engineering: Avoiding Double Payments</a> &mdash; Idempotency in payment systems</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>4) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> CDC pipeline lag during peak &mdash; search shows stale availability<br>
@@ -2382,31 +2444,8 @@
                             <strong>Mitigation:</strong> Host cancellation penalties (Superhost status loss, fee); automatic rebooking with similar listings; guest protection insurance fund; incentivize hosts to honor commitments
                         </div>
 
-                        
-                        <h4>6) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Calendar Store</td><td>One row per (listing, date)</td><td>Date-range rows per listing</td><td>Per-date rows &mdash; simpler overlap queries, SELECT FOR UPDATE per date, no range-split bugs</td></tr>
-                                    <tr><td>Search &rarr; Booking Sync</td><td>Direct DB read</td><td>CDC pipeline (Debezium &rarr; Kafka &rarr; ES)</td><td>CDC &mdash; decouples search from booking DB, near-real-time freshness, search can scale independently</td></tr>
-                                    <tr><td>Pricing</td><td>Static host-set price</td><td>Dynamic ML + host rules</td><td>Dynamic &mdash; ML precomputes into Redis (7M listings &times; 365 days &asymp; 20GB), host sets bounds</td></tr>
-                                    <tr><td>Booking Workflow</td><td>Single transaction</td><td>Saga (lock &rarr; pay &rarr; confirm)</td><td>Saga &mdash; spans multiple services (calendar, payment, messaging); compensation on failure</td></tr>
-                                    <tr><td>Multi-region</td><td>Single region primary</td><td>Active-passive with read replicas</td><td>Active-passive &mdash; bookings are low-TPS (can route to primary); search reads from local replica</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>7) Best Reference</h4>
-                        <ul>
-                            <li><a href="problems/airbnb-booking.html">Full Airbnb Booking Deep Dive</a> &mdash; Complete staff-level breakdown with code</li>
-                            <li><a href="https://medium.com/airbnb-engineering/how-airbnb-avoids-double-payments-f93e3a83fe6e" target="_blank">Airbnb Engineering: Avoiding Double Payments</a> &mdash; Idempotency in payment systems</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/my-calendar-i/" target="_blank" class="practice-link">
@@ -2432,6 +2471,24 @@
                                 <span class="source">Here</span>
                             </a>
                         </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>5) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Calendar Store</td><td>One row per (listing, date)</td><td>Date-range rows per listing</td><td>Per-date rows &mdash; simpler overlap queries, SELECT FOR UPDATE per date, no range-split bugs</td></tr>
+                                    <tr><td>Search &rarr; Booking Sync</td><td>Direct DB read</td><td>CDC pipeline (Debezium &rarr; Kafka &rarr; ES)</td><td>CDC &mdash; decouples search from booking DB, near-real-time freshness, search can scale independently</td></tr>
+                                    <tr><td>Pricing</td><td>Static host-set price</td><td>Dynamic ML + host rules</td><td>Dynamic &mdash; ML precomputes into Redis (7M listings &times; 365 days &asymp; 20GB), host sets bounds</td></tr>
+                                    <tr><td>Booking Workflow</td><td>Single transaction</td><td>Saga (lock &rarr; pay &rarr; confirm)</td><td>Saga &mdash; spans multiple services (calendar, payment, messaging); compensation on failure</td></tr>
+                                    <tr><td>Multi-region</td><td>Single region primary</td><td>Active-passive with read replicas</td><td>Active-passive &mdash; bookings are low-TPS (can route to primary); search reads from local replica</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2440,7 +2497,7 @@
             <div class="cheat-sheet-problem" id="vector-storage">
                 <h3>Multi-Tenant Vector Storage (Pinecone/Weaviate) <span class="difficulty-tag difficulty-hard">Hard</span></h3>
                 <div class="problem-layout">
-                    <div class="problem-content">
+                    <div class="problem-col-main">
                         <h4>1) Key Algorithms & Core Tradeoffs</h4>
                         <ul>
                             <li><strong>HNSW (Hierarchical Navigable Small World):</strong> Multi-layer skip-list graph — O(log N) search, 99%+ recall, but requires full index in memory (~6.5 KB/vector at d=1536, M=16)</li>
@@ -2475,6 +2532,14 @@
                             <li><strong>Noisy neighbor defense:</strong> Per-tenant concurrency semaphores + query complexity estimation + API rate limits + cgroups</li>
                         </ul>
 
+                        <h4>7) Best Reference</h4>
+                        <ul>
+                            <li><a href="https://www.pinecone.io/learn/series/faiss/hnsw/" target="_blank">Pinecone: HNSW Explained</a> — Deep dive on HNSW algorithm, parameters, and recall-latency tradeoffs</li>
+                            <li><a href="https://weaviate.io/blog/multi-tenancy-vector-search" target="_blank">Weaviate: Multi-Tenancy in Vector Search</a> — Production multi-tenancy design with hot/cold index management</li>
+                            <li><a href="https://qdrant.tech/articles/filtrable-hnsw/" target="_blank">Qdrant: Filterable HNSW</a> — How filtered vector search actually works in production</li>
+                        </ul>
+                    </div>
+                    <div class="problem-col-failures">
                         <h4>5) Failure Stories</h4>
                         <div class="failure-story">
                             <strong>What breaks:</strong> Large tenant batch-upserts 5M vectors, triggering HNSW index rebuild that OOMs the shared shard node<br>
@@ -2487,32 +2552,8 @@
                             <strong>Mitigation:</strong> Model version tag on each collection; dual-write during migration (old + new embeddings); tenant-controlled migration schedule; rollback capability to old model version
                         </div>
 
-                        
-                        <h4>7) Key Technology Tradeoffs</h4>
-                        <div class="tradeoff-table">
-                            <table>
-                                <thead>
-                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
-                                </thead>
-                                <tbody>
-                                    <tr><td>Index Algorithm</td><td>HNSW</td><td>IVF-PQ</td><td>HNSW for hot tier (99% recall, low latency); IVF-PQ for cold tier (90% recall, 32x cheaper)</td></tr>
-                                    <tr><td>Tenant Isolation</td><td>Shared index + tenant_id filter</td><td>Separate index per tenant</td><td>Separate index for Pro+ (isolation, custom tuning); shared for free tier (cost efficient)</td></tr>
-                                    <tr><td>Vector Storage</td><td>All in-memory</td><td>Memory-mapped (mmap) from SSD</td><td>mmap &mdash; handles 10x more vectors per node; OS manages hot/cold pages automatically</td></tr>
-                                    <tr><td>Durability</td><td>WAL on local disk</td><td>WAL + Kafka replication</td><td>Kafka &mdash; distributed durability, enables replay for new replicas without full index transfer</td></tr>
-                                    <tr><td>Filtered Search</td><td>Pre-filter then ANN</td><td>In-traversal filtering</td><td>In-traversal for low selectivity (&lt;20%); pre-filter for high selectivity (&gt;20%)</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h4>8) Best Reference</h4>
-                        <ul>
-                            <li><a href="https://www.pinecone.io/learn/series/faiss/hnsw/" target="_blank">Pinecone: HNSW Explained</a> — Deep dive on HNSW algorithm, parameters, and recall-latency tradeoffs</li>
-                            <li><a href="https://weaviate.io/blog/multi-tenancy-vector-search" target="_blank">Weaviate: Multi-Tenancy in Vector Search</a> — Production multi-tenancy design with hot/cold index management</li>
-                            <li><a href="https://qdrant.tech/articles/filtrable-hnsw/" target="_blank">Qdrant: Filterable HNSW</a> — How filtered vector search actually works in production</li>
-                        </ul>
-                    </div>
-                    <div class="practice-sidebar">
-                        <h4>Practice Problems</h4>
+                        <div class="practice-sidebar">
+                            <h4>Practice Problems</h4>
                         <div class="practice-section">
                             <h5>Algorithm Practice</h5>
                             <a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank" class="practice-link">
@@ -2533,6 +2574,24 @@
                                 <span class="difficulty hard">Hard</span>
                                 <span class="source">Local</span>
                             </a>
+                        </div>
+                        </div>
+                    </div>
+                    <div class="problem-col-tradeoffs">
+                        <h4>6) Key Technology Tradeoffs</h4>
+                        <div class="tradeoff-table">
+                            <table>
+                                <thead>
+                                    <tr><th>Decision</th><th>Option A</th><th>Option B</th><th>Verdict for This System</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>Index Algorithm</td><td>HNSW</td><td>IVF-PQ</td><td>HNSW for hot tier (99% recall, low latency); IVF-PQ for cold tier (90% recall, 32x cheaper)</td></tr>
+                                    <tr><td>Tenant Isolation</td><td>Shared index + tenant_id filter</td><td>Separate index per tenant</td><td>Separate index for Pro+ (isolation, custom tuning); shared for free tier (cost efficient)</td></tr>
+                                    <tr><td>Vector Storage</td><td>All in-memory</td><td>Memory-mapped (mmap) from SSD</td><td>mmap &mdash; handles 10x more vectors per node; OS manages hot/cold pages automatically</td></tr>
+                                    <tr><td>Durability</td><td>WAL on local disk</td><td>WAL + Kafka replication</td><td>Kafka &mdash; distributed durability, enables replay for new replicas without full index transfer</td></tr>
+                                    <tr><td>Filtered Search</td><td>Pre-filter then ANN</td><td>In-traversal filtering</td><td>In-traversal for low selectivity (&lt;20%); pre-filter for high selectivity (&gt;20%)</td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
