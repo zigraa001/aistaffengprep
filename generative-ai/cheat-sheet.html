@@ -225,10 +225,10 @@
                             <li><strong>RoPE</strong> — Rotary PE (GPT-NeoX, Llama); rotates Q/K, extrapolates well</li>
                             <li><strong>ALiBi</strong> — attention bias by distance; no learned PE</li>
                         </ul>
-                        <h4>Key Numbers (GPT-4 class)</h4>
+                        <h4>Key Numbers (frontier models)</h4>
                         <ul>
                             <li>d_model: 8192–12288; n_heads: 64–96; n_layers: 80–120</li>
-                            <li>Context: 8K–128K tokens; vocab: ~50K–150K</li>
+                            <li>Context: 128K–1M tokens; vocab: ~50K–150K</li>
                         </ul>
                     </div>
                 </div>
@@ -244,7 +244,8 @@
                             <tr><th>GPU</th><th>FLOPs (BF16)</th><th>Memory BW</th><th>Threshold</th></tr>
                             <tr><td>A100 80GB</td><td>312 TFLOPs</td><td>2 TB/s</td><td>156 FLOPs/byte</td></tr>
                             <tr><td>H100 SXM</td><td>989 TFLOPs</td><td>3.35 TB/s</td><td>295 FLOPs/byte</td></tr>
-                            <tr><td>RTX 4090</td><td>165 TFLOPs</td><td>1 TB/s</td><td>165 FLOPs/byte</td></tr>
+                            <tr><td>H200 SXM</td><td>989 TFLOPs</td><td>4.8 TB/s</td><td>206 FLOPs/byte</td></tr>
+                            <tr><td>B200</td><td>2,250 TFLOPs</td><td>8 TB/s</td><td>281 FLOPs/byte</td></tr>
                         </table>
                         <h4>Prefill vs Decode</h4>
                         <table class="metric-table">
@@ -257,11 +258,11 @@
                     </div>
                     <div>
                         <h4>KV Cache Memory</h4>
-                        <div class="formula">bytes/token = 2 × 2 × n_layers × d_model<br>(2 for K+V, 2 for fp16)</div>
+                        <div class="formula">bytes/token = 2 × 2 × n_layers × n_kv_heads × d_head<br>(2 for K+V, 2 for fp16; n_kv_heads = n_heads for MHA, fewer for GQA)</div>
                         <ul>
-                            <li>Llama-2-7B (32 layers, d=4096): <strong>524 KB/token</strong></li>
-                            <li>Llama-2-70B (80 layers, d=8192): <strong>2.6 MB/token</strong></li>
-                            <li>GQA with g=8 groups: divide by (n_heads / g)</li>
+                            <li>Llama-3-8B (32 layers, 8 KV heads, d_head=128): <strong>~128 KB/token</strong></li>
+                            <li>Llama-3-70B (80 layers, 8 KV heads, d_head=128): <strong>~320 KB/token</strong></li>
+                            <li>Without GQA (MHA): multiply n_kv_heads by n_heads/n_kv_heads (e.g., Llama-3-8B MHA would be 512 KB/token)</li>
                         </ul>
                         <h4>Speculative Decoding</h4>
                         <div class="formula">Speedup ≈ K×α / (K×t_ratio + 1)</div>
@@ -380,10 +381,11 @@
                         </table>
                         <h4>Embedding Models (MTEB)</h4>
                         <ul>
-                            <li><strong>BGE-large-en-v1.5</strong> — 64.23 MTEB; 335M params; open</li>
-                            <li><strong>E5-mistral-7B</strong> — 66.63 MTEB; best open-source</li>
+                            <li><strong>GTE-Qwen2-7B</strong> — 70.2 MTEB; top open-source (2024+)</li>
+                            <li><strong>E5-mistral-7B</strong> — 66.6 MTEB; strong open-source baseline</li>
                             <li><strong>text-embedding-3-large</strong> — 64.6 MTEB; best managed API</li>
-                            <li><strong>MiniLM-L6</strong> — 56.26 MTEB; 22M params; fast &amp; cheap</li>
+                            <li><strong>BGE-large-en-v1.5</strong> — 64.2 MTEB; 335M params; proven &amp; open</li>
+                            <li><strong>MiniLM-L6</strong> — 56.3 MTEB; 22M params; fast &amp; cheap</li>
                         </ul>
                     </div>
                 </div>
@@ -404,7 +406,7 @@
                         <h4>Agent Architectures</h4>
                         <ul>
                             <li><strong>Single-agent</strong> — one LLM + tools; simple, fragile at scale</li>
-                            <li><strong>Multi-agent</strong> — orchestrator + specialist agents; LangGraph, AutoGen</li>
+                            <li><strong>Multi-agent</strong> — orchestrator + specialist agents; LangGraph, AutoGen (AG2), CrewAI</li>
                             <li><strong>Plan-and-Execute</strong> — planner creates task list; executor runs each</li>
                             <li><strong>Reflection</strong> — agent critiques own output; improves iteratively</li>
                         </ul>
@@ -430,9 +432,9 @@
                         <h4>Agent Benchmarks</h4>
                         <table class="metric-table">
                             <tr><th>Benchmark</th><th>What it tests</th><th>SOTA</th></tr>
-                            <tr><td>SWE-bench</td><td>Real GitHub issues</td><td>~50% (Claude 3.7)</td></tr>
-                            <tr><td>GAIA</td><td>General AI tasks</td><td>~75%</td></tr>
-                            <tr><td>WebArena</td><td>Web navigation</td><td>~40%</td></tr>
+                            <tr><td>SWE-bench Verified</td><td>Real GitHub issues</td><td>~72% (Claude 4 + scaffolding)</td></tr>
+                            <tr><td>GAIA</td><td>General AI tasks</td><td>~80%</td></tr>
+                            <tr><td>WebArena</td><td>Web navigation</td><td>~50%</td></tr>
                             <tr><td>HotPotQA</td><td>Multi-hop Q&amp;A</td><td>~85%</td></tr>
                         </table>
                         <h4>Failure Modes</h4>
@@ -504,12 +506,12 @@
                     <div>
                         <h4>LLM Quality Benchmarks</h4>
                         <table class="metric-table">
-                            <tr><th>Benchmark</th><th>Tests</th><th>GPT-4o</th><th>Claude 3.5S</th><th>Human</th></tr>
-                            <tr><td>MMLU</td><td>57-subject knowledge</td><td>88.7%</td><td>88.3%</td><td>89%</td></tr>
-                            <tr><td>HumanEval pass@1</td><td>Code generation</td><td>90.2%</td><td>92.0%</td><td>~70%</td></tr>
-                            <tr><td>MATH</td><td>Competition math</td><td>76.6%</td><td>71.1%</td><td>40%</td></tr>
-                            <tr><td>GSM8K</td><td>Grade school math</td><td>97.0%</td><td>96.8%</td><td>~90%</td></tr>
-                            <tr><td>TruthfulQA</td><td>Factual accuracy</td><td>59%</td><td>~60%</td><td>94%</td></tr>
+                            <tr><th>Benchmark</th><th>Tests</th><th>GPT-4o</th><th>Claude 4</th><th>Human</th></tr>
+                            <tr><td>MMLU</td><td>57-subject knowledge</td><td>88.7%</td><td>~89%</td><td>89%</td></tr>
+                            <tr><td>HumanEval pass@1</td><td>Code generation</td><td>90.2%</td><td>93.7%</td><td>~70%</td></tr>
+                            <tr><td>MATH</td><td>Competition math</td><td>76.6%</td><td>~80%</td><td>40%</td></tr>
+                            <tr><td>GSM8K</td><td>Grade school math</td><td>97.0%</td><td>97.5%</td><td>~90%</td></tr>
+                            <tr><td>TruthfulQA</td><td>Factual accuracy</td><td>59%</td><td>~62%</td><td>94%</td></tr>
                         </table>
                         <h4>Perplexity (PTB dataset)</h4>
                         <table class="metric-table">
