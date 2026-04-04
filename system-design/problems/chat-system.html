@@ -62,7 +62,7 @@
                 <div class="collapsible-content">
                     <ul>
                         <li>1:1 messaging</li>
-                        <li>Group messaging (up to 100 members)</li>
+                        <li>Group messaging (up to 100 members for WhatsApp-style; up to thousands for Slack/Discord-style channels)</li>
                         <li>Online/offline status</li>
                         <li>Message read receipts</li>
                         <li>Push notifications</li>
@@ -86,7 +86,34 @@
                 </div>
             </div>
 
-            <h2 class="mt-4">2. High-Level Design</h2>
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Assumptions (WhatsApp-scale):</strong><br>
+                        - 500M DAU<br>
+                        - Each user sends avg 40 messages/day<br>
+                        - Avg message size: 100 bytes text + 100 bytes metadata<br><br>
+
+                        <strong>Messages/sec:</strong><br>
+                        500M * 40 / 86400 &asymp; 230,000 messages/sec<br><br>
+
+                        <strong>Storage/day:</strong><br>
+                        500M * 40 * 200 bytes &asymp; 4 TB/day (text only)<br><br>
+
+                        <strong>Concurrent connections:</strong><br>
+                        500M WebSocket connections (at ~10KB each &asymp; 5 TB RAM for connection state)<br>
+                        Need thousands of WebSocket servers
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="mt-4">3. High-Level Design</h2>
 
             <div class="diagram-container">
                 <div class="mermaid">
@@ -124,7 +151,7 @@ flowchart TB
                 </div>
             </div>
 
-            <h2 class="mt-4">3. Key Components</h2>
+            <h2 class="mt-4">4. Key Components</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -173,7 +200,7 @@ flowchart TB
                 </div>
             </div>
 
-            <h2 class="mt-4">4. Message Storage</h2>
+            <h2 class="mt-4">5. Message Storage</h2>
 
             <div class="collapsible">
                 <div class="collapsible-header">
@@ -202,7 +229,7 @@ flowchart TB
                 </div>
             </div>
 
-            <h2 class="mt-4">5. Working Implementation</h2>
+            <h2 class="mt-4">6. Working Implementation</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -288,7 +315,8 @@ class ChatServer:
         await self._broadcast_presence(user_id, "offline")
 
     async def send_message(self, message: Message):
-        # Generate message ID (Snowflake-style)
+        # Generate message ID (timestamp-prefix for rough ordering + random suffix)
+        # In production, use a proper Snowflake ID: 41-bit timestamp | 10-bit machine ID | 12-bit sequence
         message.id = f"{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
         message.timestamp = int(time.time() * 1000)
 
@@ -387,6 +415,12 @@ class ChatServer:
 
 chat_server = ChatServer()
 
+# Note: @app.on_event("startup") is deprecated since FastAPI 0.93+.
+# In production, use the lifespan context manager pattern instead:
+#   from contextlib import asynccontextmanager
+#   @asynccontextmanager
+#   async def lifespan(app): yield
+#   app = FastAPI(lifespan=lifespan)
 @app.on_event("startup")
 async def startup():
     await chat_server.connect_redis()
@@ -423,7 +457,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 </div>
             </div>
 
-            <h2 class="mt-4">6. Failure Scenarios</h2>
+            <h2 class="mt-4">7. Failure Scenarios</h2>
 
             <div class="collapsible">
                 <div class="collapsible-header">
@@ -561,7 +595,26 @@ class ChatClient:
                 </div>
             </div>
 
-            <h2 class="mt-4">7. Summary</h2>
+            <h2 class="mt-4">8. End-to-End Encryption (Common Follow-up)</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>E2E Encryption Overview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Interviewers frequently ask about encryption for chat systems. WhatsApp and Signal use the <strong>Signal Protocol</strong> (Double Ratchet algorithm) for E2E encryption.</p>
+                    <ul>
+                        <li><strong>Key exchange:</strong> Each device generates a public/private key pair. Public keys are registered with the server. Clients use X3DH (Extended Triple Diffie-Hellman) for initial key agreement.</li>
+                        <li><strong>Message encryption:</strong> Messages are encrypted on the sender's device and decrypted on the recipient's device. The server cannot read message content.</li>
+                        <li><strong>Group chats:</strong> Use Sender Keys -- the sender encrypts once, and each group member has the key to decrypt. When a member leaves, keys must be rotated.</li>
+                        <li><strong>Trade-off:</strong> E2E encryption prevents server-side features like search, spam detection, and content moderation on message contents. Platforms like Slack intentionally do not use E2E encryption to enable these features.</li>
+                        <li><strong>Key storage:</strong> Users must back up keys separately; if a device is lost without backup, message history is unrecoverable.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2 class="mt-4">9. Summary</h2>
 
             <div class="card">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -571,7 +624,7 @@ class ChatClient:
                     </tr>
                     <tr>
                         <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Message ID</strong></td>
-                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Snowflake ID (monotonic)</td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Snowflake-style ID (timestamp + worker ID + sequence for monotonic ordering)</td>
                     </tr>
                     <tr>
                         <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Presence</strong></td>

@@ -479,7 +479,7 @@ flowchart TB
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Throughput (HDD)</td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~100 ops/sec</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~600 MB/sec</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~100-200 MB/sec sequential</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data Locality</td>
@@ -747,7 +747,7 @@ flowchart TB
     Producer -->|write| L
     L -->|replicate| F1
     L -->|replicate| F2
-    Consumer -->|read| L
+    Consumer -->|read leader or<br/>nearest replica| L
                         </div>
                     </div>
 
@@ -771,13 +771,13 @@ flowchart TB
 # - Wait for leader to write to its local log
 # - Message may be lost if leader crashes before replication
 
-# acks=all (-1): Full ISR acknowledgment (strongest)
+# acks=all (-1): Full ISR acknowledgment (strongest, default since Kafka 3.0)
 # - Wait for leader + all ISR replicas to acknowledge
 # - Combined with min.insync.replicas for durability guarantee
 
 producer = KafkaProducer(
     bootstrap_servers=['broker1:9092', 'broker2:9092'],
-    acks='all',  # Wait for all ISR replicas
+    acks='all',  # Wait for all ISR replicas (default since Kafka 3.0)
     retries=3,
     retry_backoff_ms=100
 )
@@ -789,6 +789,9 @@ producer = KafkaProducer(
 # - Can tolerate 1 broker failure without data loss
                         </code>
                     </div>
+
+                    <h4 class="mt-3">Follower Fetching (KIP-392, Kafka 2.4+)</h4>
+                    <p>Consumers can read from the <strong>closest replica</strong> instead of always reading from the leader. This is critical for multi-datacenter or multi-AZ deployments where cross-zone bandwidth is expensive. Configure with <code>client.rack</code> on consumers and <code>broker.rack</code> on brokers.</p>
 
                     <h4 class="mt-3">High Watermark</h4>
                     <p>Consumers only see messages up to the <strong>high watermark</strong> - the offset that all ISR replicas have confirmed.</p>
@@ -809,6 +812,18 @@ flowchart LR
                     </div>
 
                     <p class="text-muted">Consumers can read offsets 0-3. Offsets 4-5 are written but not yet replicated to all ISR replicas.</p>
+
+                    <h4 class="mt-3">KRaft: ZooKeeper-Free Kafka (Kafka 3.3+)</h4>
+                    <p>Historically, Kafka depended on <strong>Apache ZooKeeper</strong> for controller election, broker registration, and topic metadata. Starting with Kafka 3.3 (2022), <strong>KRaft</strong> (Kafka Raft) replaced ZooKeeper entirely. ZooKeeper support was removed in Kafka 4.0 (2024).</p>
+                    <ul>
+                        <li><strong>Self-managed metadata:</strong> A set of controller nodes use a Raft-based consensus protocol to manage cluster metadata in an internal <code>__cluster_metadata</code> topic</li>
+                        <li><strong>Faster controller failover:</strong> Recovery dropped from ~30s (ZooKeeper) to ~5s with KRaft</li>
+                        <li><strong>Simpler operations:</strong> One fewer distributed system to deploy, monitor, and secure</li>
+                        <li><strong>Higher partition limits:</strong> KRaft supports millions of partitions per cluster vs. ~200K practical limit with ZooKeeper</li>
+                    </ul>
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> If asked about Kafka's architecture, mention KRaft as the current metadata management approach. Referencing ZooKeeper-based Kafka shows outdated knowledge. All new deployments should use KRaft mode.
+                    </div>
                 </div>
             </div>
 
@@ -865,7 +880,7 @@ public long transferTo(long position, long count, WritableByteChannel target) {
 
 // Performance impact:
 // - Traditional: ~100 MB/s
-// - Zero-copy: ~600 MB/s (6x improvement!)
+// - Zero-copy: ~300+ MB/s (3x+ improvement on typical hardware)
 // - CPU usage reduced by 50-60%
                         </code>
                     </div>
@@ -893,6 +908,9 @@ public long transferTo(long position, long count, WritableByteChannel target) {
                         <code>
 # Python - Kafka Producer with different reliability levels
 # pip install kafka-python
+# Note: kafka-python is in maintenance mode. For production use,
+# prefer confluent-kafka (pip install confluent-kafka) which wraps
+# the high-performance librdkafka C library.
 
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
@@ -1040,7 +1058,7 @@ if __name__ == '__main__':
                     <div class="code-block">
                         <code>
 # Python - Kafka Consumer with manual offset management
-# pip install kafka-python
+# pip install kafka-python (or confluent-kafka for production)
 
 from kafka import KafkaConsumer, TopicPartition, OffsetAndMetadata
 from kafka.errors import KafkaError
@@ -1069,7 +1087,8 @@ class OrderConsumer:
             value_deserializer=lambda v: json.loads(v.decode('utf-8')),
 
             # Use cooperative rebalancing (Kafka 2.4+)
-            partition_assignment_strategy=['cooperative-sticky']
+            # In confluent-kafka: partition.assignment.strategy=CooperativeStickyAssignor
+            partition_assignment_strategy=['cooperative-sticky']  # kafka-python syntax
         )
 
         self.running = True
@@ -1447,10 +1466,10 @@ sequenceDiagram
 
                     <div class="code-block">
                         <code>
-# Enable idempotent producer (Kafka 0.11+)
+# Enable idempotent producer (available since Kafka 0.11, default since Kafka 3.0)
 producer = KafkaProducer(
     bootstrap_servers=['localhost:9092'],
-    enable_idempotence=True,  # This is the key setting
+    enable_idempotence=True,  # Default True since Kafka 3.0
 
     # These are automatically set with idempotence:
     # acks='all'
@@ -1684,6 +1703,15 @@ class ExactlyOnceProcessor:
                         </div>
                     </div>
                     <p>Uber uses Kafka for ride events, driver locations, pricing signals, and their uReplicator for cross-DC replication.</p>
+
+                    <h4 class="mt-3">Tiered Storage (Kafka 3.6+)</h4>
+                    <p>Kafka's <strong>Tiered Storage</strong> (KIP-405, GA in 3.6) decouples compute from storage by offloading older log segments to remote storage (S3, GCS, Azure Blob). This allows:</p>
+                    <ul>
+                        <li><strong>Longer retention at lower cost:</strong> Keep weeks or months of data without provisioning more broker disk</li>
+                        <li><strong>Elastic broker scaling:</strong> Brokers can be added/removed without copying large amounts of data</li>
+                        <li><strong>Independent scaling:</strong> Storage grows independently of broker fleet size</li>
+                    </ul>
+                    <p>This is a critical topic for staff-level interviews discussing cost optimization of Kafka at scale.</p>
 
                     <h4 class="mt-3">Common Kafka Use Cases</h4>
                     <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">

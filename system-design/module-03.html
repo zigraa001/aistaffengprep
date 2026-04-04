@@ -640,10 +640,14 @@
 
                 <h4>Definitions</h4>
                 <ul>
-                    <li><strong>Consistency:</strong> Every read receives the most recent write</li>
-                    <li><strong>Availability:</strong> Every request receives a response (no timeout)</li>
-                    <li><strong>Partition Tolerance:</strong> System continues operating despite network failures</li>
+                    <li><strong>Consistency:</strong> Every read receives the most recent write (linearizability in the formal CAP proof)</li>
+                    <li><strong>Availability:</strong> Every request to a non-failing node receives a response (no timeout)</li>
+                    <li><strong>Partition Tolerance:</strong> System continues operating despite arbitrary message loss between nodes</li>
                 </ul>
+
+                <div class="card mt-2" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                    <strong>Staff-Level Nuance:</strong> CAP is often oversimplified. In practice, most real systems are not purely CP or AP &mdash; they are tunable. For example, MongoDB with <code>w:majority, readConcern:linearizable</code> behaves as CP, but with <code>w:1</code> it can lose acknowledged writes during failover. Similarly, Cassandra lets you choose consistency level per query (<code>ONE</code> vs <code>QUORUM</code> vs <code>ALL</code>). The PACELC theorem extends CAP: even when there is <em>no</em> partition, there is still a latency-vs-consistency trade-off (EL/EC).
+                </div>
 
                 <div class="card mt-2" style="background: linear-gradient(135deg, rgba(17, 153, 142, 0.2), rgba(56, 239, 125, 0.2)); border-left: 4px solid #38ef7d;">
                     <strong>🎯 Reality Check:</strong> In distributed systems, network partitions WILL happen. Partition Tolerance is not optional - it's a fact of life. The real choice during a partition is between Consistency and Availability.
@@ -734,17 +738,24 @@
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <h4>Strong Consistency</h4>
-                <p>Read always returns the latest write. All nodes see the same data at the same time.</p>
+                <h4>Linearizability (Strong Consistency)</h4>
+                <p>Every read returns the value of the most recent completed write, as if there were a single copy of the data. This is about <em>single-object, real-time ordering</em>. Used in: ZooKeeper, etcd, Spanner.</p>
+
+                <h4>Serializability</h4>
+                <p>Transactions execute as if in some serial order (but not necessarily real-time order). This is about <em>multi-object transaction isolation</em>. Used in: traditional RDBMS with SERIALIZABLE isolation level.</p>
+
+                <div class="card mt-2" style="background: linear-gradient(135deg, rgba(246, 173, 85, 0.2), rgba(237, 137, 54, 0.2)); border-left: 4px solid #f6ad55;">
+                    <strong>Common Interview Confusion:</strong> Linearizability and serializability are orthogonal concepts. Linearizability concerns recency of a single object across nodes. Serializability concerns isolation of multi-object transactions. <strong>Strict serializability</strong> (also called "linearizable + serializable") combines both &mdash; Google Spanner achieves this via TrueTime.
+                </div>
 
                 <h4>Eventual Consistency</h4>
-                <p>Reads may return stale data, but eventually all replicas converge to the same value.</p>
+                <p>Reads may return stale data, but if no new writes occur, all replicas will eventually converge to the same value. The convergence window is typically milliseconds to seconds, but is unbounded in theory.</p>
 
                 <h4>Causal Consistency</h4>
-                <p>Preserves cause-effect relationships. If A causes B, everyone sees A before B.</p>
+                <p>Preserves cause-effect relationships. If operation A causally precedes B, every node sees A before B. Stronger than eventual but weaker than linearizability. Used in: MongoDB (causal sessions), COPS.</p>
 
                 <h4>Read-Your-Writes</h4>
-                <p>User always sees their own writes immediately, even if other users see stale data.</p>
+                <p>A session always sees its own writes immediately, even if other sessions see stale data. Commonly implemented by routing reads to the same replica that handled the write, or by tracking write timestamps.</p>
 
                 <div class="diagram-container">
                     <div class="mermaid">
@@ -774,19 +785,19 @@ flowchart LR
                 <div class="diagram-container">
                     <div class="mermaid">
 sequenceDiagram
-    participant L as Leader
-    participant R1 as Replica 1
-    participant R2 as Replica 2
+    participant P as Proposer
+    participant A1 as Acceptor 1
+    participant A2 as Acceptor 2
 
-    L->>R1: Prepare(n)
-    L->>R2: Prepare(n)
-    R1-->>L: Promise(n)
-    R2-->>L: Promise(n)
-    L->>R1: Accept(n, v)
-    L->>R2: Accept(n, v)
-    R1-->>L: Accepted
-    R2-->>L: Accepted
-    L->>L: Commit
+    P->>A1: Prepare(n)
+    P->>A2: Prepare(n)
+    A1-->>P: Promise(n)
+    A2-->>P: Promise(n)
+    P->>A1: Accept(n, v)
+    P->>A2: Accept(n, v)
+    A1-->>P: Accepted
+    A2-->>P: Accepted
+    Note over P: Value v is chosen (majority accepted)
                     </div>
                 </div>
 
@@ -995,7 +1006,7 @@ async def simulate_raft():
                 </div>
 
                 <div class="card mt-2">
-                    <strong>Used in:</strong> etcd, Consul, CockroachDB, TiDB
+                    <strong>Raft used in:</strong> etcd, Consul, CockroachDB, TiDB, Kafka (KRaft mode since 3.3+)
                 </div>
             </div>
         </div>
@@ -1443,7 +1454,7 @@ graph TD
             cp: {
                 title: 'CP Systems (Consistency + Partition Tolerance)',
                 description: 'During a network partition, the system may reject requests to maintain consistency. Example: A bank refusing transactions during network issues rather than risking inconsistent balances.',
-                examples: ['MongoDB', 'HBase', 'Redis Cluster', 'ZooKeeper'],
+                examples: ['MongoDB (w:majority)', 'HBase', 'etcd', 'ZooKeeper'],
                 nodes: ['consistency', 'partition'],
                 edge: 'cp'
             },

@@ -271,9 +271,10 @@ def generate_short_code(long_url: str) -> str:
     return hash_bytes[:7]
 
 # Problems:
-# 1. Collisions: MD5 has birthday problem
+# 1. Truncating to 7 hex chars = only 16^7 ≈ 268M possibilities (high collision rate)
 # 2. Same URL = same code (good or bad?)
 # 3. Need collision detection & retry loop
+# 4. hexdigest gives only 0-9a-f, not full base62 alphabet
                     </code>
                 </div>
 
@@ -362,16 +363,32 @@ func (g *IDGenerator) NextID() (int64, error) {
 }
 
 func (g *IDGenerator) allocateRange() error {
-    // Atomic increment in Zookeeper
-    newMax, err := g.zk.IncrBy("/url-shortener/counter", g.rangeSize)
-    if err != nil {
-        return err
+    // CAS loop on Zookeeper znode (ZK has no native IncrBy)
+    for {
+        data, stat, err := g.zk.Get("/url-shortener/counter")
+        if err != nil {
+            return err
+        }
+        current := parseInt64(data)
+        newMax := current + g.rangeSize
+        _, err = g.zk.Set("/url-shortener/counter",
+            []byte(strconv.FormatInt(newMax, 10)), stat.Version)
+        if err == zk.ErrBadVersion {
+            continue // Another server won the race; retry
+        }
+        if err != nil {
+            return err
+        }
+        g.maxID = newMax
+        g.currentID = current
+        return nil
     }
-    g.maxID = newMax
-    g.currentID = newMax - g.rangeSize
-    return nil
 }
                     </code>
+                </div>
+
+                <div class="card mt-2" style="background: var(--warning-bg, #fff3cd);">
+                    <strong>Security Note:</strong> Sequential counter-based IDs are predictable — an attacker can enumerate all URLs. Mitigations: (1) add a random salt and hash the counter before encoding, (2) use a bijective shuffle (format-preserving encryption) to scramble the sequence, or (3) accept the trade-off if URLs are not secret. Mention this in interviews to demonstrate security awareness.
                 </div>
 
                 <div class="card mt-2" style="background: var(--success-bg);">
@@ -652,7 +669,7 @@ flowchart LR
                     <li class="module-item">
                         <div class="module-number">5</div>
                         <div class="module-info">
-                            <div class="module-title">News Feed (Facebook/Twitter)</div>
+                            <div class="module-title">News Feed (Facebook/X)</div>
                             <div class="module-desc">Fan-out strategies, ranking, caching</div>
                         </div>
                     </li>

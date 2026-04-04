@@ -192,6 +192,8 @@ async def redirect(short_code: str):
     # Increment click counter (async in production)
     redis_client.incr(f"clicks:{short_code}")
 
+    # 301 = permanent (browser caches, less analytics visibility)
+    # 302 = temporary (every request hits server, better for click tracking)
     return RedirectResponse(url=long_url.decode(), status_code=302)
                     </code>
                 </div>
@@ -232,9 +234,11 @@ flowchart TD
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Token Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Allows bursting</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">More complex</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Window</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Accurate</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Higher memory</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fixed Window</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Edge bursts</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Token Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Allows controlled bursting; used by AWS API Gateway and Stripe</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Two parameters to tune (rate + burst size)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Leaky Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Smooth output rate; used by NGINX (ngx_http_limit_req_module)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No bursting &mdash; drops excess even if capacity available later</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Window Log</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Most accurate; no boundary issues</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">High memory (stores every timestamp); O(n) cleanup</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Window Counter</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good accuracy with low memory (only 2 counters)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Approximation &mdash; weighted average can slightly over- or under-count</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fixed Window Counter</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simplest to implement; single counter per window</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Up to 2x burst at window boundaries</td></tr>
                     </tbody>
                 </table>
 
@@ -265,23 +269,33 @@ class SlidingWindowRateLimiter:
         curr_key = f"rate:{key}:{current_window}"
         prev_key = f"rate:{key}:{prev_window}"
 
-        # Get counts
-        prev_count = int(self.redis.get(prev_key) or 0)
-        curr_count = int(self.redis.get(curr_key) or 0)
+        # Use a Lua script to make check-and-increment atomic.
+        # Without this, concurrent requests can race between the
+        # GET (check) and INCR (increment), allowing burst over limit.
+        lua_script = """
+        local prev_count = tonumber(redis.call('GET', KEYS[1]) or '0')
+        local curr_count = tonumber(redis.call('GET', KEYS[2]) or '0')
+        local weight = tonumber(ARGV[1])
+        local limit = tonumber(ARGV[2])
+        local ttl = tonumber(ARGV[3])
 
-        # Weighted count: prev * (1 - position) + current
-        weighted_count = prev_count * (1 - position_in_window) + curr_count
-
-        if weighted_count >= self.limit:
-            return False
-
-        # Increment current window
-        pipe = self.redis.pipeline()
-        pipe.incr(curr_key)
-        pipe.expire(curr_key, self.window * 2)  # Keep for 2 windows
-        pipe.execute()
-
-        return True
+        local weighted = prev_count * weight + curr_count
+        if weighted >= limit then
+            return 0
+        end
+        redis.call('INCR', KEYS[2])
+        redis.call('EXPIRE', KEYS[2], ttl)
+        return 1
+        """
+        result = self.redis.eval(
+            lua_script,
+            2,                              # number of keys
+            prev_key, curr_key,             # KEYS[1], KEYS[2]
+            1 - position_in_window,         # ARGV[1]: weight for prev window
+            self.limit,                     # ARGV[2]
+            self.window * 2                 # ARGV[3]: TTL (keep for 2 windows)
+        )
+        return bool(result)
 
 # Usage
 limiter = SlidingWindowRateLimiter(redis.Redis(), limit=100, window_seconds=60)
@@ -337,10 +351,19 @@ flowchart TB
 
                 <h4>Key Components</h4>
                 <ul>
-                    <li><strong>WebSocket:</strong> Real-time bidirectional communication</li>
-                    <li><strong>Message Queue:</strong> Decouple sending from delivery</li>
-                    <li><strong>Presence Service:</strong> Track online/offline status</li>
-                    <li><strong>Message Store:</strong> Cassandra or similar for chat history</li>
+                    <li><strong>WebSocket:</strong> Real-time bidirectional communication. Long-polling as fallback for environments that block WebSocket (corporate proxies, some mobile networks).</li>
+                    <li><strong>Message Queue:</strong> Decouple sending from delivery. Kafka or similar gives ordered, durable delivery per partition.</li>
+                    <li><strong>Presence Service:</strong> Track online/offline status. Heartbeat-based with a grace period (e.g., 30s) to avoid flapping on transient disconnects.</li>
+                    <li><strong>Message Store:</strong> Cassandra or similar for chat history, partitioned by (chat_id, message_timestamp) for efficient range queries.</li>
+                </ul>
+
+                <h4>Staff-Level: Failure Modes &amp; Operational Concerns</h4>
+                <ul>
+                    <li><strong>Message ordering:</strong> A single chat&rsquo;s messages must be ordered. Assign a monotonic sequence per conversation (e.g., Snowflake IDs) rather than relying on wall-clock time across servers.</li>
+                    <li><strong>Exactly-once delivery:</strong> Impossible in theory; in practice use idempotency keys on the client and server-side deduplication (message_id check before persisting).</li>
+                    <li><strong>WebSocket server failure:</strong> Clients reconnect to a different server. The new server must replay unacknowledged messages from the queue/store.</li>
+                    <li><strong>Group chat fan-out:</strong> For groups with thousands of members, writing N copies is expensive. Use a write-ahead approach: persist once, fan-out reads via message queue.</li>
+                    <li><strong>End-to-end encryption:</strong> Server cannot read message content. Key exchange (e.g., Signal Protocol / Double Ratchet) happens client-side; server stores opaque ciphertext.</li>
                 </ul>
 
                 <h4 class="mt-3">Message Routing Implementation</h4>
@@ -387,6 +410,9 @@ class ChatRouter:
 
         # 2. Find recipient's server
         recipient_server = await self.redis.hget("user:servers", message.recipient_id)
+        # hget returns bytes in redis-py; decode for comparison
+        if recipient_server:
+            recipient_server = recipient_server.decode() if isinstance(recipient_server, bytes) else recipient_server
 
         if recipient_server == self.server_id:
             # Recipient on same server - deliver directly

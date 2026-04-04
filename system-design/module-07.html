@@ -182,7 +182,8 @@ Actions per user: Y
 Total daily actions: X × Y
 
 QPS = Total / 86,400
-Peak QPS = QPS × 3 (typical peak)
+Peak QPS = QPS × 2-3 (typical diurnal peak)
+# Note: special events (Black Friday, World Cup) can be 5-10x
                     </code>
                 </div>
 
@@ -198,14 +199,36 @@ Peak QPS = QPS × 3 (typical peak)
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Seconds per day</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">86,400 (~100K)</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 million × 1KB</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 GB</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 billion × 1KB</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 TB</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Seconds per month</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">~2.5M</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Network round trip (same DC)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">0.5 ms</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">SSD random read</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">150 μs</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Network round trip (cross-region)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">50-150 ms</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">SSD random read (SATA SSD)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">~100 μs</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">NVMe SSD random read</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">~10-20 μs</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <h2 class="mt-4">Phase 3: High-Level Design</h2>
+        <h2 class="mt-4">Phase 3: Storage Schema</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Data Model &amp; Storage (3-5 min)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Key Decisions</h4>
+                <ul>
+                    <li><strong>SQL vs NoSQL:</strong> Does the data have strong relational integrity needs (e.g., financial transactions)? Or is it denormalized / access-pattern-driven (e.g., user timelines)?</li>
+                    <li><strong>Partition key:</strong> Choose a key with high cardinality and even distribution. Avoid hot partitions (e.g., celebrity user IDs in a social network).</li>
+                    <li><strong>Indexing strategy:</strong> Define your access patterns first, then add indexes. Secondary indexes in distributed databases (Cassandra, DynamoDB) have significant cost and limitations.</li>
+                </ul>
+                <h4>Staff-Level Signal</h4>
+                <p>Go beyond just listing tables. Explain <em>why</em> you chose a particular schema &mdash; e.g., &ldquo;I&rsquo;m denormalizing the user profile into the message table to avoid a cross-partition join on the read path, accepting the write amplification trade-off.&rdquo;</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Phase 4: High-Level Design</h2>
 
         <div class="collapsible">
             <div class="collapsible-header">
@@ -237,6 +260,84 @@ flowchart TB
                     <li>☐ Object Storage (for files, images)</li>
                 </ul>
             </div>
+        </div>
+
+        <h2 class="mt-4">Phase 5: API Design</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Defining the Interface (3-5 min)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <ul>
+                    <li>Define the core API endpoints (REST or RPC) with request/response shapes.</li>
+                    <li>Specify pagination strategy (cursor-based is usually better than offset for large datasets).</li>
+                    <li>Include authentication, rate limiting headers, and idempotency keys where relevant.</li>
+                    <li>Consider backward compatibility &mdash; how will you version the API?</li>
+                </ul>
+                <h4>Staff-Level Signal</h4>
+                <p>Discuss API contracts as the system&rsquo;s external promise. Mention how you&rsquo;d handle breaking changes (e.g., URL versioning vs. content negotiation), and how the API design impacts client caching (ETags, Cache-Control).</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Phase 6: Deep Dive</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Drilling Into Critical Components (15-20 min)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>This is the most important phase for staff-level candidates. The interviewer will pick 1-2 areas and go deep. Prepare to discuss:</p>
+                <ul>
+                    <li><strong>Scaling bottlenecks:</strong> Which component is the first to break at 10x scale? What&rsquo;s your strategy (shard, cache, queue, or redesign)?</li>
+                    <li><strong>Consistency model:</strong> Walk through a specific read/write flow and explain what happens during a network partition or node failure.</li>
+                    <li><strong>Data pipeline:</strong> How does data flow from write to being queryable? What is the end-to-end latency? Where could data be lost?</li>
+                    <li><strong>Operational concerns:</strong> How do you deploy changes safely (canary, blue-green)? What metrics and alerts would you set up? How do you debug a latency spike in production?</li>
+                </ul>
+                <h4>Staff-Level Signal</h4>
+                <p>Don&rsquo;t wait for the interviewer to ask &mdash; proactively identify the hardest part of the design and say &ldquo;I think the trickiest part here is X, let me walk through how I&rsquo;d handle it.&rdquo; This shows technical judgment.</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Phase 7: Edge Cases &amp; Failure Modes</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Resilience &amp; Production Readiness (5-10 min)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <ul>
+                    <li><strong>Failure scenarios:</strong> What happens when the database is down? Cache goes cold? A downstream service times out?</li>
+                    <li><strong>Data integrity:</strong> How do you handle partial failures (e.g., payment charged but order not created)?</li>
+                    <li><strong>Hot spots:</strong> A viral post, a celebrity user, a flash sale &mdash; how does the system degrade gracefully?</li>
+                    <li><strong>Security:</strong> Input validation, rate limiting, access control, encryption at rest/in transit.</li>
+                    <li><strong>Cost:</strong> At scale, infrastructure cost matters. Mention cost-aware choices (e.g., tiered storage, reserved instances, caching to reduce DB load).</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Staff vs. Senior: What&rsquo;s Different</h2>
+
+        <div class="card mt-2">
+            <table style="width: 100%; border-collapse: collapse; margin: 0.5rem 0;">
+                <thead>
+                    <tr style="background: var(--border-color);">
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Dimension</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Scope</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single service design</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">End-to-end system with cross-cutting concerns</td></tr>
+                    <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Trade-offs</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Mentions trade-offs</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quantifies trade-offs with numbers and real-world examples</td></tr>
+                    <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure modes</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Happy path focus</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Proactively discusses partial failures, degraded modes, blast radius</td></tr>
+                    <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Operations</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rarely mentioned</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Monitoring, alerting, deployment strategy, runbooks</td></tr>
+                    <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Evolution</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Point-in-time design</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Discusses how the system evolves over 2-3 years as requirements change</td></tr>
+                </tbody>
+            </table>
         </div>
 
         <h2 class="mt-4">Communication Tips</h2>

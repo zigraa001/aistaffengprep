@@ -551,7 +551,7 @@ sequenceDiagram
                     <ul>
                         <li>Holds server connections open (resource intensive)</li>
                         <li>Connection timeouts require reconnection</li>
-                        <li>Server-to-client only</li>
+                        <li>Primarily server-to-client for push; client can send data in new requests, but not on the held connection</li>
                     </ul>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
@@ -594,7 +594,7 @@ data: {"message": "World"}\n\n
                     <h4>Cons</h4>
                     <ul>
                         <li>Server-to-client only (no bidirectional)</li>
-                        <li>Limited to ~6 connections per browser (HTTP/1.1)</li>
+                        <li>Limited to ~6 connections per browser on HTTP/1.1 (not an issue with HTTP/2 multiplexing, which is standard in modern browsers)</li>
                         <li>Text-only (no binary data)</li>
                     </ul>
 
@@ -673,7 +673,7 @@ ws.send(JSON.stringify({ type: 'subscribe', channel: 'updates' }));
                     </thead>
                     <tbody>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Short Polling</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">High</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Client→Server</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Easy</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Long Polling</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Server→Client</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Long Polling</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Server→Client (push)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">SSE</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Server→Client</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">WebSockets</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bidirectional</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">High</td></tr>
                     </tbody>
@@ -833,6 +833,11 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# Note: @app.on_event("startup") is deprecated in FastAPI 0.93+.
+# Use the lifespan context manager instead for production code:
+#   from contextlib import asynccontextmanager
+#   @asynccontextmanager
+#   async def lifespan(app): ...
 @app.on_event("startup")
 async def startup():
     await manager.connect()
@@ -860,7 +865,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     <h4 class="mt-3">Production WebSocket Server - Go</h4>
                     <div class="code-block">
                         <code>
-// Go - High-performance WebSocket server with gorilla/websocket
+// Go - High-performance WebSocket server
+// Note: gorilla/websocket is archived (Dec 2023). Consider
+// github.com/coder/websocket (formerly nhooyr.io/websocket) as a
+// maintained alternative. The API below still works but won't
+// receive security patches.
 
 package main
 
@@ -957,6 +966,8 @@ func (h *Hub) sendToUser(userID string, message []byte) {
 var upgrader = websocket.Upgrader{
     ReadBufferSize:  1024,
     WriteBufferSize: 1024,
+    // WARNING: Always-true CheckOrigin is insecure; allows cross-site WebSocket hijacking.
+    // In production, validate the Origin header against allowed domains.
     CheckOrigin:     func(r *http.Request) bool { return true },
 }
 

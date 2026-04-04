@@ -276,8 +276,8 @@ def generate_short_url(long_url):<br>
     return hash
                         </code>
                     </div>
-                    <p><strong>Pros:</strong> Same URL always gets same short code</p>
-                    <p><strong>Cons:</strong> Collision handling, slower</p>
+                    <p><strong>Pros:</strong> Deterministic for the initial hash (same URL produces same short code unless collision occurs)</p>
+                    <p><strong>Cons:</strong> Collision handling adds latency; after a collision the salt breaks determinism; MD5 hex output limits charset to [0-9a-f], so 7 hex chars give only ~268M combinations vs 3.5T for Base62</p>
                 </div>
             </div>
 
@@ -341,11 +341,11 @@ def generate_short_url(long_url):<br>
                         <li><strong>By short_code:</strong> Hash first char → shard</li>
                         <li><strong>Range-based:</strong> 'a-g' → shard 1, 'h-n' → shard 2</li>
                     </ul>
-                    <p><strong>Replication:</strong> Master-slave for read scaling</p>
+                    <p><strong>Replication:</strong> Primary-replica for read scaling</p>
                 </div>
             </div>
 
-            <h2 class="mt-4">9. Complete Working Implementation</h2>
+            <h2 class="mt-4">8. Complete Working Implementation</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -364,6 +364,7 @@ from pydantic import BaseModel, HttpUrl
 from typing import Optional
 import redis
 import asyncpg
+import datetime
 import hashlib
 import time
 from contextlib import asynccontextmanager
@@ -469,7 +470,7 @@ async def shorten_url(
     async with db_pool.acquire() as conn:
         expires_at = None
         if req.expires_in_days:
-            expires_at = f"NOW() + INTERVAL '{req.expires_in_days} days'"
+            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=req.expires_in_days)
 
         await conn.execute('''
             INSERT INTO urls (short_code, long_url, expires_at)
@@ -510,7 +511,7 @@ async def redirect_url(short_code: str, request: Request):
             if not row:
                 raise HTTPException(404, "URL not found")
 
-            if row['expires_at'] and row['expires_at'] < time.time():
+            if row['expires_at'] and row['expires_at'] < datetime.datetime.now(datetime.timezone.utc):
                 raise HTTPException(410, "URL has expired")
 
             long_url = row['long_url']
@@ -552,7 +553,7 @@ async def get_stats(short_code: str, request: Request):
                 </div>
             </div>
 
-            <h2 class="mt-4">10. Failure Handling</h2>
+            <h2 class="mt-4">9. Failure Handling</h2>
 
             <div class="collapsible">
                 <div class="collapsible-header">
@@ -664,7 +665,9 @@ class URLCache:
 import aiohttp
 
 async def is_url_safe(url: str) -> bool:
-    """Check URL against Google Safe Browsing API."""
+    """Check URL against Google Safe Browsing API.
+    Note: Google recommends the Web Risk API for commercial use (v4 Lookup API shown here for simplicity).
+    """
     async with aiohttp.ClientSession() as session:
         payload = {
             "client": {"clientId": "urlshortener", "clientVersion": "1.0"},
@@ -687,7 +690,7 @@ async def is_url_safe(url: str) -> bool:
                 </div>
             </div>
 
-            <h2 class="mt-4">8. Summary</h2>
+            <h2 class="mt-4">10. Summary</h2>
 
             <div class="card">
                 <table style="width: 100%; border-collapse: collapse;">

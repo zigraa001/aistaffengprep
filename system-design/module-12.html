@@ -505,7 +505,7 @@ class TokenBucket:<br>
 <br>
     def allow_request(self):<br>
         self._refill()<br>
-        if self.tokens >= 1:<br>
+        if self.tokens &gt;= 1:<br>
             self.tokens -= 1<br>
             return True<br>
         return False<br>
@@ -521,7 +521,7 @@ class TokenBucket:<br>
                     <div class="card mt-2" style="background: var(--success-bg);">
                         <strong>Pros:</strong> Allows bursts, memory efficient, widely used<br>
                         <strong>Cons:</strong> May be harder to tune<br>
-                        <strong>Used by:</strong> AWS, Stripe
+                        <strong>Used by:</strong> AWS API Gateway, Stripe, NGINX (limit_req with burst)
                     </div>
                 </div>
             </div>
@@ -550,9 +550,9 @@ flowchart TB
                     </ul>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Pros:</strong> Smooth output rate, prevents bursts<br>
-                        <strong>Cons:</strong> Doesn't allow bursts, may increase latency<br>
-                        <strong>Used by:</strong> Network traffic shaping
+                        <strong>Pros:</strong> Smooth output rate, absorbs bursts into queue, predictable processing pace<br>
+                        <strong>Cons:</strong> Queued requests experience increased latency; no way to prioritize urgent requests<br>
+                        <strong>Used by:</strong> Network traffic shaping (e.g., Linux tc/tbf), Shopify (as queue-based rate limiter)
                     </div>
                 </div>
             </div>
@@ -603,8 +603,8 @@ class SlidingWindowLog:<br>
         now = time.time()<br>
         cutoff = now - self.window<br>
         # Remove old timestamps<br>
-        self.timestamps = [t for t in self.timestamps if t > cutoff]<br>
-        if len(self.timestamps) < self.limit:<br>
+        self.timestamps = [t for t in self.timestamps if t &gt; cutoff]<br>
+        if len(self.timestamps) &lt; self.limit:<br>
             self.timestamps.append(now)<br>
             return True<br>
         return False
@@ -612,8 +612,8 @@ class SlidingWindowLog:<br>
                     </div>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Pros:</strong> Very accurate<br>
-                        <strong>Cons:</strong> Memory intensive (stores all timestamps)
+                        <strong>Pros:</strong> Very accurate, no boundary burst problem<br>
+                        <strong>Cons:</strong> Memory intensive (stores all timestamps); O(n) cleanup per request in naive implementation. In distributed setups, use Redis sorted sets (ZRANGEBYSCORE) instead of in-memory lists.
                     </div>
                 </div>
             </div>
@@ -635,7 +635,7 @@ class SlidingWindowLog:<br>
 # Weighted count = prev * (1 - position) + current<br>
 # = 84 * 0.7 + 36 = 58.8 + 36 = 94.8<br>
 <br>
-# If limit is 100, request allowed (94.8 < 100)
+# If limit is 100, request allowed (94.8 &lt; 100)
                         </code>
                     </div>
 
@@ -661,9 +661,9 @@ class SlidingWindowLog:<br>
                     </thead>
                     <tbody>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Token Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Allows</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Leaky Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prevents</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Leaky Bucket</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Smooths (queues)</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fixed Window</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Poor</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">2x burst</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Log</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">High</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Exact</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">None</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Log</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">High</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Exact</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rejects excess</td></tr>
                         <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding Counter</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minimal</td></tr>
                     </tbody>
                 </table>
@@ -716,7 +716,7 @@ flowchart TB
 
                     <div class="code-block">
                         <code>
--- Redis Lua script for atomic rate limiting<br>
+-- Redis Lua script for atomic rate limiting (fixed window)<br>
 local key = KEYS[1]<br>
 local limit = tonumber(ARGV[1])<br>
 local window = tonumber(ARGV[2])<br>
@@ -726,11 +726,15 @@ if current == 1 then<br>
     redis.call('EXPIRE', key, window)<br>
 end<br>
 <br>
-if current > limit then<br>
+if current &gt; limit then<br>
     return 0  -- Rate limited<br>
 end<br>
 return 1  -- Allowed
                         </code>
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--warning-bg, rgba(255, 193, 7, 0.1)); border-left: 4px solid #ffc107;">
+                        <strong>Caveat:</strong> This INCR+EXPIRE approach has a subtle issue: Lua scripts in Redis are atomic, so the EXPIRE always runs after INCR within the same script. However, this implements a <em>fixed window</em> counter, which suffers from the boundary burst problem described above. For production sliding-window rate limiting, prefer the sorted-set approach shown in the Race Conditions section below.
                     </div>
                 </div>
             </div>
@@ -738,12 +742,13 @@ return 1  -- Allowed
             <h2 class="mt-4">HTTP Response Headers</h2>
 
             <div class="card">
+                <p>Many APIs still use the <code>X-RateLimit-*</code> prefix (GitHub, Stripe, etc.), but the IETF has standardized rate limit headers in <strong>RFC 9110</strong> and the <strong>RateLimit Fields</strong> draft (draft-ietf-httpapi-ratelimit-headers, on track to become an RFC). Prefer the standard names for new APIs:</p>
                 <div class="code-block">
                     <code>
 HTTP/1.1 429 Too Many Requests<br>
-X-RateLimit-Limit: 100<br>
-X-RateLimit-Remaining: 0<br>
-X-RateLimit-Reset: 1640000000<br>
+RateLimit-Limit: 100<br>
+RateLimit-Remaining: 0<br>
+RateLimit-Reset: 60<br>
 Retry-After: 60<br>
 <br>
 {<br>
@@ -754,6 +759,9 @@ Retry-After: 60<br>
 }
                     </code>
                 </div>
+                <p style="margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-muted);">
+                    <strong>Note:</strong> <code>RateLimit-Reset</code> in the IETF draft uses a delta-seconds value (seconds until reset), not a Unix timestamp. The legacy <code>X-RateLimit-Reset</code> header in many existing APIs uses a Unix epoch timestamp. Be explicit about which convention you adopt in your API documentation.
+                </p>
             </div>
 
             <h2 class="mt-4">Failure Scenarios</h2>
@@ -808,7 +816,7 @@ class ResilientRateLimiter:
         self.failure_mode = failure_mode
         self.local_fallback = {}  # In-memory fallback
 
-    def is_allowed(self, key: str) -> tuple[bool, dict]:
+    def is_allowed(self, key: str) -&gt; tuple[bool, dict]:
         """
         Returns (allowed: bool, metadata: dict)
         """
@@ -817,18 +825,18 @@ class ResilientRateLimiter:
         except redis.ConnectionError:
             return self._handle_redis_failure(key)
 
-    def _check_redis(self, key: str) -> tuple[bool, dict]:
+    def _check_redis(self, key: str) -&gt; tuple[bool, dict]:
         current = self.redis.incr(key)
         if current == 1:
             self.redis.expire(key, self.window)
 
         remaining = max(0, self.limit - current)
         return (
-            current <= self.limit,
+            current &lt;= self.limit,
             {"limit": self.limit, "remaining": remaining, "source": "redis"}
         )
 
-    def _handle_redis_failure(self, key: str) -> tuple[bool, dict]:
+    def _handle_redis_failure(self, key: str) -&gt; tuple[bool, dict]:
         if self.failure_mode == FailureMode.FAIL_OPEN:
             # Log for monitoring, but allow the request
             print(f"WARN: Rate limiter Redis down, failing OPEN for {key}")
@@ -849,10 +857,16 @@ class RateLimiterWithCircuitBreaker:
         self.last_failure_time = 0
         self.recovery_timeout = 30  # seconds
 
-    def is_allowed(self, key: str, limit: int, window: int) -> bool:
+    def _check_redis(self, key, limit, window):
+        current = self.redis.incr(key)
+        if current == 1:
+            self.redis.expire(key, window)
+        return current &lt;= limit
+
+    def is_allowed(self, key: str, limit: int, window: int) -&gt; bool:
         # Circuit breaker check
         if self.circuit_open:
-            if time.time() - self.last_failure_time > self.recovery_timeout:
+            if time.time() - self.last_failure_time &gt; self.recovery_timeout:
                 self.circuit_open = False
                 self.failure_count = 0
             else:
@@ -866,7 +880,7 @@ class RateLimiterWithCircuitBreaker:
         except redis.RedisError:
             self.failure_count += 1
             self.last_failure_time = time.time()
-            if self.failure_count >= self.failure_threshold:
+            if self.failure_count &gt;= self.failure_threshold:
                 self.circuit_open = True
                 print("Circuit breaker OPEN - rate limiting disabled")
             return True  # Fail open
@@ -922,7 +936,7 @@ redis.call('ZREMRANGEBYSCORE', key, 0, now - window * 1000)
 -- Count current requests
 local count = redis.call('ZCARD', key)
 
-if count < limit then
+if count &lt; limit then
     -- Add this request
     redis.call('ZADD', key, now, now .. ':' .. math.random())
     redis.call('EXPIRE', key, window)
@@ -950,7 +964,7 @@ class AtomicRateLimiter:
     redis.call('ZREMRANGEBYSCORE', key, 0, now - window * 1000)
     local count = redis.call('ZCARD', key)
 
-    if count < limit then
+    if count &lt; limit then
         redis.call('ZADD', key, now, now .. ':' .. math.random())
         redis.call('EXPIRE', key, window)
         return {1, limit - count - 1}
@@ -963,7 +977,7 @@ class AtomicRateLimiter:
         self.redis = redis_client
         self.script = self.redis.register_script(self.LUA_SCRIPT)
 
-    def is_allowed(self, key: str, limit: int, window_seconds: int) -> tuple[bool, int]:
+    def is_allowed(self, key: str, limit: int, window_seconds: int) -&gt; tuple[bool, int]:
         """
         Returns (allowed, remaining_requests)
         Guaranteed atomic - no race conditions.
@@ -1018,7 +1032,7 @@ class AdaptiveRateLimitedClient:
         self.window_reset = 0
         self.consecutive_429s = 0
 
-    async def make_request(self, path: str, data: dict) -> dict:
+    async def make_request(self, path: str, data: dict) -&gt; dict:
         # Check local rate limit
         if not self._local_limit_allows():
             await asyncio.sleep(self._backoff_time())
@@ -1039,10 +1053,10 @@ class AdaptiveRateLimitedClient:
         except RateLimitedException:
             raise
 
-    def _local_limit_allows(self) -> bool:
+    def _local_limit_allows(self) -&gt; bool:
         """Pre-flight check to avoid unnecessary requests."""
-        if time.time() < self.window_reset:
-            return self.local_limit > 0
+        if time.time() &lt; self.window_reset:
+            return self.local_limit &gt; 0
         return True
 
     def _handle_rate_limit(self, response):
@@ -1053,7 +1067,7 @@ class AdaptiveRateLimitedClient:
         self.window_reset = time.time() + retry_after
         self.local_limit = 0
 
-    def _backoff_time(self) -> float:
+    def _backoff_time(self) -&gt; float:
         """Exponential backoff with jitter."""
         base = min(60, 2 ** self.consecutive_429s)
         jitter = random.uniform(0.5, 1.5)
@@ -1081,12 +1095,12 @@ class GraduatedRateLimiter:
         self.soft_limit = soft_limit  # Start degrading
         self.hard_limit = hard_limit  # Full reject
 
-    def check_and_respond(self, count: int) -> dict:
-        if count <= self.soft_limit:
+    def check_and_respond(self, count: int) -&gt; dict:
+        if count &lt;= self.soft_limit:
             # Full service
             return {"status": "ok", "degraded": False}
 
-        elif count <= self.hard_limit:
+        elif count &lt;= self.hard_limit:
             # Degraded service
             degradation_pct = (count - self.soft_limit) / (self.hard_limit - self.soft_limit)
             return {
@@ -1098,18 +1112,83 @@ class GraduatedRateLimiter:
             # Full rejection
             return {"status": "rate_limited", "retry_after": 60}
 
-    def _features_to_skip(self, pct: float) -> list:
+    def _features_to_skip(self, pct: float) -&gt; list:
         """Progressively disable features."""
         features = []
-        if pct > 0.25:
+        if pct &gt;0.25:
             features.append("analytics_tracking")
-        if pct > 0.50:
+        if pct &gt;0.50:
             features.append("recommendations")
-        if pct > 0.75:
+        if pct &gt;0.75:
             features.append("search_suggestions")
         return features
                         </code>
                     </div>
+                </div>
+            </div>
+
+            <h2 class="mt-4">Multi-Tier Rate Limiting (Staff-Level)</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Rate Limiting at Different Layers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Production systems typically apply rate limiting at multiple layers, each serving a different purpose:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Layer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tool / Location</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Purpose</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">L3/L4 (Network)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">iptables, AWS WAF, Cloudflare</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DDoS protection, IP-based blocking</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">L7 (API Gateway)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">NGINX, Kong, AWS API Gateway, Envoy</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-user/per-API-key limits, request throttling</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Application</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Custom middleware, libraries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Business-logic limits (e.g., 10 password resets/hour)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Service-to-Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Service mesh (Istio, Linkerd), client-side</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prevent internal cascading overload</td>
+                        </tr>
+                    </table>
+
+                    <h4>Key Interview Discussion Points</h4>
+                    <ul>
+                        <li><strong>Per-user vs. global limits:</strong> A per-user limit of 100 req/min is useless if 1M users hit simultaneously. You also need a global capacity limit.</li>
+                        <li><strong>Rate limiting by key:</strong> Common dimensions include user ID, API key, IP address, endpoint, or a composite key (user + endpoint). Choose based on the abuse vector.</li>
+                        <li><strong>Tiered plans:</strong> SaaS APIs (Stripe, Twilio, OpenAI) offer different rate limits per pricing tier. This requires looking up the user's plan on every request -- often cached in the rate limiter itself.</li>
+                        <li><strong>Cost of Redis round-trips:</strong> At high throughput, centralized rate limiting adds ~1-2ms per request. Mitigation: use local in-memory token buckets synced periodically with a central store (eventual consistency).</li>
+                        <li><strong>Consistent hashing for sharded rate limiters:</strong> When a single Redis instance cannot handle the throughput, shard rate limit keys across multiple Redis nodes using consistent hashing.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Client-Side Rate Limiting and Backpressure</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Staff engineers should discuss <em>both</em> server-side enforcement and client-side cooperation:</p>
+                    <ul>
+                        <li><strong>Respect Retry-After:</strong> Clients must parse the <code>Retry-After</code> header and not retry before the specified time.</li>
+                        <li><strong>Exponential backoff with jitter:</strong> Prevents thundering herd when many clients retry simultaneously. AWS recommends "full jitter" (<code>sleep = random(0, min(cap, base * 2^attempt))</code>).</li>
+                        <li><strong>Client-side token bucket:</strong> Pre-throttle outgoing requests based on known rate limits to avoid wasting network calls on requests that will be rejected.</li>
+                        <li><strong>Backpressure propagation:</strong> When a downstream service rate-limits you, propagate that backpressure upstream (e.g., return 503 or slow down queue consumption) rather than accumulating an unbounded retry queue.</li>
+                    </ul>
                 </div>
             </div>
 

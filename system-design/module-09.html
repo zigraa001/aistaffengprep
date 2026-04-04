@@ -134,7 +134,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Protocol</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/1.1</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/1.1</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/2</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Protocol</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/1.1 or HTTP/2</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/1.1 or HTTP/2</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/2 (required)</td></tr>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data Format</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">JSON/XML</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">JSON</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Protobuf (binary)</td></tr>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Over/Under Fetching</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Common issue</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Client controls</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fixed schema</td></tr>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Public APIs</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Flexible clients</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Internal services</td></tr>
@@ -308,6 +308,62 @@ Response:<br>
                         <li>Link to documentation when helpful</li>
                         <li>Never expose internal stack traces in production</li>
                     </ul>
+                </div>
+            </div>
+
+            <h2 class="mt-4">Idempotency</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Idempotency in API Design</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>An operation is <strong>idempotent</strong> if performing it multiple times produces the same result as performing it once. This is critical for reliability when clients retry requests due to network failures or timeouts.</p>
+
+                    <h4>HTTP Method Idempotency</h4>
+                    <ul>
+                        <li><strong>GET, PUT, DELETE</strong> — idempotent by specification</li>
+                        <li><strong>POST, PATCH</strong> — NOT inherently idempotent</li>
+                    </ul>
+
+                    <h4 class="mt-3">Idempotency Keys for Non-Idempotent Operations</h4>
+                    <p>For POST requests (e.g., creating a payment), use client-generated idempotency keys to allow safe retries:</p>
+                    <div class="code-block">
+                        <code>
+POST /payments<br>
+Idempotency-Key: req_abc123<br>
+Content-Type: application/json<br><br>
+{ "amount": 100, "currency": "USD" }
+                        </code>
+                    </div>
+                    <p class="mt-2">The server stores the idempotency key with the response. On retry, it returns the stored response instead of creating a duplicate payment.</p>
+
+                    <div class="card mt-3" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> Stripe, PayPal, and most financial APIs require idempotency keys. In a system design interview, always discuss idempotency for write endpoints — it shows you think about real-world failure modes like network retries and at-least-once delivery.
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="mt-4">Authentication &amp; Security</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>API Authentication Patterns</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Common Authentication Approaches</h4>
+                    <ul>
+                        <li><strong>API Keys</strong> — simple, good for server-to-server; pass in header (<code>X-API-Key</code>) not query params (avoid logging secrets in URLs)</li>
+                        <li><strong>OAuth 2.0 / Bearer Tokens</strong> — standard for user-facing APIs; use short-lived access tokens with refresh tokens</li>
+                        <li><strong>JWT</strong> — self-contained tokens; trade-off: can't revoke easily without a blocklist or short expiry</li>
+                        <li><strong>mTLS</strong> — mutual TLS for high-security service-to-service; strong identity but operationally complex (certificate rotation)</li>
+                    </ul>
+
+                    <div class="card mt-3" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> When designing APIs, always mention how the API is authenticated and authorized. A common follow-up is "How do you handle token expiration?" or "How do you revoke access?"
+                    </div>
                 </div>
             </div>
 

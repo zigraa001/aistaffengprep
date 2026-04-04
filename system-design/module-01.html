@@ -493,7 +493,8 @@ flowchart LR
                         <tbody>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complexity</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex (distributed)</td></tr>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Limits</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hardware ceiling</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Theoretically unlimited</td></tr>
-                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Downtime</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Required for upgrade</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Zero downtime possible</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Downtime</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Often required (live migration possible on cloud)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Zero downtime possible</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost Curve</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Exponential (premium hardware)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Linear (commodity servers)</td></tr>
                             <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fault Tolerance</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">SPOF risk</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Built-in redundancy</td></tr>
                         </tbody>
                     </table>
@@ -633,7 +634,8 @@ http {
 
     server {
         listen 80;
-        listen 443 ssl http2;
+        listen 443 ssl;
+        http2 on;
 
         location /api/ {
             proxy_pass http://api_servers;
@@ -651,7 +653,7 @@ http {
             proxy_connect_timeout 5s;
             proxy_read_timeout 60s;
 
-            # Retry on failure - only idempotent methods
+            # Retry on failure (NGINX only retries idempotent methods by default)
             proxy_next_upstream error timeout http_502 http_503;
             proxy_next_upstream_tries 2;
         }
@@ -828,6 +830,36 @@ listen stats
                             <li><strong>Cache stampede</strong> - What happens when cache expires and many requests hit DB</li>
                             <li><strong>Consistency trade-offs</strong> - Stale data vs performance</li>
                         </ul>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="mt-4">CDN &amp; Edge Computing</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Content Delivery Networks</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why CDNs?</strong> A CDN places copies of your content on servers geographically close to users, reducing latency from hundreds of milliseconds to single-digit milliseconds for static assets.</p>
+
+                    <h4>Push vs Pull CDN</h4>
+                    <ul>
+                        <li><strong>Push CDN:</strong> You upload content to CDN nodes proactively. Better for content that changes infrequently (e.g., product images). You control what is cached and when.</li>
+                        <li><strong>Pull CDN:</strong> CDN fetches content from your origin server on the first request, then caches it. Simpler to manage but the first request per edge location is slow (cache miss).</li>
+                    </ul>
+
+                    <h4>Edge Computing</h4>
+                    <p>Edge computing extends the CDN concept beyond static assets. Services like Cloudflare Workers and AWS Lambda@Edge let you run code at the edge, useful for:</p>
+                    <ul>
+                        <li><strong>A/B testing:</strong> Route users to variants without a round-trip to origin</li>
+                        <li><strong>Auth token validation:</strong> Reject unauthenticated requests before they reach your backend</li>
+                        <li><strong>Personalization:</strong> Customize content based on geolocation headers</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> When designing a read-heavy system, always mention CDN as your first line of defense. In a staff-level interview, discuss cache invalidation strategies (TTL-based, purge APIs, versioned URLs) and multi-tier caching (CDN &rarr; application cache &rarr; database).
                     </div>
                 </div>
             </div>

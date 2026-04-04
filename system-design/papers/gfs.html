@@ -226,7 +226,7 @@
                 </div>
                 <h1>The Google File System</h1>
                 <p class="subtitle">The paper that launched the big data revolution</p>
-                <p class="paper-meta">Ghemawat, Gobioff, Leung | SOSP 2003 | ~15,000 citations</p>
+                <p class="paper-meta">Ghemawat, Gobioff, Leung | SOSP 2003 | ~25,000+ citations</p>
             </div>
 
             <div class="card">
@@ -248,7 +248,7 @@
                     <span class="collapsible-icon">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
-                    <p>By 2003, Google was crawling the entire web and running MapReduce jobs over petabytes of data. Existing file systems couldn't handle their needs:</p>
+                    <p>By 2003, Google was crawling the entire web and running large-scale batch processing jobs over petabytes of data. Existing file systems couldn't handle their needs:</p>
 
                     <div class="card-grid">
                         <div class="card">
@@ -500,10 +500,10 @@ sequenceDiagram
     C->>M: 1. Request lease holder for chunk
     M->>C: 2. Primary identity + secondary locations
 
-    Note over C,S2: Data flow (pipelined)
-    C->>P: 3a. Push data to primary
-    P->>S1: 3b. Forward to secondary 1
-    S1->>S2: 3c. Forward to secondary 2
+    Note over C,S2: Data flow (pipelined to closest, then chained)
+    C->>S1: 3a. Push data to closest chunkserver
+    S1->>P: 3b. Forward along chain
+    P->>S2: 3c. Forward to next in chain
 
     C->>P: 4. Write request
     P->>P: 5. Assign serial number, apply locally
@@ -535,9 +535,9 @@ sequenceDiagram
 # Client sends 64MB to each of 3 replicas = 192MB upload
 # Time = 64MB / client_upload_bandwidth
 
-# With pipelining (chain):
-# Client -> Primary -> Secondary1 -> Secondary2
-# Each machine forwards while receiving
+# With pipelining (chain to closest, then forwarded):
+# Client -> Closest chunkserver -> Next closest -> ...
+# Each machine forwards while still receiving
 # Time = 64MB / min(upload, download) + small latency overhead
 
 # Example with 100 Mbps links:
@@ -857,7 +857,7 @@ def read_chunk(chunk_handle, offset, length):
                         <strong>Real Numbers from the Paper:</strong>
                         <ul>
                             <li>Cluster A: 342 chunkservers, 72TB used, ~735 concurrent clients</li>
-                            <li>Cluster B: 227 chunkservers, 737TB used, ~�concurrent clients</li>
+                            <li>Cluster B: 227 chunkservers, 737TB used, ~210 concurrent clients</li>
                             <li>Typical master: 50-100MB memory for metadata</li>
                             <li>Chunk creation rate: ~500 chunks/second peak</li>
                         </ul>
@@ -881,9 +881,9 @@ flowchart TD
     GFS --> HDFS[Hadoop HDFS<br>2006]
     GFS --> Colossus[Google Colossus<br>2010]
 
-    HDFS --> S3[AWS S3 internals]
-    HDFS --> Azure[Azure Data Lake]
     HDFS --> Spark[Apache Spark]
+    HDFS --> HBase[Apache HBase]
+    HDFS --> Hive[Apache Hive]
 
     Colossus --> Spanner[Google Spanner]
     Colossus --> BigQuery[BigQuery]
@@ -969,7 +969,7 @@ flowchart TD
             <div class="interview-question">
                 <div class="question">Q7: What's the consistency model of GFS? How does it compare to POSIX?</div>
                 <div class="answer">
-                    <strong>Answer:</strong> GFS provides relaxed consistency. After a mutation, the file region is "defined" (all replicas identical) if successful, or "undefined but consistent" if concurrent writes occur. Record append guarantees data appears at least once atomically. This is weaker than POSIX (which guarantees immediate visibility of writes) but enables better performance and availability for Google's append-heavy workloads.
+                    <strong>Answer:</strong> GFS provides relaxed consistency. After a successful mutation with no concurrency, the file region is "defined" (all replicas identical and reflecting the mutation). After successful concurrent mutations, the region is "consistent but undefined" (all replicas identical, but the content may be a mix of mutations). After a failed mutation, regions may be "inconsistent" (replicas differ). Record append guarantees data appears at least once atomically but may leave padding or duplicate records. This is weaker than POSIX (which guarantees linearizable, immediately visible writes) but enables better performance and availability for Google's append-heavy workloads.
                 </div>
             </div>
 
