@@ -73,18 +73,22 @@ flowchart LR
         C --> D[Establish Constraints]
     end
 
-    subgraph Phase2["Phase 2: Design (25-30 min)"]
+    subgraph Phase2["Phase 2: Design (15-20 min)"]
         E[Identify Classes] --> F[Define Relationships]
         F --> G[Apply Patterns]
         G --> H[Handle Edge Cases]
     end
 
-    subgraph Phase3["Phase 3: Implement (10-15 min)"]
+    subgraph Phase3["Phase 3: Implement (15-20 min)"]
         I[Core Classes] --> J[Key Methods]
         J --> K[Thread Safety]
     end
 
-    Phase1 --> Phase2 --> Phase3
+    subgraph Phase4["Phase 4: Discuss (5 min)"]
+        L[Trade-offs] --> M[Extensions]
+    end
+
+    Phase1 --> Phase2 --> Phase3 --> Phase4
                 </pre>
             </div>
 
@@ -160,7 +164,7 @@ flowchart LR
                 </div>
             </div>
 
-            <h2>Phase 2: Object-Oriented Design (25-30 minutes)</h2>
+            <h2>Phase 2: Object-Oriented Design (15-20 minutes)</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -321,7 +325,7 @@ we use transactions to update spot status atomically"</code></pre>
                 </div>
             </div>
 
-            <h2>Phase 3: Implementation (10-15 minutes)</h2>
+            <h2>Phase 3: Implementation (15-20 minutes)</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -378,27 +382,29 @@ public class ParkingLot {
     private final SpotAllocationStrategy allocationStrategy;
 
     public ParkingTicket parkVehicle(Vehicle vehicle) {
-        // 1. Find available spot using strategy
-        ParkingSpot spot = allocationStrategy.findSpot(vehicle, floors);
+        // Retry loop for race conditions (bounded to avoid stack overflow)
+        for (int attempt = 0; attempt &lt; 3; attempt++) {
+            // 1. Find available spot using strategy
+            ParkingSpot spot = allocationStrategy.findSpot(vehicle, floors);
 
-        if (spot == null) {
-            throw new ParkingFullException("No spot available for " +
-                vehicle.getType());
+            if (spot == null) {
+                throw new ParkingFullException("No spot available for " +
+                    vehicle.getType());
+            }
+
+            // 2. Occupy the spot (thread-safe, atomic check-and-set)
+            if (spot.occupy(vehicle)) {
+                // 3. Generate ticket
+                return new ParkingTicket(
+                    UUID.randomUUID().toString(),
+                    vehicle,
+                    spot,
+                    LocalDateTime.now()
+                );
+            }
+            // Another thread took this spot - retry with a new search
         }
-
-        // 2. Occupy the spot (thread-safe)
-        if (!spot.occupy(vehicle)) {
-            // Race condition - retry
-            return parkVehicle(vehicle);
-        }
-
-        // 3. Generate ticket
-        return new ParkingTicket(
-            UUID.randomUUID().toString(),
-            vehicle,
-            spot,
-            LocalDateTime.now()
-        );
+        throw new ParkingFullException("Could not allocate spot after retries");
     }
 }</code></pre>
 
@@ -503,8 +509,9 @@ public class ParkingSystem {
 // 2. Multiple instances would cause spot allocation conflicts
 // 3. It simplifies access from EntryPanel and ExitPanel
 //
-// But I'm using enum-based or holder pattern for thread-safety,
-// not double-checked locking which has subtle issues on some JVMs"
+// I'm using enum-based Singleton for simplicity and thread-safety.
+// Double-checked locking with volatile also works (correct since Java 5),
+// but enum is more concise and prevents reflection/serialization attacks."
 
 public enum ParkingLot {
     INSTANCE;
