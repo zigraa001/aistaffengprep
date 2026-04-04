@@ -584,6 +584,8 @@ from collections import deque
 class RateLimiter:
     """
     Rate limiter: allow 'limit' requests per 'window' seconds.
+    Note: Not thread-safe as shown. In production, add a lock
+    per user_id or use atomic operations (e.g., Redis MULTI/EXEC).
     """
     def __init__(self, limit: int, window_seconds: int):
         self.limit = limit
@@ -607,7 +609,14 @@ class RateLimiter:
 
         # Record request
         self.requests[user_id].append(now)
-        return True</code></pre>
+        return True
+
+# Trade-off: This "sliding window log" stores every timestamp.
+# Memory is O(limit) per user in steady state after cleanup.
+# Alternatives:
+# - Token bucket: O(1) space per user, allows short bursts
+# - Sliding window counter: O(1) space, approximate but cheaper
+# - Fixed window: simplest but allows 2x burst at window boundaries</code></pre>
                 </div>
             </div>
         </div>

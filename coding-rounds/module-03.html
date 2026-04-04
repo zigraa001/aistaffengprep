@@ -758,7 +758,7 @@ def iterative_postorder_single_stack(root):
                         </tr>
                         <tr>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Iterative (stack)</td>
-                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(h) heap</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(h) on heap memory</td>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Avoid stack overflow, deep trees</td>
                         </tr>
                         <tr>
@@ -769,7 +769,7 @@ def iterative_postorder_single_stack(root):
                     </tbody>
                 </table>
 
-                <p><strong>Staff-level insight:</strong> In production, Python's default recursion limit is ~1000. For trees deeper than this, you MUST use iterative approaches. Java's stack is typically 512KB-1MB, which allows ~10K-20K recursive calls.</p>
+                <p><strong>Staff-level insight:</strong> In production, Python's default recursion limit is 1000 (configurable via <code>sys.setrecursionlimit()</code>, but increasing it risks segfaults). For trees deeper than this, you MUST use iterative approaches. Java's default thread stack is typically 512KB-1MB, which allows roughly 5K-15K recursive calls depending on frame size.</p>
             </div>
         </div>
 
@@ -1558,7 +1558,18 @@ def diameter(root):
 
     if left and right:
         return root  # p and q are on different sides
-    return left or right  # Both on same side</code></pre>
+    return left or right  # Both on same side
+
+# BST-specific LCA: exploit BST ordering for O(h) time
+def lca_bst(root, p, q):
+    """For BSTs, use node values to decide direction. O(h) time."""
+    while root:
+        if p.val &lt; root.val and q.val &lt; root.val:
+            root = root.left      # Both in left subtree
+        elif p.val &gt; root.val and q.val &gt; root.val:
+            root = root.right     # Both in right subtree
+        else:
+            return root           # Split point = LCA</code></pre>
                 </div>
             </div>
         </div>
@@ -1740,9 +1751,9 @@ def deserialize(data):
 
                 <h4>Staff Interview Follow-ups</h4>
                 <ul>
-                    <li><strong>Serialization format:</strong> "Why preorder? What about level-order?" Level-order is better for sparse trees, preorder for dense trees.</li>
+                    <li><strong>Serialization format:</strong> "Why preorder? What about level-order?" Preorder with null markers is generally compact and simple to parse. Level-order is more intuitive for visualization and better for nearly-complete trees, but wastes space on sparse/deep trees since it must encode empty positions at every level.</li>
                     <li><strong>Path sum variants:</strong> "What if path must go through root?" "What if path must start at root?" Each variant has different recursive structure.</li>
-                    <li><strong>Construction uniqueness:</strong> "Can you construct tree from preorder + postorder?" Only if all nodes have 0 or 2 children.</li>
+                    <li><strong>Construction uniqueness:</strong> "Can you construct tree from preorder + postorder?" You can always construct <em>a</em> tree, but the result is unique only when every internal node has exactly 2 children. With single-child nodes, multiple trees can produce the same preorder + postorder.</li>
                 </ul>
             </div>
         </div>
@@ -1756,7 +1767,7 @@ def deserialize(data):
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>Google indexes over 130 trillion web pages. Bing processes 12 billion queries per month. Both use B-tree variants (LSM trees, B+ trees) as the foundation of their search indexes.</p>
+                <p>Google indexes hundreds of billions of web pages. Bing processes billions of queries per month (with significant growth since Copilot AI integration). Both use B-tree variants (LSM trees, B+ trees) as the foundation of their search indexes.</p>
 
                 <h4>Why B-Trees Over Binary Trees?</h4>
                 <ul>
@@ -1807,7 +1818,7 @@ print(f"B-tree: {disk_reads_btree(n)} disk reads")  # ~4
                         </tr>
                         <tr>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Write Amplification</td>
-                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low (1x)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Moderate (2-5x due to page splits, WAL)</td>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (10-30x due to compaction)</td>
                         </tr>
                         <tr>
@@ -1865,7 +1876,7 @@ def lsm_read(key, levels):
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>MongoDB serves over 35,000 customers including Toyota, Cisco, and Adobe. Its WiredTiger storage engine uses B+ trees for all indexes.</p>
+                <p>MongoDB serves over 50,000 customers including Toyota, Cisco, and Adobe. Its WiredTiger storage engine uses B+ trees for all indexes.</p>
 
                 <h4>Compound Index Example</h4>
                 <div class="code-block">
@@ -1899,7 +1910,7 @@ db.events.find({timestamp: {"$gt": last_week}})
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>Git manages the Linux kernel (77 million lines of code, 1 million+ commits). Its efficiency comes from Merkle trees - a tree where each node is a cryptographic hash of its children.</p>
+                <p>Git manages the Linux kernel (~35 million lines of code, 1 million+ commits). Its efficiency comes from Merkle trees - a tree where each node is a cryptographic hash of its children.</p>
 
                 <h4>How Git Uses Trees</h4>
                 <ul>
@@ -1934,8 +1945,8 @@ def trees_differ(tree1, tree2):
 
     return differences
 
-# Linux kernel: 77M lines, but most commits change < 100 files
-# Tree comparison: O(100) not O(77M)</code></pre>
+# Linux kernel: ~35M lines, but most commits change < 100 files
+# Tree comparison: O(100) not O(35M)</code></pre>
                 </div>
             </div>
         </div>

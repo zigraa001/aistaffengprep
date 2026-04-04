@@ -285,7 +285,7 @@
             state.append(choice)
 
             # Recurse
-            backtrack(state, remaining_choices, result)
+            backtrack(state, choices, result)
 
             # Undo choice (backtrack)
             state.pop()</code></pre>
@@ -924,7 +924,7 @@ def knapsack_branch_bound(weights, values, capacity):
 # weights = [10, 20, 30]
 # values = [60, 100, 120]
 # capacity = 50
-# Result: 220 (items 2 and 3)</code></pre>
+# Result: 220 (items with weights 20 and 30, values 100 and 120)</code></pre>
                 </div>
 
                 <h4>When to Use Branch and Bound</h4>
@@ -955,8 +955,8 @@ def knapsack_branch_bound(weights, values, capacity):
     2. Choose cell with fewest candidates (MRV heuristic)
     3. Propagate constraints when placing digits
 
-    Time: O(9^(n*n)) worst case, but much better in practice
-    Space: O(n*n) for the board state
+    Time: O(9^m) worst case where m is the number of empty cells (up to 81), but much better in practice
+    Space: O(m) for the recursion stack
     """
 
     def get_candidates(board, row, col):
@@ -1698,6 +1698,65 @@ class RegisterAllocator:
                 </ul>
                 <p>DPLL algorithm combines backtracking with unit propagation, solving industrial instances with millions of variables.</p>
 
+                <div class="code-block">
+                    <pre><code class="language-python"># Simplified DPLL (basis of modern SAT solvers)
+def dpll(clauses, assignment=None):
+    """
+    Davis-Putnam-Logemann-Loveland algorithm.
+    Core of SAT solvers that verify Intel CPUs, prove theorems,
+    and resolve package dependencies.
+    """
+    if assignment is None:
+        assignment = {}
+
+    # Unit propagation: if clause has one literal, must be true
+    changed = True
+    while changed:
+        changed = False
+        for clause in clauses:
+            unassigned = [lit for lit in clause
+                         if abs(lit) not in assignment]
+
+            if not unassigned:
+                # All literals assigned - check if every literal evaluates to False
+                if all(assignment.get(abs(lit), lit < 0) == (lit < 0)
+                       for lit in clause):
+                    return None  # Conflict - backtrack
+
+            elif len(unassigned) == 1:
+                # Unit clause - force assignment
+                lit = unassigned[0]
+                assignment[abs(lit)] = lit > 0
+                changed = True
+
+    # Check if all clauses satisfied
+    if all(any(assignment.get(abs(lit), None) == (lit > 0)
+               for lit in clause) for clause in clauses):
+        return assignment
+
+    # Pick unassigned variable (VSIDS heuristic in real solvers)
+    unassigned_vars = set()
+    for clause in clauses:
+        for lit in clause:
+            if abs(lit) not in assignment:
+                unassigned_vars.add(abs(lit))
+
+    if not unassigned_vars:
+        return None
+
+    var = next(iter(unassigned_vars))
+
+    # Try True
+    assignment[var] = True
+    result = dpll(clauses, assignment.copy())
+    if result:
+        return result
+
+    # Backtrack, try False
+    assignment[var] = False
+    return dpll(clauses, assignment.copy())</code></pre>
+                </div>
+
                 <h4>4. npm/pip Dependency Resolution</h4>
                 <p><strong>Scale:</strong> npm handles 2+ billion package downloads per week, resolving complex version constraints.</p>
 
@@ -1900,67 +1959,6 @@ class RideShareMatcher:
             </div>
         </div>
 
-                <div class="code-block">
-                    <pre><code class="language-python"># Simplified DPLL (basis of modern SAT solvers)
-def dpll(clauses, assignment=None):
-    """
-    Davis-Putnam-Logemann-Loveland algorithm.
-    Core of SAT solvers that verify Intel CPUs, prove theorems,
-    and resolve package dependencies.
-    """
-    if assignment is None:
-        assignment = {}
-
-    # Unit propagation: if clause has one literal, must be true
-    changed = True
-    while changed:
-        changed = False
-        for clause in clauses:
-            unassigned = [lit for lit in clause
-                         if abs(lit) not in assignment]
-
-            if not unassigned:
-                # All literals false - clause unsatisfied
-                if all(assignment.get(abs(lit), lit < 0) == (lit < 0)
-                       for lit in clause):
-                    return None  # Conflict - backtrack
-
-            elif len(unassigned) == 1:
-                # Unit clause - force assignment
-                lit = unassigned[0]
-                assignment[abs(lit)] = lit > 0
-                changed = True
-
-    # Check if all clauses satisfied
-    if all(any(assignment.get(abs(lit), None) == (lit > 0)
-               for lit in clause) for clause in clauses):
-        return assignment
-
-    # Pick unassigned variable (VSIDS heuristic in real solvers)
-    unassigned_vars = set()
-    for clause in clauses:
-        for lit in clause:
-            if abs(lit) not in assignment:
-                unassigned_vars.add(abs(lit))
-
-    if not unassigned_vars:
-        return None
-
-    var = next(iter(unassigned_vars))
-
-    # Try True
-    assignment[var] = True
-    result = dpll(clauses, assignment.copy())
-    if result:
-        return result
-
-    # Backtrack, try False
-    assignment[var] = False
-    return dpll(clauses, assignment.copy())</code></pre>
-                </div>
-            </div>
-        </div>
-
         <h2 class="mt-4">Self-Check Quiz</h2>
         <div class="quiz-container" id="module-quiz"></div>
 
@@ -2038,7 +2036,7 @@ def dpll(clauses, assignment=None):
 
         <div class="flex flex-between mt-4">
             <a href="module-05.html" class="btn btn-secondary">&larr; Module 5</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <a href="module-07.html" class="btn btn-primary">Module 7 &rarr;</a>
         </div>
         </main>
     </div>
