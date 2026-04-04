@@ -332,7 +332,7 @@
                     <li>Understand why reasoning matters for complex problem solving</li>
                     <li>Master Chain of Thought (CoT) prompting techniques</li>
                     <li>Implement self-consistency and Tree of Thought patterns</li>
-                    <li>Use Claude's extended thinking and OpenAI's o1/o3 reasoning models</li>
+                    <li>Use Claude's extended thinking and OpenAI's o3/o4-mini reasoning models</li>
                     <li>Make informed decisions about when to use reasoning vs fast models</li>
                 </ul>
             </div>
@@ -403,7 +403,7 @@ flowchart LR
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Logical Deduction</strong></td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"All engineers are humans. Some humans are tall. Is it true that some engineers are tall?"</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"All engineers are humans. Some humans are tall. Does it follow that some engineers are tall?" (Answer: not necessarily!)</td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requires symbolic reasoning, not pattern matching</td>
                             </tr>
                             <tr>
@@ -1348,19 +1348,19 @@ for block in response.content:
 
             <div class="collapsible">
                 <div class="collapsible-header">
-                    <span>OpenAI o1 and o3 Reasoning Models</span>
+                    <span>OpenAI o-Series Reasoning Models (o3, o4-mini)</span>
                     <span class="collapsible-icon">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
-                    <h4>How o1/o3 Work Differently</h4>
-                    <p>OpenAI's o1 and o3 models are trained specifically for reasoning tasks using reinforcement learning on chain-of-thought data. They differ from standard GPT models:</p>
+                    <h4>How o-Series Models Work Differently</h4>
+                    <p>OpenAI's o-series models (o1, o3, o4-mini) are trained specifically for reasoning tasks using reinforcement learning on chain-of-thought data. They differ from standard GPT models:</p>
 
                     <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
                         <thead>
                             <tr style="background: var(--border-color);">
                                 <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Feature</th>
-                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">GPT-4</th>
-                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">o1 / o3</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">GPT-4o</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">o3 / o4-mini</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1375,9 +1375,9 @@ for block in response.content:
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slow (10s - minutes)</td>
                             </tr>
                             <tr>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$10/1M tokens</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$15-60/1M tokens</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost (input)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$2.50/1M tokens</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">o3: ~$10/1M, o4-mini: ~$1.10/1M</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Math/Code Accuracy</td>
@@ -1387,7 +1387,17 @@ for block in response.content:
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Streaming</td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Limited</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes (streaming supported since o3)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">System Messages</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes (supported since o1 GA, Dec 2024)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reasoning Control</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">N/A</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><code>reasoning_effort</code>: low / medium / high</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1397,35 +1407,41 @@ for block in response.content:
 
 client = OpenAI()
 
-# Using o1 for complex reasoning
+# Using o3 for complex reasoning
 response = client.chat.completions.create(
-    model="o1-preview",  # or "o1-mini" for faster/cheaper
-    messages=[{
-        "role": "user",
-        "content": """
-        Prove that there are infinitely many prime numbers.
-        Provide a rigorous proof with clear logical steps.
-        """
-    }]
-    # Note: o1 models don't support temperature, top_p, or system messages
+    model="o3",  # or "o4-mini" for faster/cheaper
+    reasoning_effort="high",  # low, medium, or high
+    messages=[
+        {"role": "system", "content": "You are a rigorous mathematician."},
+        {
+            "role": "user",
+            "content": """
+            Prove that there are infinitely many prime numbers.
+            Provide a rigorous proof with clear logical steps.
+            """
+        }
+    ]
+    # Note: o3/o4-mini support system messages, streaming, and reasoning_effort.
+    # They do NOT support temperature or top_p (reasoning is deterministic).
 )
 
 print(response.choices[0].message.content)
 
-# o1 excels at:
+# o3/o4-mini excel at:
 # - Mathematical proofs
 # - Complex code generation (algorithms, debugging)
 # - Scientific reasoning
 # - Multi-step logic problems</code></pre>
                     </div>
 
-                    <h4>o3 Advances</h4>
-                    <p>The o3 model (2024) pushes reasoning further with:</p>
+                    <h4>o3 and o4-mini (2025)</h4>
+                    <p>The o3 model (January 2025) and o4-mini (April 2025) push reasoning further:</p>
                     <ul>
-                        <li><strong>Deeper search:</strong> More internal reasoning steps</li>
+                        <li><strong>Deeper search:</strong> More internal reasoning steps with configurable <code>reasoning_effort</code></li>
                         <li><strong>Better calibration:</strong> Knows when it's uncertain</li>
-                        <li><strong>Breakthrough performance:</strong> Near-human on math olympiad problems</li>
-                        <li><strong>Higher cost:</strong> Significantly more expensive per query</li>
+                        <li><strong>Breakthrough performance:</strong> o3 achieved gold-medal level on the International Mathematical Olympiad (IMO) benchmark; o4-mini matches o3 on many reasoning tasks at a fraction of the cost</li>
+                        <li><strong>Tool use:</strong> o3 and o4-mini natively support function calling and structured outputs</li>
+                        <li><strong>Cost trade-off:</strong> o4-mini offers strong reasoning at ~$1.10/1M input tokens vs o3's ~$10/1M, making reasoning models viable for higher-volume production use</li>
                     </ul>
                 </div>
             </div>
@@ -1440,29 +1456,35 @@ print(response.choices[0].message.content)
                 </div>
                 <div class="collapsible-content">
                     <div class="thinking-demo">
-                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Model Comparison (2024 Pricing)</h4>
+                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Model Comparison (Early 2025 Pricing, approximate)</h4>
                         <div class="cost-comparison">
                             <div class="cost-card">
-                                <div class="model-name">Claude Haiku</div>
-                                <div class="cost-value">$0.25</div>
+                                <div class="model-name">Claude 3.5 Haiku</div>
+                                <div class="cost-value">$0.80</div>
                                 <div class="cost-unit">per 1M input tokens</div>
                                 <div class="latency">~500ms latency</div>
                             </div>
                             <div class="cost-card">
-                                <div class="model-name">Claude Sonnet</div>
+                                <div class="model-name">Claude Sonnet 4</div>
                                 <div class="cost-value">$3.00</div>
                                 <div class="cost-unit">per 1M input tokens</div>
                                 <div class="latency">~1-2s latency</div>
                             </div>
                             <div class="cost-card">
-                                <div class="model-name">GPT-4 Turbo</div>
-                                <div class="cost-value">$10.00</div>
+                                <div class="model-name">GPT-4o</div>
+                                <div class="cost-value">$2.50</div>
                                 <div class="cost-unit">per 1M input tokens</div>
-                                <div class="latency">~2-5s latency</div>
+                                <div class="latency">~1-3s latency</div>
                             </div>
                             <div class="cost-card">
-                                <div class="model-name">o1-preview</div>
-                                <div class="cost-value">$15.00</div>
+                                <div class="model-name">o4-mini</div>
+                                <div class="cost-value">$1.10</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~5-30s latency</div>
+                            </div>
+                            <div class="cost-card">
+                                <div class="model-name">o3</div>
+                                <div class="cost-value">$10.00</div>
                                 <div class="cost-unit">per 1M input tokens</div>
                                 <div class="latency">~10-60s latency</div>
                             </div>
@@ -1477,13 +1499,13 @@ flowchart TD
     B -->|No| C{Need high quality?}
     B -->|Yes| D{Is latency critical?}
 
-    C -->|No| E[Haiku/GPT-3.5]
-    C -->|Yes| F[Sonnet/GPT-4]
+    C -->|No| E[Haiku/GPT-4o-mini]
+    C -->|Yes| F[Sonnet/GPT-4o]
 
     D -->|Yes| G[Sonnet + CoT prompting]
     D -->|No| H{Is accuracy critical?}
 
-    H -->|Yes| I[o1 or Extended Thinking]
+    H -->|Yes| I[o3/o4-mini or Extended Thinking]
     H -->|No| G
 
     style E fill:#48bb78
@@ -1830,15 +1852,15 @@ print(f"Potential Issues: {result.potential_issues}")
 
                     <h4>OpenAI's Approach</h4>
                     <ul>
-                        <li><strong>o1/o3 models:</strong> Trained specifically on reasoning traces via RL</li>
-                        <li><strong>Hidden reasoning:</strong> Internal CoT not exposed to users (safety)</li>
-                        <li><strong>Compute scaling:</strong> More thinking time = better results</li>
+                        <li><strong>o-series models (o3, o4-mini):</strong> Trained specifically on reasoning traces via RL</li>
+                        <li><strong>Hidden reasoning:</strong> Internal CoT summarized but not fully exposed to users (safety); reasoning tokens are billed separately</li>
+                        <li><strong>Compute scaling:</strong> Configurable via <code>reasoning_effort</code> (low/medium/high) - more thinking time = better results</li>
                     </ul>
 
                     <h4>Google DeepMind</h4>
                     <ul>
-                        <li><strong>Gemini Ultra:</strong> Multi-modal reasoning across text, images, code</li>
-                        <li><strong>AlphaCode/AlphaProof:</strong> Tree search for competitive programming and math</li>
+                        <li><strong>Gemini 2.5 Pro/Flash:</strong> Multi-modal reasoning across text, images, code, with a built-in "thinking" mode that exposes intermediate reasoning</li>
+                        <li><strong>AlphaCode 2 / AlphaProof:</strong> Tree search for competitive programming and formal math proofs</li>
                     </ul>
 
                     <h4>Production Patterns at Scale</h4>
@@ -1942,11 +1964,11 @@ print(f"Potential Issues: {result.potential_issues}")
                         <li class="mb-2"><strong>Why might you want to capture structured reasoning output?</strong>
                             <details><summary>Answer</summary>For debugging model decisions, providing audit trails, identifying patterns in failures, and chaining reasoning into downstream systems.</details>
                         </li>
-                        <li class="mb-2"><strong>What are the tradeoffs of using o1/o3 vs GPT-4 with CoT prompting?</strong>
-                            <details><summary>Answer</summary>o1/o3: Better reasoning accuracy, but higher cost, higher latency, no streaming, no system messages. GPT-4+CoT: Faster, cheaper, more flexible, but less reliable on very hard problems.</details>
+                        <li class="mb-2"><strong>What are the tradeoffs of using o3/o4-mini vs GPT-4o with CoT prompting?</strong>
+                            <details><summary>Answer</summary>o3/o4-mini: Better reasoning accuracy, but higher latency and reasoning token costs. They now support streaming, system messages, and function calling. GPT-4o+CoT: Faster, cheaper per token, but less reliable on very hard problems. o4-mini narrows the cost gap significantly.</details>
                         </li>
                         <li class="mb-2"><strong>How does Claude's extended thinking work?</strong>
-                            <details><summary>Answer</summary>You set a thinking budget (token count). Claude generates internal reasoning tokens before responding. These can be visible or hidden. Good for complex tasks where you want to see the reasoning.</details>
+                            <details><summary>Answer</summary>You set a thinking budget (token count) via the <code>thinking</code> parameter. Claude generates reasoning tokens in a <code>thinking</code> content block before the main response. The thinking tokens are visible in the API response. Good for complex tasks where you want to inspect the reasoning or need higher accuracy.</details>
                         </li>
                     </ol>
                 </div>
@@ -2234,7 +2256,7 @@ flowchart LR
                     <li>Implement zero-shot and few-shot chain of thought prompting</li>
                     <li>Build self-consistency voting for higher reliability</li>
                     <li>Design tree of thought search for complex problems</li>
-                    <li>Use Claude's extended thinking and OpenAI's o1 models appropriately</li>
+                    <li>Use Claude's extended thinking and OpenAI's o3/o4-mini models appropriately</li>
                     <li>Build production routing systems that select models based on task complexity</li>
                 </ol>
             </div>
@@ -2320,7 +2342,7 @@ flowchart LR
                     explanation: "The model might generate plausible-sounding reasoning that doesn't match its actual internal computation."
                 },
                 {
-                    question: "Which task is LEAST suitable for reasoning models like o1?",
+                    question: "Which task is LEAST suitable for reasoning models like o3?",
                     options: [
                         "Multi-step mathematical proofs",
                         "Complex debugging of algorithms",

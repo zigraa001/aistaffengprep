@@ -234,19 +234,19 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Python 3.10+</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Python 3.11+</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Primary language for ML/AI</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ecosystem dominance - 95% of ML libraries are Python-first</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ecosystem dominance - 95% of ML libraries are Python-first. 3.11/3.12 recommended for speed improvements.</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>PyTorch</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deep learning framework</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic graphs, Pythonic, research standard (TensorFlow lost)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic graphs, Pythonic, dominant in both research and industry. TensorFlow/Keras still used in some production systems but PyTorch is the clear default for new projects.</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>CUDA</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPU acceleration</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">NVIDIA dominates AI hardware; ROCm (AMD) catching up but not there</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">NVIDIA dominates AI hardware; ROCm (AMD) has improved significantly but CUDA ecosystem remains far larger</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Jupyter</strong></td>
@@ -254,15 +254,15 @@
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">See results immediately; great for exploration (not production)</td>
                             </tr>
                             <tr>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>conda/mamba</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>conda/mamba/uv</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Environment management</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Handles CUDA/cuDNN versions; pip alone struggles with binaries</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">conda/mamba handle CUDA/cuDNN versions well; <code>uv</code> (from Astral) is a fast modern alternative for venv + pip workflows</td>
                             </tr>
                         </tbody>
                     </table>
 
                     <div class="warning-box">
-                        <strong>Common Trap:</strong> Don't install PyTorch with just <code>pip install torch</code>. You'll get the CPU-only version. Always use the official PyTorch installation command with CUDA support.
+                        <strong>Common Trap:</strong> A plain <code>pip install torch</code> may give you the CPU-only version depending on your platform and pip index. Always verify with <code>torch.cuda.is_available()</code> and use the official PyTorch installation command from <a href="https://pytorch.org/get-started/locally/" target="_blank">pytorch.org</a> for the correct CUDA build.
                     </div>
                 </div>
             </div>
@@ -287,13 +287,13 @@ brew install --cask miniconda
 
                     <h4>Step 2: Create AI Environment</h4>
                     <div class="code-block">
-                        <pre><code class="language-bash"># Create environment with Python 3.10
-conda create -n ai python=3.10 -y
+                        <pre><code class="language-bash"># Create environment with Python 3.12
+conda create -n ai python=3.12 -y
 conda activate ai
 
-# Install PyTorch with CUDA 12.1 (check your CUDA version with nvidia-smi)
+# Install PyTorch with CUDA 12.4 (check your CUDA version with nvidia-smi)
 # Go to https://pytorch.org/get-started/locally/ for the exact command
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 
 # Install essential packages
 pip install numpy pandas matplotlib jupyter ipykernel
@@ -354,14 +354,14 @@ if torch.cuda.is_available():
                     <ul>
                         <li><strong>Google/Meta:</strong> Custom internal build systems (Bazel/Buck) with pre-built binaries. Engineers don't install CUDA manually.</li>
                         <li><strong>OpenAI:</strong> Heavy Docker usage with pre-configured images. <code>docker pull openai/pytorch-cuda</code> and you're done.</li>
-                        <li><strong>Startups:</strong> Often use cloud notebooks (Colab Pro, SageMaker, Lambda Labs) to avoid setup entirely.</li>
+                        <li><strong>Startups:</strong> Often use cloud notebooks (Colab Pro, SageMaker, Lambda Labs) or managed platforms (Modal, Replicate, Anyscale) to avoid setup entirely.</li>
                     </ul>
 
                     <h4>Production vs Development</h4>
                     <ul>
                         <li><strong>Development:</strong> Jupyter notebooks, interactive debugging, local GPU</li>
                         <li><strong>Training:</strong> Python scripts, distributed across multiple GPUs/nodes, cloud clusters</li>
-                        <li><strong>Inference:</strong> Optimized runtimes (TensorRT, ONNX), containerized, autoscaling</li>
+                        <li><strong>Inference:</strong> Optimized runtimes (TensorRT, ONNX, vLLM, TGI), containerized, autoscaling</li>
                     </ul>
 
                     <div class="warning-box">
@@ -1107,7 +1107,7 @@ print(f"Counts: {[(samples == i).sum().item() for i in range(3)]}")
                 </div>
                 <div class="collapsible-content">
                     <h4>Temperature in LLMs</h4>
-                    <p>When you set "temperature" in ChatGPT or other LLMs, you're directly modifying the softmax:</p>
+                    <p>When you set "temperature" in LLM APIs (OpenAI, Anthropic, etc.), you're directly modifying the softmax:</p>
                     <ul>
                         <li><strong>Temperature = 0:</strong> Always pick the highest probability token (deterministic, but actually implemented as very low temp)</li>
                         <li><strong>Temperature = 1:</strong> Sample according to the model's probability distribution</li>

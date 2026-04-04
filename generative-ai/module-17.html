@@ -237,11 +237,11 @@ print(sorted(coef.items(), key=lambda x: abs(x[1]), reverse=True)[:5])</code>
 
                     <div class="model-card ensemble">
                         <h4>Random Forest</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Robust</span> <span class="algo-badge badge-green">Handles missing values</span></p>
+                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Robust</span> <span class="algo-badge badge-orange">No native missing value support (sklearn)</span></p>
                         <ul>
                             <li><strong>How it works:</strong> Trains N decision trees on bootstrapped data subsets (bagging) + random feature subsets. Averages predictions (regression) or votes (classification). Decorrelated trees reduce variance.</li>
                             <li><strong>Key hyperparameters:</strong> <code>n_estimators</code> (100–500), <code>max_features</code> (sqrt for classification, 1/3 for regression), <code>max_depth</code></li>
-                            <li><strong>When to use:</strong> Tabular data, feature importance needed, robust baseline, missing values (set <code>max_features</code> appropriately)</li>
+                            <li><strong>When to use:</strong> Tabular data, feature importance needed, robust baseline. Note: scikit-learn's RF does <em>not</em> handle missing values natively — impute first or use <code>HistGradientBoostingClassifier</code> which does.</li>
                             <li><strong>Feature importance:</strong> Mean decrease in impurity (MDI) — but biased toward high-cardinality features. Use permutation importance for unbiased estimates.</li>
                             <li><strong>Metrics to watch:</strong> OOB (out-of-bag) error — free validation without a separate set.</li>
                         </ul>
@@ -275,9 +275,9 @@ model = lgb.LGBMClassifier(
     colsample_bytree=0.8,
     reg_alpha=0.1,          # L1 regularization
     reg_lambda=1.0,         # L2 regularization
-    early_stopping_rounds=50,
 )
-model.fit(X_train, y_train, eval_set=[(X_val, y_val)], callbacks=[lgb.log_evaluation(50)])
+model.fit(X_train, y_train, eval_set=[(X_val, y_val)],
+          callbacks=[lgb.log_evaluation(50), lgb.early_stopping(50)])
 
 # SHAP values for explainability — critical for enterprise / regulated industries
 explainer = shap.TreeExplainer(model)
@@ -314,7 +314,7 @@ shap.summary_plot(shap_values, X_val, feature_names=feature_names)</code>
                             <li><strong>How it works:</strong> Applies Bayes' theorem assuming feature independence (naive). P(class|features) ∝ P(features|class) × P(class).</li>
                             <li><strong>Variants:</strong> Multinomial NB (text/counts), Gaussian NB (continuous features), Bernoulli NB (binary features)</li>
                             <li><strong>When to use:</strong> Text classification baseline, spam filtering, very limited compute, streaming/online learning, real-time classification at microsecond latency</li>
-                            <li><strong>Classic example:</strong> Gmail spam filter used NB for years. Still the fastest option when accuracy vs speed tradeoff matters.</li>
+                            <li><strong>Classic example:</strong> Gmail's early spam filter was NB-based (now uses deep learning). NB remains the fastest option when the accuracy-vs-speed tradeoff strongly favors speed.</li>
                         </ul>
                     </div>
                 </div>
@@ -478,7 +478,7 @@ flowchart TD
     B -->|No - Images/Audio/Video| H[CNN / Vision Transformer\nDiffusion for generation]
     B -->|No - Text| I{Need domain knowledge\nor few-shot?}
     I -->|Yes| J{Task complexity?}
-    J -->|Simple classification| K[Fine-tune BERT/RoBERTa\nSmaller, cheaper]
+    J -->|Simple classification| K[Fine-tune encoder model\nBERT/DeBERTa or small LLM]
     J -->|Complex / open-ended| L[LLM with prompting\nor RAG]
     B -->|No - Time series| M{Length &amp; complexity?}
     M -->|Short, structured| N[XGBoost with lag features\nor ARIMA]
@@ -498,10 +498,10 @@ flowchart TD
                         </thead>
                         <tbody>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">100s–100Ks rows</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">10Ks–millions</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">0 (zero-shot) to thousands (fine-tuning)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Inference latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;1ms (microseconds)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">100ms–30s</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Inference latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;1ms (microseconds)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">200ms–60s+ (reasoning models can be longer)</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Interpretability</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (LR, trees)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (black box)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (chain of thought helps)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Compute cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Very low</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium–high</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High ($0.002–$0.015 per call)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Input type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Structured / tabular</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Images, audio, sequences</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Text (+ images for VLMs)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Compute cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Very low</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium–high</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (varies widely: $0.10–$15 per 1M input tokens depending on model)</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Input type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Structured / tabular</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Images, audio, sequences</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Text, images, audio, video (multimodal)</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Regulatory compliance</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Easiest (explainable)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Harder</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hardest (hallucinations)</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feature engineering needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Heavy</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal (prompt engineering instead)</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Handles new tasks zero-shot?</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
@@ -644,7 +644,7 @@ from sklearn.metrics import roc_auc_score
 
 mlflow.set_experiment("churn-prediction-v2")
 
-with mlflow.start_run(run_name="lgbm-baseline"):
+with mlflow.start_run(run_name="gbc-baseline"):
     # Log hyperparameters
     params = {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 6}
     mlflow.log_params(params)
@@ -735,8 +735,8 @@ with mlflow.start_run(run_name="lgbm-baseline"):
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Prompt engineering</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Per-call API cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Prototyping, &lt;$10K/mo spend, no proprietary data</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RAG</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">API cost + vector DB</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Days</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Dynamic knowledge, can't fine-tune every update</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Prompt engineering</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Per-call API cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary (unless self-hosted)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Prototyping, low spend, or non-sensitive data</td></tr>
+                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RAG</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">API cost + vector DB</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Days</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary (unless self-hosted)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Dynamic knowledge, can't fine-tune every update</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Fine-tuning (LoRA)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training + API/hosting</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–2 weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data exposed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Consistent style/format, domain-specific knowledge, reduce prompt length</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Train from scratch</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">$1M–$100M+</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Months</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Only for frontier labs, specialized domains (bio, legal), or regulatory requirements</td></tr>
                             <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Self-host open model</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">GPU infra + eng time</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;500K req/day, data privacy, &gt;$50K/mo API spend</td></tr>
@@ -799,16 +799,16 @@ graph TD
                     <div class="model-card">
                         <h4>1. Model Cascade (Cheap → Expensive)</h4>
                         <p>Route easy requests to a small cheap model; escalate hard ones to a large expensive model. The fast model classifies difficulty first.</p>
-                        <p><strong>Example:</strong> Tier-1 support: GPT-4o-mini handles 70% of tickets (&lt;$0.001 each). Complex edge cases go to GPT-4o ($0.01 each). 3× cost reduction, &lt;5% quality degradation.</p>
+                        <p><strong>Example:</strong> Tier-1 support: a small model (e.g., Claude Haiku, GPT-4o-mini, or a fine-tuned open-source model) handles 70% of tickets at very low cost. Complex edge cases go to a frontier model (e.g., Claude Opus, GPT-4o) at 10–50x the per-token cost. Typical result: 3–5x cost reduction with &lt;5% quality degradation.</p>
                         <div class="code-block">
 <code>def smart_route(query: str, threshold: float = 0.8) -> str:
     # Fast classifier to assess query complexity
     complexity_score = complexity_classifier.predict([query])[0]
 
-    if complexity_score < threshold:
-        return call_model("gpt-4o-mini", query)   # cheap, fast
+    if complexity_score &lt; threshold:
+        return call_model(SMALL_MODEL, query)      # cheap, fast (e.g., Haiku, GPT-4o-mini)
     else:
-        return call_model("gpt-4o", query,         # expensive, accurate
+        return call_model(LARGE_MODEL, query,       # expensive, accurate (e.g., Opus, GPT-4o)
                           tools=all_tools, rag=True)</code>
                         </div>
                     </div>
@@ -829,7 +829,7 @@ graph TD
                     <div class="model-card linear">
                         <h4>4. Model-as-Feature (Embedding Features)</h4>
                         <p>Use a pre-trained model to generate embedding features, then feed those embeddings into a lightweight classical ML model (logistic regression, XGBoost). Best of both worlds: rich representation from the foundation model + fast, interpretable downstream model.</p>
-                        <p><strong>Example:</strong> Embed product descriptions with text-embedding-3-small → feed 1536-dim vectors to LightGBM for price prediction. Trains in minutes, inference in &lt;5ms.</p>
+                        <p><strong>Example:</strong> Embed product descriptions with an embedding API (e.g., OpenAI text-embedding-3-small, Voyage, or Cohere Embed) → feed the resulting vectors (e.g., 1536-dim) to LightGBM for price prediction. Trains in minutes, inference in &lt;5ms.</p>
                     </div>
 
                     <div class="model-card unsup">
