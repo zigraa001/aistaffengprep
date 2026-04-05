@@ -73,6 +73,28 @@
                         <span class="sidebar-link-number">9</span>Interview Simulation
                     </a>
                 </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -867,6 +889,738 @@ def index_lookup(index, records, target_id):
             </div>
         </div>
 
+        <!-- Hash Map Deep Dive -->
+        <h2 class="mt-4">Hash Map Deep Dive</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Hash Function Design &amp; Collision Resolution</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>What Makes a Good Hash Function?</h4>
+                <p>A hash function maps keys of arbitrary size to fixed-size integers. The three properties that matter:</p>
+                <ol>
+                    <li><strong>Deterministic:</strong> Same key always produces the same hash.</li>
+                    <li><strong>Uniform distribution:</strong> Keys spread evenly across buckets to minimize collisions.</li>
+                    <li><strong>Fast to compute:</strong> O(1) for fixed-size keys (integers), O(k) for variable-size keys (strings of length k).</li>
+                </ol>
+
+                <p>Common hash strategies for integers: <code>h(k) = k mod m</code> where m is a prime far from powers of 2. For strings, polynomial rolling hash: <code>h(s) = s[0]*p^(n-1) + s[1]*p^(n-2) + ... + s[n-1]</code> where p is a small prime (31 or 37). Java's <code>String.hashCode()</code> uses exactly this with p=31.</p>
+
+                <h4>Collision Handling: Chaining vs Open Addressing</h4>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Chaining (Separate Chaining)</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Open Addressing (Probing)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">How it works</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Each bucket holds a linked list (or tree) of entries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">On collision, probe the next slot (linear, quadratic, or double hashing)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Load factor tolerance</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Can exceed 1.0 (more entries than buckets)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Must stay below 1.0 (typically &lt; 0.7)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cache performance</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Poor &mdash; pointer chasing across memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Better &mdash; data stored in contiguous array</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deletion</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple &mdash; remove node from list</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tricky &mdash; requires tombstone markers</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Used by</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Java HashMap, Go map</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Python dict, Rust HashMap, C++ unordered_map (varies)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h4>Load Factor &amp; Rehashing</h4>
+                <p>The <strong>load factor</strong> = (number of entries) / (number of buckets). When it exceeds a threshold, the table must <strong>rehash</strong>: allocate a larger array (typically 2x) and re-insert every entry. This single operation is O(n), but amortized over all insertions, each insert is still O(1).</p>
+                <p><strong>Why amortized O(1)?</strong> If we double the table at each resize, after inserting n elements we've done at most n + n/2 + n/4 + ... = 2n total work for resizes. Spread over n insertions, that's 2n/n = O(1) per insertion.</p>
+
+                <h4>Language Internals</h4>
+                <p><strong>Python dict:</strong> Uses open addressing with a compact hash table. Since Python 3.6, dicts maintain insertion order by using a separate dense array for entries and a sparse hash table of indices. The probing sequence uses a perturbation scheme: <code>j = ((5*j) + 1 + perturb) mod table_size</code> where perturb is derived from the full hash value. Load factor threshold: 2/3.</p>
+                <p><strong>Java HashMap:</strong> Uses chaining. Each bucket starts as a linked list. When a single bucket reaches 8 entries (the <strong>treeify threshold</strong>), it converts to a red-black tree, changing worst-case lookup from O(n) to O(log n). This was added in Java 8 to defend against hash-collision denial-of-service attacks. Default load factor: 0.75, initial capacity: 16.</p>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Hash Map Patterns: Frequency Counting, Two-Sum &amp; Grouping</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Pattern 1: Frequency Counting</h4>
+                <p>The most common hash map pattern. Use a hash map to count occurrences, then answer queries about frequencies. This turns O(n^2) brute force into O(n).</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Python: Top K Frequent Elements (LeetCode #347)
+from collections import Counter
+
+def top_k_frequent(nums, k):
+    """O(n) using bucket sort after counting."""
+    count = Counter(nums)
+
+    # Bucket sort: index = frequency, value = list of nums with that frequency
+    buckets = [[] for _ in range(len(nums) + 1)]
+    for num, freq in count.items():
+        buckets[freq].append(num)
+
+    result = []
+    for freq in range(len(buckets) - 1, 0, -1):
+        for num in buckets[freq]:
+            result.append(num)
+            if len(result) == k:
+                return result
+    return result
+
+# Example: top_k_frequent([1,1,1,2,2,3], 2) -> [1, 2]</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java: Top K Frequent Elements
+import java.util.*;
+
+public int[] topKFrequent(int[] nums, int k) {
+    // Count frequencies
+    Map&lt;Integer, Integer&gt; count = new HashMap&lt;&gt;();
+    for (int num : nums) {
+        count.merge(num, 1, Integer::sum);
+    }
+
+    // Bucket sort: index = frequency
+    List&lt;Integer&gt;[] buckets = new List[nums.length + 1];
+    for (var entry : count.entrySet()) {
+        int freq = entry.getValue();
+        if (buckets[freq] == null) buckets[freq] = new ArrayList&lt;&gt;();
+        buckets[freq].add(entry.getKey());
+    }
+
+    int[] result = new int[k];
+    int idx = 0;
+    for (int freq = buckets.length - 1; freq &gt; 0 &amp;&amp; idx &lt; k; freq--) {
+        if (buckets[freq] != null) {
+            for (int num : buckets[freq]) {
+                result[idx++] = num;
+                if (idx == k) return result;
+            }
+        }
+    }
+    return result;
+}</code></pre>
+                </div>
+
+                <h4>Pattern 2: Two-Sum / Complement Lookup</h4>
+                <p>Store seen values in a hash map to find complements in O(1). This pattern generalizes: any time you need to check "have I seen a value that satisfies some condition?", think hash map.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Python: Two Sum (LeetCode #1) - The canonical hash map problem
+def two_sum(nums, target):
+    """O(n) time, O(n) space."""
+    seen = {}  # value -> index
+    for i, num in enumerate(nums):
+        complement = target - num
+        if complement in seen:
+            return [seen[complement], i]
+        seen[num] = i
+    return []
+
+# Python: Subarray Sum Equals K (LeetCode #560)
+# Uses prefix sum + hash map - a powerful combination
+def subarray_sum(nums, k):
+    """Count subarrays summing to k. O(n) time, O(n) space."""
+    count = 0
+    prefix_sum = 0
+    # Maps prefix_sum -> number of times we've seen it
+    prefix_counts = {0: 1}  # empty prefix has sum 0
+
+    for num in nums:
+        prefix_sum += num
+        # If (prefix_sum - k) was seen before, those subarrays sum to k
+        count += prefix_counts.get(prefix_sum - k, 0)
+        prefix_counts[prefix_sum] = prefix_counts.get(prefix_sum, 0) + 1
+
+    return count</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java: Subarray Sum Equals K (LeetCode #560)
+public int subarraySum(int[] nums, int k) {
+    int count = 0, prefixSum = 0;
+    Map&lt;Integer, Integer&gt; prefixCounts = new HashMap&lt;&gt;();
+    prefixCounts.put(0, 1);
+
+    for (int num : nums) {
+        prefixSum += num;
+        count += prefixCounts.getOrDefault(prefixSum - k, 0);
+        prefixCounts.merge(prefixSum, 1, Integer::sum);
+    }
+    return count;
+}</code></pre>
+                </div>
+
+                <h4>Pattern 3: Grouping by Key (Anagrams &amp; Beyond)</h4>
+                <p>Use a hash map to group items that share a common property. The key insight is choosing the right "grouping key" &mdash; for anagrams, the sorted characters or a character frequency tuple.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Python: Group Anagrams (LeetCode #49)
+from collections import defaultdict
+
+def group_anagrams(strs):
+    """O(n * k) where k is max string length, using counting sort key."""
+    groups = defaultdict(list)
+    for s in strs:
+        # Option 1: Sort the string as key - O(k log k) per string
+        # key = tuple(sorted(s))
+
+        # Option 2: Character count as key - O(k) per string (faster!)
+        count = [0] * 26
+        for c in s:
+            count[ord(c) - ord('a')] += 1
+        key = tuple(count)
+
+        groups[key].append(s)
+    return list(groups.values())
+
+# Example: group_anagrams(["eat","tea","tan","ate","nat","bat"])
+# -> [["eat","tea","ate"], ["tan","nat"], ["bat"]]</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java: Group Anagrams
+public List&lt;List&lt;String&gt;&gt; groupAnagrams(String[] strs) {
+    Map&lt;String, List&lt;String&gt;&gt; groups = new HashMap&lt;&gt;();
+    for (String s : strs) {
+        int[] count = new int[26];
+        for (char c : s.toCharArray()) count[c - 'a']++;
+        // Convert count array to string key: "1#0#0#...#0"
+        StringBuilder sb = new StringBuilder();
+        for (int c : count) sb.append(c).append('#');
+        String key = sb.toString();
+
+        groups.computeIfAbsent(key, k -&gt; new ArrayList&lt;&gt;()).add(s);
+    }
+    return new ArrayList&lt;&gt;(groups.values());
+}</code></pre>
+                </div>
+
+                <div class="card" style="background: rgba(96, 165, 250, 0.1); border-left: 4px solid #60a5fa; margin-top: 1.5rem;">
+                    <h4 style="color: #60a5fa;">Interview Tip: When to Reach for a Hash Map</h4>
+                    <ul>
+                        <li>You need O(1) lookup/insert and don't care about ordering</li>
+                        <li>You're converting an O(n^2) nested-loop solution &mdash; the inner loop is often replaceable by a hash lookup</li>
+                        <li>You need to count, group, or detect duplicates</li>
+                        <li>You need to find complements or pairs summing to a target</li>
+                        <li>Prefix sum + hash map for subarray problems</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- String Pattern Matching -->
+        <h2 class="mt-4">String Pattern Matching</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>KMP Algorithm &amp; Failure Function</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Why Not Brute Force?</h4>
+                <p>Naive string matching checks every position in the text, giving O(n*m) worst case (n = text length, m = pattern length). For text "AAAAAAB" and pattern "AAAB", it re-scans characters it has already compared. KMP eliminates this redundancy.</p>
+
+                <h4>The Failure Function (Partial Match Table)</h4>
+                <p>KMP preprocesses the pattern into a <strong>failure function</strong> (also called the "prefix function" or "lps array"). For each position i in the pattern, <code>lps[i]</code> stores the length of the longest proper prefix of <code>pattern[0..i]</code> that is also a suffix. This tells KMP exactly how far to skip on a mismatch, avoiding re-scanning.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># KMP String Matching - O(n + m) time, O(m) space
+def kmp_search(text, pattern):
+    """Find all occurrences of pattern in text."""
+    if not pattern:
+        return [0]
+
+    # Step 1: Build the failure function (LPS array)
+    m = len(pattern)
+    lps = [0] * m
+    length = 0  # length of previous longest prefix-suffix
+    i = 1
+
+    while i &lt; m:
+        if pattern[i] == pattern[length]:
+            length += 1
+            lps[i] = length
+            i += 1
+        elif length != 0:
+            # Key insight: don't increment i, try shorter prefix
+            length = lps[length - 1]
+        else:
+            lps[i] = 0
+            i += 1
+
+    # Step 2: Search using the LPS array
+    n = len(text)
+    matches = []
+    i = 0  # index in text
+    j = 0  # index in pattern
+
+    while i &lt; n:
+        if text[i] == pattern[j]:
+            i += 1
+            j += 1
+        if j == m:
+            matches.append(i - j)
+            j = lps[j - 1]  # continue searching for more matches
+        elif i &lt; n and text[i] != pattern[j]:
+            if j != 0:
+                j = lps[j - 1]  # skip ahead using failure function
+            else:
+                i += 1
+
+    return matches
+
+# Example: kmp_search("ABABDABACDABABCABAB", "ABABCABAB")
+# LPS for "ABABCABAB": [0, 0, 1, 2, 0, 1, 2, 3, 4]
+# Returns: [9]</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java: KMP String Matching
+public List&lt;Integer&gt; kmpSearch(String text, String pattern) {
+    List&lt;Integer&gt; matches = new ArrayList&lt;&gt;();
+    int n = text.length(), m = pattern.length();
+    if (m == 0) { matches.add(0); return matches; }
+
+    // Build LPS (Longest Proper Prefix which is also Suffix)
+    int[] lps = new int[m];
+    int len = 0, i = 1;
+    while (i &lt; m) {
+        if (pattern.charAt(i) == pattern.charAt(len)) {
+            lps[i++] = ++len;
+        } else if (len != 0) {
+            len = lps[len - 1];
+        } else {
+            lps[i++] = 0;
+        }
+    }
+
+    // Search
+    i = 0;
+    int j = 0;
+    while (i &lt; n) {
+        if (text.charAt(i) == pattern.charAt(j)) { i++; j++; }
+        if (j == m) {
+            matches.add(i - j);
+            j = lps[j - 1];
+        } else if (i &lt; n &amp;&amp; text.charAt(i) != pattern.charAt(j)) {
+            if (j != 0) j = lps[j - 1];
+            else i++;
+        }
+    }
+    return matches;
+}</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Rabin-Karp Rolling Hash</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>The Idea: Hash the Window</h4>
+                <p>Instead of comparing characters one by one, hash the current window of text and compare it to the pattern's hash. If the hashes match, verify with a character-by-character comparison (to handle hash collisions). The key trick is the <strong>rolling hash</strong>: updating the hash as the window slides takes O(1) instead of recomputing from scratch.</p>
+
+                <p><strong>Rolling hash formula:</strong> For a window of characters <code>t[i..i+m-1]</code>, the hash is <code>h = t[i]*d^(m-1) + t[i+1]*d^(m-2) + ... + t[i+m-1]</code>. To slide the window one position right:</p>
+                <p style="font-family: monospace; padding: 10px; background: var(--border-color); border-radius: 6px;">new_hash = (old_hash - t[i]*d^(m-1)) * d + t[i+m]</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Rabin-Karp String Matching - O(n + m) average, O(nm) worst case
+def rabin_karp(text, pattern):
+    """Find all occurrences using rolling hash."""
+    n, m = len(text), len(pattern)
+    if m &gt; n:
+        return []
+
+    base = 256       # number of characters in alphabet
+    mod = 101         # a prime for modular arithmetic
+    matches = []
+
+    # Compute hash of pattern and first window
+    p_hash = 0
+    t_hash = 0
+    h = pow(base, m - 1, mod)  # base^(m-1) mod p
+
+    for i in range(m):
+        p_hash = (base * p_hash + ord(pattern[i])) % mod
+        t_hash = (base * t_hash + ord(text[i])) % mod
+
+    # Slide the window
+    for i in range(n - m + 1):
+        if p_hash == t_hash:
+            # Hash match - verify character by character (handles collisions)
+            if text[i:i + m] == pattern:
+                matches.append(i)
+
+        if i &lt; n - m:
+            # Rolling hash: remove leading char, add trailing char
+            t_hash = (base * (t_hash - ord(text[i]) * h) + ord(text[i + m])) % mod
+            if t_hash &lt; 0:
+                t_hash += mod
+
+    return matches
+
+# Rabin-Karp shines for MULTIPLE pattern search:
+def multi_pattern_search(text, patterns):
+    """Search for multiple patterns simultaneously."""
+    pattern_hashes = {}
+    for p in patterns:
+        h = sum(ord(c) * (256 ** i) for i, c in enumerate(reversed(p))) % 101
+        pattern_hashes.setdefault(len(p), []).append((h, p))
+
+    results = {p: [] for p in patterns}
+    for length, hash_patterns in pattern_hashes.items():
+        for match_pos in _rabin_karp_length(text, length, hash_patterns):
+            results[match_pos[1]].append(match_pos[0])
+    return results</code></pre>
+                </div>
+
+                <h4>When to Use Which Algorithm</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Algorithm</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Best For</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Time</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Space</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Brute Force</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Short patterns, quick implementation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(nm) worst</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">KMP</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single pattern, guaranteed O(n+m), repetitive patterns</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n+m) guaranteed</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(m)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rabin-Karp</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multiple pattern search, plagiarism detection</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n+m) average</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Boyer-Moore</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Practical fastest for typical text (used in editors)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n/m) best, O(nm) worst</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(m + alphabet)</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="card" style="background: rgba(250, 204, 21, 0.1); border-left: 4px solid #facc15; margin-top: 1.5rem;">
+                    <h4 style="color: #facc15;">Under the Hood: Python's <code>in</code> Operator</h4>
+                    <p>When you write <code>"abc" in "xyzabcdef"</code>, Python does not use naive brute force. CPython's <code>str.__contains__</code> and <code>str.find</code> use a combination of Boyer-Moore-Horspool and Bloom filter optimizations (implemented in <code>fastsearch.h</code>). The algorithm skips characters using a simplified bad-character table and a Bloom filter for fast rejection of non-matching windows. For most practical inputs, this runs in sub-linear time, significantly faster than O(nm).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Space-Time Trade-off Discussion -->
+        <h2 class="mt-4">Space-Time Trade-offs</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Concrete Trade-off Analysis with Examples</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Nearly every algorithm decision involves trading space for time or vice versa. Staff engineers must articulate these trade-offs precisely. Here are the most important ones:</p>
+
+                <h4>1. Hash Map vs Sorted Array for Lookup</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Criterion</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Hash Map</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Sorted Array + Binary Search</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lookup</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1) average, O(n) worst</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n) guaranteed</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory overhead</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~2-3x raw data size (hash entries, pointers, empty buckets)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minimal &mdash; contiguous array, no overhead</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Range queries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Not supported (must scan all entries)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Efficient &mdash; binary search for bounds</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cache locality</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Poor &mdash; scattered memory access</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Excellent &mdash; sequential memory access</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Insert</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1) amortized</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n) &mdash; must shift elements</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>When to choose which:</strong> Use hash maps for frequent insert/lookup workloads (e.g., caches, frequency counting). Use sorted arrays for read-heavy, static data where range queries matter (e.g., database indexes, IP lookup tables).</p>
+
+                <h4>2. Adjacency List vs Adjacency Matrix</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Criterion</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Adjacency List</th>
+                            <th style="padding: 0.75rem; text-align: left; border: 1px solid var(--border-color);">Adjacency Matrix</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(V + E) &mdash; proportional to actual edges</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(V^2) &mdash; always, regardless of edge count</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Check edge exists</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(degree) &mdash; scan neighbor list</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1) &mdash; direct array lookup</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Iterate all neighbors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(degree) &mdash; only actual neighbors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(V) &mdash; must check all vertices</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best for</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sparse graphs (social networks, road maps)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dense graphs, frequent edge-existence queries</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Real-world example:</strong> Facebook's social graph (~3B users, ~400 avg friends) uses adjacency lists. A matrix would require 3B x 3B = 9 x 10^18 entries &mdash; about 9 exabytes. The adjacency list stores only ~1.2 trillion actual edges, requiring about 10 TB.</p>
+
+                <h4>3. Memoization vs Tabulation (DP Trade-offs)</h4>
+                <ul>
+                    <li><strong>Memoization (top-down):</strong> Only computes subproblems actually needed. Uses O(n) call stack space. Better when not all subproblems are required.</li>
+                    <li><strong>Tabulation (bottom-up):</strong> Computes all subproblems iteratively. No stack overhead. Can often optimize space to O(1) when only previous row needed (e.g., Fibonacci in O(1) space).</li>
+                </ul>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Trade-off in action: Fibonacci three ways
+
+# 1. Memoization - O(n) time, O(n) space (call stack + cache)
+from functools import lru_cache
+@lru_cache(maxsize=None)
+def fib_memo(n):
+    if n &lt;= 1: return n
+    return fib_memo(n-1) + fib_memo(n-2)
+
+# 2. Tabulation - O(n) time, O(n) space (table only, no stack)
+def fib_table(n):
+    if n &lt;= 1: return n
+    dp = [0] * (n + 1)
+    dp[1] = 1
+    for i in range(2, n + 1):
+        dp[i] = dp[i-1] + dp[i-2]
+    return dp[n]
+
+# 3. Space-optimized tabulation - O(n) time, O(1) space
+def fib_optimal(n):
+    if n &lt;= 1: return n
+    prev, curr = 0, 1
+    for _ in range(2, n + 1):
+        prev, curr = curr, prev + curr
+    return curr</code></pre>
+                </div>
+
+                <h4>4. Precomputation vs On-the-fly</h4>
+                <p>Trading upfront time + space for faster queries. Common in interviews:</p>
+                <ul>
+                    <li><strong>Prefix sums:</strong> O(n) precomputation, then O(1) range sum queries vs O(n) per query</li>
+                    <li><strong>Sparse table:</strong> O(n log n) precomputation for O(1) range min/max queries</li>
+                    <li><strong>Precomputed hash maps:</strong> Build once, query many times (e.g., valid word set for word break)</li>
+                </ul>
+
+                <div class="card" style="background: rgba(139, 92, 246, 0.1); border-left: 4px solid #8b5cf6; margin-top: 1.5rem;">
+                    <h4 style="color: #8b5cf6;">Staff Engineer Perspective</h4>
+                    <p>In interviews, always state the trade-off explicitly: "This solution uses O(n) extra space to bring the time complexity from O(n^2) down to O(n). If memory is constrained, we could use the O(1) space approach at the cost of O(n log n) time." This shows systems thinking that distinguishes staff-level candidates.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Essential LeetCode Problem Mappings -->
+        <h2 class="mt-4">Essential LeetCode Problems by Data Structure</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Curated Problem List (5 per Data Structure)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Master these 35 problems and you'll have solid coverage of the foundational patterns. Problems are ordered by difficulty within each category.</p>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.92rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; text-align: left; border: 1px solid var(--border-color);">Data Structure</th>
+                            <th style="padding: 0.6rem; text-align: left; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; text-align: center; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; text-align: left; border: 1px solid var(--border-color);">Key Pattern</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Arrays -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(74, 222, 128, 0.05);">Arrays</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/best-time-to-buy-and-sell-stock/" target="_blank">#121 Best Time to Buy and Sell Stock</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Track running min</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/product-of-array-except-self/" target="_blank">#238 Product of Array Except Self</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Prefix/suffix products</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/maximum-subarray/" target="_blank">#53 Maximum Subarray</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Kadane's algorithm</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/3sum/" target="_blank">#15 3Sum</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sort + two pointers</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/trapping-rain-water/" target="_blank">#42 Trapping Rain Water</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Two pointers / stack / DP</td></tr>
+                        <!-- Hash Maps -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(96, 165, 250, 0.05);">Hash Maps</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/two-sum/" target="_blank">#1 Two Sum</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Complement lookup</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/group-anagrams/" target="_blank">#49 Group Anagrams</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Grouping by key</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/subarray-sum-equals-k/" target="_blank">#560 Subarray Sum Equals K</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Prefix sum + hash map</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/longest-consecutive-sequence/" target="_blank">#128 Longest Consecutive Sequence</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Set for O(1) membership</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/lru-cache/" target="_blank">#146 LRU Cache</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hash map + doubly linked list</td></tr>
+                        <!-- Linked Lists -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(248, 113, 113, 0.05);">Linked Lists</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/reverse-linked-list/" target="_blank">#206 Reverse Linked List</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Iterative pointer reversal</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/linked-list-cycle/" target="_blank">#141 Linked List Cycle</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Floyd's slow/fast pointers</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/merge-two-sorted-lists/" target="_blank">#21 Merge Two Sorted Lists</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Dummy head technique</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/copy-list-with-random-pointer/" target="_blank">#138 Copy List with Random Pointer</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hash map for node mapping</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/merge-k-sorted-lists/" target="_blank">#23 Merge k Sorted Lists</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Min-heap / divide-and-conquer</td></tr>
+                        <!-- Stacks -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(250, 204, 21, 0.05);">Stacks</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/valid-parentheses/" target="_blank">#20 Valid Parentheses</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Bracket matching</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/min-stack/" target="_blank">#155 Min Stack</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Auxiliary stack for min tracking</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/daily-temperatures/" target="_blank">#739 Daily Temperatures</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Monotonic stack</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/evaluate-reverse-polish-notation/" target="_blank">#150 Evaluate Reverse Polish Notation</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Expression evaluation</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/largest-rectangle-in-histogram/" target="_blank">#84 Largest Rectangle in Histogram</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Monotonic stack</td></tr>
+                        <!-- Queues -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(232, 121, 249, 0.05);">Queues</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/implement-queue-using-stacks/" target="_blank">#232 Implement Queue using Stacks</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Amortized O(1) with two stacks</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/number-of-islands/" target="_blank">#200 Number of Islands</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">BFS with queue</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/rotting-oranges/" target="_blank">#994 Rotting Oranges</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Multi-source BFS</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank">#239 Sliding Window Maximum</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Monotonic deque</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/design-hit-counter/" target="_blank">#362 Design Hit Counter</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Queue + sliding window</td></tr>
+                        <!-- Strings -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(251, 146, 60, 0.05);">Strings</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/valid-anagram/" target="_blank">#242 Valid Anagram</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Frequency counting</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank">#3 Longest Substring Without Repeating</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sliding window + hash set</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/longest-palindromic-substring/" target="_blank">#5 Longest Palindromic Substring</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Expand from center</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/minimum-window-substring/" target="_blank">#76 Minimum Window Substring</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sliding window + two hash maps</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-the-index-of-the-first-occurrence-in-a-string/" target="_blank">#28 Find the Index of First Occurrence</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">KMP / Rabin-Karp</td></tr>
+                        <!-- Trees -->
+                        <tr><td rowspan="5" style="padding: 0.6rem; border: 1px solid var(--border-color); font-weight: bold; vertical-align: top; background: rgba(96, 165, 250, 0.05);">Trees</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/invert-binary-tree/" target="_blank">#226 Invert Binary Tree</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #4ade80;">Easy</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Recursive tree traversal</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/" target="_blank">#236 Lowest Common Ancestor</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Recursive DFS</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/binary-tree-level-order-traversal/" target="_blank">#102 Binary Tree Level Order Traversal</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">BFS level-by-level</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/validate-binary-search-tree/" target="_blank">#98 Validate Binary Search Tree</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #facc15;">Medium</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">In-order traversal / range checking</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/serialize-and-deserialize-binary-tree/" target="_blank">#297 Serialize and Deserialize Binary Tree</a></td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color); text-align: center; color: #f87171;">Hard</td>
+                            <td style="padding: 0.6rem; border: 1px solid var(--border-color);">Pre-order with null markers</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Quiz Section -->
         <h2 class="mt-4">Self-Check Quiz</h2>
 
@@ -966,6 +1720,7 @@ def index_lookup(index, records, target_id):
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="../assets/js/app.js"></script>
     <script>
         // Initialize page

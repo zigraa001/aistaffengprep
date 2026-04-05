@@ -72,6 +72,28 @@
                         <span class="sidebar-link-number">9</span>Interview Simulation
                     </a>
                 </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -671,6 +693,488 @@ class LogParser:
             </div>
         </div>
 
+        <h2 class="mt-4">In-Memory File System</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Design & Implementation (Meta / Google favorite)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Implement an in-memory file system with <code>ls</code>, <code>mkdir</code>, <code>addContentToFile</code>, and <code>readContentFromFile</code>. This is a classic Meta and Google interview question that tests your ability to design clean data structures and APIs.</p>
+
+                <p><strong>Why companies ask this:</strong> It evaluates OOP design, tree data structures in practice, and whether you can handle edge cases like root directory, nested paths, and sorted output. Meta asks variants of this in ~15% of onsite coding rounds.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">class TrieNode:
+    """Each node represents a directory or file in the filesystem."""
+    def __init__(self):
+        self.children = {}      # name -> TrieNode
+        self.content = ""       # non-empty only for files
+        self.is_file = False
+
+class FileSystem:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def _traverse(self, path: str) -> TrieNode:
+        """Navigate to the node at the given path."""
+        node = self.root
+        if path == "/":
+            return node
+        parts = path.split("/")[1:]  # skip empty string before leading "/"
+        for part in parts:
+            if part not in node.children:
+                node.children[part] = TrieNode()
+            node = node.children[part]
+        return node
+
+    def ls(self, path: str) -> list[str]:
+        """
+        If path is a file, return [filename].
+        If path is a directory, return sorted list of entries.
+        """
+        node = self._traverse(path)
+        if node.is_file:
+            # Return just the file name (last component)
+            return [path.split("/")[-1]]
+        return sorted(node.children.keys())
+
+    def mkdir(self, path: str) -> None:
+        """Create directory path; intermediate dirs are created automatically."""
+        self._traverse(path)  # _traverse creates nodes along the way
+
+    def addContentToFile(self, filePath: str, content: str) -> None:
+        """Append content to file. Creates the file if it doesn't exist."""
+        node = self._traverse(filePath)
+        node.is_file = True
+        node.content += content
+
+    def readContentFromFile(self, filePath: str) -> str:
+        """Return the content of the file at filePath."""
+        node = self._traverse(filePath)
+        return node.content
+
+
+# --- Usage ---
+fs = FileSystem()
+fs.mkdir("/a/b/c")
+fs.addContentToFile("/a/b/c/d.txt", "hello ")
+fs.addContentToFile("/a/b/c/d.txt", "world")
+print(fs.ls("/a/b/c"))                    # ['d.txt']
+print(fs.readContentFromFile("/a/b/c/d.txt"))  # 'hello world'
+print(fs.ls("/a/b"))                       # ['c']
+print(fs.ls("/"))                          # ['a']</code></pre>
+                </div>
+
+                <h4>Trade-offs & Discussion</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                    <tr>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Aspect</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">This Design</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Alternative</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data structure</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Trie (tree of nodes)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HashMap &lt;path, content&gt; -- O(1) lookup but ls() requires scanning all keys</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ls() complexity</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(depth + k log k) where k = children count</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">With SortedDict children: O(depth + k) no sorting needed</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Thread safety</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Not thread-safe</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Add RWLock per node for concurrent reads, exclusive writes</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 0.75rem;"><strong>Companies:</strong> Meta (very common), Google, Amazon. Often extended with <code>rm</code>, <code>mv</code>, or wildcard search in follow-ups.</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Iterator Design (Flatten Nested List / Zigzag / Peeking)</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Multiple Iterator Patterns</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem family:</strong> Implement iterators that lazily traverse complex data structures. These test your understanding of the iterator pattern, stack-based traversal, and lazy evaluation -- concepts that matter in production code (streaming, pagination, data pipelines).</p>
+
+                <h4>1. Flatten Nested List Iterator (LeetCode #341)</h4>
+                <p>Given a nested list of integers, implement an iterator to flatten it. Each element is either an integer or a list whose elements may also be integers or other lists.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">class NestedIterator:
+    """
+    Approach: Use a stack and lazily flatten. We push elements in
+    reverse order so the first element is on top.
+
+    Why lazy? If the nested list has millions of elements, we don't
+    want to flatten everything upfront. This is O(1) amortized per
+    next() call and O(D) space where D = max nesting depth.
+    """
+    def __init__(self, nestedList):
+        # Stack stores elements in reverse for correct ordering
+        self.stack = list(reversed(nestedList))
+
+    def next(self) -> int:
+        # hasNext() guarantees top of stack is an integer
+        return self.stack.pop().getInteger()
+
+    def hasNext(self) -> bool:
+        # Keep flattening until top is an integer or stack is empty
+        while self.stack:
+            top = self.stack[-1]
+            if top.isInteger():
+                return True
+            # Pop the list and push its elements in reverse
+            self.stack.pop()
+            for elem in reversed(top.getList()):
+                self.stack.append(elem)
+        return False
+
+
+# --- Peeking Iterator (wraps any iterator with peek()) ---
+class PeekingIterator:
+    """
+    Wraps any iterator to support peek() without consuming.
+    Used in merge operations, parsers, and stream processing.
+    """
+    def __init__(self, iterator):
+        self.iterator = iterator
+        self._has_peeked = False
+        self._peeked_value = None
+
+    def peek(self):
+        if not self._has_peeked:
+            self._peeked_value = self.iterator.next()
+            self._has_peeked = True
+        return self._peeked_value
+
+    def next(self):
+        if self._has_peeked:
+            self._has_peeked = False
+            val = self._peeked_value
+            self._peeked_value = None
+            return val
+        return self.iterator.next()
+
+    def hasNext(self):
+        return self._has_peeked or self.iterator.hasNext()
+
+
+# --- Zigzag Iterator ---
+class ZigzagIterator:
+    """
+    Alternates between two (or k) lists:
+    v1 = [1, 2], v2 = [3, 4, 5, 6] -> 1, 3, 2, 4, 5, 6
+
+    Uses a deque of iterators. Pop from front, yield next value,
+    push back if iterator has more elements. Generalizes to k lists.
+    """
+    def __init__(self, v1, v2):
+        from collections import deque
+        self.queue = deque()
+        if v1:
+            self.queue.append(iter(v1))
+        if v2:
+            self.queue.append(iter(v2))
+
+    def next(self) -> int:
+        it = self.queue.popleft()
+        val = next(it)
+        # Put iterator back if it has more elements
+        # We use a sentinel to check without consuming
+        try:
+            peeked = next(it)
+            from itertools import chain
+            self.queue.append(chain([peeked], it))
+        except StopIteration:
+            pass
+        return val
+
+    def hasNext(self) -> bool:
+        return len(self.queue) > 0</code></pre>
+                </div>
+
+                <h4>Trade-offs & Discussion</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                    <tr>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Iterator</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Time per call</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Space</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Key insight</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">NestedIterator</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1) amortized</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(D) depth</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lazy flatten with reverse-push on stack</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PeekingIterator</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1) extra</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cache one element; decorator pattern</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ZigzagIterator</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(k) iterators</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Round-robin with deque of iterators</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 0.75rem;"><strong>Companies:</strong> Google (NestedIterator is a top-10 most asked), Meta, Apple, LinkedIn. Zigzag and Peeking variants appear at Amazon and Microsoft.</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Time-Based Key-Value Store</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>LeetCode #981 - Full Implementation with Binary Search</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Design a key-value store where each key can have multiple values at different timestamps. <code>set(key, value, timestamp)</code> stores the value, and <code>get(key, timestamp)</code> returns the value with the largest timestamp &le; the given timestamp.</p>
+
+                <p><strong>Why this matters:</strong> This is a simplified model of how versioned data stores work (think Git, database MVCC, or feature flag systems). It tests your ability to combine hash maps with binary search.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import bisect
+
+class TimeMap:
+    """
+    Time-based key-value store.
+
+    Design decisions:
+    - HashMap of key -> list of (timestamp, value) pairs
+    - Timestamps are strictly increasing per key (problem guarantee)
+      so each list is already sorted -> binary search works directly
+    - bisect_right finds insertion point; we want the element just before
+
+    Time: set O(1), get O(log n) where n = values for that key
+    Space: O(total set calls)
+    """
+    def __init__(self):
+        self.store = {}  # key -> [(timestamp, value), ...]
+
+    def set(self, key: str, value: str, timestamp: int) -> None:
+        if key not in self.store:
+            self.store[key] = []
+        self.store[key].append((timestamp, value))
+
+    def get(self, key: str, timestamp: int) -> str:
+        if key not in self.store:
+            return ""
+
+        pairs = self.store[key]
+        # Binary search: find rightmost entry with ts <= timestamp
+        # bisect_right on timestamps gives us the insertion point
+        timestamps = [p[0] for p in pairs]
+        idx = bisect.bisect_right(timestamps, timestamp)
+
+        if idx == 0:
+            return ""  # all timestamps are after the query
+        return pairs[idx - 1][1]
+
+
+# --- Optimized version avoiding repeated list extraction ---
+class TimeMapOptimized:
+    """
+    Same logic but avoids creating a timestamp list on every get().
+    Uses bisect on tuples directly: (timestamp, value) tuples sort
+    by timestamp first, which is what we want.
+    """
+    def __init__(self):
+        self.store = {}
+
+    def set(self, key: str, value: str, timestamp: int) -> None:
+        if key not in self.store:
+            self.store[key] = []
+        self.store[key].append((timestamp, value))
+
+    def get(self, key: str, timestamp: int) -> str:
+        if key not in self.store:
+            return ""
+
+        pairs = self.store[key]
+        # Search for (timestamp, chr(127)) -- chr(127) is larger than
+        # any reasonable string, so bisect_right finds the right spot
+        idx = bisect.bisect_right(pairs, (timestamp, chr(127)))
+
+        if idx == 0:
+            return ""
+        return pairs[idx - 1][1]
+
+
+# --- Usage ---
+tm = TimeMapOptimized()
+tm.set("foo", "bar", 1)
+tm.set("foo", "bar2", 4)
+print(tm.get("foo", 1))   # "bar"
+print(tm.get("foo", 3))   # "bar"  (largest ts <= 3 is 1)
+print(tm.get("foo", 4))   # "bar2"
+print(tm.get("foo", 5))   # "bar2" (largest ts <= 5 is 4)
+print(tm.get("foo", 0))   # ""     (no ts <= 0)</code></pre>
+                </div>
+
+                <h4>Trade-offs & Follow-ups</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                    <tr>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Approach</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">set()</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">get()</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Notes</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">List + bisect</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best for sorted-insert timestamps</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SortedList (third-party)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Handles unordered inserts; more memory</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">TreeMap (Java)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n) via floorKey()</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Java-idiomatic; built-in floorEntry</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 0.75rem;"><strong>Common follow-ups:</strong> What if timestamps are not strictly increasing? (Use SortedList or insort.) What about TTL expiration? (Background cleanup thread or lazy eviction on get.)</p>
+                <p><strong>Companies:</strong> Google, Lyft, Airbnb, Databricks. Often asked as a warm-up for system design discussions about versioned storage.</p>
+            </div>
+        </div>
+
+        <h2 class="mt-4">Design Twitter</h2>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>LeetCode #355 - OOP + Data Structures Combination</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Design a simplified Twitter where users can post tweets, follow/unfollow other users, and retrieve the 10 most recent tweets in their news feed (from themselves and people they follow).</p>
+
+                <p><strong>Why this is a staff-level question:</strong> It combines OOP modeling, hash maps, heaps, and linked-list-style thinking. Interviewers evaluate your API design, class decomposition, and ability to optimize the feed generation with a merge-k-sorted-lists approach.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+from collections import defaultdict
+
+class Twitter:
+    """
+    Key design decisions:
+    1. Global timestamp counter for ordering tweets
+    2. Each user's tweets stored as a list (most recent last)
+    3. News feed uses a max-heap merge of k sorted lists
+       (same pattern as "merge k sorted linked lists")
+    4. Users always follow themselves (simplifies feed logic)
+    """
+    def __init__(self):
+        self.timestamp = 0
+        self.tweets = defaultdict(list)    # userId -> [(ts, tweetId), ...]
+        self.following = defaultdict(set)  # userId -> set of followeeIds
+
+    def postTweet(self, userId: int, tweetId: int) -> None:
+        self.tweets[userId].append((self.timestamp, tweetId))
+        self.timestamp += 1
+        # Ensure user follows themselves
+        self.following[userId].add(userId)
+
+    def getNewsFeed(self, userId: int) -> list[int]:
+        """
+        Merge k sorted lists (each user's tweets in reverse chronological).
+        Use a max-heap (negate timestamps for Python's min-heap).
+
+        Time: O(k * log k + 10 * log k) where k = followees count
+        Space: O(k) for the heap
+        """
+        self.following[userId].add(userId)
+
+        # Heap entries: (-timestamp, tweetId, userId, index_in_tweet_list)
+        max_heap = []
+        for followee in self.following[userId]:
+            if self.tweets[followee]:
+                idx = len(self.tweets[followee]) - 1
+                ts, tid = self.tweets[followee][idx]
+                heapq.heappush(max_heap, (-ts, tid, followee, idx))
+
+        result = []
+        while max_heap and len(result) < 10:
+            neg_ts, tid, uid, idx = heapq.heappop(max_heap)
+            result.append(tid)
+            # Push the next older tweet from this user
+            if idx > 0:
+                ts2, tid2 = self.tweets[uid][idx - 1]
+                heapq.heappush(max_heap, (-ts2, tid2, uid, idx - 1))
+
+        return result
+
+    def follow(self, followerId: int, followeeId: int) -> None:
+        self.following[followerId].add(followeeId)
+
+    def unfollow(self, followerId: int, followeeId: int) -> None:
+        # Users cannot unfollow themselves
+        if followeeId != followerId:
+            self.following[followerId].discard(followeeId)
+
+
+# --- Usage ---
+twitter = Twitter()
+twitter.postTweet(1, 5)
+print(twitter.getNewsFeed(1))        # [5]
+
+twitter.follow(1, 2)
+twitter.postTweet(2, 6)
+print(twitter.getNewsFeed(1))        # [6, 5] -- most recent first
+
+twitter.unfollow(1, 2)
+print(twitter.getNewsFeed(1))        # [5] -- user 2's tweets no longer visible</code></pre>
+                </div>
+
+                <h4>Trade-offs & Architecture Discussion</h4>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                    <tr>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Design Choice</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">This Implementation</th>
+                        <th style="padding: 0.75rem; border: 1px solid var(--border-color); text-align: left;">Production Alternative</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Feed generation</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pull model (merge on read)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Push model (fan-out on write) for faster reads</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tweet storage</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">In-memory list per user</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sharded DB + Redis timeline cache</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Merge algorithm</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heap merge of k lists</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Same pattern! Twitter literally uses this at scale</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Celebrity problem</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Not handled (all users equal)</td>
+                        <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hybrid: push for normal users, pull for celebrities with millions of followers</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 0.75rem;"><strong>Interview tip:</strong> After solving the coding problem, mention the pull-vs-push trade-off. This naturally bridges into system design territory and shows architectural awareness -- exactly what staff-level interviews look for.</p>
+                <p><strong>Companies:</strong> Twitter (obviously), Meta, Amazon, LinkedIn. The merge-k-sorted-lists pattern also appears at Google and Apple in different contexts.</p>
+            </div>
+        </div>
+
         <h2 class="mt-4">Code Quality Checklist</h2>
 
         <div class="card">
@@ -702,7 +1206,7 @@ class LogParser:
 
         <div class="flex flex-between mt-4">
             <a href="module-07.html" class="btn btn-secondary">&larr; Module 7</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <a href="module-09.html" class="btn btn-primary">Module 9: Interview Simulation &rarr;</a>
         </div>
         </main>
     </div>
