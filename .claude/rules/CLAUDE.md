@@ -73,8 +73,8 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 │   ├── index.html            # Course overview (16 modules)
 │   └── module-01.html - module-16.html
 ├── metrics-tradeoffs/
-│   ├── index.html            # Course overview (12 modules)
-│   └── module-01.html - module-12.html
+│   ├── index.html            # Course overview (15 modules)
+│   └── module-01.html - module-15.html
 ```
 
 ## Technology Stack
