@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-This is an interactive GitHub Pages site for staff engineer interview preparation, covering six domains:
+This is an interactive GitHub Pages site for staff engineer interview preparation, covering seven domains:
 1. **Coding Rounds** - Algorithms, data structures, problem-solving patterns
 2. **System Design** - Scalability, distributed systems, architectural patterns
 3. **Low-Level Design** - OOP principles, design patterns, object-oriented design problems
 4. **Company-Specific** - Interview processes for top tech companies
 5. **Behavioral** - STAR method, leadership stories, communication
 6. **Generative AI Engineering** - LLMs, RAG, Agents, and Production AI Systems
+7. **Metrics & Tradeoffs** - Measuring success, cost efficiency, critical thinking, business impact
 
 **Live Site**: Served from repository root via GitHub Pages
 
@@ -71,6 +72,9 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 ├── generative-ai/
 │   ├── index.html            # Course overview (16 modules)
 │   └── module-01.html - module-16.html
+├── metrics-tradeoffs/
+│   ├── index.html            # Course overview (12 modules)
+│   └── module-01.html - module-12.html
 ```
 
 ## Technology Stack

@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2: Technical Health &amp; Reliability Metrics - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Metrics</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations &amp; Mindset</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>The Metrics Mindset</a>
+                    <a href="module-02.html" class="sidebar-link active" data-module="2"><span class="sidebar-link-number">2</span>Technical Health &amp; Reliability</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Business &amp; Product Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">System-Specific Metrics</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Cost Efficiency &amp; FinOps</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Distributed Systems Tradeoffs</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>AI &amp; ML System Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Impact &amp; Thinking</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>User Experience &amp; Feedback</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Second-Order Effects</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>Tradeoff Frameworks</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Applied &amp; Interview</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Case Studies</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Metrics Culture</a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Interview Mastery</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 2: Technical Health &amp; Reliability Metrics</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>How SLIs, SLOs, and SLAs form a reliability contract hierarchy</li>
+                    <li>Error budgets as a mechanism for balancing velocity and reliability</li>
+                    <li>Why percentile latency matters more than averages, and how tail latency amplifies in microservices</li>
+                    <li>MTTR, MTTF, MTBF and why modern SRE focuses on recovery speed</li>
+                    <li>Observability stacks, DORA metrics, and on-call health</li>
+                    <li>The true cost of each additional "nine" of availability</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>SLIs, SLOs, and SLAs</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the relationship between SLIs, SLOs, and SLAs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> These three concepts form a hierarchy from measurement to contractual commitment.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    subgraph "Reliability Pyramid"
+        SLA["SLA (Service Level Agreement)<br/>External contractual promise with penalties<br/>'99.9% uptime or we credit your bill'"]
+        SLO["SLO (Service Level Objective)<br/>Internal target, stricter than SLA<br/>'We aim for 99.95% to have buffer'"]
+        SLI["SLI (Service Level Indicator)<br/>The actual measurement<br/>'Ratio of successful requests / total requests'"]
+    end
+
+    SLI --> SLO --> SLA
+
+    style SLA fill:#ef4444,color:#fff
+    style SLO fill:#f59e0b,color:#000
+    style SLI fill:#10b981,color:#fff
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr><th>Concept</th><th>Definition</th><th>Who Owns It</th><th>Consequence of Breach</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>SLI</strong></td><td>A quantitative measure of service behavior (e.g., request latency, error rate)</td><td>Engineering team</td><td>None directly &mdash; it's just data</td></tr>
+                            <tr><td><strong>SLO</strong></td><td>A target value for an SLI (e.g., "p99 latency &lt; 300ms for 99.9% of time")</td><td>Engineering team + product</td><td>Internal: feature freeze, reliability sprint, error budget policy kicks in</td></tr>
+                            <tr><td><strong>SLA</strong></td><td>A contractual promise to customers with financial penalties</td><td>Business / legal</td><td>External: refunds, credits, contract termination</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Critical rule:</strong> SLOs should always be <em>stricter</em> than SLAs. If your SLA promises 99.9% availability, your SLO should target 99.95%. The gap between SLO and SLA is your safety margin. If you are meeting your SLA but violating your SLO, that is a signal to invest in reliability <em>before</em> you start owing customers money.</p>
+
+                    <p><strong>Google's approach (from the SRE book):</strong> Google does not set SLAs for most internal services, but they rigorously set SLOs. The SLO is the tool that drives engineering behavior. An SLA is a business decision about risk appetite; an SLO is an engineering decision about quality standards.</p>
+
+                    <pre><code class="language-yaml"># Example SLO specification (in a standardized format)
+service: checkout-api
+slos:
+  - name: availability
+    sli: ratio of non-5xx responses to total responses
+    target: 99.95%
+    window: 30 days (rolling)
+
+  - name: latency
+    sli: ratio of requests completing in &lt; 300ms
+    target: 99.0%
+    window: 30 days (rolling)
+
+  - name: correctness
+    sli: ratio of orders with correct total calculation
+    target: 99.999%
+    window: 30 days (rolling)
+
+alerts:
+  - burn_rate: 14.4  # 1-hour window, will exhaust budget in 2 days
+    severity: page
+  - burn_rate: 6.0   # 6-hour window, will exhaust budget in 5 days
+    severity: ticket</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you choose the right SLIs for different system types?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> SLIs should measure what <em>users</em> experience, not what the <em>server</em> reports. Different system types have different SLI priorities.</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>System Type</th><th>Primary SLIs</th><th>Why These Matter</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Request-serving (API, web)</strong></td>
+                                <td>Availability (success rate), Latency (p50, p95, p99), Throughput</td>
+                                <td>Users interact synchronously; they feel every failure and delay</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data processing (batch, ETL)</strong></td>
+                                <td>Freshness (data age), Correctness (error rate), Throughput (records/sec), Coverage (% of data processed)</td>
+                                <td>Users see stale or incorrect data; they don't care about latency of individual records</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Storage systems</strong></td>
+                                <td>Durability (data loss rate), Availability, Latency of reads/writes</td>
+                                <td>Data loss is catastrophic; availability and performance are secondary to durability</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Streaming / real-time</strong></td>
+                                <td>End-to-end latency, Ordering guarantees, Delivery rate (at-least-once, exactly-once)</td>
+                                <td>Late or out-of-order events cause incorrect downstream state</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ML inference</strong></td>
+                                <td>Prediction latency, Model freshness (staleness), Prediction quality (accuracy, AUC), Throughput</td>
+                                <td>Stale models degrade over time; slow predictions hurt user experience</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key principle:</strong> Measure SLIs at the <em>edge</em>, not at the <em>server</em>. A server may report 200 OK while the user's browser received a partial response due to a CDN issue. Synthetic monitoring from user-representative locations gives you the true SLI.</p>
+
+                    <p><strong>Common mistake:</strong> Using server-side health checks as SLIs. A server can pass a health check (process is running, port is open) while returning 500 errors to real requests because the database connection pool is exhausted. SLIs must measure real request outcomes.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is an error budget and how does it change engineering behavior?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> An error budget is the amount of unreliability you are <em>allowed</em> to have within your SLO window. It is calculated as:</p>
+
+                    <pre><code>Error Budget = 1 - SLO Target
+
+For a 99.95% availability SLO over 30 days:
+Error Budget = 0.05% of total requests (or 0.05% of total minutes)
+= 0.0005 × 30 × 24 × 60 = 21.6 minutes of downtime per month
+= 0.0005 × 1,000,000 requests = 500 failed requests per million</code></pre>
+
+                    <p><strong>How it changes behavior:</strong></p>
+
+                    <p>Without error budgets, reliability and velocity are in constant tension. Product says "ship faster," SRE says "slow down, it's too risky." Error budgets resolve this by making the tradeoff <em>quantitative</em>:</p>
+
+                    <ul>
+                        <li><strong>Budget remaining:</strong> Ship features, take calculated risks, experiment</li>
+                        <li><strong>Budget depleted:</strong> Feature freeze. Focus entirely on reliability. No new deployments until budget is restored.</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["SLO: 99.95% availability<br/>Error Budget: 21.6 min/month"] --> B{"Budget remaining?"}
+    B -->|"Yes (>50%)"| C["Ship features aggressively<br/>Canary deploys, experiments OK"]
+    B -->|"Low (10-50%)"| D["Ship cautiously<br/>Mandatory canary, extra review"]
+    B -->|"Exhausted (<10%)"| E["Feature freeze<br/>Reliability-only work<br/>Root cause all recent incidents"]
+
+    C --> F["New incident occurs"]
+    D --> F
+    F --> G["Deduct from budget"]
+    G --> B
+
+    style A fill:#2563eb,color:#fff
+    style C fill:#10b981,color:#fff
+    style D fill:#f59e0b,color:#000
+    style E fill:#ef4444,color:#fff
+                        </div>
+                    </div>
+
+                    <p><strong>Google SRE real-world example:</strong> Google's Ads Serving team had a 99.99% SLO (52.6 minutes/year budget). In Q3, two incidents consumed 45 minutes. With only 7.6 minutes remaining for Q4, the team automatically entered a reliability freeze: no new features, all engineering effort on reliability improvements (circuit breakers, load shedding, cache redundancy). They shipped zero features that quarter but rebuilt confidence in the system. Q1 of the next year, they had a full 52.6-minute budget and shipped a major feature with 4x the normal velocity because the reliability work had reduced incident frequency.</p>
+
+                    <p><strong>Why it works:</strong> Error budgets align incentives. Product teams want to preserve the budget because running out means <em>they</em> can't ship. SRE teams are willing to take calculated risks because they have a quantitative framework for how much risk is acceptable.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Latency and Percentiles</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you calculate availability in "nines"?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> "Nines" is shorthand for the number of 9s in the availability percentage. Each additional nine is 10x harder to achieve.</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Availability</th><th>Nines</th><th>Downtime/Year</th><th>Downtime/Month</th><th>Downtime/Week</th><th>Typical System</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>99%</td><td>Two nines</td><td>3.65 days</td><td>7.31 hours</td><td>1.68 hours</td><td>Internal tools, batch jobs</td></tr>
+                            <tr><td>99.9%</td><td>Three nines</td><td>8.76 hours</td><td>43.8 minutes</td><td>10.1 minutes</td><td>Most SaaS products</td></tr>
+                            <tr><td>99.95%</td><td>Three and a half nines</td><td>4.38 hours</td><td>21.9 minutes</td><td>5.04 minutes</td><td>Cloud provider APIs</td></tr>
+                            <tr><td>99.99%</td><td>Four nines</td><td>52.6 minutes</td><td>4.38 minutes</td><td>1.01 minutes</td><td>Payment systems, core banking</td></tr>
+                            <tr><td>99.999%</td><td>Five nines</td><td>5.26 minutes</td><td>26.3 seconds</td><td>6.05 seconds</td><td>Air traffic control, 911 systems</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># Calculating combined availability for serial dependencies
+def serial_availability(*components):
+    """
+    For systems in series (all must work): multiply availabilities.
+    3 services at 99.9% each: 0.999^3 = 99.7% (not 99.9%)
+    """
+    result = 1.0
+    for a in components:
+        result *= a
+    return result
+
+# Example: API Gateway -&gt; Auth Service -&gt; Database
+combined = serial_availability(0.999, 0.999, 0.999)
+print(f"Combined: {combined:.4%}")  # 99.7003%
+# You lost almost a full "nine" by having 3 serial dependencies!
+
+def parallel_availability(*components):
+    """
+    For redundant systems (any one works): 1 - product of failure probs.
+    2 databases at 99.9% each with failover: 1-(0.001)^2 = 99.9999%
+    """
+    failure_prob = 1.0
+    for a in components:
+        failure_prob *= (1.0 - a)
+    return 1.0 - failure_prob
+
+# Example: Primary + Replica database
+combined = parallel_availability(0.999, 0.999)
+print(f"Combined: {combined:.6%}")  # 99.999900%</code></pre>
+
+                    <p><strong>Critical insight for system design interviews:</strong> Every synchronous dependency in a request path <em>multiplies</em> failure probability. A microservice that calls 10 services, each at 99.9%, has a combined availability of 0.999^10 = 99.0%. This is why staff engineers push for async communication, caching with graceful degradation, and circuit breakers.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What latency percentiles matter and why?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Different percentiles tell you different things about your system. The key insight is that <strong>averages are nearly useless</strong> for latency &mdash; they hide the experience of your most affected users.</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Percentile</th><th>What It Tells You</th><th>Who It Represents</th><th>Typical Use</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>p50 (median)</strong></td><td>The "typical" experience</td><td>Half of all requests</td><td>General health check</td></tr>
+                            <tr><td><strong>p90</strong></td><td>Where things start degrading</td><td>1 in 10 requests</td><td>Performance tuning threshold</td></tr>
+                            <tr><td><strong>p95</strong></td><td>The experience of users with complex requests</td><td>1 in 20 requests</td><td>SLO target (common choice)</td></tr>
+                            <tr><td><strong>p99</strong></td><td>Edge cases, resource contention, GC pauses</td><td>1 in 100 requests</td><td>System health, infrastructure issues</td></tr>
+                            <tr><td><strong>p99.9</strong></td><td>Pathological cases, infrastructure failures</td><td>1 in 1,000 requests</td><td>Worst-case analysis for high-traffic systems</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Why p99 matters more than you think:</strong> At scale, a 1% tail affects millions of users. If you serve 100M requests/day, your p99 latency is the experience of 1M requests. At Amazon's scale (~1B requests/day for some services), p99.9 still affects 1M requests daily.</p>
+
+                    <p><strong>Amazon's internal research:</strong> Amazon found that every 100ms of added latency at p50 costs approximately 1% of sales. But they also found that p99 latency improvements had an even larger impact because the worst-affected users were often <em>high-value customers</em> with large carts and complex queries &mdash; the users who generated the most revenue.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Why is p99 more important than average latency?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Average latency is a lie in distributed systems because latency distributions are <em>not normal</em> &mdash; they are heavily right-skewed with long tails.</p>
+
+                    <p><strong>Example:</strong> A service has these latencies for 100 requests:</p>
+                    <ul>
+                        <li>95 requests at 50ms</li>
+                        <li>4 requests at 200ms</li>
+                        <li>1 request at 5000ms (database timeout)</li>
+                    </ul>
+
+                    <pre><code>Average = (95 × 50 + 4 × 200 + 1 × 5000) / 100 = 102.5ms
+Median (p50) = 50ms
+p99 = 5000ms
+
+The average (102.5ms) looks fine. The p99 (5000ms) reveals a critical problem.
+A dashboard showing only average latency would hide the fact that 1% of users
+wait 100x longer than typical.</code></pre>
+
+                    <p><strong>Why users experience the tail:</strong> Modern web pages make 20&ndash;100 backend calls. The user's experience is determined by the <em>slowest</em> call. Even if each individual call has a 1% chance of being slow, after 50 calls the probability that <em>at least one</em> is slow is: 1 - 0.99^50 = 39.5%. This means nearly 40% of page loads are affected by tail latency.</p>
+
+                    <p><strong>Jeff Dean's "The Tail at Scale" paper:</strong> This is the foundational paper on why tail latencies matter. Dean showed that for a request fanning out to 100 servers in parallel, if each server's p99 latency is 10ms, the p99 of the overall request is much worse because you are waiting for the <em>slowest</em> of 100 servers.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is tail latency amplification in microservices?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> When a single user request fans out to multiple services, the overall latency is determined by the <em>slowest</em> response. This amplifies tail latency dramatically.</p>
+
+                    <pre><code class="language-python"># Tail latency amplification: math
+import numpy as np
+
+def fan_out_latency_p99(single_service_p99, num_services):
+    """
+    If a request fans out to N services in parallel,
+    the probability that ALL complete within the p99 threshold is:
+    P(all fast) = (0.99)^N
+
+    The effective percentile of the overall request is:
+    1 - (1 - 0.01)^N
+    """
+    prob_all_fast = 0.99 ** num_services
+    effective_slow_pct = 1 - prob_all_fast
+    return effective_slow_pct
+
+# Example: request fans out to 20 microservices
+overall_slow_pct = fan_out_latency_p99(0.99, 20)
+print(f"Fan-out to 20 services: {overall_slow_pct:.1%} of requests hit tail latency")
+# Output: 18.2% of requests hit tail latency
+
+# Fan-out to 50 services (common in large microservice architectures)
+overall_slow_pct = fan_out_latency_p99(0.99, 50)
+print(f"Fan-out to 50 services: {overall_slow_pct:.1%} of requests hit tail latency")
+# Output: 39.5% of requests hit tail latency
+
+# Fan-out to 100 services
+overall_slow_pct = fan_out_latency_p99(0.99, 100)
+print(f"Fan-out to 100 services: {overall_slow_pct:.1%} of requests hit tail latency")
+# Output: 63.4% of requests hit tail latency</code></pre>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    U["User Request"] --> G["API Gateway"]
+    G --> S1["Service A<br/>p99: 50ms"]
+    G --> S2["Service B<br/>p99: 80ms"]
+    G --> S3["Service C<br/>p99: 120ms"]
+    G --> S4["Service D<br/>p99: 60ms"]
+    G --> S5["Service E<br/>p99: 200ms"]
+
+    S1 --> R["Response<br/>Overall p99: max(all) = 200ms<br/>But 1-(0.99)^5 = 4.9%<br/>of requests hit one tail"]
+    S2 --> R
+    S3 --> R
+    S4 --> R
+    S5 --> R
+
+    style U fill:#2563eb,color:#fff
+    style R fill:#ef4444,color:#fff
+                        </div>
+                    </div>
+
+                    <p><strong>Mitigation strategies (from Google and Amazon):</strong></p>
+                    <ul>
+                        <li><strong>Hedged requests:</strong> Send the same request to two replicas; use the first response. Wastes ~2% extra load but dramatically cuts tail latency.</li>
+                        <li><strong>Adaptive timeouts:</strong> Set per-service timeouts based on observed p99 + margin, not a fixed global timeout.</li>
+                        <li><strong>Request coalescing:</strong> Batch multiple sub-requests to the same service into a single call.</li>
+                        <li><strong>Graceful degradation:</strong> If a non-critical service is slow, return a partial response rather than waiting (e.g., serve a page without personalized recommendations).</li>
+                        <li><strong>Reduce fan-out:</strong> Architectural decision to use fewer, coarser-grained services for latency-sensitive paths.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Reliability Metrics</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are MTTR, MTTF, and MTBF? How do they relate?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Metric</th><th>Full Name</th><th>Definition</th><th>Formula</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>MTTF</strong></td><td>Mean Time To Failure</td><td>Average time between system start and first failure</td><td>Total uptime / Number of failures</td></tr>
+                            <tr><td><strong>MTTR</strong></td><td>Mean Time To Recovery</td><td>Average time from failure detection to full recovery</td><td>Total downtime / Number of incidents</td></tr>
+                            <tr><td><strong>MTBF</strong></td><td>Mean Time Between Failures</td><td>Average time between consecutive failures</td><td>MTTF + MTTR</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+gantt
+    title System Lifecycle: MTTF, MTTR, MTBF
+    dateFormat  HH:mm
+    axisFormat %H:%M
+
+    section System State
+    Running (MTTF)          :active, f1, 00:00, 4h
+    Incident (MTTR)         :crit, i1, after f1, 30m
+    Running (MTTF)          :active, f2, after i1, 6h
+    Incident (MTTR)         :crit, i2, after f2, 15m
+    Running                 :active, f3, after i2, 5h
+                        </div>
+                    </div>
+
+                    <pre><code>Availability = MTTF / (MTTF + MTTR) = MTTF / MTBF
+
+Example:
+MTTF = 720 hours (30 days average between failures)
+MTTR = 0.5 hours (30 minutes to recover)
+MTBF = 720.5 hours
+Availability = 720 / 720.5 = 99.93%
+
+Key insight: You can improve availability by either:
+1. Increasing MTTF (prevent failures) - HARD, diminishing returns
+2. Decreasing MTTR (recover faster) - MORE COST EFFECTIVE</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Why is MTTR more important than MTTF for modern systems?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> In complex distributed systems, failures are <em>inevitable</em>. The question is not "if" but "when." Given this reality, the most effective way to improve availability is to recover faster, not to prevent failures (which has diminishing returns at scale).</p>
+
+                    <p><strong>Mathematical argument:</strong></p>
+                    <pre><code>Current state: MTTF = 720h, MTTR = 2h
+Availability = 720 / 722 = 99.72%
+
+Option A: Double MTTF (extremely hard - requires eliminating half of all failure modes)
+MTTF = 1440h, MTTR = 2h
+Availability = 1440 / 1442 = 99.86% (improvement: +0.14%)
+
+Option B: Halve MTTR (achievable with automation, runbooks, better tooling)
+MTTF = 720h, MTTR = 1h
+Availability = 720 / 721 = 99.86% (improvement: +0.14%)
+
+Option C: Quarter MTTR (automated detection + automated remediation)
+MTTF = 720h, MTTR = 0.5h
+Availability = 720 / 720.5 = 99.93% (improvement: +0.21%)
+
+Halving MTTR is far more achievable than doubling MTTF, and quartering
+MTTR gives you MORE improvement than doubling MTTF.</code></pre>
+
+                    <p><strong>Google's philosophy (SRE book):</strong> "Hope is not a strategy." Google invests heavily in:</p>
+                    <ul>
+                        <li><strong>Detection time (MTTD):</strong> Automated anomaly detection catches issues in seconds, not minutes</li>
+                        <li><strong>Diagnosis time:</strong> Pre-built runbooks, automated correlation of logs/metrics/traces</li>
+                        <li><strong>Remediation time:</strong> One-click rollbacks, automated traffic shifting, self-healing infrastructure</li>
+                    </ul>
+
+                    <p><strong>Netflix's Chaos Engineering:</strong> Netflix deliberately injects failures (Chaos Monkey) not to prevent failures, but to ensure their recovery mechanisms work. This systematically reduces MTTR by exercising the recovery path before real incidents.</p>
+
+                    <p><strong>MTTR decomposition:</strong></p>
+                    <pre><code>MTTR = Time to Detect + Time to Engage + Time to Diagnose + Time to Remediate + Time to Verify
+
+Typical breakdown for a mature org:
+- Detect: 2 min (automated monitoring)
+- Engage: 5 min (PagerDuty, on-call response)
+- Diagnose: 15 min (logs, traces, dashboards)
+- Remediate: 10 min (rollback, config change)
+- Verify: 5 min (confirm SLIs are healthy)
+Total: 37 min
+
+Where to invest for maximum reduction:
+- Detection: Already fast with modern tooling
+- Engagement: Automate escalation paths
+- Diagnosis: This is usually the bottleneck. Invest in observability.
+- Remediation: Automate rollbacks, build kill switches</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Observability and Monitoring</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What does the observability stack look like? (Metrics, Logs, Traces)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The three pillars of observability each serve a different purpose and answer different questions.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Three Pillars of Observability"
+        M["METRICS<br/>What is happening?<br/>Aggregated numerical data<br/>Time-series: CPU, latency, error rate<br/>Tools: Prometheus, Datadog, CloudWatch"]
+        L["LOGS<br/>Why is it happening?<br/>Discrete events with context<br/>Structured: JSON with trace IDs<br/>Tools: ELK, Splunk, Loki"]
+        T["TRACES<br/>Where is it happening?<br/>Request flow across services<br/>Spans with timing and metadata<br/>Tools: Jaeger, Zipkin, Datadog APM"]
+    end
+
+    U["Alert: p99 latency spike"] --> M
+    M -->|"Identify which service"| T
+    T -->|"Find the slow span"| L
+    L -->|"Root cause: DB query timeout"| R["Resolution"]
+
+    style M fill:#2563eb,color:#fff
+    style L fill:#10b981,color:#fff
+    style T fill:#8b5cf6,color:#fff
+    style R fill:#f59e0b,color:#000
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr><th>Pillar</th><th>Answers</th><th>Cardinality</th><th>Storage Cost</th><th>Query Speed</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Metrics</strong></td><td>"What" and "How much"</td><td>Low (pre-aggregated)</td><td>Lowest</td><td>Fastest (sub-second)</td></tr>
+                            <tr><td><strong>Logs</strong></td><td>"Why" and "What exactly"</td><td>High (every event)</td><td>Highest</td><td>Slow (full-text search)</td></tr>
+                            <tr><td><strong>Traces</strong></td><td>"Where" in the call chain</td><td>Medium (sampled)</td><td>Medium</td><td>Medium</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Investigation workflow:</strong></p>
+                    <ol>
+                        <li><strong>Metrics</strong> tell you <em>something is wrong</em> (alert fires on error rate spike)</li>
+                        <li><strong>Traces</strong> tell you <em>where in the request path</em> the issue is (slow span in payment service &rarr; database)</li>
+                        <li><strong>Logs</strong> tell you <em>exactly what happened</em> (query timeout on table X, connection pool exhausted)</li>
+                    </ol>
+
+                    <p><strong>Staff engineer consideration:</strong> The cost of observability at scale is substantial. Datadog charges per host and per metric. Splunk charges per GB of log ingestion. A mature organization needs a strategy for:</p>
+                    <ul>
+                        <li><strong>Sampling:</strong> Trace 1% of requests in normal operation, 100% during incidents</li>
+                        <li><strong>Log levels:</strong> INFO in production for most services, DEBUG only during investigation</li>
+                        <li><strong>Metric aggregation:</strong> Pre-aggregate at the source; don't ship raw data points</li>
+                        <li><strong>Retention tiers:</strong> Hot (7 days, fast queries), Warm (30 days, slower), Cold (1 year, cheapest)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the RED method and USE method for monitoring?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> These are complementary frameworks for choosing <em>what</em> to monitor. RED is for request-driven services; USE is for infrastructure resources.</p>
+
+                    <p><strong>RED Method</strong> (coined by Tom Wilkie, inspired by Google's SRE book):</p>
+                    <table>
+                        <thead>
+                            <tr><th>Letter</th><th>Metric</th><th>What It Tells You</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>R</strong></td><td>Rate (requests/second)</td><td>How much traffic is the service handling?</td></tr>
+                            <tr><td><strong>E</strong></td><td>Errors (errors/second or error %)</td><td>How many of those requests are failing?</td></tr>
+                            <tr><td><strong>D</strong></td><td>Duration (latency distribution)</td><td>How long do successful requests take?</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>USE Method</strong> (coined by Brendan Gregg, Netflix):</p>
+                    <table>
+                        <thead>
+                            <tr><th>Letter</th><th>Metric</th><th>What It Tells You</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>U</strong></td><td>Utilization</td><td>How busy is the resource? (CPU 80%, disk 90%)</td></tr>
+                            <tr><td><strong>S</strong></td><td>Saturation</td><td>How much extra work is queued? (thread pool queue depth)</td></tr>
+                            <tr><td><strong>E</strong></td><td>Errors</td><td>Is the resource producing errors? (disk I/O errors, network packet drops)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>When to use which:</strong></p>
+                    <ul>
+                        <li><strong>RED</strong> for every microservice: "Is my API healthy from the caller's perspective?"</li>
+                        <li><strong>USE</strong> for every resource (CPU, memory, disk, network, thread pools, connection pools, queues): "Is my infrastructure becoming a bottleneck?"</li>
+                    </ul>
+
+                    <p><strong>Combined dashboard layout:</strong></p>
+                    <pre><code>Service Dashboard:
+Row 1 (RED): Request Rate | Error Rate | Latency (p50/p95/p99)
+Row 2 (USE): CPU Util/Sat | Memory Util/Sat | Disk I/O Util/Sat
+Row 3 (Dependencies): Downstream error rates | Connection pool usage
+Row 4 (Business): Requests by endpoint | Success rate by customer tier</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure on-call health?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> On-call health is critical because unsustainable on-call directly causes engineer attrition, which is one of the most expensive problems an engineering organization faces (cost of replacing a senior engineer: 6&ndash;12 months of salary in recruiting, ramp-up, and lost productivity).</p>
+
+                    <p><strong>Key on-call health metrics:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Metric</th><th>Healthy Target</th><th>Why It Matters</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Pages per on-call shift</td><td>&lt; 2 per week</td><td>More than 2/week leads to alert fatigue and burnout</td></tr>
+                            <tr><td>Pages during sleep hours (11pm&ndash;7am)</td><td>&lt; 1 per month</td><td>Sleep disruption is the #1 driver of on-call dissatisfaction</td></tr>
+                            <tr><td>Alert noise ratio (actionable vs non-actionable)</td><td>&gt; 80% actionable</td><td>Non-actionable alerts train engineers to ignore pages</td></tr>
+                            <tr><td>Toil percentage</td><td>&lt; 50% of on-call time on toil</td><td>Google SRE policy: if toil &gt; 50%, stop feature work until toil is reduced</td></tr>
+                            <tr><td>Escalation rate</td><td>&lt; 15%</td><td>High escalation = poor runbooks or insufficient on-call training</td></tr>
+                            <tr><td>Time to acknowledge</td><td>&lt; 5 minutes</td><td>Slow ack indicates process problems or alert routing issues</td></tr>
+                            <tr><td>Repeat incident rate</td><td>&lt; 10%</td><td>Repeated incidents = poor follow-through on post-mortems</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Google SRE's toil definition:</strong> Toil is manual, repetitive, automatable work that scales linearly with service growth. Examples: manually restarting pods, hand-tuning database queries, manually rotating certificates. The SRE book mandates that SREs spend no more than 50% of their time on toil; the rest must be engineering work that reduces future toil.</p>
+
+                    <p><strong>Staff engineer action:</strong> Conduct a quarterly on-call review. For each page, classify it:</p>
+                    <ul>
+                        <li><strong>Actionable &amp; urgent:</strong> Keep the alert, improve runbook</li>
+                        <li><strong>Actionable but not urgent:</strong> Convert to a ticket, not a page</li>
+                        <li><strong>Not actionable:</strong> Delete or silence the alert</li>
+                        <li><strong>Recurrent (&gt; 2x/month):</strong> Prioritize engineering fix over operational response</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Error Budgets in Practice</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you set SLOs that balance reliability with velocity?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Setting SLOs is a <em>business</em> decision with <em>engineering</em> constraints, not a purely technical exercise. The goal is to be reliable <em>enough</em>, not as reliable as possible.</p>
+
+                    <p><strong>The SLO setting process:</strong></p>
+                    <ol>
+                        <li><strong>Measure current performance:</strong> Before setting a target, know your baseline. Run for 4&ndash;6 weeks collecting SLI data.</li>
+                        <li><strong>Understand user expectations:</strong> A consumer app tolerates higher latency than a trading platform. Ask: "At what point does the user notice or complain?"</li>
+                        <li><strong>Consider dependencies:</strong> Your SLO cannot be higher than the combined availability of your critical dependencies. If your database is 99.95%, your service cannot promise 99.99%.</li>
+                        <li><strong>Start loose, tighten over time:</strong> It is better to set a 99.9% SLO and consistently meet it than to set 99.99% and constantly breach it. Breach fatigue leads to ignoring SLOs entirely.</li>
+                        <li><strong>Differentiate by customer tier:</strong> Enterprise customers may have a stricter SLO (99.99%) than free tier (99.9%), reflected in separate SLI measurements.</li>
+                    </ol>
+
+                    <p><strong>Anti-pattern: "Just set it to 99.99%."</strong> This is the most common mistake. A 99.99% SLO gives you only 4.38 minutes of downtime per month. A single slow deployment that takes 5 minutes to roll back violates your SLO. This means either (a) you never deploy during business hours, or (b) you invest millions in deployment infrastructure. Neither is appropriate for a CRUD app with 1,000 users.</p>
+
+                    <p><strong>Rule of thumb:</strong></p>
+                    <ul>
+                        <li><strong>Internal tools:</strong> 99.5% (3.6 hours/month downtime is fine)</li>
+                        <li><strong>B2C product:</strong> 99.9% (43 minutes/month)</li>
+                        <li><strong>B2B SaaS (enterprise):</strong> 99.95% (22 minutes/month)</li>
+                        <li><strong>Payment/financial systems:</strong> 99.99% (4.4 minutes/month)</li>
+                        <li><strong>Safety-critical systems:</strong> 99.999% (26 seconds/month) &mdash; requires massive redundancy investment</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the cost of each additional "nine" of availability?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Each additional nine is roughly <strong>10x the cost</strong> of the previous one. This is because the failure modes you need to address become increasingly exotic and the redundancy required grows exponentially.</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Target</th><th>What You Need</th><th>Approximate Annual Cost Multiplier</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>99% (two nines)</strong></td><td>Basic monitoring, single-server deployment, manual recovery</td><td>1x (baseline)</td></tr>
+                            <tr><td><strong>99.9% (three nines)</strong></td><td>Health checks, auto-restart, load balancing, basic redundancy, automated alerts</td><td>3&ndash;5x</td></tr>
+                            <tr><td><strong>99.95%</strong></td><td>Multi-AZ deployment, automated failover, canary releases, on-call rotation</td><td>8&ndash;12x</td></tr>
+                            <tr><td><strong>99.99% (four nines)</strong></td><td>Multi-region active-active, automated rollback, chaos engineering, 24/7 SRE team</td><td>25&ndash;50x</td></tr>
+                            <tr><td><strong>99.999% (five nines)</strong></td><td>Zero-downtime deployments, multi-provider redundancy, formal verification, dedicated SRE teams per service</td><td>100&ndash;200x</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>The economic argument:</strong> If your service generates $10M/year in revenue, each minute of downtime costs approximately $19. At 99.9% (43 min/month downtime), you lose ~$10K/year to downtime. Going from 99.9% to 99.99% costs maybe $500K/year in infrastructure and SRE headcount but only saves ~$9K/year in downtime cost. The math only works if downtime has non-linear costs (contractual penalties, regulatory fines, customer trust damage).</p>
+
+                    <p><strong>Staff engineer insight:</strong> Always frame availability decisions in terms of cost-benefit. "Going from 99.9% to 99.99% will cost $500K/year. Our SLA only requires 99.9%. Our customer data shows that our 43 minutes of monthly downtime generates 2 support tickets. The investment is not justified until our customer base or contractual obligations grow."</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: When should you deliberately spend your error budget?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Error budgets exist to be <em>spent</em>, not hoarded. If you consistently have 90%+ of your error budget remaining, you are either (a) over-investing in reliability at the expense of velocity, or (b) your SLO is too loose.</p>
+
+                    <p><strong>Good reasons to spend error budget deliberately:</strong></p>
+                    <ul>
+                        <li><strong>Risky but high-value deployments:</strong> A database migration that will improve long-term performance but may cause brief downtime. Budget the expected risk and proceed.</li>
+                        <li><strong>Chaos engineering experiments:</strong> Intentionally inject failures to test recovery mechanisms. This spends budget but improves your MTTR for real incidents.</li>
+                        <li><strong>Infrastructure upgrades:</strong> Kernel upgrades, TLS certificate rotations, and dependency updates carry risk but reduce long-term vulnerability.</li>
+                        <li><strong>Feature launches:</strong> New features always carry risk. If you have budget, launch boldly. If budget is low, wait or reduce blast radius.</li>
+                    </ul>
+
+                    <p><strong>Netflix's approach:</strong> Netflix treats the error budget as an innovation budget. Their philosophy: "If we're not occasionally failing, we're not innovating fast enough." They deliberately schedule risky operations (Chaos Monkey, region failover tests) during periods when the error budget is healthy.</p>
+
+                    <p><strong>Anti-pattern: "We must never spend our error budget."</strong> This leads to stagnation. Teams become afraid to deploy, features pile up, and when they finally do deploy a large batch of changes, the blast radius is enormous and they exhaust their budget in one catastrophic incident. Small, frequent budget expenditures are far healthier than rare, large ones.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Monitoring Approaches</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is synthetic monitoring vs real user monitoring (RUM)?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>Synthetic Monitoring</th><th>Real User Monitoring (RUM)</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>What</strong></td><td>Automated bots simulate user actions from controlled locations</td><td>JavaScript agent in real users' browsers reports actual performance</td></tr>
+                            <tr><td><strong>When</strong></td><td>Runs continuously on a schedule (every 1&ndash;5 min)</td><td>Only when real users are active</td></tr>
+                            <tr><td><strong>Environment</strong></td><td>Controlled (known browser, network, location)</td><td>Real-world (diverse devices, networks, locations)</td></tr>
+                            <tr><td><strong>Coverage</strong></td><td>Only predefined user journeys</td><td>All user interactions</td></tr>
+                            <tr><td><strong>Noise</strong></td><td>Low (consistent conditions)</td><td>High (variable network, device performance)</td></tr>
+                            <tr><td><strong>Detection speed</strong></td><td>Detects issues before users hit them (proactive)</td><td>Detects issues only when users encounter them (reactive)</td></tr>
+                            <tr><td><strong>Cost</strong></td><td>Low (limited test agents)</td><td>Higher (instrumenting all traffic)</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Availability monitoring, SLA compliance, third-party dependency checks</td><td>Real performance analysis, identifying issues affecting specific user segments</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Best practice:</strong> Use both. Synthetic monitoring as your early warning system (catches outages at 3 AM when no users are active) and RUM for understanding real user experience (catches the p99 latency on slow mobile networks in Southeast Asia that synthetic tests from AWS us-east-1 would never see).</p>
+
+                    <p><strong>Google's approach:</strong> Google uses both synthetic probes (running from every Google datacenter) and RUM (Chrome User Experience Report / CrUX) to measure Core Web Vitals. The synthetic probes provide consistent baselines; CrUX provides ground truth about real user experience across diverse conditions.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you detect and measure cascading failures?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Cascading failures occur when the failure of one component causes dependent components to fail, which causes their dependents to fail, creating a chain reaction. They are the most dangerous failure mode in distributed systems.</p>
+
+                    <p><strong>Detection signals:</strong></p>
+                    <ul>
+                        <li><strong>Error rate propagation:</strong> Errors in Service A appear in Service B and C within seconds</li>
+                        <li><strong>Latency propagation:</strong> Slowness in a downstream service causes upstream timeout cascades</li>
+                        <li><strong>Resource exhaustion cascade:</strong> Thread pool exhaustion in Service A causes connection pool exhaustion in its callers</li>
+                        <li><strong>Retry storms:</strong> Failed requests trigger retries, which multiply load, causing more failures</li>
+                    </ul>
+
+                    <p><strong>Metrics to track:</strong></p>
+                    <pre><code>1. Cross-service error correlation: If error rates in services A, B, C
+   spike within a 30-second window, flag as potential cascade.
+
+2. Retry rate amplification:
+   Normal retry rate: 2% of requests
+   Cascade signal: retry rate &gt; 20% (10x normal)
+
+3. Connection pool saturation across services:
+   If &gt; 3 services hit &gt; 80% connection pool utilization simultaneously,
+   a cascade is likely in progress.
+
+4. Circuit breaker trip rate:
+   If &gt; 2 circuit breakers trip within 1 minute, cascade is confirmed.</code></pre>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant A as API Gateway
+    participant B as Order Service
+    participant C as Payment Service
+    participant D as Database
+
+    U->>A: Place Order
+    A->>B: Create Order
+    B->>C: Process Payment
+    C->>D: Query Account
+    Note over D: DB overloaded, 5s timeout
+    D-->>C: Timeout
+    C-->>B: Timeout (propagated)
+    B->>C: Retry #1
+    C->>D: Query Account (retry)
+    Note over D: Even more overloaded due to retries
+    D-->>C: Timeout
+    Note over C: Thread pool filling up
+    C-->>B: Timeout
+    B->>C: Retry #2 (exponential backoff)
+    Note over B: Thread pool filling up
+    B-->>A: 503 Service Unavailable
+    Note over A: Connection pool exhausting
+    A-->>U: 503 Error
+    Note over A: Now ALL requests fail,<br/>not just this user's
+                        </div>
+                    </div>
+
+                    <p><strong>Prevention mechanisms (what staff engineers implement):</strong></p>
+                    <ul>
+                        <li><strong>Circuit breakers:</strong> Stop calling a failed service, return a fallback</li>
+                        <li><strong>Bulkheads:</strong> Isolate thread pools per dependency so one failing dependency cannot exhaust all threads</li>
+                        <li><strong>Load shedding:</strong> Reject requests when overloaded rather than queueing them (failing fast is better than failing slow)</li>
+                        <li><strong>Exponential backoff with jitter:</strong> Prevent retry storms from synchronizing</li>
+                        <li><strong>Timeout budgets:</strong> Propagate remaining time budget through the call chain so downstream services know how long they have</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>DORA Metrics and Deployment Health</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the DORA metrics? (Deploy frequency, Lead time, Change failure rate, MTTR)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> DORA (DevOps Research and Assessment) metrics are four key metrics that predict software delivery performance and organizational performance. They are backed by 7+ years of research from the DORA team (now part of Google Cloud).</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Metric</th><th>Definition</th><th>Elite</th><th>High</th><th>Medium</th><th>Low</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Deployment Frequency</strong></td><td>How often code is deployed to production</td><td>On-demand (multiple/day)</td><td>Weekly to monthly</td><td>Monthly to 6-monthly</td><td>Less than 6 months</td></tr>
+                            <tr><td><strong>Lead Time for Changes</strong></td><td>Time from code commit to production</td><td>&lt; 1 hour</td><td>1 day to 1 week</td><td>1 week to 1 month</td><td>&gt; 1 month</td></tr>
+                            <tr><td><strong>Change Failure Rate</strong></td><td>% of deployments causing a failure</td><td>0&ndash;15%</td><td>16&ndash;30%</td><td>16&ndash;30%</td><td>46&ndash;60%</td></tr>
+                            <tr><td><strong>MTTR</strong></td><td>Time to restore service after failure</td><td>&lt; 1 hour</td><td>&lt; 1 day</td><td>1 day to 1 week</td><td>&gt; 6 months</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key insight from DORA research:</strong> Speed and stability are <em>not</em> a tradeoff. Elite performers are both faster AND more stable. Organizations that deploy more frequently have lower change failure rates because each deployment is smaller, easier to understand, and easier to roll back.</p>
+
+                    <p><strong>How to use DORA metrics as a staff engineer:</strong></p>
+                    <ul>
+                        <li><strong>Benchmark your team:</strong> Where do you fall on the elite/high/medium/low spectrum for each metric?</li>
+                        <li><strong>Identify bottlenecks:</strong> If deployment frequency is high but lead time is long, the bottleneck is in code review or CI/CD pipeline, not deployment itself.</li>
+                        <li><strong>Track trends, not absolutes:</strong> The exact numbers matter less than whether they are improving quarter over quarter.</li>
+                        <li><strong>Use as a conversation starter:</strong> "Our change failure rate is 25%. The research says elite teams achieve &lt;15%. What would it take to get there? Probably better test coverage on the checkout path and canary deployments."</li>
+                    </ul>
+
+                    <p><strong>Warning:</strong> DORA metrics are susceptible to Goodhart's Law. If you set "deploy 10 times per day" as a target, teams will make trivial deployments. Measure DORA metrics at the org level as indicators of systemic health, not as individual team targets.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Staff+ Scenarios</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Staff+ Scenario: Your service has 99.99% availability but users are still complaining. Why?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> This is a classic case of measuring the wrong SLI. Here are the most common reasons:</p>
+
+                    <p><strong>1. You are measuring availability, not correctness:</strong></p>
+                    <p>The service returns 200 OK for 99.99% of requests, but 2% of those "successful" responses contain incorrect data. A search engine that returns results for every query (high availability) but returns irrelevant results 15% of the time (low correctness) will generate user complaints despite perfect uptime. Add a correctness SLI.</p>
+
+                    <p><strong>2. You are measuring server-side, not client-side:</strong></p>
+                    <p>The server responds in 50ms, but CDN issues, JavaScript bundle size (3MB), or slow third-party scripts (analytics, ads) make the actual user experience 8 seconds. Switch from server-side latency to Core Web Vitals (LCP, FID, CLS) measured via RUM.</p>
+
+                    <p><strong>3. Availability is high on average but terrible during peak hours:</strong></p>
+                    <p>99.99% over a month, but all the downtime (4.4 minutes) happens during the daily peak at 6 PM when 40% of users are active. From the user's perspective, the service is unreliable. Segment your SLIs by time of day and user activity patterns.</p>
+
+                    <p><strong>4. Partial degradation is not captured:</strong></p>
+                    <p>The main page loads, but the notification feed, search suggestions, or recommendations are broken. Users see a "working" page that is missing critical functionality. Add SLIs for each critical sub-component, not just the top-level endpoint.</p>
+
+                    <p><strong>5. The SLI window is too long:</strong></p>
+                    <p>A 30-day rolling window smooths out short severe outages. A 2-hour outage is only 0.28% of a 30-day window, so you might still meet 99.99%. But every user who tried to use the service during those 2 hours had a 100% failure experience. Consider shorter windows (1-hour burn rates) for alerting.</p>
+
+                    <p><strong>The meta-lesson:</strong> If users are complaining and your metrics say everything is fine, your metrics are wrong. Users do not lie about their experience. Always trust user signals over dashboard signals.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Staff+ Scenario: Two teams disagree on SLO targets. How do you resolve this?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> This is a common cross-team conflict that requires a staff engineer to navigate both technical and organizational dynamics.</p>
+
+                    <p><strong>Typical scenario:</strong> The Platform team wants a 99.9% SLO ("we need room to experiment and move fast"). The Payment team, which depends on the Platform, wants 99.99% ("every second of downtime costs us money and customer trust").</p>
+
+                    <p><strong>Resolution framework:</strong></p>
+
+                    <p><strong>Step 1: Ground the conversation in data, not opinions.</strong></p>
+                    <ul>
+                        <li>What is the Platform team's actual performance over the last 6 months? (If they're already at 99.97%, a 99.99% target is not unreasonable.)</li>
+                        <li>What is the actual cost of Platform downtime to the Payment team? Quantify in dollars.</li>
+                        <li>How much would it cost the Platform team to go from 99.9% to 99.99%? (Engineering headcount, infrastructure changes)</li>
+                    </ul>
+
+                    <p><strong>Step 2: Explore the middle ground.</strong></p>
+                    <ul>
+                        <li><strong>Tiered SLOs:</strong> 99.99% for the specific endpoints the Payment team depends on; 99.9% for everything else.</li>
+                        <li><strong>Degradation contract:</strong> "If the Platform is degraded, it will return a specific error code within 100ms so the Payment team can fall back to a cached response." This lets the Platform team have lower availability while the Payment team achieves higher reliability through graceful degradation.</li>
+                        <li><strong>Shared error budget:</strong> The Payment team's SLO should account for Platform downtime. If Platform's budget allows 43 minutes of downtime, Payment's budget should allocate time for Platform-caused failures.</li>
+                    </ul>
+
+                    <p><strong>Step 3: Escalate if needed, but with a recommendation.</strong></p>
+                    <p>If teams cannot agree, write a one-page decision document with the options, costs, and your recommended approach. Present to both teams' directors. The document should make the tradeoff explicit: "99.99% costs $X/year more and slows Platform's feature velocity by Y%. The benefit is Z% reduction in Payment-team incidents."</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you present reliability metrics to non-technical stakeholders?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Non-technical stakeholders do not care about p99 latency or error budget burn rates. They care about <strong>user impact</strong>, <strong>business risk</strong>, and <strong>cost</strong>.</p>
+
+                    <p><strong>Translation table:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Technical Metric</th><th>Business Translation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>p99 latency increased from 200ms to 800ms</td><td>"The slowest 1% of user experiences degraded. For our 10M daily users, 100K people had a noticeably slow experience each day."</td></tr>
+                            <tr><td>Error budget is 40% consumed with 20 days remaining</td><td>"We're on track to exceed our reliability commitment this month. Recommend pausing risky deployments."</td></tr>
+                            <tr><td>MTTR improved from 45 min to 12 min</td><td>"When problems occur, we now fix them 4x faster. Our worst-case customer impact dropped from 45 minutes to 12 minutes."</td></tr>
+                            <tr><td>Change failure rate is 22%</td><td>"Roughly 1 in 5 releases has an issue. Industry best practice is &lt;15%. Investing in automated testing would reduce this."</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Framework for executive presentations:</strong></p>
+                    <ol>
+                        <li><strong>Lead with business impact:</strong> "Last month's downtime affected 50K users and generated 200 support tickets, costing approximately $30K in support time and an estimated $150K in impacted transactions."</li>
+                        <li><strong>Show the trend:</strong> "This is improving &mdash; we had 90 minutes of downtime this month vs 180 minutes three months ago."</li>
+                        <li><strong>Propose next step with cost-benefit:</strong> "Investing $200K in automated failover will reduce our expected downtime by 60%, saving an estimated $500K/year in incident costs."</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Bottom navigation -->
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <a href="module-01.html" class="btn btn-secondary">&larr; Previous</a>
+                <a href="module-03.html" class="btn btn-primary">Next &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

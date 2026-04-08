@@ -1,0 +1,1437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 6: AI &amp; ML System Metrics - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Metrics</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations &amp; Mindset</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>The Metrics Mindset</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>Technical Health &amp; Reliability</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Business &amp; Product Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">System-Specific Metrics</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Cost Efficiency &amp; FinOps</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Distributed Systems Tradeoffs</a>
+                    <a href="module-06.html" class="sidebar-link active" data-module="6"><span class="sidebar-link-number">6</span>AI &amp; ML System Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Impact &amp; Thinking</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>User Experience &amp; Feedback</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Second-Order Effects</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>Tradeoff Frameworks</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Applied &amp; Interview</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Case Studies</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Metrics Culture</a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Interview Mastery</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 6: AI &amp; ML System Metrics</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Fundamental ML model metrics with formulas and when to use each</li>
+                    <li>The business cost of false positives vs false negatives</li>
+                    <li>LLM-specific metrics: TTFT, tokens/sec, cost per query</li>
+                    <li>RAG system metrics: retrieval precision, answer faithfulness, groundedness</li>
+                    <li>AI agent metrics: task completion, tool-use accuracy, cost per task</li>
+                    <li>Model drift detection and production monitoring strategies</li>
+                    <li>Fine-tuning vs RAG vs prompt engineering: a quantitative comparison</li>
+                    <li>ROI frameworks for AI features</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Classical ML Metrics</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the fundamental ML model metrics and their formulas?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> These are the building blocks of ML evaluation. Every staff engineer working with ML systems must understand these deeply, not just their definitions but when each one is the right metric to optimize.</p>
+
+                    <p><strong>The confusion matrix foundation:</strong></p>
+                    <pre><code class="language-text">                    Predicted Positive    Predicted Negative
+Actual Positive     True Positive (TP)    False Negative (FN)
+Actual Negative     False Positive (FP)   True Negative (TN)
+
+Accuracy  = (TP + TN) / (TP + TN + FP + FN)
+Precision = TP / (TP + FP)       -- "Of predicted positives, how many are correct?"
+Recall    = TP / (TP + FN)       -- "Of actual positives, how many did we catch?"
+F1 Score  = 2 * (Precision * Recall) / (Precision + Recall)  -- harmonic mean
+
+Specificity = TN / (TN + FP)    -- "Of actual negatives, how many did we correctly identify?"
+FPR = FP / (FP + TN) = 1 - Specificity  -- False Positive Rate</code></pre>
+
+                    <p><strong>AUC-ROC explained:</strong> The ROC curve plots True Positive Rate (recall) vs False Positive Rate at various classification thresholds. AUC (Area Under Curve) summarizes this as a single number from 0 to 1. AUC = 0.5 means random guessing; AUC = 1.0 means perfect separation.</p>
+
+                    <pre><code class="language-python">from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, roc_auc_score, classification_report,
+    confusion_matrix
+)
+import numpy as np
+
+def evaluate_model(y_true, y_pred, y_prob=None):
+    """Comprehensive model evaluation with business context."""
+    cm = confusion_matrix(y_true, y_pred)
+    tn, fp, fn, tp = cm.ravel()
+
+    metrics = {
+        'accuracy': accuracy_score(y_true, y_pred),
+        'precision': precision_score(y_true, y_pred),
+        'recall': recall_score(y_true, y_pred),
+        'f1': f1_score(y_true, y_pred),
+        'true_positives': int(tp),
+        'false_positives': int(fp),
+        'false_negatives': int(fn),
+        'true_negatives': int(tn),
+    }
+
+    if y_prob is not None:
+        metrics['auc_roc'] = roc_auc_score(y_true, y_prob)
+
+    # Business impact calculation
+    cost_fp = 10   # Cost of a false positive (e.g., manual review)
+    cost_fn = 1000 # Cost of a false negative (e.g., missed fraud)
+
+    metrics['total_cost'] = fp * cost_fp + fn * cost_fn
+    metrics['cost_per_prediction'] = metrics['total_cost'] / len(y_true)
+
+    return metrics</code></pre>
+
+                    <p><strong>Why accuracy is often the wrong metric:</strong> For imbalanced datasets (99% negative, 1% positive), a model that always predicts "negative" achieves 99% accuracy but 0% recall. In fraud detection with 0.1% fraud rate, accuracy is meaningless. Use precision-recall AUC or F1 instead.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: When do you optimize for precision vs recall? (real examples)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The choice depends on the relative cost of false positives vs false negatives. This is a business decision, not a technical one.</p>
+
+                    <table>
+                        <thead><tr><th>Scenario</th><th>Optimize For</th><th>Why</th><th>Acceptable Tradeoff</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Spam filter (email)</strong></td><td>Precision (avoid FP)</td><td>False positive = legitimate email in spam = missed business opportunity</td><td>Let some spam through (low recall) rather than block good email</td></tr>
+                            <tr><td><strong>Cancer screening</strong></td><td>Recall (catch all cases)</td><td>False negative = missed cancer = potentially fatal</td><td>More false positives (unnecessary biopsies) are acceptable</td></tr>
+                            <tr><td><strong>Fraud detection</strong></td><td>Recall (with precision floor)</td><td>False negative = undetected fraud = direct financial loss</td><td>Block some legitimate transactions (FP) but maintain precision &gt;50% to limit customer friction</td></tr>
+                            <tr><td><strong>Content moderation</strong></td><td>Recall (remove harmful content)</td><td>False negative = harmful content shown to users = brand/legal risk</td><td>Some over-moderation (FP) is acceptable; appeal process handles it</td></tr>
+                            <tr><td><strong>Search ranking</strong></td><td>Precision@K</td><td>Users only look at top 10 results; irrelevant results destroy trust</td><td>Missing some relevant results (low recall) is fine if top results are good</td></tr>
+                            <tr><td><strong>Autonomous driving</strong></td><td>Recall for pedestrians (near 100%)</td><td>False negative = hitting a pedestrian = catastrophic</td><td>Massive FP rate (phantom braking) is better than missing a pedestrian</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Quantified example -- fraud detection at a payment processor:</strong></p>
+                    <pre><code class="language-text">Transaction volume: 10M/day
+Fraud rate: 0.1% (10,000 fraudulent transactions/day)
+Average fraud amount: $500
+Average legitimate transaction: $75
+
+Model A (High Precision, Lower Recall):
+  Precision: 95%, Recall: 70%
+  Catches: 7,000 frauds, misses 3,000
+  False positives: 368 legitimate transactions blocked
+
+  Cost of missed fraud: 3,000 * $500 = $1,500,000/day
+  Cost of false positives: 368 * $75 * 0.3 (30% churn risk) = $8,280/day
+  Total daily cost: $1,508,280
+
+Model B (Lower Precision, High Recall):
+  Precision: 60%, Recall: 95%
+  Catches: 9,500 frauds, misses 500
+  False positives: 6,333 legitimate transactions blocked
+
+  Cost of missed fraud: 500 * $500 = $250,000/day
+  Cost of false positives: 6,333 * $75 * 0.3 = $142,493/day
+  Total daily cost: $392,493
+
+Model B saves $1.1M/day despite blocking 17x more legitimate transactions.</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the cost of a false positive vs false negative? (business impact calculation)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Assigning dollar values to prediction errors transforms ML evaluation from a technical exercise into a business decision framework. This is one of the most powerful tools a staff engineer can bring to an ML team.</p>
+
+                    <p><strong>Cost matrix framework:</strong></p>
+                    <pre><code class="language-text">Expected Cost = (FP_count * Cost_FP) + (FN_count * Cost_FN) + (TP_count * Benefit_TP)
+
+Threshold optimization:
+  For each possible classification threshold (0.0 to 1.0):
+    Calculate expected cost
+    Choose threshold that minimizes total cost
+
+  This is NOT the same as choosing threshold = 0.5!
+  If Cost_FN &gt;&gt; Cost_FP, optimal threshold is lower (catch more positives)</code></pre>
+
+                    <p><strong>Python implementation of cost-sensitive threshold optimization:</strong></p>
+                    <pre><code class="language-python">import numpy as np
+from sklearn.metrics import confusion_matrix
+
+def find_optimal_threshold(y_true, y_prob, cost_fp, cost_fn, benefit_tp=0):
+    """Find classification threshold that minimizes total business cost."""
+    thresholds = np.arange(0.01, 1.0, 0.01)
+    best_threshold = 0.5
+    min_cost = float('inf')
+
+    results = []
+    for threshold in thresholds:
+        y_pred = (y_prob &gt;= threshold).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+
+        total_cost = (fp * cost_fp) + (fn * cost_fn) - (tp * benefit_tp)
+        results.append({
+            'threshold': round(threshold, 2),
+            'cost': total_cost,
+            'precision': tp / (tp + fp) if (tp + fp) &gt; 0 else 0,
+            'recall': tp / (tp + fn) if (tp + fn) &gt; 0 else 0,
+        })
+
+        if total_cost &lt; min_cost:
+            min_cost = total_cost
+            best_threshold = threshold
+
+    return best_threshold, min_cost, results
+
+# Example: Fraud detection
+# Cost of false positive: $10 (manual review + customer friction)
+# Cost of false negative: $500 (average fraud loss)
+# optimal_threshold, min_cost, _ = find_optimal_threshold(
+#     y_true, y_prob, cost_fp=10, cost_fn=500
+# )
+# Typically results in threshold around 0.02-0.10 (very aggressive fraud catching)</code></pre>
+
+                    <p><strong>Industry cost benchmarks:</strong></p>
+                    <table>
+                        <thead><tr><th>Domain</th><th>Cost of FP</th><th>Cost of FN</th><th>Ratio (FN/FP)</th><th>Optimal Strategy</th></tr></thead>
+                        <tbody>
+                            <tr><td>Email spam</td><td>$50 (lost business email)</td><td>$0.01 (spam in inbox)</td><td>0.0002</td><td>Very high precision threshold</td></tr>
+                            <tr><td>Credit card fraud</td><td>$10 (review cost)</td><td>$500 (fraud loss)</td><td>50</td><td>Low threshold, catch more</td></tr>
+                            <tr><td>Medical diagnosis</td><td>$500 (unnecessary procedure)</td><td>$100,000 (missed disease)</td><td>200</td><td>Very low threshold, high recall</td></tr>
+                            <tr><td>Ad click prediction</td><td>$0.001 (wasted impression)</td><td>$0.01 (missed click revenue)</td><td>10</td><td>Moderate threshold</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is model drift and how do you detect it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Model drift occurs when the statistical properties of the data or the relationship between features and targets change over time, causing model performance to degrade. There are three types of drift, each with different detection methods.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Model Drift"] --> B["Data Drift<br/>(feature distribution changes)<br/>e.g., user demographics shift"]
+    A --> C["Concept Drift<br/>(relationship changes)<br/>e.g., fraud patterns evolve"]
+    A --> D["Prediction Drift<br/>(output distribution changes)<br/>e.g., model predicts 'positive' more often"]
+    B --> E["Detection: KS test,<br/>PSI, Jensen-Shannon divergence"]
+    C --> F["Detection: Performance<br/>monitoring, label comparison"]
+    D --> G["Detection: Output distribution<br/>monitoring, confidence calibration"]
+    style A fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style B fill:#fcd34d,stroke:#f59e0b,color:#000
+    style C fill:#fca5a5,stroke:#dc2626,color:#000
+    style D fill:#c4b5fd,stroke:#7c3aed,color:#000
+                        </div>
+                    </div>
+
+                    <p><strong>Detection methods with implementation:</strong></p>
+                    <pre><code class="language-python">from scipy import stats
+import numpy as np
+
+def detect_data_drift(reference_data, current_data, feature_name, threshold=0.05):
+    """Detect data drift using Kolmogorov-Smirnov test."""
+    statistic, p_value = stats.ks_2samp(reference_data, current_data)
+
+    return {
+        'feature': feature_name,
+        'ks_statistic': round(statistic, 4),
+        'p_value': round(p_value, 6),
+        'drift_detected': p_value &lt; threshold,
+        'severity': 'high' if statistic &gt; 0.2 else 'medium' if statistic &gt; 0.1 else 'low'
+    }
+
+def population_stability_index(expected, actual, bins=10):
+    """Calculate PSI to measure distribution shift.
+    PSI &lt; 0.1: No significant shift
+    PSI 0.1-0.25: Moderate shift, investigate
+    PSI &gt; 0.25: Significant shift, retrain
+    """
+    expected_pct = np.histogram(expected, bins=bins)[0] / len(expected)
+    actual_pct = np.histogram(actual, bins=bins)[0] / len(actual)
+
+    # Avoid division by zero
+    expected_pct = np.clip(expected_pct, 0.001, None)
+    actual_pct = np.clip(actual_pct, 0.001, None)
+
+    psi = np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct))
+    return round(psi, 4)</code></pre>
+
+                    <p><strong>Real-world drift examples:</strong></p>
+                    <ul>
+                        <li><strong>COVID-19 (2020):</strong> Every e-commerce, travel, and financial model drifted massively. Purchase patterns, fraud patterns, and credit risk all changed overnight. Companies that had drift detection caught this in days; others discovered it in quarterly reviews.</li>
+                        <li><strong>Seasonal drift:</strong> A retail demand forecasting model trained on summer data will drift every winter. Solution: include seasonality features or retrain quarterly.</li>
+                        <li><strong>Feature pipeline failures:</strong> A feature that stops updating (always returns the same value) causes silent drift. The model still produces outputs, just increasingly wrong ones. Monitor feature freshness alongside model performance.</li>
+                    </ul>
+
+                    <p><strong>Monitoring cadence:</strong> Run drift detection daily for high-stakes models (fraud, pricing), weekly for medium-stakes (recommendations, search ranking), and monthly for low-stakes (internal analytics). Alert on PSI &gt; 0.1 and auto-trigger retraining pipeline at PSI &gt; 0.25.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure model fairness and bias?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Model fairness is both an ethical imperative and a regulatory requirement (EU AI Act, US algorithmic accountability proposals). Staff engineers must build fairness metrics into every ML pipeline that affects people.</p>
+
+                    <p><strong>Key fairness metrics:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Definition</th><th>Formula</th><th>When to Use</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Demographic Parity</strong></td><td>Prediction rate is equal across groups</td><td>P(Y_hat=1|A=a) = P(Y_hat=1|A=b)</td><td>When selection rate should be independent of protected attribute</td></tr>
+                            <tr><td><strong>Equalized Odds</strong></td><td>TPR and FPR are equal across groups</td><td>TPR_a = TPR_b AND FPR_a = FPR_b</td><td>When errors should be equally distributed</td></tr>
+                            <tr><td><strong>Predictive Parity</strong></td><td>Precision is equal across groups</td><td>Precision_a = Precision_b</td><td>When positive predictions should be equally reliable</td></tr>
+                            <tr><td><strong>Calibration</strong></td><td>Predicted probabilities match actual rates per group</td><td>P(Y=1|score=s, A=a) = P(Y=1|score=s, A=b)</td><td>When risk scores are used for decision-making</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Important impossibility result:</strong> Choquet-Deny theorem shows that except in trivial cases, you cannot simultaneously achieve demographic parity, equalized odds, and predictive parity. You must choose which fairness criterion matters most for your use case.</p>
+
+                    <pre><code class="language-python">def fairness_metrics(y_true, y_pred, sensitive_attr):
+    """Calculate fairness metrics across a sensitive attribute."""
+    groups = np.unique(sensitive_attr)
+    results = {}
+
+    for group in groups:
+        mask = sensitive_attr == group
+        y_t = y_true[mask]
+        y_p = y_pred[mask]
+
+        tp = np.sum((y_t == 1) &amp; (y_p == 1))
+        fp = np.sum((y_t == 0) &amp; (y_p == 1))
+        fn = np.sum((y_t == 1) &amp; (y_p == 0))
+        tn = np.sum((y_t == 0) &amp; (y_p == 0))
+
+        results[group] = {
+            'selection_rate': np.mean(y_p),  # demographic parity check
+            'tpr': tp / (tp + fn) if (tp + fn) &gt; 0 else 0,  # equalized odds
+            'fpr': fp / (fp + tn) if (fp + tn) &gt; 0 else 0,  # equalized odds
+            'precision': tp / (tp + fp) if (tp + fp) &gt; 0 else 0,  # predictive parity
+        }
+
+    # Disparate impact ratio (4/5 rule: ratio should be &gt; 0.8)
+    rates = [r['selection_rate'] for r in results.values()]
+    results['disparate_impact_ratio'] = min(rates) / max(rates) if max(rates) &gt; 0 else 0
+
+    return results</code></pre>
+
+                    <p><strong>The 4/5 (80%) rule:</strong> A widely used legal standard (US EEOC guidelines). If the selection rate for a protected group is less than 80% of the rate for the highest group, there is evidence of adverse impact. For example, if a hiring model selects 50% of Group A but only 35% of Group B, the ratio is 35/50 = 70%, which is below 80% and flags potential bias.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>LLM-Specific Metrics</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are LLM-specific metrics? (TTFT, tokens/sec, total latency, cost per query)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> LLMs have a unique performance profile because they generate output tokens sequentially. This creates metrics that do not exist in traditional ML systems.</p>
+
+                    <table>
+                        <thead><tr><th>Metric</th><th>Definition</th><th>Good Target</th><th>Why It Matters</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>TTFT (Time to First Token)</strong></td><td>Time from request to first output token</td><td>&lt;500ms</td><td>User perception of responsiveness; dominated by prompt processing time</td></tr>
+                            <tr><td><strong>TPS (Tokens per Second)</strong></td><td>Output token generation rate</td><td>&gt;30 tok/s for streaming</td><td>Determines perceived speed of completion</td></tr>
+                            <tr><td><strong>Total Latency</strong></td><td>TTFT + (output_tokens / TPS)</td><td>Varies by use case</td><td>End-to-end response time</td></tr>
+                            <tr><td><strong>Input Token Count</strong></td><td>Tokens in the prompt</td><td>Minimize while maintaining quality</td><td>Directly impacts cost and TTFT</td></tr>
+                            <tr><td><strong>Output Token Count</strong></td><td>Tokens generated</td><td>Right-sized for task</td><td>Directly impacts cost and total latency</td></tr>
+                            <tr><td><strong>Cost per Query</strong></td><td>Input tokens * price + Output tokens * price</td><td>&lt;$0.01 for most apps</td><td>Determines unit economics viability</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Latency breakdown for a typical LLM query:</strong></p>
+                    <pre><code class="language-text">User sends a 2000-token prompt, receives 500-token response:
+
+TTFT breakdown:
+  Network latency (client to API):          ~50ms
+  Prompt tokenization:                      ~5ms
+  Prompt processing (prefill):              ~200ms (2000 tokens at ~10K tok/s)
+  First token generation:                   ~30ms
+  Network latency (API to client):          ~50ms
+  Total TTFT:                               ~335ms
+
+Streaming phase:
+  500 tokens at 40 tok/s:                   ~12.5 seconds
+
+Total wall-clock time:                      ~12.8 seconds
+Total latency (non-streaming):              ~12.8 seconds
+Perceived latency (streaming):              ~335ms to first token, then continuous flow</code></pre>
+
+                    <p><strong>Why streaming matters:</strong> Without streaming, the user waits 12.8 seconds for any response. With streaming, they see the first token at 335ms and read as the response generates. This dramatically changes perceived performance without changing actual compute time.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you calculate the cost of an LLM API call?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> LLM pricing is based on token count, with different rates for input and output tokens. Output tokens are typically 2-6x more expensive because they require sequential generation.</p>
+
+                    <p><strong>Current pricing comparison (as of early 2025):</strong></p>
+                    <table>
+                        <thead><tr><th>Model</th><th>Input (per 1M tokens)</th><th>Output (per 1M tokens)</th><th>Context Window</th></tr></thead>
+                        <tbody>
+                            <tr><td>GPT-4o</td><td>$2.50</td><td>$10.00</td><td>128K</td></tr>
+                            <tr><td>GPT-4o-mini</td><td>$0.15</td><td>$0.60</td><td>128K</td></tr>
+                            <tr><td>Claude 3.5 Sonnet</td><td>$3.00</td><td>$15.00</td><td>200K</td></tr>
+                            <tr><td>Claude 3 Haiku</td><td>$0.25</td><td>$1.25</td><td>200K</td></tr>
+                            <tr><td>Gemini 1.5 Pro</td><td>$1.25</td><td>$5.00</td><td>1M</td></tr>
+                            <tr><td>Llama 3.1 70B (self-hosted)</td><td>~$0.50</td><td>~$0.50</td><td>128K</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Cost calculation with code:</strong></p>
+                    <pre><code class="language-python">def calculate_llm_cost(
+    input_tokens: int,
+    output_tokens: int,
+    model: str = "gpt-4o"
+) -&gt; dict:
+    """Calculate cost of an LLM API call."""
+    pricing = {
+        "gpt-4o":          {"input": 2.50,  "output": 10.00},
+        "gpt-4o-mini":     {"input": 0.15,  "output": 0.60},
+        "claude-sonnet":   {"input": 3.00,  "output": 15.00},
+        "claude-haiku":    {"input": 0.25,  "output": 1.25},
+    }
+
+    rates = pricing[model]
+    input_cost = (input_tokens / 1_000_000) * rates["input"]
+    output_cost = (output_tokens / 1_000_000) * rates["output"]
+    total = input_cost + output_cost
+
+    return {
+        "model": model,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "input_cost": f"${input_cost:.6f}",
+        "output_cost": f"${output_cost:.6f}",
+        "total_cost": f"${total:.6f}",
+        "cost_per_1k_queries": f"${total * 1000:.2f}",
+    }
+
+# Example: Customer support chatbot
+# Average query: 800 input tokens (system prompt + user message + context)
+# Average response: 200 output tokens
+# result = calculate_llm_cost(800, 200, "gpt-4o-mini")
+# total_cost = $0.000240 per query = $0.24 per 1,000 queries</code></pre>
+
+                    <p><strong>Monthly cost projection for a production chatbot:</strong></p>
+                    <pre><code class="language-text">Chatbot handling 100,000 queries/day:
+
+Using GPT-4o (high quality):
+  Per query: 800 input + 200 output
+  Cost: (800/1M * $2.50) + (200/1M * $10.00) = $0.002 + $0.002 = $0.004/query
+  Daily: 100,000 * $0.004 = $400/day
+  Monthly: $12,000
+
+Using GPT-4o-mini (cost-optimized):
+  Cost: (800/1M * $0.15) + (200/1M * $0.60) = $0.00012 + $0.00012 = $0.00024/query
+  Daily: 100,000 * $0.00024 = $24/day
+  Monthly: $720
+
+Savings with GPT-4o-mini: $11,280/month (94% reduction)
+Quality tradeoff: ~5-10% lower quality on complex queries</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are hallucination metrics and how do you measure them?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Hallucinations are outputs that are fluent and confident but factually incorrect or unsupported by the provided context. Measuring them is one of the hardest problems in LLM evaluation.</p>
+
+                    <p><strong>Types of hallucination:</strong></p>
+                    <table>
+                        <thead><tr><th>Type</th><th>Definition</th><th>Example</th><th>Detection Method</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Intrinsic hallucination</strong></td><td>Contradicts the source material</td><td>Document says "revenue grew 10%", LLM says "revenue grew 25%"</td><td>NLI (Natural Language Inference) against source</td></tr>
+                            <tr><td><strong>Extrinsic hallucination</strong></td><td>Adds information not in source</td><td>Document mentions a company, LLM adds a founding date not in context</td><td>Faithfulness scoring against provided context</td></tr>
+                            <tr><td><strong>Fabrication</strong></td><td>Invents facts, citations, URLs</td><td>"According to Smith et al. (2023)..." when no such paper exists</td><td>Entity and citation verification</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key metrics:</strong></p>
+                    <pre><code class="language-text">Faithfulness = (claims in response supported by context) / (total claims in response)
+  Target: &gt;0.95 for factual applications
+
+Groundedness = (sentences grounded in provided documents) / (total sentences)
+  Target: &gt;0.90 for RAG systems
+
+Hallucination Rate = 1 - Faithfulness
+  Industry benchmarks:
+    GPT-4 (vanilla): ~5-15% hallucination rate
+    GPT-4 + RAG:     ~2-5% hallucination rate
+    GPT-4 + RAG + guardrails: ~0.5-2% hallucination rate</code></pre>
+
+                    <p><strong>Automated hallucination detection pipeline:</strong></p>
+                    <pre><code class="language-python">from openai import OpenAI
+
+def check_faithfulness(context: str, response: str) -&gt; dict:
+    """Use model-as-judge to evaluate faithfulness of a response."""
+    client = OpenAI()
+
+    judge_prompt = f"""You are a factual accuracy evaluator.
+
+Given the context below and a response, identify every factual claim
+in the response and check if it is supported by the context.
+
+Context:
+{context}
+
+Response to evaluate:
+{response}
+
+For each claim, output:
+- claim: the factual statement
+- supported: true/false
+- evidence: the supporting text from context, or "not found"
+
+Then provide:
+- faithfulness_score: (supported claims / total claims)
+- hallucinated_claims: list of unsupported claims
+
+Output as JSON."""
+
+    result = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": judge_prompt}],
+        response_format={"type": "json_object"},
+    )
+
+    return result.choices[0].message.content</code></pre>
+
+                    <p><strong>Cost of hallucinations in production:</strong> A legal tech startup found that a 3% hallucination rate in their contract review tool led to 12% of users losing trust and canceling within 3 months. In healthcare applications, even 0.1% hallucination rate can have life-threatening consequences. The acceptable hallucination rate depends entirely on the domain and the downstream impact of incorrect information.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>RAG &amp; Agent Metrics</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are RAG-specific metrics? (context relevance, answer faithfulness, retrieval precision/recall)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> RAG (Retrieval-Augmented Generation) systems have two phases -- retrieval and generation -- each with distinct metrics. Failures in either phase manifest differently.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    A["User Query"] --> B["Retriever"]
+    B --> C["Retrieved Chunks<br/>(k=5)"]
+    C --> D["LLM Generator"]
+    D --> E["Response"]
+
+    F["Retrieval Metrics:<br/>- Context Precision<br/>- Context Recall<br/>- MRR, NDCG"] -.-> B
+    G["Generation Metrics:<br/>- Faithfulness<br/>- Answer Relevancy<br/>- Hallucination Rate"] -.-> D
+    H["End-to-End:<br/>- Answer Correctness<br/>- User Satisfaction<br/>- Cost per Query"] -.-> E
+
+    style F fill:#fcd34d,stroke:#f59e0b,color:#000
+    style G fill:#93c5fd,stroke:#3b82f6,color:#000
+    style H fill:#86efac,stroke:#22c55e,color:#000
+                        </div>
+                    </div>
+
+                    <p><strong>Retrieval metrics:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>What It Measures</th><th>Formula</th><th>Target</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Context Precision@K</strong></td><td>Are the top-K retrieved chunks relevant?</td><td>Relevant chunks in top K / K</td><td>&gt;0.8 at K=5</td></tr>
+                            <tr><td><strong>Context Recall</strong></td><td>Did we retrieve all necessary information?</td><td>Relevant chunks retrieved / total relevant chunks</td><td>&gt;0.9</td></tr>
+                            <tr><td><strong>MRR (Mean Reciprocal Rank)</strong></td><td>Where does the first relevant result appear?</td><td>1/rank of first relevant result</td><td>&gt;0.7</td></tr>
+                            <tr><td><strong>NDCG</strong></td><td>Are more relevant results ranked higher?</td><td>DCG / ideal DCG</td><td>&gt;0.8</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Generation metrics:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>What It Measures</th><th>Target</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Faithfulness</strong></td><td>Does the answer only use information from retrieved context?</td><td>&gt;0.95</td></tr>
+                            <tr><td><strong>Answer Relevancy</strong></td><td>Does the answer actually address the user's question?</td><td>&gt;0.90</td></tr>
+                            <tr><td><strong>Answer Completeness</strong></td><td>Does the answer cover all aspects of the question?</td><td>&gt;0.85</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Diagnosing RAG failures:</strong></p>
+                    <pre><code class="language-text">Failure Mode 1: Low faithfulness, good retrieval
+  Symptom: Relevant chunks retrieved but answer hallucinates
+  Root cause: LLM ignoring context or adding information
+  Fix: Stronger system prompt, lower temperature, use extracted quotes
+
+Failure Mode 2: Low relevancy, poor retrieval
+  Symptom: Retrieved chunks are off-topic
+  Root cause: Embedding model mismatch, poor chunking strategy
+  Fix: Re-embed with domain-tuned model, improve chunk boundaries
+
+Failure Mode 3: Good retrieval, incomplete answer
+  Symptom: Relevant info is in chunks but not reflected in answer
+  Root cause: Too many chunks (context overload) or key info in middle
+  Fix: Reduce K, rerank to put best chunks first (lost-in-the-middle effect)</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you build an eval framework for LLMs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> An LLM eval framework is the most critical infrastructure for any LLM-powered product. Without it, you cannot measure quality, detect regressions, or confidently ship changes.</p>
+
+                    <p><strong>Three layers of evaluation:</strong></p>
+                    <table>
+                        <thead><tr><th>Layer</th><th>Method</th><th>Speed</th><th>Accuracy</th><th>Cost</th><th>When to Use</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Unit evals</strong></td><td>Automated assertions, regex, semantic similarity</td><td>Seconds</td><td>Low-Medium</td><td>~$0</td><td>Every commit, CI/CD</td></tr>
+                            <tr><td><strong>Model-as-judge</strong></td><td>GPT-4/Claude evaluates outputs against rubric</td><td>Minutes</td><td>Medium-High</td><td>~$0.01/eval</td><td>Daily, pre-deploy</td></tr>
+                            <tr><td><strong>Human eval</strong></td><td>Domain experts rate outputs</td><td>Hours-Days</td><td>Highest</td><td>$1-10/eval</td><td>Weekly, before major releases</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Eval dataset structure:</strong></p>
+                    <pre><code class="language-python">eval_dataset = [
+    {
+        "id": "support-001",
+        "input": "How do I reset my password?",
+        "context": "Users can reset passwords at settings &gt; security &gt; reset password...",
+        "expected_output": None,  # For open-ended generation
+        "rubric": {
+            "mentions_settings_page": {"weight": 0.3, "type": "contains"},
+            "provides_step_by_step": {"weight": 0.3, "type": "judge"},
+            "tone_is_helpful": {"weight": 0.2, "type": "judge"},
+            "no_hallucination": {"weight": 0.2, "type": "faithfulness"},
+        },
+        "tags": ["password", "easy", "common"],
+    },
+    # ... 200-500 examples covering edge cases, common queries, adversarial inputs
+]
+
+def run_eval_suite(model_fn, dataset, judge_model="gpt-4o"):
+    """Run evaluation suite and return aggregate metrics."""
+    results = []
+    for example in dataset:
+        output = model_fn(example["input"], example.get("context"))
+
+        scores = {}
+        for criterion, config in example["rubric"].items():
+            if config["type"] == "contains":
+                scores[criterion] = 1.0 if criterion_text_in(output) else 0.0
+            elif config["type"] == "judge":
+                scores[criterion] = model_judge(output, criterion, judge_model)
+            elif config["type"] == "faithfulness":
+                scores[criterion] = faithfulness_check(output, example["context"])
+
+        weighted_score = sum(
+            scores[k] * example["rubric"][k]["weight"]
+            for k in scores
+        )
+        results.append({"id": example["id"], "score": weighted_score, **scores})
+
+    return {
+        "mean_score": np.mean([r["score"] for r in results]),
+        "pass_rate": np.mean([r["score"] &gt;= 0.8 for r in results]),
+        "results": results,
+    }</code></pre>
+
+                    <p><strong>Staff-level insight:</strong> The eval dataset is your product specification. Invest heavily in curating it. A 500-example eval set with well-defined rubrics is more valuable than the model itself, because it lets you confidently evaluate every model change, prompt update, and RAG improvement. Budget 2-3 engineering weeks to build the initial eval set and 2-4 hours/week to maintain it.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure agent task completion rate?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> AI agents (LLMs that use tools and take multi-step actions) require metrics beyond traditional LLM evaluation because they operate in a loop with real-world side effects.</p>
+
+                    <p><strong>Agent metric taxonomy:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Definition</th><th>Target</th><th>Measurement</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Task Completion Rate</strong></td><td>% of tasks fully completed correctly</td><td>&gt;85%</td><td>Human validation of final state</td></tr>
+                            <tr><td><strong>Partial Success Rate</strong></td><td>% of tasks partially completed</td><td>Track as diagnostic</td><td>Rubric scoring (0-1 per sub-task)</td></tr>
+                            <tr><td><strong>Tool Use Accuracy</strong></td><td>% of tool calls with correct parameters</td><td>&gt;95%</td><td>Validate tool inputs against schema</td></tr>
+                            <tr><td><strong>Steps to Completion</strong></td><td>Average number of actions taken</td><td>Minimize (close to optimal path)</td><td>Log action count per task</td></tr>
+                            <tr><td><strong>Error Recovery Rate</strong></td><td>% of errors the agent recovers from</td><td>&gt;70%</td><td>Track retry success after tool failure</td></tr>
+                            <tr><td><strong>Cost per Task</strong></td><td>Total token cost for all agent steps</td><td>Below business value of task</td><td>Sum token costs across all LLM calls</td></tr>
+                            <tr><td><strong>Wall-Clock Time</strong></td><td>Total time from task start to completion</td><td>Faster than human alternative</td><td>Timestamp delta</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Failure taxonomy for agents:</strong></p>
+                    <pre><code class="language-text">Agent Failure Types (in order of frequency):
+
+1. Planning Failure (30% of failures)
+   - Agent takes wrong approach to solve the task
+   - Example: Searches wrong database, uses wrong API
+   - Detection: Trajectory analysis against optimal path
+
+2. Tool Use Failure (25%)
+   - Correct tool, wrong parameters
+   - Example: SQL query with wrong column name
+   - Detection: Tool execution error rate
+
+3. Hallucination in Reasoning (20%)
+   - Agent reasons incorrectly about intermediate results
+   - Example: Misinterprets API response, wrong arithmetic
+   - Detection: Intermediate state validation
+
+4. Infinite Loop / Stuck (15%)
+   - Agent repeats the same action or cannot progress
+   - Detection: Action repetition count, timeout
+
+5. Context Window Overflow (10%)
+   - Multi-step tasks exceed context, agent loses early information
+   - Detection: Token count monitoring, summarization degradation</code></pre>
+
+                    <p><strong>Benchmarking framework:</strong> Use task suites like SWE-bench (software engineering tasks), WebArena (web browsing tasks), or custom domain-specific task sets. Run weekly to detect regression. A 2% drop in task completion rate after a model or prompt change should block deployment.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Cost, Quality &amp; Architecture Tradeoffs</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the accuracy-latency-cost triangle for AI systems?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Similar to distributed systems, AI systems face a three-way tradeoff. You can optimize any two at the expense of the third.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Accuracy / Quality<br/>(better model, more context)"] --- B["Latency<br/>(faster response)"]
+    B --- C["Cost<br/>(lower infrastructure spend)"]
+    C --- A
+    style A fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style B fill:#22c55e,stroke:#16a34a,color:#fff
+    style C fill:#f59e0b,stroke:#d97706,color:#fff
+                        </div>
+                    </div>
+
+                    <p><strong>Concrete examples:</strong></p>
+                    <table>
+                        <thead><tr><th>Configuration</th><th>Quality</th><th>Latency (TTFT)</th><th>Cost/query</th><th>Use Case</th></tr></thead>
+                        <tbody>
+                            <tr><td>GPT-4o + RAG (10 chunks)</td><td>Highest (95%)</td><td>~2s</td><td>$0.015</td><td>Legal analysis, medical</td></tr>
+                            <tr><td>Claude Haiku + RAG (3 chunks)</td><td>Good (85%)</td><td>~500ms</td><td>$0.001</td><td>Customer support chatbot</td></tr>
+                            <tr><td>Fine-tuned Llama 70B</td><td>Good (87%)</td><td>~800ms</td><td>$0.0005</td><td>Internal tools, high volume</td></tr>
+                            <tr><td>Cached response (semantic match)</td><td>Varies</td><td>~10ms</td><td>~$0</td><td>FAQ-like queries</td></tr>
+                            <tr><td>GPT-4o-mini, no RAG</td><td>Moderate (75%)</td><td>~300ms</td><td>$0.0003</td><td>Simple Q&A, creative writing</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>The routing optimization:</strong> The best production systems do not use a single configuration. They route queries to different models/pipelines based on complexity:</p>
+                    <pre><code class="language-text">Query Router:
+  Simple queries (60% of volume):  --&gt; Cached response or GPT-4o-mini
+  Medium queries (30% of volume):  --&gt; Claude Haiku + RAG (3 chunks)
+  Complex queries (10% of volume): --&gt; GPT-4o + RAG (10 chunks) + reranking
+
+Blended cost: 0.6 * $0.0001 + 0.3 * $0.001 + 0.1 * $0.015 = $0.00196/query
+vs. all GPT-4o + RAG: $0.015/query
+Savings: 87% cost reduction with ~5% quality impact</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you compare fine-tuning vs RAG vs prompt engineering?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> This is one of the most common architectural decisions in AI engineering. Each approach has fundamentally different cost structures, quality ceilings, and maintenance burdens.</p>
+
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Prompt Engineering</th><th>RAG</th><th>Fine-Tuning</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Upfront cost</strong></td><td>~$0 (engineer time only)</td><td>$5K-$50K (embedding pipeline, vector DB)</td><td>$10K-$500K (data prep, training compute)</td></tr>
+                            <tr><td><strong>Ongoing cost/query</strong></td><td>Higher (longer prompts)</td><td>Medium (retrieval + generation)</td><td>Lower (shorter prompts, specialized model)</td></tr>
+                            <tr><td><strong>Quality ceiling</strong></td><td>Limited by model's training data</td><td>Can incorporate any external knowledge</td><td>High for narrow domain, limited for general</td></tr>
+                            <tr><td><strong>Freshness</strong></td><td>Limited to training cutoff</td><td>Real-time (update index anytime)</td><td>Stale (requires retraining)</td></tr>
+                            <tr><td><strong>Hallucination control</strong></td><td>Moderate (prompt tricks)</td><td>Good (grounded in retrieved docs)</td><td>Variable (depends on training data quality)</td></tr>
+                            <tr><td><strong>Development time</strong></td><td>Hours to days</td><td>Weeks</td><td>Weeks to months</td></tr>
+                            <tr><td><strong>Maintenance</strong></td><td>Low</td><td>Medium (index updates, chunk tuning)</td><td>High (retraining, data pipeline, eval)</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Prototyping, simple tasks</td><td>Knowledge-heavy apps, customer support</td><td>High-volume, specific format, brand voice</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Decision tree:</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Does the model need<br/>domain-specific knowledge?"] -->|No| B["Prompt Engineering"]
+    A -->|Yes| C{"Does the knowledge<br/>change frequently?"}
+    C -->|Yes| D["RAG"]
+    C -->|No| E{"Volume &gt; 100K<br/>queries/day?"}
+    E -->|No| D
+    E -->|Yes| F{"Need specific<br/>output format/style?"}
+    F -->|Yes| G["Fine-Tuning + RAG"]
+    F -->|No| D
+    style B fill:#86efac,stroke:#22c55e,color:#000
+    style D fill:#93c5fd,stroke:#3b82f6,color:#000
+    style G fill:#fcd34d,stroke:#f59e0b,color:#000
+                        </div>
+                    </div>
+
+                    <p><strong>Quantified cost comparison for 1M queries/month:</strong></p>
+                    <pre><code class="language-text">Use case: Customer support for a 500-article knowledge base
+
+Prompt Engineering (stuff full KB in context):
+  Not feasible -- 500 articles exceed context window
+
+RAG (Claude Haiku + Pinecone):
+  Vector DB: $70/mo (Pinecone starter)
+  Embedding: 1M queries * 100 tokens * $0.0001/1K = $10/mo
+  LLM: 1M * (500 input + 200 output) * Haiku pricing = $375/mo
+  Total: ~$455/mo
+
+Fine-Tuned Llama 70B (self-hosted, 2x A100):
+  GPU cost: 2 * $2.50/hr * 730 = $3,650/mo
+  Training (quarterly): ~$500/quarter = $167/mo
+  Engineering maintenance: 0.1 FTE = $2,500/mo
+  Total: ~$6,317/mo
+
+Fine-Tuned + RAG (best quality):
+  Fine-tuned model on A100: $3,650/mo
+  Vector DB + embedding: $80/mo
+  Training + maintenance: $2,667/mo
+  Total: ~$6,397/mo
+
+Winner for &lt;5M queries/mo: RAG with hosted model
+Crossover point: ~10M queries/mo (where self-hosted GPU becomes cheaper)</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the cost of training vs inference? (with real numbers)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Training is a one-time (or periodic) cost; inference is an ongoing cost that scales with usage. For most companies, inference cost dominates total AI spend by 10-100x.</p>
+
+                    <table>
+                        <thead><tr><th>Model Scale</th><th>Training Cost (est.)</th><th>Inference Cost (per 1M tokens)</th><th>Breakeven Volume</th></tr></thead>
+                        <tbody>
+                            <tr><td>7B parameters (Llama 3 7B)</td><td>~$100K-$500K</td><td>~$0.05 (self-hosted)</td><td>N/A (use API unless &gt;10M queries/mo)</td></tr>
+                            <tr><td>70B parameters (Llama 3 70B)</td><td>~$2M-$5M</td><td>~$0.50 (self-hosted)</td><td>N/A for most companies</td></tr>
+                            <tr><td>GPT-4 scale (1.8T+ params)</td><td>~$100M+</td><td>$2.50-$10.00 (API)</td><td>Only viable for hyperscalers</td></tr>
+                            <tr><td>Fine-tune 7B on 10K examples</td><td>~$50-$500</td><td>Same as base model</td><td>Almost always worth it if quality improves</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>The inference cost dominance:</strong></p>
+                    <pre><code class="language-text">Company serving 10M LLM queries/day via GPT-4o API:
+
+Annual API cost:
+  10M queries * 700 avg tokens * $5.00/1M tokens = $35,000/day
+  Annual: $12.8M
+
+vs. Training a similar model:
+  ~$100M one-time (but most companies cannot do this)
+
+vs. Fine-tuning an open model + self-hosting:
+  Fine-tuning: $500 one-time
+  8x A100 cluster: $7,300/mo (spot) = $87,600/year
+  Engineering: 0.5 FTE = $150,000/year
+  Total: ~$238,100/year
+
+  Savings vs API: $12.56M/year (98% reduction)
+  But: Quality may be 10-20% lower for complex tasks</code></pre>
+
+                    <p><strong>Staff-level insight:</strong> For most companies with &lt;1M queries/day, API-based inference is cheaper than self-hosting when you factor in engineering time. The crossover point where self-hosting becomes economical is approximately 2-5M queries/day, assuming you have the GPU/ML engineering expertise. Without that expertise, the engineering cost of self-hosting can easily exceed the API savings.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure and reduce AI infrastructure costs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> AI infrastructure cost optimization has unique levers beyond traditional cloud optimization.</p>
+
+                    <p><strong>Cost reduction strategies ranked by impact:</strong></p>
+                    <table>
+                        <thead><tr><th>Strategy</th><th>Effort</th><th>Savings</th><th>Quality Impact</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Semantic caching</strong></td><td>Low (1-2 weeks)</td><td>30-60%</td><td>None (identical responses for similar queries)</td></tr>
+                            <tr><td><strong>Model routing (small for easy, large for hard)</strong></td><td>Medium (2-4 weeks)</td><td>40-70%</td><td>Minimal (&lt;5% quality drop)</td></tr>
+                            <tr><td><strong>Prompt optimization (reduce tokens)</strong></td><td>Low (days)</td><td>20-40%</td><td>None if done carefully</td></tr>
+                            <tr><td><strong>Batching requests</strong></td><td>Low (1 week)</td><td>20-30%</td><td>Adds latency (~100ms-1s)</td></tr>
+                            <tr><td><strong>Model distillation</strong></td><td>High (1-2 months)</td><td>50-80%</td><td>5-15% quality drop</td></tr>
+                            <tr><td><strong>Quantization (INT8/INT4)</strong></td><td>Low (days)</td><td>50-75% of GPU memory</td><td>1-3% quality drop</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Semantic caching implementation:</strong></p>
+                    <pre><code class="language-python">import hashlib
+import numpy as np
+from redis import Redis
+
+class SemanticCache:
+    """Cache LLM responses for semantically similar queries."""
+
+    def __init__(self, embedding_fn, redis_client: Redis, similarity_threshold=0.95):
+        self.embed = embedding_fn
+        self.redis = redis_client
+        self.threshold = similarity_threshold
+
+    def get(self, query: str):
+        """Check if a semantically similar query has been cached."""
+        query_embedding = self.embed(query)
+
+        # Search for similar embeddings in cache
+        # In production, use a vector DB (Pinecone, pgvector) for this
+        cached_keys = self.redis.keys("cache:*")
+        for key in cached_keys:
+            cached = self.redis.hgetall(key)
+            cached_embedding = np.frombuffer(cached[b'embedding'], dtype=np.float32)
+            similarity = np.dot(query_embedding, cached_embedding) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(cached_embedding)
+            )
+            if similarity &gt;= self.threshold:
+                return cached[b'response'].decode()
+        return None
+
+    def set(self, query: str, response: str, ttl_seconds=3600):
+        """Cache a query-response pair."""
+        embedding = self.embed(query)
+        key = f"cache:{hashlib.md5(query.encode()).hexdigest()}"
+        self.redis.hset(key, mapping={
+            'query': query,
+            'response': response,
+            'embedding': embedding.tobytes(),
+        })
+        self.redis.expire(key, ttl_seconds)</code></pre>
+
+                    <p><strong>Real-world caching results:</strong> A customer support chatbot with 100K daily queries found that 45% of queries were semantically similar to previous queries (e.g., "how do I reset my password" vs "reset password help"). Implementing semantic caching with a 0.95 similarity threshold reduced LLM API calls by 42% with zero quality impact.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>AI Observability &amp; Production Monitoring</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is AI observability?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> AI observability extends traditional observability (logs, metrics, traces) with AI-specific telemetry: prompts, completions, token usage, model versions, and quality scores. Without it, you are flying blind.</p>
+
+                    <p><strong>The AI observability stack:</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Application Layer"] --> B["AI Gateway / Proxy<br/>(log all LLM calls)"]
+    B --> C["Telemetry Pipeline"]
+    C --> D["Prompt/Completion Store<br/>(for debugging, eval)"]
+    C --> E["Metrics Store<br/>(latency, tokens, cost)"]
+    C --> F["Quality Monitoring<br/>(automated eval on sample)"]
+    D --> G["Dashboard"]
+    E --> G
+    F --> G
+    G --> H["Alerts:<br/>- Cost anomaly<br/>- Quality drop<br/>- Latency spike"]
+    style B fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style H fill:#fca5a5,stroke:#dc2626,color:#000
+                        </div>
+                    </div>
+
+                    <p><strong>What to log for every LLM call:</strong></p>
+                    <pre><code class="language-python">llm_call_log = {
+    # Request metadata
+    "request_id": "req-abc-123",
+    "timestamp": "2025-03-15T10:30:00Z",
+    "user_id": "user-456",
+    "session_id": "sess-789",
+
+    # Model configuration
+    "model": "gpt-4o",
+    "temperature": 0.7,
+    "max_tokens": 1000,
+
+    # Token usage
+    "input_tokens": 850,
+    "output_tokens": 234,
+    "total_tokens": 1084,
+
+    # Cost
+    "input_cost_usd": 0.002125,
+    "output_cost_usd": 0.00234,
+    "total_cost_usd": 0.004465,
+
+    # Latency
+    "ttft_ms": 340,
+    "total_latency_ms": 5800,
+    "tokens_per_second": 40.3,
+
+    # Quality (computed async)
+    "faithfulness_score": 0.92,  # filled by async eval pipeline
+    "user_feedback": None,       # filled when user rates response
+
+    # Content (store securely, respect PII policies)
+    "prompt_hash": "sha256:abc...",  # hash for grouping similar prompts
+    "prompt_template": "customer_support_v3",
+    "has_pii": False,
+}</code></pre>
+
+                    <p><strong>Key alerts to configure:</strong></p>
+                    <ul>
+                        <li><strong>Cost spike:</strong> Daily cost &gt; 2x trailing 7-day average (catches runaway loops, prompt injection attacks)</li>
+                        <li><strong>Latency degradation:</strong> p99 TTFT &gt; 2x baseline (API provider issues or context length growth)</li>
+                        <li><strong>Quality drop:</strong> Automated eval score drops &gt;5% week-over-week (model regression, drift)</li>
+                        <li><strong>Error rate spike:</strong> API error rate &gt; 1% (rate limiting, provider outage)</li>
+                        <li><strong>Token explosion:</strong> Average tokens per request increases &gt;30% (indicates prompt bloat or context window abuse)</li>
+                    </ul>
+
+                    <p><strong>Tools:</strong> LangSmith, Helicone, Langfuse, Weights & Biases, or build custom with OpenTelemetry + your existing observability stack. For most teams, starting with Langfuse (open-source) or Helicone (proxy-based, zero code change) is the fastest path to observability.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you detect model degradation in production?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Model degradation in production is insidious because there is often no error -- the model still returns plausible outputs, just worse ones. Detection requires proactive monitoring, not reactive alerting.</p>
+
+                    <p><strong>Detection strategies:</strong></p>
+                    <table>
+                        <thead><tr><th>Strategy</th><th>Signal</th><th>Latency to Detect</th><th>Accuracy</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Automated eval on sample</strong></td><td>Run eval suite on 1% of production traffic</td><td>Hours</td><td>High</td></tr>
+                            <tr><td><strong>User feedback tracking</strong></td><td>Thumbs up/down ratio, explicit ratings</td><td>Days</td><td>Medium (biased sample)</td></tr>
+                            <tr><td><strong>Implicit feedback signals</strong></td><td>Follow-up questions, session abandonment, copy rate</td><td>Hours</td><td>Medium</td></tr>
+                            <tr><td><strong>Output distribution monitoring</strong></td><td>Response length, confidence scores, refusal rate</td><td>Real-time</td><td>Low (proxy metric)</td></tr>
+                            <tr><td><strong>A/B test against baseline</strong></td><td>Compare current model vs frozen baseline</td><td>Days to weeks</td><td>Highest</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Implicit quality signals (no user action required):</strong></p>
+                    <pre><code class="language-text">Positive signals:
+  - User copies the response (clipboard event)
+  - Session ends after response (task completed)
+  - No follow-up clarification question
+  - User returns to the product next day (retention)
+
+Negative signals:
+  - User immediately asks a follow-up (response insufficient)
+  - User rephrases the same question (response was off-topic)
+  - User abandons session within 10 seconds of response
+  - User clicks "contact human support" after AI response
+
+Composite Quality Score:
+  quality = w1 * (1 - followup_rate) + w2 * copy_rate + w3 * (1 - abandon_rate)
+  Typical weights: w1=0.4, w2=0.3, w3=0.3</code></pre>
+
+                    <p><strong>Real-world case:</strong> In January 2024, several companies reported GPT-4 quality degradation after an API update. Companies with automated eval suites detected this within hours and switched to Claude or reverted to a pinned model version. Companies without monitoring discovered it weeks later through customer complaints. The eval suite investment paid for itself in a single incident.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are A/B testing challenges specific to AI features?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A/B testing AI features has unique challenges that make standard testing frameworks insufficient.</p>
+
+                    <p><strong>Challenge 1: High variance in outputs</strong></p>
+                    <p>LLMs produce different outputs for the same input (non-deterministic). A user in group A might get a great response, the same user 5 minutes later might get a mediocre one. This increases the sample size needed for statistical significance.</p>
+                    <pre><code class="language-text">Standard A/B test (deterministic feature):
+  Minimum detectable effect: 2%
+  Required sample: ~10,000 per arm
+
+LLM A/B test (high output variance):
+  Minimum detectable effect: 2%
+  Required sample: ~50,000-100,000 per arm (5-10x more)
+  Reason: Within-group variance is much higher</code></pre>
+
+                    <p><strong>Challenge 2: Delayed and indirect metrics</strong></p>
+                    <p>AI features often affect metrics indirectly. An AI-powered search improvement might increase conversion, but the causal chain is: better search results -> user finds product -> user purchases. Each step adds noise and delay.</p>
+
+                    <p><strong>Challenge 3: User adaptation</strong></p>
+                    <p>Users learn to use AI features differently over time. A chatbot that performs well in week 1 (users ask simple questions) may appear to degrade in week 4 (users ask harder questions because they trust it). This is actually a sign of success, not failure.</p>
+
+                    <p><strong>Challenge 4: Cost asymmetry</strong></p>
+                    <p>The "better" variant might cost 10x more to run. You need to evaluate cost-adjusted quality, not just quality alone.</p>
+
+                    <p><strong>Recommended approach:</strong></p>
+                    <ul>
+                        <li>Use <strong>interleaving</strong> (show results from both models side-by-side) for search/ranking features to reduce variance</li>
+                        <li>Use <strong>longer experiment windows</strong> (3-4 weeks minimum) to capture user adaptation</li>
+                        <li>Track <strong>composite metrics</strong>: quality * (1 / cost) to evaluate cost-efficiency, not just quality</li>
+                        <li>Use <strong>Bayesian analysis</strong> instead of frequentist p-values for faster and more interpretable results with high-variance outcomes</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Staff+ Scenarios</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Your RAG system has 85% answer accuracy. Is that good enough? How do you decide?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> "Good enough" depends entirely on the domain, the cost of wrong answers, and the alternative the user has. This is a business decision backed by data, not a technical threshold.</p>
+
+                    <p><strong>Framework for evaluation:</strong></p>
+                    <pre><code class="language-text">Step 1: What is the baseline?
+  - No AI (human-only): 95% accuracy, 10 min avg resolution time
+  - Previous system (keyword search): 60% accuracy, self-service
+  - No system (user gives up): 0% accuracy
+
+  85% AI accuracy is a massive improvement over 60% keyword search
+  and only marginally worse than 95% human accuracy.
+
+Step 2: What is the cost of the 15% wrong answers?
+  Low cost domain (e.g., internal IT help desk):
+    Wrong answer = user tries something that does not work, asks again
+    Impact: ~5 minutes wasted per wrong answer
+    Cost: 15% * 1000 queries/day * 5 min * $0.50/min = $375/day
+
+  High cost domain (e.g., medical advice):
+    Wrong answer = potentially dangerous action
+    Impact: Liability, patient harm
+    Cost: Potentially catastrophic; 85% is NOT acceptable
+
+Step 3: What is the value of the 85% right answers?
+  IT help desk: 85% * 1000 queries * $15 (avg ticket cost saved) = $12,750/day
+  Net value: $12,750 - $375 = $12,375/day
+
+Step 4: What would it cost to get to 95%?
+  Improving from 85% to 95% typically requires:
+  - Better retrieval (reranking, hybrid search): +5% accuracy, 2 weeks eng
+  - More context (increase K, better chunking): +3% accuracy, 1 week eng
+  - Human-in-the-loop for low-confidence: +5% accuracy, ongoing cost
+  - Fine-tuning: +2% accuracy, 4 weeks eng
+
+  Estimated investment: 4-8 weeks + ongoing HITL cost
+  Expected accuracy: ~93-95%</code></pre>
+
+                    <p><strong>Decision:</strong> For the IT help desk, 85% is already generating $12,375/day in value. Invest in improving to 93%+ over the next quarter, but ship at 85% now. For medical advice, do not ship until accuracy exceeds 98% with human verification on every response.</p>
+
+                    <p><strong>Staff-level framing:</strong> Present this as an ROI calculation, not a quality metric. "Our RAG system saves $12,000/day at 85% accuracy. Each 5% improvement is worth an additional $1,500/day. I recommend shipping now and investing 4 weeks to reach 93%." This is far more compelling than "we need to get to 95% before launching."</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: You're choosing between GPT-4, Claude, and an open-source model. Build a comparison framework.</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Model selection should be data-driven using your specific use case, not generic benchmarks. Here is a systematic framework.</p>
+
+                    <p><strong>Step 1: Define evaluation criteria with weights</strong></p>
+                    <pre><code class="language-text">Criteria for a customer support chatbot:
+  Quality (40% weight):
+    - Answer accuracy (human-judged): 20%
+    - Faithfulness to knowledge base: 10%
+    - Tone and helpfulness: 10%
+
+  Performance (25% weight):
+    - TTFT: 10%
+    - Total latency: 10%
+    - Throughput (queries/sec): 5%
+
+  Cost (20% weight):
+    - Cost per query: 15%
+    - Infrastructure cost: 5%
+
+  Operational (15% weight):
+    - API reliability / uptime: 5%
+    - Data privacy (no training on our data): 5%
+    - Vendor lock-in risk: 5%</code></pre>
+
+                    <p><strong>Step 2: Run eval suite on all models</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>GPT-4o</th><th>Claude 3.5 Sonnet</th><th>Llama 3 70B (hosted)</th></tr></thead>
+                        <tbody>
+                            <tr><td>Answer accuracy</td><td>92%</td><td>91%</td><td>85%</td></tr>
+                            <tr><td>Faithfulness</td><td>94%</td><td>96%</td><td>88%</td></tr>
+                            <tr><td>Tone score</td><td>88%</td><td>92%</td><td>82%</td></tr>
+                            <tr><td>TTFT (p50)</td><td>400ms</td><td>350ms</td><td>200ms</td></tr>
+                            <tr><td>Cost per query</td><td>$0.004</td><td>$0.005</td><td>$0.001</td></tr>
+                            <tr><td>API uptime (30d)</td><td>99.9%</td><td>99.8%</td><td>99.99% (own infra)</td></tr>
+                            <tr><td>Data privacy</td><td>API ToS allows training</td><td>No training on API data</td><td>Full control</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Step 3: Score and rank</strong></p>
+                    <pre><code class="language-text">Weighted scores (higher is better):
+  GPT-4o:      0.4*(0.92+0.94+0.88)/3 + 0.25*(0.85+0.9) + 0.2*(0.7) + 0.15*(0.9)
+             = 0.365 + 0.219 + 0.140 + 0.135 = 0.859
+
+  Claude:      0.4*(0.91+0.96+0.92)/3 + 0.25*(0.87+0.88) + 0.2*(0.65) + 0.15*(0.95)
+             = 0.373 + 0.219 + 0.130 + 0.143 = 0.864
+
+  Llama 70B:   0.4*(0.85+0.88+0.82)/3 + 0.25*(0.95+0.92) + 0.2*(0.95) + 0.15*(0.98)
+             = 0.340 + 0.234 + 0.190 + 0.147 = 0.911
+
+  Winner: Llama 70B (if you have the GPU/ML engineering capacity)
+  Runner-up: Claude (best quality, data privacy)
+
+  But wait: Does your team have GPU expertise?
+  If no: Claude wins (highest quality among managed APIs, best privacy)
+  If yes: Llama 70B wins (cheapest, fastest, full control)</code></pre>
+
+                    <p><strong>Staff-level recommendation:</strong> Do not commit to a single model. Build a model-agnostic abstraction layer and run continuous evals. Model rankings change every few months as providers release updates. The ability to switch models in hours, not weeks, is the real competitive advantage.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure the ROI of an AI feature?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> AI feature ROI must account for both direct value (revenue, cost savings) and indirect value (user experience, competitive positioning), minus the full cost including infrastructure, engineering, and ongoing maintenance.</p>
+
+                    <p><strong>ROI formula:</strong></p>
+                    <pre><code class="language-text">ROI = (Value Generated - Total Cost) / Total Cost * 100%
+
+Value Generated:
+  Direct savings = (manual_cost_per_task - AI_cost_per_task) * tasks_automated
+  Revenue uplift = conversion_increase * traffic * average_order_value
+  Productivity gain = time_saved_per_user * users * hourly_cost
+
+Total Cost:
+  Development = engineers * months * loaded_cost
+  Infrastructure = compute + API + storage (monthly * 12)
+  Maintenance = ongoing_eng_cost + monitoring + retraining
+  Risk = probability_of_failure * cost_of_failure</code></pre>
+
+                    <p><strong>Example: AI-powered customer support chatbot</strong></p>
+                    <pre><code class="language-text">Current state:
+  Support volume: 50,000 tickets/month
+  Cost per human-handled ticket: $15 (20 min * $45/hr loaded cost)
+  Monthly support cost: $750,000
+
+AI chatbot (handles 60% of tickets automatically):
+  Automated: 30,000 tickets/month at $0.10/ticket (LLM API cost)
+  Human-handled: 20,000 tickets at $15/ticket
+
+  Monthly support cost: (30,000 * $0.10) + (20,000 * $15) = $303,000
+  Monthly savings: $447,000
+
+AI chatbot costs:
+  Development: 3 engineers * 3 months * $25K/mo = $225,000 (one-time)
+  Infrastructure: $3,000/month (LLM API + vector DB + hosting)
+  Maintenance: 0.5 engineer = $12,500/month
+
+  Year 1 total cost: $225,000 + (12 * $15,500) = $411,000
+
+Year 1 ROI:
+  Value: $447,000/mo * 12 = $5,364,000
+  Cost: $411,000
+  ROI: ($5,364,000 - $411,000) / $411,000 = 1,204%
+
+Payback period: $225,000 / $447,000 = 0.5 months (after launch)</code></pre>
+
+                    <p><strong>Common ROI traps:</strong></p>
+                    <ul>
+                        <li><strong>Overestimating automation rate:</strong> Most AI features automate 40-60% of cases, not 90%+. The remaining cases are the hard ones that still need humans.</li>
+                        <li><strong>Ignoring quality costs:</strong> If AI accuracy is 85%, the 15% of wrong answers generate rework, customer dissatisfaction, and support escalation. Factor this in.</li>
+                        <li><strong>Forgetting maintenance:</strong> AI features require ongoing prompt tuning, eval maintenance, model updates, and data pipeline monitoring. Budget 0.25-0.5 FTE per major AI feature.</li>
+                        <li><strong>Not measuring displacement:</strong> If the AI chatbot handles easy tickets, the remaining human tickets are harder and take longer. The cost per human ticket may increase from $15 to $25.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure data quality for ML pipelines?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Data quality is the single biggest determinant of ML model quality. "Garbage in, garbage out" applies with a vengeance. Staff engineers must build data quality monitoring into every ML pipeline.</p>
+
+                    <p><strong>The four dimensions of data quality:</strong></p>
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Definition</th><th>Metric</th><th>Alert Threshold</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Completeness</strong></td><td>Are all expected fields present?</td><td>% of records with null/missing for each feature</td><td>&gt;5% null rate on critical features</td></tr>
+                            <tr><td><strong>Freshness</strong></td><td>How recent is the data?</td><td>Max timestamp lag from source to feature store</td><td>&gt;2x expected pipeline latency</td></tr>
+                            <tr><td><strong>Accuracy</strong></td><td>Does data reflect reality?</td><td>Comparison against ground truth sample</td><td>&gt;1% error rate on validated fields</td></tr>
+                            <tr><td><strong>Consistency</strong></td><td>Do related fields agree?</td><td>Cross-field validation checks pass rate</td><td>&lt;99% consistency</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Data quality checks implementation:</strong></p>
+                    <pre><code class="language-python">from dataclasses import dataclass
+from typing import Any, Callable
+import pandas as pd
+
+@dataclass
+class DataQualityCheck:
+    name: str
+    check_fn: Callable[[pd.DataFrame], bool]
+    severity: str  # "critical", "warning", "info"
+
+def build_quality_suite(df: pd.DataFrame) -&gt; list[dict]:
+    """Run data quality checks on a DataFrame."""
+    checks = [
+        DataQualityCheck(
+            "null_rate_user_id",
+            lambda d: d['user_id'].isnull().mean() &lt; 0.001,
+            "critical"
+        ),
+        DataQualityCheck(
+            "null_rate_features",
+            lambda d: all(d[col].isnull().mean() &lt; 0.05 for col in d.columns),
+            "warning"
+        ),
+        DataQualityCheck(
+            "no_future_timestamps",
+            lambda d: (d['event_time'] &lt;= pd.Timestamp.now()).all(),
+            "critical"
+        ),
+        DataQualityCheck(
+            "value_range_age",
+            lambda d: d['age'].between(0, 150).all() if 'age' in d.columns else True,
+            "warning"
+        ),
+        DataQualityCheck(
+            "row_count_reasonable",
+            lambda d: len(d) &gt; 1000,  # expect at least 1K rows per batch
+            "critical"
+        ),
+        DataQualityCheck(
+            "no_duplicate_ids",
+            lambda d: d['user_id'].duplicated().mean() &lt; 0.01,
+            "warning"
+        ),
+    ]
+
+    results = []
+    for check in checks:
+        try:
+            passed = check.check_fn(df)
+        except Exception as e:
+            passed = False
+
+        results.append({
+            "check": check.name,
+            "passed": passed,
+            "severity": check.severity,
+        })
+
+    return results</code></pre>
+
+                    <p><strong>The "silent failure" problem:</strong> Unlike software bugs that crash, data quality issues silently degrade model performance. A feature pipeline that starts returning stale data (e.g., yesterday's prices instead of today's) will not throw an error -- the model will just make worse predictions. Only proactive monitoring catches these issues.</p>
+
+                    <p><strong>Real-world example:</strong> A recommendation system at a major e-commerce company experienced a 15% drop in click-through rate over 2 weeks. Root cause: a upstream data pipeline change started mapping product category IDs incorrectly, causing 30% of products to be in the wrong category. The model was serving recommendations based on wrong categories. A simple data quality check (distribution of category IDs should be stable week-over-week) would have caught this in hours, not weeks.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the "last mile" problem in ML deployment and how do you measure it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The "last mile" problem refers to the gap between model performance in offline evaluation (test set, notebooks) and actual production performance. Studies consistently show a 5-20% drop in key metrics when moving from offline to online.</p>
+
+                    <p><strong>Sources of the last-mile gap:</strong></p>
+                    <table>
+                        <thead><tr><th>Source</th><th>Typical Impact</th><th>Detection</th><th>Mitigation</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Train-serve skew</strong></td><td>5-10% accuracy drop</td><td>Compare feature distributions in training vs serving</td><td>Use a feature store that serves identical features for training and inference</td></tr>
+                            <tr><td><strong>Data freshness gap</strong></td><td>2-5% accuracy drop</td><td>Monitor feature staleness in real-time</td><td>Online feature computation, streaming pipelines</td></tr>
+                            <tr><td><strong>Latency constraints</strong></td><td>Affects model choice (simpler = faster)</td><td>Compare offline model vs deployed model</td><td>Model distillation, feature precomputation</td></tr>
+                            <tr><td><strong>Edge cases in production</strong></td><td>3-8% accuracy drop on long tail</td><td>Stratified performance monitoring</td><td>Ensemble models, rule-based fallbacks for edge cases</td></tr>
+                            <tr><td><strong>Feedback loops</strong></td><td>Gradual degradation over time</td><td>Monitor prediction distribution over time</td><td>Exploration/exploitation, randomized audits</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Measuring the gap:</strong></p>
+                    <pre><code class="language-text">Offline metrics (test set):
+  AUC-ROC: 0.92
+  Precision@10%: 0.85
+  Recall@10%: 0.78
+
+Online metrics (first week in production):
+  AUC-ROC: 0.87 (-5.4%)     &lt;-- Acceptable (&lt;10% drop)
+  Precision@10%: 0.72 (-15%) &lt;-- Concerning (investigate)
+  Recall@10%: 0.71 (-9%)     &lt;-- Borderline
+
+Investigation reveals:
+  - 60% of the precision drop is from train-serve skew on 2 features
+  - Feature "user_session_duration" computed differently in serving vs training
+  - Fix: Align feature computation; precision recovers to 0.81</code></pre>
+
+                    <p><strong>Staff-level practice:</strong> Always plan for a 2-week "bake-in" period after deploying a new model. Monitor online metrics against offline baselines with pre-defined thresholds. If online performance drops more than 10% below offline metrics, trigger an investigation. The feature store is the most important infrastructure investment for reducing train-serve skew.</p>
+                </div>
+            </div>
+
+            <!-- Bottom navigation -->
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <a href="module-05.html" class="btn btn-secondary">&larr; Previous</a>
+                <a href="module-07.html" class="btn btn-primary">Next &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>
