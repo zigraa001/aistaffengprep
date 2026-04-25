@@ -825,7 +825,7 @@
         if (typeof mermaid !== 'undefined') {
             mermaid.initialize({
                 startOnLoad: true,
-                theme: 'default',
+                theme: 'dark',
                 securityLevel: 'loose',
                 flowchart: {
                     useMaxWidth: true,
