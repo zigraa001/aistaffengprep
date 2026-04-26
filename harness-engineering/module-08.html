@@ -1,0 +1,2012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 8: Observability &amp; Debugging - Harness Engineering</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .math-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+        }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-left: 4px solid #22c55e;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-left: 4px solid #06b6d4;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .quiz-question {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .quiz-question h4 {
+            margin-bottom: 0.5rem;
+        }
+        .quiz-answer {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 0.25rem;
+            border-left: 3px solid #22c55e;
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.8) 0%, rgba(59, 130, 246, 0.8) 100%);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+        .reveal-btn:hover {
+            opacity: 0.9;
+        }
+        .checkpoint-summary {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+            border: 2px solid rgba(6, 182, 212, 0.4);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .mini-project {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 2px dashed rgba(6, 182, 212, 0.5);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .metric-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .metric-table th {
+            background: rgba(6, 182, 212, 0.2);
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border: 1px solid rgba(6, 182, 212, 0.3);
+        }
+        .metric-table td {
+            padding: 0.6rem 0.8rem;
+            border: 1px solid var(--border-color);
+        }
+        .metric-table tr:nth-child(even) td {
+            background: rgba(6, 182, 212, 0.04);
+        }
+        .trace-level {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            margin: 0.25rem 0;
+            border-radius: 0.25rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+        .trace-l1 { background: rgba(6,182,212,0.2); margin-left: 0; }
+        .trace-l2 { background: rgba(59,130,246,0.2); margin-left: 1.5rem; }
+        .trace-l3 { background: rgba(99,102,241,0.2); margin-left: 3rem; }
+        .trace-l4 { background: rgba(139,92,246,0.2); margin-left: 4.5rem; }
+        .trace-l5 { background: rgba(168,85,247,0.2); margin-left: 6rem; }
+        .cost-badge {
+            display: inline-block;
+            background: rgba(245,158,11,0.2);
+            border: 1px solid rgba(245,158,11,0.5);
+            color: #f59e0b;
+            padding: 0.15rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Harness</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Loop (1-3)</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Harness Architecture
+                    </a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Context Engineering
+                    </a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Tool Design
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Infrastructure (4-6)</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Sandbox Engineering
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>Permission Systems
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Human-in-the-Loop
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Operations (7-9)</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Model Routing
+                    </a>
+                    <a href="module-08.html" class="sidebar-link active" data-module="8">
+                        <span class="sidebar-link-number">8</span>Observability
+                    </a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Scaling
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced (10-12)</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>State Management
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Streaming
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Testing
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Mastery (13-14)</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Case Studies
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Multi-Agent
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 8: Observability &amp; Debugging</h1>
+            <p class="text-muted">Master the art of making non-deterministic agent systems inspectable, traceable, and debuggable in production — from OpenTelemetry instrumentation to replay-based debugging and cost circuit breakers.</p>
+
+            <!-- Learning Objectives -->
+            <div class="card mt-3">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why agent observability fundamentally differs from traditional service observability</li>
+                    <li>Design a full OpenTelemetry trace hierarchy for agent loops: session → turn → model call → tool execution</li>
+                    <li>Build structured logging schemas with correlation IDs that survive async fan-out</li>
+                    <li>Implement accurate per-request cost tracking with real model pricing and budget circuit breakers</li>
+                    <li>Measure and alert on TTFT, tool latency, and end-to-end waterfall breakdowns</li>
+                    <li>Record and replay agent sessions for deterministic bug reproduction</li>
+                    <li>Design production dashboards and on-call playbooks specific to agent workloads</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 1: Why Agent Observability is Different
+            ============================================================ -->
+            <h2>1. Why Agent Observability is Different</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Five Fundamental Challenges</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>Traditional observability was designed for deterministic systems: a request comes in, a predictable code path executes, a response goes out. Distributed tracing, structured logs, and RED metrics (Rate, Errors, Duration) handle this well. Agent systems break all of those assumptions simultaneously.</p>
+
+                    <h3>1. Non-Determinism</h3>
+                    <p>Send the same user message twice and the agent may take entirely different paths. It might call different tools, in a different order, producing a different answer — not because of a bug, but because sampling temperature introduces variance. Classical regression testing that compares exact outputs will produce false failures constantly.</p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> Observing a function call is like watching a vending machine — same input (B3), same output (Snickers), every time. Observing an agent conversation is like watching a human customer service rep — same customer complaint, potentially different resolution path every call. You can't assert on the exact transcript; you have to assert on outcomes and quality dimensions.
+                    </div>
+
+                    <h3>2. Multi-Step Execution Depth</h3>
+                    <p>A single "user message" in a harness like Claude Code can trigger a waterfall of operations:</p>
+                    <ul>
+                        <li>Context assembly (reading files, injecting tools)</li>
+                        <li>A model call that returns a tool_use block</li>
+                        <li>Tool execution (bash, file read, file write)</li>
+                        <li>Injecting tool_result back into context</li>
+                        <li>Another model call that may itself return more tool_use blocks</li>
+                        <li>Repeat 5–20 more times</li>
+                        <li>A final text response</li>
+                    </ul>
+                    <p>In production, Claude Code sessions regularly involve 20–40 model calls per complex user request. Each call has its own latency, token count, and failure mode. A single span for the entire user request tells you almost nothing useful.</p>
+
+                    <h3>3. Token Economics as a First-Class Signal</h3>
+                    <p>Every model call has a hard dollar cost. Unlike CPU cycles (essentially free to use more), tokens cost real money at marginal rates. A naive agent that loops unnecessarily or builds bloated contexts can cost 10x what an efficient agent would for the same task. This means cost is not a billing concern — it is a performance signal that must be tracked at the same granularity as latency.</p>
+
+                    <div class="math-box">
+                        <strong>Cost formula per model call:</strong><br>
+                        cost = (input_tokens × input_price_per_token) + (output_tokens × output_price_per_token)<br><br>
+                        <strong>Example — claude-sonnet-4-5 pricing (approximate):</strong><br>
+                        input_price  = $3.00 / 1M tokens = $0.000003 / token<br>
+                        output_price = $15.00 / 1M tokens = $0.000015 / token<br><br>
+                        A call with 10,000 input + 500 output tokens costs:<br>
+                        (10,000 × 0.000003) + (500 × 0.000015) = $0.03 + $0.0075 = <strong>$0.0375</strong><br><br>
+                        Multiply by 20 calls/session × 100 sessions/hour = <strong>$75/hour</strong>
+                    </div>
+
+                    <h3>4. The Black Box Problem</h3>
+                    <p>You cannot inspect the model's reasoning directly. You see inputs and outputs, not the "why." When an agent makes a wrong tool choice or produces a hallucinated answer, the output is the only evidence. This means your observability layer must capture the full input context and the full output — including any chain-of-thought if your prompt elicits it — so post-hoc analysis is possible.</p>
+
+                    <h3>5. Async and Concurrent Execution</h3>
+                    <p>Production agent systems often run multiple tool calls in parallel (e.g., reading three files simultaneously), spawn subagents, or operate across multiple processes. A correlation ID that only lives on the initial HTTP request will get lost in async fan-out. You need baggage propagation that flows through every thread, task, and subprocess boundary.</p>
+
+                    <div class="warning-box">
+                        <strong>The observability anti-pattern:</strong> Many teams bolt on logging as an afterthought — adding <code>print(f"model called with {len(messages)} messages")</code> everywhere. This creates unstructured, uncorrelated noise that is impossible to query in production. Observability for agents must be designed from the ground up, before the first model call is ever made.
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 2: OpenTelemetry for Agent Loops
+            ============================================================ -->
+            <h2>2. OpenTelemetry for Agent Loops</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Trace Hierarchy Design</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>OpenTelemetry (OTel) is the industry standard for distributed tracing and is the right foundation for agent observability. The key insight is designing the right span hierarchy — one that maps to the semantic structure of agent execution rather than to HTTP request boundaries.</p>
+
+                    <h3>The Five-Level Hierarchy</h3>
+                    <div style="margin: 1rem 0;">
+                        <div class="trace-level trace-l1">session  [id: sess_abc123] [user: user_42] [duration: 4m32s]</div>
+                        <div class="trace-level trace-l2">conversation  [id: conv_xyz] [turn_count: 3]</div>
+                        <div class="trace-level trace-l3">turn  [id: turn_001] [user_message: "refactor auth.py"]</div>
+                        <div class="trace-level trace-l4">model_call  [id: mc_001] [model: claude-sonnet-4-5] [tokens: 8432/312] <span class="cost-badge">$0.030</span></div>
+                        <div class="trace-level trace-l5">tool_execution  [tool: bash] [cmd: "cat auth.py"] [duration: 12ms]</div>
+                        <div class="trace-level trace-l5">tool_execution  [tool: file_read] [path: "tests/test_auth.py"] [duration: 4ms]</div>
+                        <div class="trace-level trace-l4">model_call  [id: mc_002] [model: claude-sonnet-4-5] [tokens: 11204/890] <span class="cost-badge">$0.047</span></div>
+                        <div class="trace-level trace-l5">tool_execution  [tool: file_write] [path: "auth.py"] [duration: 8ms]</div>
+                        <div class="trace-level trace-l4">model_call  [id: mc_003] [model: claude-sonnet-4-5] [tokens: 12100/245] <span class="cost-badge">$0.040</span></div>
+                        <div class="trace-level trace-l3">turn  [id: turn_002] [user_message: "run the tests"]</div>
+                        <div class="trace-level trace-l4">model_call  [id: mc_004] [model: claude-haiku-3-5] [tokens: 2100/180] <span class="cost-badge">$0.003</span></div>
+                        <div class="trace-level trace-l5">tool_execution  [tool: bash] [cmd: "pytest tests/"] [duration: 3240ms]</div>
+                    </div>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    S[Session Span<br/>session_id, user_id, start_time] --> C[Conversation Span<br/>conv_id, turn_count]
+    C --> T1[Turn Span<br/>turn_id, user_message_hash]
+    C --> T2[Turn Span<br/>turn_id, user_message_hash]
+    T1 --> MC1[model_call Span<br/>model, input_tokens, output_tokens, cost_usd]
+    T1 --> MC2[model_call Span<br/>model, input_tokens, output_tokens, cost_usd]
+    MC1 --> TE1[tool_execution Span<br/>tool_name, args_hash, duration_ms, exit_code]
+    MC1 --> TE2[tool_execution Span<br/>tool_name, args_hash, duration_ms, exit_code]
+    MC2 --> TE3[tool_execution Span<br/>tool_name, args_hash, duration_ms]
+    T2 --> MC3[model_call Span<br/>model, input_tokens, output_tokens, cost_usd]
+    MC3 --> TE4[tool_execution Span<br/>tool_name, args_hash, duration_ms, exit_code]
+
+    style S fill:#06b6d420,stroke:#06b6d4
+    style C fill:#3b82f620,stroke:#3b82f6
+    style T1 fill:#6366f120,stroke:#6366f1
+    style T2 fill:#6366f120,stroke:#6366f1
+    style MC1 fill:#8b5cf620,stroke:#8b5cf6
+    style MC2 fill:#8b5cf620,stroke:#8b5cf6
+    style MC3 fill:#8b5cf620,stroke:#8b5cf6
+    style TE1 fill:#a855f720,stroke:#a855f7
+    style TE2 fill:#a855f720,stroke:#a855f7
+    style TE3 fill:#a855f720,stroke:#a855f7
+    style TE4 fill:#a855f720,stroke:#a855f7
+                        </div>
+                    </div>
+
+                    <h3>Required Span Attributes by Level</h3>
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>Span Type</th><th>Required Attributes</th><th>Optional / High-Value</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>session</td>
+                                <td>session_id, user_id, harness_version, start_time</td>
+                                <td>workspace_path, git_branch, os_platform</td>
+                            </tr>
+                            <tr>
+                                <td>conversation</td>
+                                <td>conv_id, session_id, turn_count</td>
+                                <td>total_cost_usd, total_tokens, duration_ms</td>
+                            </tr>
+                            <tr>
+                                <td>turn</td>
+                                <td>turn_id, conv_id, user_message_hash</td>
+                                <td>user_message_len, response_len, model_calls_count</td>
+                            </tr>
+                            <tr>
+                                <td>model_call</td>
+                                <td>model_id, input_tokens, output_tokens, cost_usd, stop_reason</td>
+                                <td>ttft_ms, latency_ms, tool_uses_count, cache_hit</td>
+                            </tr>
+                            <tr>
+                                <td>tool_execution</td>
+                                <td>tool_name, duration_ms, success</td>
+                                <td>args_hash, output_bytes, exit_code, error_type</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Baggage Propagation for Session Context</h3>
+                    <p>OTel baggage allows you to attach key-value pairs to the trace context that propagate across process boundaries. For agent harnesses that spawn subprocesses (e.g., bash commands), or make HTTP calls to external tools, baggage ensures the session_id and conv_id travel with every operation — even ones that don't use the Python OTel SDK directly.</p>
+
+                    <pre><code class="language-python"># Python OpenTelemetry instrumentation for agent loops
+from opentelemetry import trace, baggage, context
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.propagate import inject, extract
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from contextvars import ContextVar
+from dataclasses import dataclass, field
+from typing import Optional, Dict, Any
+import time
+import uuid
+
+
+# ---- Tracer setup ----
+provider = TracerProvider()
+provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(endpoint="http://otel-collector:4317"))
+)
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("harness.agent", "1.0.0")
+
+
+# ---- Context variable to carry active spans across async calls ----
+_active_session_ctx: ContextVar[Optional[context.Context]] = ContextVar(
+    "_active_session_ctx", default=None
+)
+
+
+@dataclass
+class AgentSpanContext:
+    session_id: str
+    conv_id: str
+    turn_id: Optional[str] = None
+    otel_ctx: Optional[context.Context] = None
+
+
+class AgentTracer:
+    """Wraps OpenTelemetry spans with agent-semantic naming and attributes."""
+
+    def __init__(self, session_id: str, user_id: str, harness_version: str):
+        self.session_id = session_id
+        self.user_id = user_id
+        self.harness_version = harness_version
+        self._session_span = None
+        self._session_token = None
+
+    def start_session(self):
+        """Create the root session span. Call once at harness startup."""
+        ctx = baggage.set_baggage("session_id", self.session_id)
+        ctx = baggage.set_baggage("user_id", self.user_id, context=ctx)
+        self._session_token = context.attach(ctx)
+
+        self._session_span = tracer.start_span(
+            "agent.session",
+            attributes={
+                "session.id": self.session_id,
+                "session.user_id": self.user_id,
+                "harness.version": self.harness_version,
+                "session.start_time": int(time.time() * 1000),
+            }
+        )
+        return self._session_span
+
+    def end_session(self, total_cost_usd: float, total_turns: int):
+        if self._session_span:
+            self._session_span.set_attribute("session.total_cost_usd", total_cost_usd)
+            self._session_span.set_attribute("session.total_turns", total_turns)
+            self._session_span.end()
+        if self._session_token:
+            context.detach(self._session_token)
+
+    def conversation_span(self, conv_id: str):
+        """Returns a context manager for a conversation."""
+        return tracer.start_as_current_span(
+            "agent.conversation",
+            attributes={
+                "conv.id": conv_id,
+                "session.id": self.session_id,
+            }
+        )
+
+    def turn_span(self, turn_id: str, user_message: str):
+        """Returns a context manager for a single user turn."""
+        return tracer.start_as_current_span(
+            "agent.turn",
+            attributes={
+                "turn.id": turn_id,
+                "turn.user_message_length": len(user_message),
+                # Hash the message — don't store PII in traces
+                "turn.user_message_hash": str(hash(user_message) % (10**9)),
+            }
+        )
+
+    def model_call_span(self, model_id: str, input_tokens: int,
+                        output_tokens: int, cost_usd: float,
+                        stop_reason: str, ttft_ms: float, latency_ms: float):
+        """Record a completed model call. Must be called within a turn span."""
+        span = trace.get_current_span()
+        # Emit a child event rather than a full span for completed model calls
+        # (reduces span cardinality while preserving all data)
+        with tracer.start_as_current_span(
+            "agent.model_call",
+            attributes={
+                "model.id": model_id,
+                "model.input_tokens": input_tokens,
+                "model.output_tokens": output_tokens,
+                "model.cost_usd": cost_usd,
+                "model.stop_reason": stop_reason,
+                "model.ttft_ms": ttft_ms,
+                "model.latency_ms": latency_ms,
+            }
+        ) as model_span:
+            yield model_span
+
+    def tool_span(self, tool_name: str, args_hash: str):
+        """Context manager for a single tool execution."""
+        return tracer.start_as_current_span(
+            "agent.tool_execution",
+            attributes={
+                "tool.name": tool_name,
+                "tool.args_hash": args_hash,
+            }
+        )
+
+
+# ---- Usage example in the main agent loop ----
+async def run_agent_turn(
+    agent_tracer: AgentTracer,
+    conv_id: str,
+    turn_id: str,
+    user_message: str,
+    model_client,
+    tools: dict
+):
+    with agent_tracer.conversation_span(conv_id):
+        with agent_tracer.turn_span(turn_id, user_message) as turn_span:
+            model_calls_count = 0
+            turn_cost = 0.0
+            messages = [{"role": "user", "content": user_message}]
+
+            while True:
+                t_start = time.perf_counter()
+                response = await model_client.call(messages)
+                latency_ms = (time.perf_counter() - t_start) * 1000
+
+                cost = compute_cost(
+                    response.model, response.usage.input_tokens,
+                    response.usage.output_tokens
+                )
+                turn_cost += cost
+                model_calls_count += 1
+
+                with tracer.start_as_current_span(
+                    "agent.model_call",
+                    attributes={
+                        "model.id": response.model,
+                        "model.input_tokens": response.usage.input_tokens,
+                        "model.output_tokens": response.usage.output_tokens,
+                        "model.cost_usd": cost,
+                        "model.stop_reason": response.stop_reason,
+                        "model.latency_ms": latency_ms,
+                        "model.call_index": model_calls_count,
+                    }
+                ):
+                    if response.stop_reason == "end_turn":
+                        break
+
+                    for tool_use in response.tool_uses:
+                        tool_fn = tools[tool_use.name]
+                        t_tool_start = time.perf_counter()
+                        try:
+                            result = await tool_fn(tool_use.input)
+                            success = True
+                            error_type = None
+                        except Exception as e:
+                            result = str(e)
+                            success = False
+                            error_type = type(e).__name__
+
+                        tool_latency_ms = (time.perf_counter() - t_tool_start) * 1000
+
+                        with tracer.start_as_current_span(
+                            "agent.tool_execution",
+                            attributes={
+                                "tool.name": tool_use.name,
+                                "tool.duration_ms": tool_latency_ms,
+                                "tool.success": success,
+                                "tool.output_bytes": len(str(result)),
+                                "tool.error_type": error_type or "",
+                            }
+                        ):
+                            pass  # span auto-ends on exit
+
+                        messages.append({
+                            "role": "assistant",
+                            "content": [{"type": "tool_use", "id": tool_use.id, "name": tool_use.name, "input": tool_use.input}]
+                        })
+                        messages.append({
+                            "role": "user",
+                            "content": [{"type": "tool_result", "tool_use_id": tool_use.id, "content": str(result)}]
+                        })
+
+            turn_span.set_attribute("turn.total_cost_usd", turn_cost)
+            turn_span.set_attribute("turn.model_calls_count", model_calls_count)
+</code></pre>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 3: Structured Logging
+            ============================================================ -->
+            <h2>3. Structured Logging</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Log Schema, Event Types, and Correlation</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>Traces capture the <em>structure</em> of execution; logs capture the <em>content</em> — what the model actually said, what tools returned, what errors occurred. For agent systems, logs must be structured (JSON), correlated (tied to trace IDs), and schema-versioned (so you can query historical data after schema changes).</p>
+
+                    <h3>The Agent Log Schema</h3>
+                    <p>Every log event in an agent system should carry a common envelope:</p>
+
+                    <pre><code class="language-json">{
+  "timestamp": "2025-04-27T14:32:01.234Z",
+  "level": "INFO",
+  "event_type": "model_call",
+  "schema_version": "2025-04-01",
+
+  // Correlation IDs — must be present on ALL events
+  "session_id": "sess_abc123",
+  "conv_id": "conv_xyz789",
+  "turn_id": "turn_001",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+
+  // Event-specific payload
+  "payload": {
+    "model": "claude-sonnet-4-5",
+    "input_tokens": 8432,
+    "output_tokens": 312,
+    "cost_usd": 0.0298,
+    "stop_reason": "tool_use",
+    "tool_uses": [{"name": "bash", "id": "toolu_01"}],
+    "latency_ms": 1842,
+    "ttft_ms": 312
+  }
+}
+</code></pre>
+
+                    <h3>Event Types</h3>
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>event_type</th><th>When emitted</th><th>Key payload fields</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>session_start</td>
+                                <td>Harness initializes</td>
+                                <td>user_id, harness_version, workspace_path</td>
+                            </tr>
+                            <tr>
+                                <td>session_end</td>
+                                <td>Harness shuts down</td>
+                                <td>total_cost_usd, total_turns, total_tokens, duration_ms</td>
+                            </tr>
+                            <tr>
+                                <td>user_message</td>
+                                <td>User sends a message</td>
+                                <td>message_length, message_hash (NOT the actual message)</td>
+                            </tr>
+                            <tr>
+                                <td>model_call</td>
+                                <td>Model API returns</td>
+                                <td>model, input_tokens, output_tokens, cost_usd, stop_reason, latency_ms, ttft_ms</td>
+                            </tr>
+                            <tr>
+                                <td>tool_invoke</td>
+                                <td>Before tool execution</td>
+                                <td>tool_name, tool_use_id, args_hash</td>
+                            </tr>
+                            <tr>
+                                <td>tool_result</td>
+                                <td>After tool execution</td>
+                                <td>tool_name, tool_use_id, duration_ms, output_bytes, success, exit_code</td>
+                            </tr>
+                            <tr>
+                                <td>context_assembled</td>
+                                <td>Before each model call</td>
+                                <td>total_tokens, message_count, injected_files_count</td>
+                            </tr>
+                            <tr>
+                                <td>error</td>
+                                <td>Any exception</td>
+                                <td>error_type, error_message, stack_trace_hash, recoverable</td>
+                            </tr>
+                            <tr>
+                                <td>budget_alert</td>
+                                <td>Cost threshold crossed</td>
+                                <td>threshold_usd, actual_usd, action_taken</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>PII Warning:</strong> Never log user message content, file contents, tool arguments, or model responses in plain text. These can contain source code, credentials, personal data, and proprietary business logic. Always hash content for correlation, log metadata only, and store full content in a separate encrypted audit store with strict access controls.
+                    </div>
+
+                    <h3>Structured Logger — TypeScript Implementation</h3>
+                    <p>Many agent harnesses are built in TypeScript. Here is a production-grade structured logger with OTel trace correlation:</p>
+
+                    <pre><code class="language-typescript">import { trace, context } from '@opentelemetry/api';
+
+interface LogEnvelope {
+  timestamp: string;
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  event_type: string;
+  schema_version: string;
+  session_id: string;
+  conv_id?: string;
+  turn_id?: string;
+  trace_id?: string;
+  span_id?: string;
+  payload: Record&lt;string, unknown&gt;;
+}
+
+type LogSink = (entry: LogEnvelope) => void;
+
+const stdoutSink: LogSink = (entry) => {
+  process.stdout.write(JSON.stringify(entry) + '\n');
+};
+
+class AgentLogger {
+  private sessionId: string;
+  private convId?: string;
+  private turnId?: string;
+  private schemaVersion = '2025-04-01';
+  private sinks: LogSink[];
+
+  constructor(sessionId: string, sinks: LogSink[] = [stdoutSink]) {
+    this.sessionId = sessionId;
+    this.sinks = sinks;
+  }
+
+  setConversationContext(convId: string, turnId?: string): void {
+    this.convId = convId;
+    this.turnId = turnId;
+  }
+
+  private getTraceContext(): { trace_id?: string; span_id?: string } {
+    const span = trace.getActiveSpan();
+    if (!span) return {};
+    const ctx = span.spanContext();
+    return {
+      trace_id: ctx.traceId,
+      span_id: ctx.spanId,
+    };
+  }
+
+  private emit(
+    level: LogEnvelope['level'],
+    event_type: string,
+    payload: Record&lt;string, unknown&gt;
+  ): void {
+    const entry: LogEnvelope = {
+      timestamp: new Date().toISOString(),
+      level,
+      event_type,
+      schema_version: this.schemaVersion,
+      session_id: this.sessionId,
+      conv_id: this.convId,
+      turn_id: this.turnId,
+      ...this.getTraceContext(),
+      payload,
+    };
+    for (const sink of this.sinks) {
+      try { sink(entry); } catch { /* sink errors must not crash the agent */ }
+    }
+  }
+
+  modelCall(params: {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    stopReason: string;
+    latencyMs: number;
+    ttftMs: number;
+    callIndex: number;
+  }): void {
+    this.emit('INFO', 'model_call', {
+      model: params.model,
+      input_tokens: params.inputTokens,
+      output_tokens: params.outputTokens,
+      cost_usd: params.costUsd,
+      stop_reason: params.stopReason,
+      latency_ms: params.latencyMs,
+      ttft_ms: params.ttftMs,
+      call_index: params.callIndex,
+    });
+  }
+
+  toolInvoke(toolName: string, toolUseId: string, argsHash: string): void {
+    this.emit('INFO', 'tool_invoke', {
+      tool_name: toolName,
+      tool_use_id: toolUseId,
+      args_hash: argsHash,
+    });
+  }
+
+  toolResult(params: {
+    toolName: string;
+    toolUseId: string;
+    durationMs: number;
+    outputBytes: number;
+    success: boolean;
+    exitCode?: number;
+    errorType?: string;
+  }): void {
+    const level = params.success ? 'INFO' : 'WARN';
+    this.emit(level, 'tool_result', {
+      tool_name: params.toolName,
+      tool_use_id: params.toolUseId,
+      duration_ms: params.durationMs,
+      output_bytes: params.outputBytes,
+      success: params.success,
+      exit_code: params.exitCode,
+      error_type: params.errorType,
+    });
+  }
+
+  error(errorType: string, message: string, recoverable: boolean): void {
+    this.emit('ERROR', 'error', {
+      error_type: errorType,
+      error_message: message, // OK to log non-PII error messages
+      recoverable,
+    });
+  }
+
+  budgetAlert(thresholdUsd: number, actualUsd: number, actionTaken: string): void {
+    this.emit('WARN', 'budget_alert', {
+      threshold_usd: thresholdUsd,
+      actual_usd: actualUsd,
+      action_taken: actionTaken,
+    });
+  }
+}
+
+// Sample log output (formatted for readability):
+// {
+//   "timestamp": "2025-04-27T14:32:01.234Z",
+//   "level": "INFO",
+//   "event_type": "model_call",
+//   "schema_version": "2025-04-01",
+//   "session_id": "sess_abc123",
+//   "conv_id": "conv_xyz789",
+//   "turn_id": "turn_001",
+//   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+//   "span_id": "00f067aa0ba902b7",
+//   "payload": {
+//     "model": "claude-sonnet-4-5",
+//     "input_tokens": 8432,
+//     "output_tokens": 312,
+//     "cost_usd": 0.0298,
+//     "stop_reason": "tool_use",
+//     "latency_ms": 1842,
+//     "ttft_ms": 312,
+//     "call_index": 1
+//   }
+// }
+</code></pre>
+
+                    <h3>Log Levels for Agent Systems</h3>
+                    <p>Standard log level guidance applies, but with agent-specific nuances:</p>
+                    <ul>
+                        <li><strong>DEBUG:</strong> Full context window contents (only in development — never in production due to PII and volume). Token-level details.</li>
+                        <li><strong>INFO:</strong> All model calls, all tool invocations and results, session start/end, turn boundaries. This is your primary operational data.</li>
+                        <li><strong>WARN:</strong> Failed tool executions, budget alerts, retried model calls, unexpectedly long tool execution times.</li>
+                        <li><strong>ERROR:</strong> Model API errors, unrecoverable tool failures, context overflow, authentication failures.</li>
+                    </ul>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 4: Cost Tracking
+            ============================================================ -->
+            <h2>4. Cost Tracking</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Per-Request Economics and Budget Circuit Breakers</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>Cost tracking for agent systems is not a finance problem — it is an engineering problem. An agent that silently enters a loop and burns $50 in 5 minutes is indistinguishable from a healthy agent until the billing statement arrives. You need real-time cost visibility with automated circuit breakers.</p>
+
+                    <h3>Real Model Pricing (April 2025 Estimates)</h3>
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>Model</th><th>Input ($/1M tokens)</th><th>Output ($/1M tokens)</th><th>Typical session cost</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>claude-opus-4</td>
+                                <td>$15.00</td>
+                                <td>$75.00</td>
+                                <td>$0.50 – $5.00</td>
+                            </tr>
+                            <tr>
+                                <td>claude-sonnet-4-5</td>
+                                <td>$3.00</td>
+                                <td>$15.00</td>
+                                <td>$0.10 – $0.80</td>
+                            </tr>
+                            <tr>
+                                <td>claude-haiku-3-5</td>
+                                <td>$0.80</td>
+                                <td>$4.00</td>
+                                <td>$0.02 – $0.15</td>
+                            </tr>
+                            <tr>
+                                <td>gpt-4o</td>
+                                <td>$2.50</td>
+                                <td>$10.00</td>
+                                <td>$0.10 – $0.70</td>
+                            </tr>
+                            <tr>
+                                <td>gpt-4o-mini</td>
+                                <td>$0.15</td>
+                                <td>$0.60</td>
+                                <td>$0.005 – $0.05</td>
+                            </tr>
+                            <tr>
+                                <td>gemini-1.5-pro</td>
+                                <td>$1.25</td>
+                                <td>$5.00</td>
+                                <td>$0.05 – $0.40</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="insight-box">
+                        <strong>Claude Code cost estimate:</strong> A typical Claude Code session doing non-trivial refactoring (10–25 model calls, 8K–15K input tokens per call with accumulated conversation history) runs $0.30–$1.50 on claude-sonnet-4-5. A power user doing 20 sessions/day could spend $10–$30/day per user. At 1,000 active users, that is $10,000–$30,000/day. Budget circuit breakers are not optional.
+                    </div>
+
+                    <h3>CostTracker — Python Implementation with Real Pricing</h3>
+
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Dict, Optional, Callable
+from threading import Lock
+import time
+
+
+# ---- Pricing table (per 1M tokens, in USD) ----
+MODEL_PRICING: Dict[str, Dict[str, float]] = {
+    "claude-opus-4-0": {"input": 15.00, "output": 75.00},
+    "claude-sonnet-4-5": {"input": 3.00, "output": 15.00},
+    "claude-haiku-3-5": {"input": 0.80, "output": 4.00},
+    "claude-3-5-sonnet-20241022": {"input": 3.00, "output": 15.00},
+    "claude-3-5-haiku-20241022": {"input": 0.80, "output": 4.00},
+    "gpt-4o": {"input": 2.50, "output": 10.00},
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gemini-1.5-pro": {"input": 1.25, "output": 5.00},
+    "gemini-1.5-flash": {"input": 0.075, "output": 0.30},
+}
+
+
+def compute_cost(model_id: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate USD cost for a single model call."""
+    pricing = MODEL_PRICING.get(model_id)
+    if pricing is None:
+        # Unknown model — use a conservative estimate and log a warning
+        import logging
+        logging.warning(f"Unknown model '{model_id}' — using default pricing $3/$15 per 1M")
+        pricing = {"input": 3.00, "output": 15.00}
+
+    input_cost = (input_tokens / 1_000_000) * pricing["input"]
+    output_cost = (output_tokens / 1_000_000) * pricing["output"]
+    return round(input_cost + output_cost, 8)
+
+
+@dataclass
+class CostBreakdown:
+    model_id: str
+    call_index: int
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    timestamp: float = field(default_factory=time.time)
+
+
+class BudgetExceededError(Exception):
+    """Raised when a cost budget threshold is exceeded."""
+    def __init__(self, budget_usd: float, actual_usd: float):
+        self.budget_usd = budget_usd
+        self.actual_usd = actual_usd
+        super().__init__(
+            f"Cost budget exceeded: ${actual_usd:.4f} > ${budget_usd:.4f}"
+        )
+
+
+class CostTracker:
+    """
+    Tracks cost at session, conversation, and turn granularity.
+    Supports hard budget limits (raise exception) and soft limits (callback).
+    """
+
+    def __init__(
+        self,
+        session_id: str,
+        hard_budget_usd: Optional[float] = None,
+        soft_budget_usd: Optional[float] = None,
+        soft_budget_callback: Optional[Callable[[float, float], None]] = None,
+    ):
+        self.session_id = session_id
+        self.hard_budget_usd = hard_budget_usd
+        self.soft_budget_usd = soft_budget_usd
+        self.soft_budget_callback = soft_budget_callback
+
+        self._lock = Lock()
+        self._session_cost: float = 0.0
+        self._conv_costs: Dict[str, float] = {}
+        self._turn_costs: Dict[str, float] = {}
+        self._call_log: list[CostBreakdown] = []
+        self._call_index: int = 0
+        self._soft_alert_fired: bool = False
+
+    def record_call(
+        self,
+        model_id: str,
+        input_tokens: int,
+        output_tokens: int,
+        conv_id: Optional[str] = None,
+        turn_id: Optional[str] = None,
+    ) -> float:
+        """
+        Record a completed model call and return its cost.
+        Raises BudgetExceededError if hard_budget_usd is set and exceeded.
+        """
+        cost = compute_cost(model_id, input_tokens, output_tokens)
+
+        with self._lock:
+            self._call_index += 1
+            breakdown = CostBreakdown(
+                model_id=model_id,
+                call_index=self._call_index,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_usd=cost,
+            )
+            self._call_log.append(breakdown)
+            self._session_cost += cost
+
+            if conv_id:
+                self._conv_costs[conv_id] = self._conv_costs.get(conv_id, 0.0) + cost
+            if turn_id:
+                self._turn_costs[turn_id] = self._turn_costs.get(turn_id, 0.0) + cost
+
+            # Soft limit: fire callback once per session
+            if (
+                self.soft_budget_usd
+                and not self._soft_alert_fired
+                and self._session_cost >= self.soft_budget_usd
+            ):
+                self._soft_alert_fired = True
+                if self.soft_budget_callback:
+                    self.soft_budget_callback(self.soft_budget_usd, self._session_cost)
+
+            # Hard limit: raise immediately (agent loop must catch this)
+            if self.hard_budget_usd and self._session_cost > self.hard_budget_usd:
+                raise BudgetExceededError(self.hard_budget_usd, self._session_cost)
+
+        return cost
+
+    @property
+    def session_total(self) -> float:
+        return self._session_cost
+
+    def conv_total(self, conv_id: str) -> float:
+        return self._conv_costs.get(conv_id, 0.0)
+
+    def turn_total(self, turn_id: str) -> float:
+        return self._turn_costs.get(turn_id, 0.0)
+
+    def top_costly_calls(self, n: int = 5) -> list[CostBreakdown]:
+        """Returns the n most expensive model calls — useful for debugging cost spikes."""
+        return sorted(self._call_log, key=lambda c: c.cost_usd, reverse=True)[:n]
+
+    def cost_by_model(self) -> Dict[str, float]:
+        """Aggregate cost grouped by model ID."""
+        totals: Dict[str, float] = {}
+        for call in self._call_log:
+            totals[call.model_id] = totals.get(call.model_id, 0.0) + call.cost_usd
+        return totals
+
+    def summary(self) -> dict:
+        return {
+            "session_id": self.session_id,
+            "total_cost_usd": self._session_cost,
+            "total_calls": self._call_index,
+            "cost_by_model": self.cost_by_model(),
+            "hard_budget_usd": self.hard_budget_usd,
+            "budget_utilization_pct": (
+                round(self._session_cost / self.hard_budget_usd * 100, 1)
+                if self.hard_budget_usd else None
+            ),
+        }
+
+
+# ---- Usage in agent loop ----
+def build_cost_tracker(session_id: str, logger) -> CostTracker:
+    def soft_alert(threshold: float, actual: float):
+        logger.budgetAlert(threshold, actual, action_taken="warning_logged")
+
+    return CostTracker(
+        session_id=session_id,
+        hard_budget_usd=5.00,   # Hard stop at $5/session
+        soft_budget_usd=2.00,   # Warn at $2/session
+        soft_budget_callback=soft_alert,
+    )
+</code></pre>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 5: Latency Monitoring
+            ============================================================ -->
+            <h2>5. Latency Monitoring</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>TTFT, Waterfall Breakdown, and Percentile Monitoring</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>Agent systems have a fundamentally different latency profile from traditional APIs. A single user request involves multiple sequential model calls (each 1–8 seconds), tool executions (microseconds to minutes), and context assembly. Understanding where time is spent requires waterfall analysis, not just aggregate request duration.</p>
+
+                    <h3>Key Latency Metrics</h3>
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>Metric</th><th>Definition</th><th>Typical range (claude-sonnet)</th><th>Alert threshold</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>TTFT (time to first token)</td>
+                                <td>Time from API call to first token received</td>
+                                <td>200 – 800ms</td>
+                                <td>&gt; 2000ms</td>
+                            </tr>
+                            <tr>
+                                <td>Model call latency (total)</td>
+                                <td>TTFT + streaming completion time</td>
+                                <td>1000 – 6000ms</td>
+                                <td>&gt; 15000ms</td>
+                            </tr>
+                            <tr>
+                                <td>Tool execution latency</td>
+                                <td>From tool_invoke to tool_result</td>
+                                <td>1ms (file read) to 60s+ (build)</td>
+                                <td>Tool-specific SLOs</td>
+                            </tr>
+                            <tr>
+                                <td>Context assembly latency</td>
+                                <td>Time to build messages array for model</td>
+                                <td>1 – 50ms</td>
+                                <td>&gt; 200ms</td>
+                            </tr>
+                            <tr>
+                                <td>Turn total latency</td>
+                                <td>User message to final response</td>
+                                <td>5 – 60s</td>
+                                <td>&gt; 120s</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Latency Waterfall: A Complex Turn</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+gantt
+    title Agent Turn Latency Waterfall (ms)
+    dateFormat X
+    axisFormat %L ms
+
+    section Context
+    Assemble context        :0, 45
+
+    section Model Call 1
+    API request overhead    :45, 55
+    TTFT wait               :55, 375
+    Streaming completion    :375, 2100
+
+    section Tool Execution
+    bash (cat auth.py)      :2100, 2115
+    file_read (test_auth.py):2115, 2121
+
+    section Model Call 2
+    Context rebuild         :2121, 2145
+    API request overhead    :2145, 2155
+    TTFT wait               :2155, 2520
+    Streaming completion    :2520, 5800
+
+    section Tool Execution
+    file_write (auth.py)    :5800, 5812
+
+    section Model Call 3
+    Context rebuild         :5812, 5855
+    API request overhead    :5855, 5865
+    TTFT wait               :5865, 6180
+    Streaming completion    :6180, 7200
+                        </div>
+                    </div>
+
+                    <div class="insight-box">
+                        <strong>Key insight:</strong> In this waterfall, model calls consume ~7000ms out of 7200ms total. Context assembly and tool execution are negligible by comparison. This is typical for code-manipulation agent tasks. Optimizing tool execution latency gives minimal benefit; reducing the number of model calls (through better prompting or routing to faster models for intermediate steps) is the highest-leverage optimization.
+                    </div>
+
+                    <h3>Latency Tracking Middleware — Python</h3>
+
+                    <pre><code class="language-python">import time
+import asyncio
+from typing import AsyncIterator, Optional
+from dataclasses import dataclass
+from collections import deque
+import statistics
+
+
+@dataclass
+class ModelCallLatency:
+    call_id: str
+    model_id: str
+    ttft_ms: float
+    total_ms: float
+    input_tokens: int
+    output_tokens: int
+    timestamp: float = 0.0
+
+    def __post_init__(self):
+        if self.timestamp == 0.0:
+            self.timestamp = time.time()
+
+
+class LatencyTracker:
+    """
+    Tracks model call latencies with a rolling window for percentile computation.
+    Designed to be thread-safe for concurrent agent sessions.
+    """
+
+    def __init__(self, window_size: int = 1000):
+        self._window: deque[ModelCallLatency] = deque(maxlen=window_size)
+        self._lock = asyncio.Lock()
+
+    async def record(self, latency: ModelCallLatency) -> None:
+        async with self._lock:
+            self._window.append(latency)
+
+    def percentiles(self, metric: str = "total_ms") -> dict:
+        """Compute p50/p95/p99 for the rolling window."""
+        if not self._window:
+            return {}
+        values = sorted(getattr(r, metric) for r in self._window)
+        n = len(values)
+
+        def pct(p: float) -> float:
+            idx = max(0, int(n * p / 100) - 1)
+            return round(values[idx], 1)
+
+        return {
+            "p50": pct(50),
+            "p95": pct(95),
+            "p99": pct(99),
+            "mean": round(statistics.mean(values), 1),
+            "count": n,
+        }
+
+    def ttft_percentiles(self) -> dict:
+        return self.percentiles("ttft_ms")
+
+    def total_latency_percentiles(self) -> dict:
+        return self.percentiles("total_ms")
+
+
+class TimedModelClient:
+    """
+    Wraps an Anthropic-compatible model client to measure TTFT and total latency
+    for streaming responses.
+    """
+
+    def __init__(self, client, tracker: LatencyTracker, logger):
+        self._client = client
+        self._tracker = tracker
+        self._logger = logger
+
+    async def call_streaming(
+        self,
+        messages: list,
+        model: str,
+        max_tokens: int,
+        call_id: str,
+        **kwargs
+    ) -> AsyncIterator:
+        t_start = time.perf_counter()
+        ttft_ms: Optional[float] = None
+        first_token_seen = False
+        output_tokens = 0
+
+        async with self._client.messages.stream(
+            model=model,
+            messages=messages,
+            max_tokens=max_tokens,
+            **kwargs
+        ) as stream:
+            async for event in stream:
+                if not first_token_seen and hasattr(event, 'type'):
+                    if event.type in ('content_block_delta', 'text'):
+                        ttft_ms = (time.perf_counter() - t_start) * 1000
+                        first_token_seen = True
+
+                if hasattr(event, 'type') and event.type == 'message_stop':
+                    total_ms = (time.perf_counter() - t_start) * 1000
+                    usage = getattr(stream, 'usage', None)
+
+                    latency = ModelCallLatency(
+                        call_id=call_id,
+                        model_id=model,
+                        ttft_ms=ttft_ms or total_ms,
+                        total_ms=total_ms,
+                        input_tokens=getattr(usage, 'input_tokens', 0) if usage else 0,
+                        output_tokens=getattr(usage, 'output_tokens', 0) if usage else 0,
+                    )
+                    await self._tracker.record(latency)
+
+                yield event
+
+    async def get_latency_report(self) -> dict:
+        return {
+            "ttft": self._tracker.ttft_percentiles(),
+            "total": self._tracker.total_latency_percentiles(),
+        }
+</code></pre>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 6: Replay and Time-Travel Debugging
+            ============================================================ -->
+            <h2>6. Replay and Time-Travel Debugging</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Recording Sessions and Deterministic Replay</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>The most powerful debugging technique for agent systems is session recording with deterministic replay. By recording every model response alongside the input that produced it, you can replay a production bug in development — the model will "say" exactly what it said in production because you feed it the recorded response instead of calling the real API.</p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> This is identical to how browser automation testing tools like Playwright record network responses and replay them — your tests pass deterministically even without network access. For agents, you're recording model API calls instead of HTTP calls, but the principle is identical.
+                    </div>
+
+                    <h3>What to Record</h3>
+                    <p>For a complete replay, you need to record:</p>
+                    <ol>
+                        <li><strong>The input context</strong> — the full messages array sent to the model (post-assembly)</li>
+                        <li><strong>The model response</strong> — complete API response including stop_reason, tool_uses, text content</li>
+                        <li><strong>Tool results</strong> — what each tool returned (for tools that are non-deterministic like bash)</li>
+                        <li><strong>Timestamps</strong> — for debugging timing-related issues</li>
+                        <li><strong>Random seeds</strong> — if any randomness is introduced outside the model</li>
+                    </ol>
+
+                    <h3>SessionRecorder and ReplayEngine — Python</h3>
+
+                    <pre><code class="language-python">import json
+import gzip
+import hashlib
+import time
+from pathlib import Path
+from dataclasses import dataclass, field, asdict
+from typing import Any, Optional
+
+
+@dataclass
+class RecordedModelCall:
+    """One entry in the recording: input context + model response."""
+    call_index: int
+    timestamp: float
+    model_id: str
+    input_messages: list        # Full messages array sent to model
+    input_tokens: int
+    response: dict              # Full API response as dict
+    output_tokens: int
+    stop_reason: str
+    latency_ms: float
+    # Hash of input_messages for integrity checking during replay
+    input_hash: str = field(init=False)
+
+    def __post_init__(self):
+        content = json.dumps(self.input_messages, sort_keys=True)
+        self.input_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
+@dataclass
+class RecordedToolCall:
+    """One tool execution: args + result."""
+    call_index: int
+    tool_use_id: str
+    tool_name: str
+    args: dict
+    result: Any
+    duration_ms: float
+    success: bool
+    timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class SessionRecording:
+    session_id: str
+    recorded_at: float
+    harness_version: str
+    model_calls: list[RecordedModelCall] = field(default_factory=list)
+    tool_calls: list[RecordedToolCall] = field(default_factory=list)
+
+    def save(self, path: Path) -> None:
+        """Serialize to gzipped JSON (recordings can be large)."""
+        data = {
+            "session_id": self.session_id,
+            "recorded_at": self.recorded_at,
+            "harness_version": self.harness_version,
+            "model_calls": [asdict(c) for c in self.model_calls],
+            "tool_calls": [asdict(c) for c in self.tool_calls],
+        }
+        with gzip.open(path, 'wt', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+
+    @classmethod
+    def load(cls, path: Path) -> 'SessionRecording':
+        with gzip.open(path, 'rt', encoding='utf-8') as f:
+            data = json.load(f)
+        recording = cls(
+            session_id=data["session_id"],
+            recorded_at=data["recorded_at"],
+            harness_version=data["harness_version"],
+        )
+        # Reconstruct dataclasses (simplified — production would use dacite or pydantic)
+        recording.model_calls = [RecordedModelCall(**c) for c in data["model_calls"]]
+        recording.tool_calls = [RecordedToolCall(**c) for c in data["tool_calls"]]
+        return recording
+
+
+class SessionRecorder:
+    """Wraps a real model client and records all interactions."""
+
+    def __init__(self, real_client, session_id: str, harness_version: str):
+        self._client = real_client
+        self._recording = SessionRecording(
+            session_id=session_id,
+            recorded_at=time.time(),
+            harness_version=harness_version,
+        )
+        self._call_index = 0
+
+    async def call(self, messages: list, model: str, max_tokens: int, **kwargs) -> dict:
+        """Call the real model and record the interaction."""
+        self._call_index += 1
+        t_start = time.perf_counter()
+        response = await self._client.messages.create(
+            model=model, messages=messages, max_tokens=max_tokens, **kwargs
+        )
+        latency_ms = (time.perf_counter() - t_start) * 1000
+
+        recorded = RecordedModelCall(
+            call_index=self._call_index,
+            timestamp=time.time(),
+            model_id=model,
+            input_messages=messages,
+            input_tokens=response.usage.input_tokens,
+            response=response.model_dump(),   # pydantic model to dict
+            output_tokens=response.usage.output_tokens,
+            stop_reason=response.stop_reason,
+            latency_ms=latency_ms,
+        )
+        self._recording.model_calls.append(recorded)
+        return response
+
+    def record_tool_result(
+        self, call_index: int, tool_use_id: str, tool_name: str,
+        args: dict, result: Any, duration_ms: float, success: bool
+    ) -> None:
+        self._recording.tool_calls.append(RecordedToolCall(
+            call_index=call_index,
+            tool_use_id=tool_use_id,
+            tool_name=tool_name,
+            args=args,
+            result=result,
+            duration_ms=duration_ms,
+            success=success,
+        ))
+
+    def save(self, path: Path) -> None:
+        self._recording.save(path)
+
+
+class ReplayEngine:
+    """
+    Replays a recorded session deterministically.
+    Model calls return recorded responses; tool calls return recorded results.
+    Raises if the input context diverges from the recording (detects replay bugs).
+    """
+
+    def __init__(self, recording: SessionRecording, strict: bool = True):
+        self._recording = recording
+        self._strict = strict
+        self._model_call_idx = 0
+        self._tool_call_idx = 0
+
+    def next_model_response(self, messages: list) -> dict:
+        """Return the next recorded model response, validating input hash."""
+        if self._model_call_idx >= len(self._recording.model_calls):
+            raise IndexError(
+                f"ReplayEngine exhausted: tried to get call {self._model_call_idx + 1} "
+                f"but recording only has {len(self._recording.model_calls)} model calls"
+            )
+
+        recorded = self._recording.model_calls[self._model_call_idx]
+        self._model_call_idx += 1
+
+        # Validate that the input context matches what was recorded
+        actual_hash = hashlib.sha256(
+            json.dumps(messages, sort_keys=True).encode()
+        ).hexdigest()[:16]
+
+        if self._strict and actual_hash != recorded.input_hash:
+            raise ValueError(
+                f"Replay divergence at model call {self._model_call_idx}: "
+                f"input context hash mismatch. "
+                f"Expected {recorded.input_hash}, got {actual_hash}. "
+                f"The agent loop produced different context than during recording."
+            )
+
+        return recorded.response
+
+    def next_tool_result(self, tool_use_id: str) -> Any:
+        """Return the next recorded tool result."""
+        # Find the matching tool call by tool_use_id
+        for tc in self._recording.tool_calls[self._tool_call_idx:]:
+            if tc.tool_use_id == tool_use_id:
+                self._tool_call_idx += 1
+                return tc.result
+
+        raise KeyError(f"No recorded result for tool_use_id={tool_use_id}")
+
+    def step_to(self, call_index: int) -> dict:
+        """
+        Time-travel: reset to a specific model call index.
+        Useful for debugging a specific decision point.
+        """
+        if call_index < 1 or call_index > len(self._recording.model_calls):
+            raise IndexError(f"call_index {call_index} out of range")
+        self._model_call_idx = call_index - 1
+        return self._recording.model_calls[call_index - 1].response
+
+    @property
+    def current_call_index(self) -> int:
+        return self._model_call_idx
+
+    @property
+    def total_calls(self) -> int:
+        return len(self._recording.model_calls)
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Production workflow:</strong> When a user reports a bug ("the agent deleted the wrong file in my session sess_abc123"), you: (1) pull the session recording from object storage, (2) load it into ReplayEngine with strict=False for initial investigation, (3) step through call by call until you find the decision point where the agent went wrong, (4) fix the prompt or tool behavior, (5) run the full recording to confirm the fix produces the correct result.
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 7: Production Dashboards
+            ============================================================ -->
+            <h2>7. Production Dashboards</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Metrics, Alerts, and On-Call Playbooks</span>
+                    <span class="collapsible-icon">&#9650;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>A production agent system needs a purpose-built monitoring stack. Standard application dashboards miss the key operational signals. Here is a complete dashboard design for an agent harness like Claude Code.</p>
+
+                    <h3>The Four Golden Signals for Agent Systems</h3>
+                    <p>Google SRE defines four golden signals: Latency, Traffic, Errors, Saturation. For agent systems, these require agent-specific interpretation:</p>
+
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>Signal</th><th>Agent interpretation</th><th>Primary metric</th><th>Secondary metric</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Latency</td>
+                                <td>Turn total latency and TTFT, not just HTTP response time</td>
+                                <td>turn_latency_p95</td>
+                                <td>model_call_ttft_p95</td>
+                            </tr>
+                            <tr>
+                                <td>Traffic</td>
+                                <td>Model calls per minute is more meaningful than HTTP requests/min</td>
+                                <td>model_calls_per_min</td>
+                                <td>tokens_per_min (input + output)</td>
+                            </tr>
+                            <tr>
+                                <td>Errors</td>
+                                <td>Model API errors, tool failures, and budget exceeded events</td>
+                                <td>model_error_rate</td>
+                                <td>tool_failure_rate</td>
+                            </tr>
+                            <tr>
+                                <td>Saturation</td>
+                                <td>Cost burn rate vs budget, and context window utilization</td>
+                                <td>cost_per_hour_usd</td>
+                                <td>avg_context_utilization_pct</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Grafana Dashboard Layout</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph Row1["Row 1: Business Overview"]
+        A1[Active Sessions<br/>stat panel]
+        A2[Turns / min<br/>time series]
+        A3[Cost / hour USD<br/>time series + threshold]
+        A4[Error Rate %<br/>stat + gauge]
+    end
+
+    subgraph Row2["Row 2: Model Performance"]
+        B1[Model Calls / min<br/>by model — bar chart]
+        B2[TTFT p50/p95/p99<br/>time series]
+        B3[Total Latency p50/p95<br/>heatmap]
+        B4[Token Throughput<br/>input + output stacked]
+    end
+
+    subgraph Row3["Row 3: Tool Health"]
+        C1[Tool Invocations / min<br/>by tool name]
+        C2[Tool Latency p95<br/>by tool name — table]
+        C3[Tool Failure Rate<br/>by tool name]
+        C4[Long-running Tools<br/>>30s executions]
+    end
+
+    subgraph Row4["Row 4: Cost Drill-down"]
+        D1[Cost by Model<br/>pie chart]
+        D2[Cost by User<br/>top 10 bar]
+        D3[Budget Utilization<br/>by session]
+        D4[Cost Anomaly<br/>sessions >2σ]
+    end
+                        </div>
+                    </div>
+
+                    <h3>Alert Rules (Prometheus/Alertmanager syntax)</h3>
+
+                    <pre><code class="language-yaml">groups:
+  - name: agent_harness_alerts
+    rules:
+
+    # Alert if cost burn rate spikes (potential infinite loop)
+    - alert: AgentCostSpike
+      expr: |
+        rate(agent_cost_usd_total[5m]) > 0.50
+      for: 2m
+      labels:
+        severity: warning
+        team: platform
+      annotations:
+        summary: "Agent cost burning >$0.50/5min"
+        description: "Cost rate {{ $value | humanize }}$/5min. Check for looping sessions."
+        runbook: "https://runbooks.internal/agent/cost-spike"
+
+    # Hard alert: cost exceeds $100/hour
+    - alert: AgentCostCritical
+      expr: |
+        rate(agent_cost_usd_total[1h]) * 3600 > 100
+      for: 5m
+      labels:
+        severity: critical
+        team: platform
+      annotations:
+        summary: "Agent system burning >$100/hour"
+        description: "Hourly cost projection: ${{ $value | humanize }}. Immediate investigation required."
+
+    # Model API error rate
+    - alert: ModelAPIErrorRate
+      expr: |
+        rate(agent_model_errors_total[5m])
+        / rate(agent_model_calls_total[5m]) > 0.05
+      for: 3m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Model API error rate >5%"
+        description: "Error rate: {{ $value | humanizePercentage }}. Model: {{ $labels.model_id }}"
+
+    # TTFT degradation (model provider issues)
+    - alert: ModelLatencyDegradation
+      expr: |
+        histogram_quantile(0.95,
+          rate(agent_model_ttft_ms_bucket[10m])
+        ) > 3000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Model TTFT p95 >3 seconds"
+        description: "p95 TTFT: {{ $value }}ms. Check model provider status page."
+
+    # Tool failure rate by tool
+    - alert: ToolHighFailureRate
+      expr: |
+        rate(agent_tool_failures_total[5m])
+        / rate(agent_tool_calls_total[5m]) > 0.10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Tool '{{ $labels.tool_name }}' failure rate >10%"
+
+    # Session stuck (turn taking >5 minutes)
+    - alert: AgentSessionStuck
+      expr: |
+        agent_turn_duration_seconds > 300
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Agent session {{ $labels.session_id }} turn >5min"
+        description: "Possible infinite loop or hung tool execution."
+</code></pre>
+
+                    <h3>On-Call Playbook for Agent Systems</h3>
+                    <p>When alerts fire, the on-call engineer needs a clear runbook. Agent systems have unique failure modes:</p>
+
+                    <div class="warning-box">
+                        <strong>Infinite Loop Detection:</strong> The most dangerous failure mode is an agent that loops — calling the same tool repeatedly with minor variations. Signs: cost spike, high model calls per session, same tool appearing in 90%+ of calls for a session. Mitigation: (1) check the session recording for the repeating pattern, (2) identify if it is a prompt issue (model isn't recognizing success) or a tool issue (tool not returning expected output), (3) kill the session with a forced stop, (4) add a loop-detection heuristic (e.g., if the same tool_name + args_hash appears 3 times in 5 calls, interrupt the agent).
+                    </div>
+
+                    <table class="metric-table">
+                        <thead>
+                            <tr><th>Alert</th><th>First action</th><th>Likely causes</th><th>Escalation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>AgentCostSpike</td>
+                                <td>Identify the top session by cost; check its recording</td>
+                                <td>Infinite loop, bloated context, user testing with heavy load</td>
+                                <td>If system-wide: check for prompt regression in latest deploy</td>
+                            </tr>
+                            <tr>
+                                <td>ModelAPIErrorRate</td>
+                                <td>Check model provider status page; look at error_type distribution</td>
+                                <td>Rate limiting, API outage, invalid requests (context overflow)</td>
+                                <td>If outage: activate fallback model routing</td>
+                            </tr>
+                            <tr>
+                                <td>ModelLatencyDegradation</td>
+                                <td>Check TTFT by region; compare against provider status</td>
+                                <td>Provider infrastructure issues, increased load</td>
+                                <td>Route to secondary provider if TTFT p95 &gt;5s</td>
+                            </tr>
+                            <tr>
+                                <td>ToolHighFailureRate</td>
+                                <td>Check which tool; look at tool_result logs for error_type</td>
+                                <td>Sandbox configuration change, filesystem permission issue, dependency missing</td>
+                                <td>Disable the failing tool if failure rate &gt;50%</td>
+                            </tr>
+                            <tr>
+                                <td>AgentSessionStuck</td>
+                                <td>Pull session recording; check last tool execution</td>
+                                <td>Tool hanging (network call, long build), model in generation loop</td>
+                                <td>Kill session; add tool timeout if recurring</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 8: Interview Tips
+            ============================================================ -->
+            <h2>8. Interview Tips</h2>
+
+            <div class="card">
+                <h3>What Interviewers Look for in Observability Questions</h3>
+                <ul>
+                    <li><strong>Systems thinking:</strong> Can you design a tracing hierarchy that reflects the semantic structure of agent execution, not just HTTP boundaries? Interviewers want to see you reason about what the data model should look like before reaching for tools.</li>
+                    <li><strong>Cost awareness:</strong> Can you demonstrate that you treat token cost as a first-class operational metric, not a billing afterthought? Know real pricing numbers for at least two models.</li>
+                    <li><strong>Specificity over generality:</strong> Avoid "we would add logging." Instead, say: "We would emit structured JSON events with a session_id and trace_id on every model call, capturing input/output token counts, cost in USD, and stop_reason, shipping to a central log aggregation system queryable by Grafana."</li>
+                    <li><strong>Debugging workflow:</strong> Be able to walk through a concrete debugging scenario end to end — from a user complaint to a production trace to a recording replay to a fix.</li>
+                    <li><strong>Failure mode reasoning:</strong> Know the agent-specific failure modes: infinite loops, context overflow, hallucinated tool calls, cost spikes. Interviewers respect candidates who have clearly thought about what can go wrong.</li>
+                </ul>
+
+                <h3>Common Follow-up Questions</h3>
+                <ul>
+                    <li>"How do you test your observability layer itself?" — Answer: Inject synthetic events, use recorded sessions, verify that alerts fire correctly against replayed anomaly traces.</li>
+                    <li>"What do you do if logging the full context window is too expensive?" — Answer: Sample at a configurable rate (e.g., 10% of sessions), always log metadata, store full context in cold storage (S3/GCS) indexed by trace_id, only retrieve on demand.</li>
+                    <li>"How do you handle PII in agent logs?" — Answer: Hash user messages at ingestion, store full content in an encrypted, access-controlled audit store separate from operational logs, apply retention policies.</li>
+                    <li>"How would you detect prompt injection in your observability data?" — Answer: Monitor for anomalous patterns — unusually long context windows, unexpected tool_use sequences (e.g., network calls from a coding agent), cost spikes on single turns. Alert on tool invocation patterns that deviate from baseline.</li>
+                </ul>
+
+                <div class="insight-box">
+                    <strong>The "tell me about a time you debugged a production AI system" question:</strong> If you have built an agent, prepare a concrete story that covers: (1) what the symptom was, (2) which observability data you consulted first and why, (3) what the root cause turned out to be, and (4) what you changed in the system as a result. Bonus points for mentioning a fix to the observability layer itself.
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 9: Quiz
+            ============================================================ -->
+            <h2>9. Knowledge Check</h2>
+
+            <div class="quiz-question">
+                <h4>Q1. You are designing the OpenTelemetry span hierarchy for an agent harness. A user sends one message that triggers 12 model calls over 2 minutes. How many root spans should there be, and what is the correct hierarchy?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <p><strong>One root span</strong> for the session, with one conversation span, one turn span (for the single user message), and 12 model_call child spans under the turn. The hierarchy is: <code>session → conversation → turn → model_call → tool_execution</code>. Creating a root span per model call would break trace correlation — you would lose the ability to query "show me all model calls for session X" without expensive scatter-gather across trace IDs.</p>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q2. Your cost dashboard shows a sudden 10x spike in cost/hour. The session count has not changed. Walk through your investigation steps.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <p>Step 1: Check if the spike is broad (all sessions) or concentrated (one or a few sessions) using the <code>top_costly_calls()</code> or a per-session cost aggregation. Step 2: If concentrated — pull that session's recording and check the model_calls for the pattern. Look for: (a) the same tool being called repeatedly with similar args (loop), (b) unusually large input_tokens per call (context growing unboundedly), (c) suddenly using a more expensive model. Step 3: If broad — check if there was a recent deploy that changed the system prompt (making it much longer), or a routing change that shifted traffic to a more expensive model. Step 4: Engage the budget circuit breaker to stop further spend while investigating.</p>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q3. A developer asks: "Why do I need structured logging AND distributed tracing? Aren't they redundant?" How do you respond?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <p>They are complementary, not redundant. <strong>Traces</strong> capture the timing and causal structure of execution — they tell you what happened in what order and how long each step took. They are optimized for waterfall views and latency analysis. <strong>Logs</strong> capture content and events at specific points — they tell you what the values were, what the error message was, what the model said. Logs are optimized for text search and content inspection. In practice: a trace shows you "turn 3 had an unusually long model_call at 12:34:01"; the correlated log entry shows you "input_tokens=45,000, cost=$0.18" which reveals the root cause is context bloat. You need both.</p>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q4. You want to reproduce a production bug where the agent deleted the wrong file. The session recording exists. Describe the exact steps using the ReplayEngine to isolate the decision.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <p>1. Load the recording: <code>recording = SessionRecording.load(path)</code>. 2. Create <code>engine = ReplayEngine(recording, strict=False)</code> — use non-strict mode first to identify the divergence without crashing. 3. Use <code>engine.step_to(1)</code> through <code>step_to(N)</code>, inspecting each <code>recorded.response</code> for tool_use blocks. Find the model call that produced a <code>file_write</code> or <code>bash</code> tool_use targeting the wrong file. 4. Examine <code>recording.model_calls[k].input_messages</code> to see the full context the model had at that decision point. 5. Identify the context issue — was the wrong filename mentioned prominently? Was there ambiguity in the system prompt? 6. Fix the prompt or tool design, switch to <code>strict=True</code>, and rerun the full recording to confirm the fix results in the correct tool target.</p>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q5. Design a TTFT (time to first token) alerting strategy. What threshold should trigger an alert, and what should the alert drive the on-call engineer to do?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <p>TTFT baseline for claude-sonnet-4-5 is roughly 200–500ms p50, 800ms p95. Alert thresholds: <strong>Warning at p95 &gt; 2000ms</strong> (4x baseline), <strong>Critical at p95 &gt; 5000ms</strong>. The alert should include the model_id label so the engineer can immediately check if it is model-specific or all models. First action: check the model provider's status page (status.anthropic.com, status.openai.com). If a provider incident is confirmed: activate fallback model routing (switch that model to an equivalent alternative). If no provider incident: check for context size regression — unusually large input_tokens increase time-to-first-token as the model processes more prefix. Alert resolution: TTFT p95 back below 1000ms for 10 minutes. Track TTFT trends weekly — gradual increase can indicate context window growth over time as prompts get longer.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 10: Mini-Project
+            ============================================================ -->
+            <h2>10. Mini-Project: Build an Agent Observability Layer</h2>
+
+            <div class="mini-project">
+                <h3>Project: ObservableAgent — A Reference Implementation</h3>
+                <p>Build a complete observability layer for a simple agent harness. This project covers all concepts in this module end to end.</p>
+
+                <h4>Requirements</h4>
+                <ol>
+                    <li><strong>OpenTelemetry instrumentation:</strong> Implement the full 5-level span hierarchy (session, conversation, turn, model_call, tool_execution). Export spans to a local Jaeger instance (run via Docker).</li>
+                    <li><strong>Structured logger:</strong> Implement the AgentLogger from Section 3. Add a file sink that writes to <code>logs/agent-{session_id}.jsonl</code> and a stdout sink. Verify that every event has a trace_id matching the OTel span.</li>
+                    <li><strong>Cost tracker:</strong> Implement CostTracker with hard budget at $0.50 and soft budget at $0.20. Wire a callback that calls <code>logger.budgetAlert()</code>. Add a <code>/cost-summary</code> endpoint that returns the session cost breakdown as JSON.</li>
+                    <li><strong>Latency monitoring:</strong> Wrap your model client in TimedModelClient. After each session ends, print TTFT and total latency percentiles to stdout.</li>
+                    <li><strong>Session recording:</strong> Implement SessionRecorder and ReplayEngine. After each session completes, save the recording to <code>recordings/{session_id}.json.gz</code>. Write a test that loads the recording and replays it in strict mode, asserting the same sequence of tool_use names.</li>
+                    <li><strong>Dashboard query:</strong> Using the structured logs, write a Python script that reads all <code>logs/*.jsonl</code> files and outputs: total cost by model, p95 model call latency, and tool failure rates by tool name.</li>
+                </ol>
+
+                <h4>Starter Structure</h4>
+                <pre><code class="language-text">observable-agent/
+├── agent/
+│   ├── __init__.py
+│   ├── tracer.py          # AgentTracer (OTel)
+│   ├── logger.py          # AgentLogger (structured JSON)
+│   ├── cost.py            # CostTracker + compute_cost
+│   ├── latency.py         # LatencyTracker + TimedModelClient
+│   ├── recording.py       # SessionRecorder + ReplayEngine
+│   └── harness.py         # Main agent loop tying it all together
+├── scripts/
+│   └── analyze_logs.py    # Dashboard query script
+├── tests/
+│   ├── test_cost.py
+│   ├── test_recording.py
+│   └── test_replay.py
+├── docker-compose.yml     # Jaeger + OTel Collector
+└── requirements.txt
+</code></pre>
+
+                <h4>Milestones</h4>
+                <ol>
+                    <li><strong>Milestone 1:</strong> Structured logs flowing to a file with correct correlation IDs. Verify by grepping the log file for a session_id and seeing all events for that session.</li>
+                    <li><strong>Milestone 2:</strong> OTel spans appearing in Jaeger UI. Open the trace for a session and verify the 5-level hierarchy is visible with correct duration and attributes.</li>
+                    <li><strong>Milestone 3:</strong> Cost tracker fires a budget alert when a session exceeds $0.20. Implement a mock model client that returns fake usage data to avoid real API costs during testing.</li>
+                    <li><strong>Milestone 4:</strong> Session recording and replay passing in strict mode. Run a recorded session twice — second run should produce identical tool_use sequences.</li>
+                    <li><strong>Milestone 5:</strong> analyze_logs.py correctly computes cost by model and latency percentiles from a set of log files. Write 3 log files with known data and assert the script output is correct.</li>
+                </ol>
+
+                <h4>Stretch Goals</h4>
+                <ul>
+                    <li>Add Prometheus metrics export and build a Grafana dashboard with the four golden signals from Section 7</li>
+                    <li>Implement a loop detection heuristic: if the same (tool_name, args_hash) appears 3 times in the last 5 tool invocations, emit a WARNING log event and optionally halt the agent</li>
+                    <li>Build a CLI tool: <code>python replay.py --session sess_abc123 --step 5</code> that loads a recording and prints the context and response at that step</li>
+                    <li>Add a sampling rate to the file sink: only write full recordings for X% of sessions, but always write summary events</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================
+                 SECTION 11: Checkpoint Summary
+            ============================================================ -->
+            <div class="checkpoint-summary">
+                <h3>Module 8 Checkpoint Summary</h3>
+                <p><strong>tl;dr:</strong> Agent observability is not traditional APM with logging bolted on. It requires a purpose-built span hierarchy aligned to agent semantics, cost as a first-class signal, and session recording for deterministic bug reproduction.</p>
+
+                <h4>Key Concepts to Retain</h4>
+                <ul>
+                    <li>The 5-level OTel trace hierarchy: session → conversation → turn → model_call → tool_execution — each level exists because it maps to a distinct operational boundary with its own failure modes.</li>
+                    <li>Structured logs must have a common envelope with session_id, conv_id, turn_id, trace_id, and span_id on every event — without these, log events from async operations are uncorrelated and useless.</li>
+                    <li>Cost = (input_tokens / 1M × input_price) + (output_tokens / 1M × output_price). Know approximate pricing for at least claude-sonnet and claude-haiku.</li>
+                    <li>TTFT (time to first token) is the key user-experience latency metric; total model call latency determines agent throughput. They require different alerting thresholds.</li>
+                    <li>Session recording with deterministic replay is the production debugging superpower for agent systems — it converts a non-reproducible user report into a reproducible test case.</li>
+                    <li>The four agent-specific alert categories: cost spike (loop detection), model API error rate, TTFT degradation (provider issue), and session stuck (hung tool or loop).</li>
+                </ul>
+
+                <h4>5 Suggested Flashcard Q&A Pairs</h4>
+                <ol>
+                    <li><strong>Q:</strong> What is TTFT and why does it matter for agents? <strong>A:</strong> Time to First Token — the latency from model API call submission to receiving the first streamed token. It determines perceived responsiveness; for streaming agents it is often more important to UX than total model call duration. Typical range: 200–800ms for claude-sonnet.</li>
+                    <li><strong>Q:</strong> Why do you hash user messages in logs instead of storing them? <strong>A:</strong> User messages contain PII, source code, credentials, and proprietary content. Hashes preserve correlation ability (you can still match a log event to a trace) without storing sensitive content. Full content goes in a separate encrypted audit store with strict access controls.</li>
+                    <li><strong>Q:</strong> What is baggage propagation in OpenTelemetry and why do agent systems need it? <strong>A:</strong> OTel baggage is a key-value map carried in the trace context that propagates across process and thread boundaries. Agents need it because they spawn subprocesses (bash tool) and make HTTP calls (external APIs). Without baggage, the session_id and conv_id are lost at process boundaries, making cross-process correlation impossible.</li>
+                    <li><strong>Q:</strong> What is the purpose of the input_hash field in a RecordedModelCall? <strong>A:</strong> It is a hash of the input messages array used for replay validation. During replay, the ReplayEngine computes the hash of the context being replayed and compares it to the recorded hash. A mismatch means the replay diverged — the agent loop produced different context than during recording — which indicates a bug in the replay logic itself.</li>
+                    <li><strong>Q:</strong> Name three agent-specific failure modes that standard APM tools will not alert on. <strong>A:</strong> (1) Infinite loop — agent calling same tool repeatedly, visible as cost spike + high model_calls_per_session. (2) Context overflow — input_tokens approaching context limit, causing truncation and degraded responses. (3) Budget exceeded — session cost crossing threshold; without cost tracking this is invisible until the billing statement.</li>
+                </ol>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-07.html" class="btn btn-secondary">&#8592; Module 7: Model Routing</a>
+                <a href="module-09.html" class="btn btn-primary">Module 9: Scaling &#8594;</a>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#06b6d4',
+                primaryBorderColor: '#0891b2',
+                primaryTextColor: '#f1f5f9',
+                lineColor: '#64748b',
+                sectionBkgColor: '#1e293b',
+                altSectionBkgColor: '#0f172a',
+                gridColor: '#334155',
+                secondaryColor: '#3b82f6',
+                tertiaryColor: '#6366f1',
+            }
+        });
+
+        // Collapsible sections
+        document.querySelectorAll('.collapsible-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const parent = header.parentElement;
+                parent.classList.toggle('open');
+                const icon = header.querySelector('.collapsible-icon');
+                if (icon) {
+                    icon.textContent = parent.classList.contains('open') ? '\u25b2' : '\u25bc';
+                }
+            });
+        });
+
+        // Mobile sidebar toggle
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('active');
+            });
+        }
+
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('active');
+            });
+        }
+    </script>
+</body>
+</html>

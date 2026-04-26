@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2: Context Engineering (Deep Dive) - Harness Engineering</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <style>
+        /* Cyan-to-blue theme for Harness Engineering */
+        .math-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.95rem;
+            line-height: 1.7;
+        }
+        .math-box .formula {
+            font-size: 1.05rem;
+            color: #06b6d4;
+            font-weight: 600;
+            display: block;
+            margin: 0.4rem 0;
+        }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-left: 4px solid #22c55e;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .analogy-box strong {
+            color: #22c55e;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box strong {
+            color: #f59e0b;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-left: 4px solid #06b6d4;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box strong {
+            color: #06b6d4;
+        }
+        .quiz-question {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .quiz-question h4 {
+            margin-bottom: 0.75rem;
+            color: var(--text-color);
+        }
+        .quiz-answer {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: rgba(6, 182, 212, 0.1);
+            border-radius: 0.35rem;
+            border-left: 3px solid #06b6d4;
+            line-height: 1.6;
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.9) 0%, rgba(59, 130, 246, 0.9) 100%);
+            color: white;
+            border: none;
+            padding: 0.5rem 1.25rem;
+            border-radius: 0.35rem;
+            cursor: pointer;
+            margin-top: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+        .reveal-btn:hover { opacity: 0.85; }
+        .checkpoint-summary {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%);
+            border: 2px solid rgba(6, 182, 212, 0.4);
+            border-radius: 1rem;
+            padding: 1.75rem;
+            margin: 2rem 0;
+        }
+        .checkpoint-summary h3 {
+            color: #06b6d4;
+            margin-bottom: 1rem;
+        }
+        .mini-project {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+            border: 2px dashed rgba(6, 182, 212, 0.5);
+            border-radius: 1rem;
+            padding: 1.75rem;
+            margin: 2rem 0;
+        }
+        .mini-project h3 {
+            color: #06b6d4;
+            margin-bottom: 1rem;
+        }
+
+        /* Token budget visualizer */
+        .budget-bar-container {
+            margin: 1.25rem 0;
+        }
+        .budget-bar-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 0.3rem;
+        }
+        .budget-bar {
+            width: 100%;
+            height: 28px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+            display: flex;
+        }
+        .budget-segment {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+            transition: width 0.5s ease;
+            white-space: nowrap;
+            overflow: hidden;
+            padding: 0 4px;
+        }
+        .seg-system   { background: #06b6d4; }
+        .seg-reserve  { background: #3b82f6; }
+        .seg-history  { background: #8b5cf6; }
+        .seg-tools    { background: #f59e0b; }
+        .seg-free     { background: rgba(255,255,255,0.1); color: var(--text-muted); }
+        .budget-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+
+        /* Pipeline step animation */
+        .pipeline-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0;
+            margin: 1.5rem 0;
+            position: relative;
+        }
+        .pipeline-step {
+            flex: 1;
+            min-width: 100px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 0.9rem 0.75rem;
+            text-align: center;
+            position: relative;
+            transition: background 0.3s;
+        }
+        .pipeline-step:not(:last-child)::after {
+            content: '→';
+            position: absolute;
+            right: -12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #06b6d4;
+            font-size: 1.2rem;
+            z-index: 1;
+        }
+        .pipeline-step .step-num {
+            font-size: 0.65rem;
+            color: #06b6d4;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: block;
+            margin-bottom: 0.3rem;
+        }
+        .pipeline-step .step-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-color);
+            display: block;
+        }
+        .pipeline-step .step-desc {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 0.25rem;
+        }
+        .pipeline-step.active {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+            border-color: #06b6d4;
+        }
+        .pipeline-btn {
+            background: rgba(6, 182, 212, 0.1);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+            color: #06b6d4;
+            padding: 0.4rem 1rem;
+            border-radius: 0.3rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-right: 0.5rem;
+            transition: background 0.2s;
+        }
+        .pipeline-btn:hover { background: rgba(6, 182, 212, 0.2); }
+
+        /* Cache savings table */
+        .savings-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .savings-table th {
+            background: rgba(6, 182, 212, 0.15);
+            padding: 0.6rem 0.9rem;
+            text-align: left;
+            border-bottom: 2px solid rgba(6, 182, 212, 0.3);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #06b6d4;
+        }
+        .savings-table td {
+            padding: 0.6rem 0.9rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .savings-table tr:hover td {
+            background: rgba(6, 182, 212, 0.05);
+        }
+        .highlight-row td { color: #22c55e; font-weight: 600; }
+
+        /* Priority queue visual */
+        .priority-queue-visual {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        .pq-row {
+            display: flex;
+            align-items: center;
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            gap: 1rem;
+        }
+        .pq-row:last-child { border-bottom: none; }
+        .pq-priority {
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.25rem;
+            min-width: 70px;
+            text-align: center;
+        }
+        .pq-p1 { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .pq-p2 { background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .pq-p3 { background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); }
+        .pq-p4 { background: rgba(6, 182, 212, 0.2); color: #06b6d4; border: 1px solid rgba(6,182,212,0.3); }
+        .pq-p5 { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.2); }
+        .pq-name { font-weight: 600; flex: 1; font-size: 0.9rem; }
+        .pq-tokens { font-size: 0.8rem; color: var(--text-muted); }
+        .pq-action { font-size: 0.75rem; }
+        .action-keep { color: #22c55e; }
+        .action-trim { color: #f59e0b; }
+        .action-drop { color: #ef4444; }
+
+        /* Sliding window demo */
+        .window-demo {
+            font-family: monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+            padding: 1rem;
+            background: #0f1117;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .msg-block {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 0.2rem;
+            margin: 0.1rem;
+        }
+        .msg-system  { background: rgba(6, 182, 212, 0.25); color: #06b6d4; }
+        .msg-user    { background: rgba(59, 130, 246, 0.25); color: #3b82f6; }
+        .msg-assist  { background: rgba(139, 92, 246, 0.25); color: #a78bfa; }
+        .msg-sum     { background: rgba(34, 197, 94, 0.25); color: #22c55e; }
+        .msg-dropped { background: rgba(239, 68, 68, 0.1); color: #6b7280; text-decoration: line-through; }
+        .msg-inwindow { border: 2px solid rgba(6, 182, 212, 0.6); }
+        .window-label { color: #94a3b8; font-size: 0.75rem; display: block; margin-bottom: 0.4rem; }
+
+        /* Code block styling */
+        pre[class*="language-"] {
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            font-size: 0.88rem;
+        }
+
+        /* Comparison grid */
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        @media (max-width: 700px) {
+            .comparison-grid { grid-template-columns: 1fr; }
+            .pipeline-steps { flex-direction: column; }
+            .pipeline-step:not(:last-child)::after { content: '↓'; right: auto; left: 50%; top: auto; bottom: -18px; }
+        }
+        .compare-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        .compare-card h4 {
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+        .compare-card.pro-card { border-top: 3px solid #22c55e; }
+        .compare-card.con-card { border-top: 3px solid #ef4444; }
+
+        @media (prefers-reduced-motion: reduce) {
+            * { transition: none !important; animation: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Harness</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Loop</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Harness Architecture
+                    </a>
+                    <a href="module-02.html" class="sidebar-link active" data-module="2">
+                        <span class="sidebar-link-number">2</span>Context Engineering
+                    </a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Tool Design
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Infrastructure</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Sandbox Engineering
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>Permission Systems
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Human-in-the-Loop
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Operations</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Model Routing
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Observability
+                    </a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Scaling
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>State Management
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Streaming
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Testing
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Mastery</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Case Studies
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Multi-Agent
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Mobile sidebar toggle -->
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+                <span style="background: linear-gradient(135deg, #06b6d4, #3b82f6); color:white; font-size:0.75rem; font-weight:700; padding:0.25rem 0.7rem; border-radius:1rem; letter-spacing:0.05em; text-transform:uppercase;">Module 2</span>
+                <span style="color: var(--text-muted); font-size:0.85rem;">Harness Engineering</span>
+            </div>
+            <h1 style="background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Context Engineering: Deep Dive</h1>
+            <p style="color: var(--text-muted); margin-bottom: 2rem; font-size: 1.05rem; line-height: 1.6;">The context window is the most constrained and expensive resource in any agent harness. This module teaches you to treat it like a precious cache: what to put in, how to organize it, when to evict, and how to make the model cache work for you — not against you.</p>
+
+            <!-- Learning Objectives -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%); border: 1px solid rgba(6, 182, 212, 0.3);">
+                <h3 style="color: #06b6d4;">What You'll Learn</h3>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Why the context window is a scarce resource and how to cost-model it</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Token budget algorithms: fixed vs dynamic allocation</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; The 5-stage context assembly pipeline</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Sliding window strategies for long conversations</p>
+                    </div>
+                    <div>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Truncation vs summarization — when to use which</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Anthropic prompt caching: mechanics and cost math</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Production patterns from Claude Code and Cursor</p>
+                        <p style="margin:0; padding: 0.3rem 0; font-size:0.9rem;">&#10003; Building a production-grade TokenBudgetManager</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: WHY CONTEXT ENGINEERING IS THE PROBLEM            -->
+            <!-- ============================================================ -->
+            <h2>1. Why Context Engineering is THE Problem</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Context Window as a Scarce Resource</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every API call to Claude, GPT-4, or Gemini sends a payload of tokens. The model reads them all — but its attention mechanism has a fixed capacity. Modern flagship models offer windows ranging from 128K (GPT-4o) to 200K (Claude 3.5 Sonnet) to 1M (Gemini 1.5 Pro). Despite that growth, production agents routinely hit the ceiling because <strong>each tool call injects fresh tokens while nothing leaves.</strong></p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy: RAM, not disk.</strong> Think of the context window the same way you think about L1/L2 cache in a CPU. You have a small, fast, expensive cache. Every cache line you load costs you; every eviction is information lost. The art of context engineering is identical to cache replacement policy design — you are writing the equivalent of LRU, LFU, or ARC algorithms, but for language model inputs.
+                    </div>
+
+                    <h3>The Real Dollar Cost</h3>
+                    <p>Context costs money on two dimensions: <strong>input tokens</strong> (reading) and <strong>output tokens</strong> (writing). With Claude 3.5 Sonnet pricing at $3/M input tokens and $15/M output tokens, let's compute the cost of a typical agent session:</p>
+
+                    <div class="math-box">
+                        <span class="formula">Scenario: 50-turn coding session, Claude 3.5 Sonnet</span>
+                        System prompt:           4,000 tokens (constant)<br>
+                        Tool schemas (15 tools): 3,500 tokens (constant)<br>
+                        Avg conversation/turn:  +1,200 tokens (grows each turn)<br>
+                        Avg tool output/turn:   +2,500 tokens (grows each turn)<br><br>
+
+                        <span class="formula">Turn 1 context:   ~9,000 tokens  → $0.027</span>
+                        <span class="formula">Turn 25 context: ~99,500 tokens  → $0.299</span>
+                        <span class="formula">Turn 50 context: ~189,500 tokens → $0.569 (this turn alone)</span>
+                        <span class="formula">Session total (naive):  ~$7.20 input cost alone</span>
+                        <span class="formula">With smart budgeting:   ~$1.80 (75% reduction via caching + truncation)</span>
+                    </div>
+
+                    <p>For a B2C product with 100,000 daily active sessions, that $5.40 per-session saving compounds to <strong>$540,000/day</strong>. This is why Anthropic, OpenAI, and every serious AI company dedicates entire engineering teams to context management.</p>
+
+                    <h3>Why "Dump Everything" Fails</h3>
+                    <p>Naive implementations append every message and tool result to a growing array and pass it all to the model. This approach fails in three ways:</p>
+
+                    <div class="priority-queue-visual">
+                        <div class="pq-row" style="background: rgba(239,68,68,0.05);">
+                            <span class="pq-priority pq-p1">Failure 1</span>
+                            <span class="pq-name">Context Window Overflow</span>
+                            <span class="pq-tokens">After 20-40 turns on complex tasks, you hit the limit. The API returns a 400 error mid-task. The agent fails silently or crashes.</span>
+                        </div>
+                        <div class="pq-row" style="background: rgba(245,158,11,0.05);">
+                            <span class="pq-priority pq-p2">Failure 2</span>
+                            <span class="pq-name">Attention Dilution ("Lost in the Middle")</span>
+                            <span class="pq-tokens">Stanford research (2023) shows LLMs perform worst on information placed in the middle of a long context. A 50-turn conversation buries the most recent user intent under thousands of old tokens.</span>
+                        </div>
+                        <div class="pq-row" style="background: rgba(59,130,246,0.05);">
+                            <span class="pq-priority pq-p3">Failure 3</span>
+                            <span class="pq-name">Cost Explosion</span>
+                            <span class="pq-tokens">Each subsequent turn re-sends all previous tokens as input. Cost is O(n²) in the number of turns. A 200-turn debugging session can cost $40+ with no caching.</span>
+                        </div>
+                    </div>
+
+                    <h3>Real Systems: How Production Harnesses Handle It</h3>
+
+                    <div class="comparison-grid">
+                        <div class="compare-card" style="border-top: 3px solid #06b6d4;">
+                            <h4>Claude Code (~200K window)</h4>
+                            <ul style="font-size:0.88rem; line-height:1.7; margin:0; padding-left:1.2rem;">
+                                <li>System prompt ~8K tokens (model card + tool schemas)</li>
+                                <li>File content injected as tool results, not conversation</li>
+                                <li>Smart truncation: first 100 + last 100 lines of large files</li>
+                                <li>Conversation history hard cap: ~40 turns retained</li>
+                                <li>Bash outputs capped at 8K tokens per result</li>
+                                <li>Prompt cache on system prompt + tool schemas</li>
+                            </ul>
+                        </div>
+                        <div class="compare-card" style="border-top: 3px solid #8b5cf6;">
+                            <h4>Cursor (~128K window)</h4>
+                            <ul style="font-size:0.88rem; line-height:1.7; margin:0; padding-left:1.2rem;">
+                                <li>Codebase indexed into vector embeddings first</li>
+                                <li>Retrieves top-k relevant files per query (RAG-in-context)</li>
+                                <li>Active file always gets highest priority allocation</li>
+                                <li>Git diff injected as structured patch, not full file</li>
+                                <li>Conversation history limited to last 10 turns by default</li>
+                                <li>LSP symbols (function signatures) over full file bodies</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: TOKEN BUDGETING ALGORITHMS                         -->
+            <!-- ============================================================ -->
+            <h2>2. Token Budgeting Algorithms</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Fixed vs Dynamic Allocation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>There are two schools of thought on how to allocate the context window. The right choice depends on the predictability of your agent's tasks.</p>
+
+                    <div class="comparison-grid">
+                        <div class="compare-card pro-card">
+                            <h4 style="color:#22c55e;">Fixed Allocation</h4>
+                            <p style="font-size:0.85rem;">Pre-assign hard token budgets to each category. Simple to reason about, no risk of one category starving another.</p>
+                            <pre style="font-size:0.78rem; background:#0f1117; padding:0.75rem; border-radius:0.35rem; overflow-x:auto; margin-top:0.5rem;"><code>MAX = 200,000
+
+SYSTEM_PROMPT  =  8,000  (4%)
+TOOL_SCHEMAS   =  4,000  (2%)
+RESPONSE_RSRV  = 16,000  (8%)
+HISTORY        = 80,000  (40%)
+TOOL_RESULTS   = 72,000  (36%)
+FREE           = 20,000  (10%)</code></pre>
+                            <p style="font-size:0.82rem; color:#22c55e;">Best for: chatbots, customer service agents with predictable conversation shapes.</p>
+                        </div>
+                        <div class="compare-card con-card">
+                            <h4 style="color:#ef4444;">Dynamic Allocation</h4>
+                            <p style="font-size:0.85rem;">Measure actual usage of each category at runtime, allocate remaining budget to highest-priority needs.</p>
+                            <pre style="font-size:0.78rem; background:#0f1117; padding:0.75rem; border-radius:0.35rem; overflow-x:auto; margin-top:0.5rem;"><code>available = MAX
+           - count(system_prompt)
+           - count(tool_schemas)
+           - RESPONSE_RESERVE
+# Divide rest by priority queue order
+# Trim lower-priority items first</code></pre>
+                            <p style="font-size:0.82rem; color:#ef4444;">Best for: coding agents, research agents where tool output sizes are unpredictable.</p>
+                        </div>
+                    </div>
+
+                    <h3>The Priority Queue Approach</h3>
+                    <p>Dynamic allocation works via a priority queue. Each context element is assigned a priority. When budget runs low, the scheduler trims or evicts the lowest-priority elements first. Here is the canonical priority ordering for a coding agent:</p>
+
+                    <div class="priority-queue-visual">
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p1">P1 — Critical</span>
+                            <span class="pq-name">System Prompt + Tool Schemas</span>
+                            <span class="pq-tokens">~8-15K tokens</span>
+                            <span class="pq-action action-keep">NEVER drop</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p1">P1 — Critical</span>
+                            <span class="pq-name">Response Reserve</span>
+                            <span class="pq-tokens">~8-16K tokens</span>
+                            <span class="pq-action action-keep">NEVER drop</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p2">P2 — High</span>
+                            <span class="pq-name">Most Recent User Message</span>
+                            <span class="pq-tokens">~500-3K tokens</span>
+                            <span class="pq-action action-keep">Keep verbatim</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p2">P2 — High</span>
+                            <span class="pq-name">Most Recent Tool Results (last 3)</span>
+                            <span class="pq-tokens">~2-20K tokens</span>
+                            <span class="pq-action action-trim">Trim if large</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p3">P3 — Medium</span>
+                            <span class="pq-name">Recent Conversation History (last 10 turns)</span>
+                            <span class="pq-tokens">~5-30K tokens</span>
+                            <span class="pq-action action-trim">Trim oldest first</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p4">P4 — Low</span>
+                            <span class="pq-name">Older Tool Results + File Contents</span>
+                            <span class="pq-tokens">~0-80K tokens</span>
+                            <span class="pq-action action-trim">Summarize or drop</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p5">P5 — Ephemeral</span>
+                            <span class="pq-name">Intermediate Reasoning / Scratch Pad</span>
+                            <span class="pq-tokens">~0-20K tokens</span>
+                            <span class="pq-action action-drop">Drop freely</span>
+                        </div>
+                    </div>
+
+                    <h3>Budget Calculation Formula</h3>
+                    <div class="math-box">
+                        <span class="formula">available_budget = total_window - count(system_prompt) - count(tool_schemas) - response_reserve</span>
+                        <br>
+                        Example (Claude 3.5 Sonnet, 200K window):<br>
+                        available = 200,000 - 8,200 - 3,800 - 12,000 = <strong>176,000 tokens</strong><br><br>
+
+                        <span class="formula">If history_tokens + tool_result_tokens &gt; available_budget:</span>
+                        overflow = (history + tools) - available<br>
+                        Trim P5 first → P4 → P3 → until overflow == 0
+                    </div>
+
+                    <!-- Interactive budget bar -->
+                    <h3>Interactive: Token Budget Visualizer</h3>
+                    <p style="font-size:0.85rem; color:var(--text-muted);">Use the slider to simulate conversation length and see how the budget fills up.</p>
+
+                    <div class="budget-bar-container">
+                        <label style="font-size:0.85rem;">Conversation turns: <strong id="turn-count-label">10</strong></label><br>
+                        <input type="range" id="turn-slider" min="1" max="50" value="10" style="width:100%; margin:0.5rem 0 0.75rem;">
+                        <div class="budget-bar-label">
+                            <span>0</span>
+                            <span id="budget-total-label">200K tokens total</span>
+                        </div>
+                        <div class="budget-bar">
+                            <div class="budget-segment seg-system"  id="seg-system"  style="width:6%">System</div>
+                            <div class="budget-segment seg-reserve" id="seg-reserve" style="width:6%">Reserve</div>
+                            <div class="budget-segment seg-tools"   id="seg-tools"   style="width:8%">Tools</div>
+                            <div class="budget-segment seg-history" id="seg-history" style="width:10%">History</div>
+                            <div class="budget-segment seg-free"    id="seg-free"    style="width:70%">Free</div>
+                        </div>
+                        <div class="budget-legend">
+                            <div class="legend-item"><div class="legend-dot" style="background:#06b6d4;"></div> System/Schemas</div>
+                            <div class="legend-item"><div class="legend-dot" style="background:#3b82f6;"></div> Response Reserve</div>
+                            <div class="legend-item"><div class="legend-dot" style="background:#f59e0b;"></div> Tool Results</div>
+                            <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6;"></div> History</div>
+                            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.1);"></div> Free</div>
+                        </div>
+                        <p id="budget-overflow-warning" style="color:#ef4444; font-size:0.85rem; display:none;">&#9888; Budget overflow! Truncation/summarization required for turns &gt; 35.</p>
+                    </div>
+
+                    <h3>Python: TokenBudgetManager Class</h3>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Optional
+import tiktoken
+
+@dataclass
+class ContextItem:
+    """A single allocatable piece of context."""
+    content: str
+    priority: int          # 1=critical, 5=ephemeral
+    category: str          # 'system', 'history', 'tool_result', etc.
+    turn_index: int = 0    # When was this added?
+    token_count: int = 0   # Populated by TokenBudgetManager
+
+    def __post_init__(self):
+        if self.token_count == 0:
+            # Lazy count — will be filled by manager
+            pass
+
+
+class TokenBudgetManager:
+    """
+    Production token budget manager for agent harnesses.
+
+    Implements a priority-queue-based allocation strategy:
+    - P1 items (system, schemas, reserve) are NEVER dropped
+    - Lower priority items are truncated/evicted when budget is exceeded
+    - Supports both fixed and dynamic allocation modes
+    """
+
+    PRIORITIES = {
+        'system_prompt': 1,
+        'tool_schemas':  1,
+        'response_reserve': 1,
+        'last_user_msg': 2,
+        'recent_tool_results': 2,
+        'history_recent': 3,
+        'tool_results_old': 4,
+        'history_old': 4,
+        'scratch_pad': 5,
+    }
+
+    def __init__(
+        self,
+        model: str = "claude-3-5-sonnet-20241022",
+        total_tokens: int = 200_000,
+        response_reserve: int = 12_000,
+        encoding: str = "cl100k_base",   # approximation for Claude
+    ):
+        self.model = model
+        self.total_tokens = total_tokens
+        self.response_reserve = response_reserve
+        self.enc = tiktoken.get_encoding(encoding)
+        self._items: list[ContextItem] = []
+
+    # ------------------------------------------------------------------ #
+    # Public API                                                           #
+    # ------------------------------------------------------------------ #
+
+    def add(self, content: str, category: str, turn_index: int = 0) -> ContextItem:
+        """Add a context item; category determines its priority."""
+        priority = self.PRIORITIES.get(category, 3)
+        token_count = self._count(content)
+        item = ContextItem(
+            content=content,
+            priority=priority,
+            category=category,
+            turn_index=turn_index,
+            token_count=token_count,
+        )
+        self._items.append(item)
+        return item
+
+    def build(self) -> list[ContextItem]:
+        """
+        Return the items that fit within budget, applying
+        priority-based eviction for overflow.
+        """
+        fixed_cost = self._fixed_token_cost()
+        available = self.total_tokens - fixed_cost - self.response_reserve
+
+        if available &lt;= 0:
+            raise ValueError(
+                f"Fixed context items ({fixed_cost} tokens) + response reserve "
+                f"({self.response_reserve}) already exceeds total budget "
+                f"({self.total_tokens})"
+            )
+
+        # Separate P1 items (must keep) from flexible items
+        must_keep = [i for i in self._items if i.priority == 1]
+        flexible  = sorted(
+            [i for i in self._items if i.priority &gt; 1],
+            key=lambda x: (x.priority, -x.turn_index)  # P2 first, newest first
+        )
+
+        budget_used = 0
+        selected: list[ContextItem] = list(must_keep)
+
+        for item in flexible:
+            if budget_used + item.token_count &lt;= available:
+                selected.append(item)
+                budget_used += item.token_count
+            # else: item is evicted (not included in output)
+
+        return selected
+
+    def budget_report(self) -> dict:
+        """Return a dict summarising token usage per category."""
+        report = {}
+        for item in self._items:
+            cat = item.category
+            report[cat] = report.get(cat, 0) + item.token_count
+        report['total'] = sum(report.values())
+        report['available'] = self.total_tokens - self.response_reserve
+        report['utilization_pct'] = round(
+            100 * report['total'] / report['available'], 1
+        )
+        return report
+
+    # ------------------------------------------------------------------ #
+    # Private helpers                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _count(self, text: str) -> int:
+        """Count tokens (using tiktoken as a proxy for Claude)."""
+        return len(self.enc.encode(text))
+
+    def _fixed_token_cost(self) -> int:
+        """Sum tokens for P1 items only."""
+        return sum(
+            i.token_count for i in self._items if i.priority == 1
+        )
+
+
+# Usage example
+if __name__ == "__main__":
+    mgr = TokenBudgetManager(total_tokens=200_000, response_reserve=12_000)
+
+    mgr.add("You are an expert software engineer...", "system_prompt")
+    mgr.add('{"name": "bash", "description": "Run shell commands..."}', "tool_schemas")
+
+    for turn in range(30):
+        mgr.add(f"User turn {turn}: Please fix the bug in auth.py", "history_recent", turn_index=turn)
+        mgr.add(f"File content: {'x' * 2000}", "tool_results_old", turn_index=turn)
+
+    selected = mgr.build()
+    print(f"Selected {len(selected)} of {len(mgr._items)} items")
+    print(mgr.budget_report())
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Production insight:</strong> Claude Code uses a variation of this algorithm but with one extra wrinkle: tool results from the same "logical step" (e.g., bash call + its output) are treated as an atomic unit. They are never split — the entire unit is kept or dropped. This prevents the model from seeing a tool call without its result, which causes hallucination.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: CONTEXT ASSEMBLY PIPELINE                         -->
+            <!-- ============================================================ -->
+            <h2>3. Context Assembly Pipeline</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The 5-Stage Assembly Pipeline</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Raw context items — tool results, conversation history, file contents, user messages — cannot be passed directly to the model. They must flow through a structured pipeline that ensures budget compliance, correct ordering, and format consistency.</p>
+
+                    <!-- Interactive pipeline stepper -->
+                    <div class="pipeline-steps" id="pipeline-demo">
+                        <div class="pipeline-step active" id="ps-0">
+                            <span class="step-num">Stage 1</span>
+                            <span class="step-name">Collect</span>
+                            <span class="step-desc">Gather all raw items</span>
+                        </div>
+                        <div class="pipeline-step" id="ps-1">
+                            <span class="step-num">Stage 2</span>
+                            <span class="step-name">Prioritize</span>
+                            <span class="step-desc">Score &amp; rank items</span>
+                        </div>
+                        <div class="pipeline-step" id="ps-2">
+                            <span class="step-num">Stage 3</span>
+                            <span class="step-name">Truncate</span>
+                            <span class="step-desc">Apply budgets</span>
+                        </div>
+                        <div class="pipeline-step" id="ps-3">
+                            <span class="step-num">Stage 4</span>
+                            <span class="step-name">Format</span>
+                            <span class="step-desc">Build message array</span>
+                        </div>
+                        <div class="pipeline-step" id="ps-4">
+                            <span class="step-num">Stage 5</span>
+                            <span class="step-name">Validate</span>
+                            <span class="step-desc">Final budget check</span>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <button class="pipeline-btn" onclick="stepPipeline(-1)">&#8592; Prev</button>
+                        <button class="pipeline-btn" onclick="stepPipeline(1)">Next &#8594;</button>
+                        <span id="pipeline-stage-desc" style="font-size:0.85rem; color:var(--text-muted);">Stage 1: Collect all raw context items from memory, tools, and user input into a flat list.</span>
+                    </div>
+
+                    <h3>Mermaid Flowchart: Context Assembly Pipeline</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[New Turn Triggered] --> B[Collect Stage]
+    B --> B1[System Prompt] --> C
+    B --> B2[Tool Schemas] --> C
+    B --> B3[Conversation History] --> C
+    B --> B4[Tool Results] --> C
+    B --> B5[User Message] --> C
+
+    C[Prioritize Stage] --> C1{Token count\n> budget?}
+    C1 -->|No| D[Format Stage]
+    C1 -->|Yes| E[Truncate Stage]
+
+    E --> E1{Is item P1?}
+    E1 -->|Yes| E2[Keep verbatim]
+    E1 -->|No| E3{P2 or P3?}
+    E3 -->|P2| E4[Smart truncate\nfirst+last lines]
+    E3 -->|P3| E5{Summarizable?}
+    E5 -->|Yes| E6[Summarize via\nsub-call]
+    E5 -->|No| E7[Drop oldest\nmessages]
+    E2 --> D
+    E4 --> D
+    E6 --> D
+    E7 --> D
+
+    D --> D1[system message\n+ tool schemas]
+    D --> D2[human / assistant\nturn array]
+    D --> D3[tool_use / tool_result\nblock pairs]
+
+    D1 & D2 & D3 --> F[Validate Stage]
+    F --> F1{Final count\n< max_tokens?}
+    F1 -->|Yes| G[Send to API]
+    F1 -->|No| H[Emergency truncation:\ndrop oldest P3-P5 chunks]
+    H --> G
+
+    style A fill:#06b6d4,color:#fff
+    style G fill:#22c55e,color:#fff
+    style H fill:#ef4444,color:#fff
+                        </div>
+                    </div>
+
+                    <h3>TypeScript: ContextAssembler Class</h3>
+                    <pre><code class="language-typescript">import Anthropic from "@anthropic-ai/sdk";
+import { encode } from "gpt-tokenizer"; // proxy tokenizer for Claude
+
+type Priority = 1 | 2 | 3 | 4 | 5;
+
+interface ContextEntry {
+  id: string;
+  priority: Priority;
+  category: "system" | "history" | "tool_result" | "user" | "assistant";
+  turnIndex: number;
+  tokenCount: number;
+  message: Anthropic.MessageParam | null; // null for system prompt
+  systemText?: string;                    // only for system category
+}
+
+export class ContextAssembler {
+  private readonly maxTokens: number;
+  private readonly responseReserve: number;
+  private entries: ContextEntry[] = [];
+  private systemParts: string[] = [];
+
+  constructor(
+    maxTokens = 200_000,
+    responseReserve = 12_000,
+  ) {
+    this.maxTokens = maxTokens;
+    this.responseReserve = responseReserve;
+  }
+
+  /** Stage 1: Collect */
+  addSystemPrompt(text: string): void {
+    const tokens = this.countTokens(text);
+    this.systemParts.push(text);
+    this.entries.push({
+      id: `system-${Date.now()}`,
+      priority: 1,
+      category: "system",
+      turnIndex: -1,
+      tokenCount: tokens,
+      message: null,
+      systemText: text,
+    });
+  }
+
+  addTurn(
+    role: "user" | "assistant",
+    content: string | Anthropic.ContentBlock[],
+    turnIndex: number,
+    priority: Priority = 3,
+  ): void {
+    const text = typeof content === "string" ? content : JSON.stringify(content);
+    const tokens = this.countTokens(text);
+    this.entries.push({
+      id: `${role}-${turnIndex}`,
+      priority,
+      category: role,
+      turnIndex,
+      tokenCount: tokens,
+      message: { role, content },
+    });
+  }
+
+  addToolResult(
+    toolUseId: string,
+    result: string,
+    turnIndex: number,
+  ): void {
+    // Tool results are slightly higher priority than old history
+    const priority: Priority = turnIndex === this.latestTurn() ? 2 : 4;
+    const tokens = this.countTokens(result);
+    this.entries.push({
+      id: `tool-${toolUseId}`,
+      priority,
+      category: "tool_result",
+      turnIndex,
+      tokenCount: tokens,
+      message: {
+        role: "user",
+        content: [{ type: "tool_result", tool_use_id: toolUseId, content: result }],
+      },
+    });
+  }
+
+  /** Stages 2-5: Prioritize → Truncate → Format → Validate */
+  assemble(): { system: string; messages: Anthropic.MessageParam[] } {
+    // Stage 2: Sort by priority asc, then by recency desc
+    const sorted = [...this.entries].sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      return b.turnIndex - a.turnIndex;
+    });
+
+    // Stage 3: Truncate — greedy fill within budget
+    const fixedCost = sorted
+      .filter((e) => e.priority === 1)
+      .reduce((sum, e) => sum + e.tokenCount, 0);
+    const budget = this.maxTokens - fixedCost - this.responseReserve;
+    let used = 0;
+    const selected = new Set<string>();
+
+    for (const entry of sorted) {
+      if (entry.priority === 1) {
+        selected.add(entry.id);
+        continue;
+      }
+      if (used + entry.tokenCount &lt;= budget) {
+        selected.add(entry.id);
+        used += entry.tokenCount;
+      }
+    }
+
+    // Stage 4: Format — rebuild ordered message array
+    const systemText = this.entries
+      .filter((e) => e.category === "system" && selected.has(e.id))
+      .map((e) => e.systemText!)
+      .join("\n\n");
+
+    const messages: Anthropic.MessageParam[] = this.entries
+      .filter((e) => e.category !== "system" && selected.has(e.id) && e.message)
+      .sort((a, b) => a.turnIndex - b.turnIndex)
+      .map((e) => e.message!);
+
+    // Stage 5: Validate
+    const totalTokens = this.countTokens(systemText) +
+      messages.reduce((sum, m) => sum + this.countTokens(JSON.stringify(m)), 0);
+
+    if (totalTokens + this.responseReserve > this.maxTokens) {
+      throw new Error(
+        `Context assembly validation failed: ${totalTokens} tokens exceeds budget`
+      );
+    }
+
+    return { system: systemText, messages };
+  }
+
+  private latestTurn(): number {
+    return Math.max(...this.entries.map((e) => e.turnIndex), 0);
+  }
+
+  private countTokens(text: string): number {
+    return encode(text).length;
+  }
+}
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Message ordering constraint:</strong> The Anthropic Messages API requires messages to alternate between <code>user</code> and <code>assistant</code> roles. If you drop a turn from the middle of a conversation (e.g., turn 7 out of 20), you may create consecutive same-role messages — which the API will reject with a 422 error. Always verify alternation invariant after truncation, and merge consecutive same-role messages if needed.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: SLIDING WINDOW STRATEGIES                         -->
+            <!-- ============================================================ -->
+            <h2>4. Sliding Window Strategies</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Keeping the Most Relevant Context</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A sliding window is the core eviction strategy when conversation history grows beyond budget. The question is not just <em>which</em> messages to drop, but <em>how</em> to drop them without losing critical state. There are three main strategies:</p>
+
+                    <h3>Strategy 1: Naive Truncation (Drop Oldest)</h3>
+                    <div class="window-demo">
+                        <span class="window-label">Full history (30 turns, exceeds budget):</span>
+                        <span class="msg-block msg-system">SYS</span>
+                        <span class="msg-block msg-user msg-dropped">U1</span>
+                        <span class="msg-block msg-assist msg-dropped">A1</span>
+                        <span class="msg-block msg-user msg-dropped">U2</span>
+                        <span class="msg-block msg-assist msg-dropped">A2</span>
+                        <span class="msg-block msg-user msg-dropped">U3</span>
+                        <span class="msg-block msg-assist msg-dropped">A3</span>
+                        <span>...</span>
+                        <span class="msg-block msg-user msg-inwindow">U20</span>
+                        <span class="msg-block msg-assist msg-inwindow">A20</span>
+                        <span class="msg-block msg-user msg-inwindow">U21</span>
+                        <span class="msg-block msg-assist msg-inwindow">A21</span>
+                        <span class="msg-block msg-user msg-inwindow">U22</span>
+                        <span class="msg-block msg-assist msg-inwindow">A22</span>
+                        <br><br>
+                        <span class="window-label">Result: Recent messages kept verbatim. Old context completely lost.</span>
+                    </div>
+
+                    <h3>Strategy 2: Summarization-Based Compression</h3>
+                    <div class="window-demo">
+                        <span class="window-label">After summarization pass:</span>
+                        <span class="msg-block msg-system">SYS</span>
+                        <span class="msg-block msg-sum">SUMMARY: Turns 1-19</span>
+                        <span class="msg-block msg-user msg-inwindow">U20</span>
+                        <span class="msg-block msg-assist msg-inwindow">A20</span>
+                        <span class="msg-block msg-user msg-inwindow">U21</span>
+                        <span class="msg-block msg-assist msg-inwindow">A21</span>
+                        <span class="msg-block msg-user msg-inwindow">U22</span>
+                        <span class="msg-block msg-assist msg-inwindow">A22</span>
+                        <br><br>
+                        <span class="window-label">Result: Old context compressed to a summary block. Retains gist, loses exact details.</span>
+                    </div>
+
+                    <h3>Strategy 3: Hybrid Window (Recommended for Production)</h3>
+                    <div class="window-demo">
+                        <span class="window-label">Hybrid: keep system + recent + summarized middle:</span>
+                        <span class="msg-block msg-system">SYS</span>
+                        <span class="msg-block msg-user msg-inwindow">U1</span>
+                        <span class="msg-block msg-assist msg-inwindow">A1</span>
+                        <span class="msg-block msg-user msg-inwindow">U2</span>
+                        <span class="msg-block msg-assist msg-inwindow">A2</span>
+                        <span class="msg-block msg-sum">SUMMARY: Turns 3-18</span>
+                        <span class="msg-block msg-user msg-inwindow">U19</span>
+                        <span class="msg-block msg-assist msg-inwindow">A19</span>
+                        <span class="msg-block msg-user msg-inwindow">U20</span>
+                        <span class="msg-block msg-assist msg-inwindow">A20</span>
+                        <br><br>
+                        <span class="window-label">Result: Keeps original intent (first N turns) + recent context + compressed middle.</span>
+                    </div>
+
+                    <div class="analogy-box">
+                        <strong>Why keep the first few turns?</strong> The first 1-2 turns typically contain the user's original goal or task specification. This is the highest-signal information in the entire conversation. Dropping it in favor of recent turns causes "goal drift" — the model forgets what it was originally trying to accomplish. Always anchor your window at both ends.
+                    </div>
+
+                    <h3>Mermaid: Sliding Window Mechanics</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant H as Harness
+    participant B as BudgetManager
+    participant LLM as Claude API
+    participant S as Summarizer
+
+    Note over H,LLM: Turn 25 arrives, history is 45K tokens, budget is 30K
+    H->>B: build_context(history=45K, budget=30K)
+    B->>B: overflow = 45K - 30K = 15K tokens
+    B->>B: identify oldest 20 turns (18K tokens)
+    B->>S: summarize(turns_1_to_20)
+    S->>LLM: compress to ~2K summary
+    LLM-->>S: "Summary: User wants to refactor auth module..."
+    S-->>B: summary_block (2K tokens)
+    B->>B: replace 18K with 2K: saved 16K tokens
+    B-->>H: context(sys + summary + turns_21_25) = 28K
+    H->>LLM: API call (28K tokens, within budget)
+                        </div>
+                    </div>
+
+                    <h3>Python: Sliding Window with Summarization</h3>
+                    <pre><code class="language-python">import anthropic
+from dataclasses import dataclass
+
+@dataclass
+class Message:
+    role: str    # 'user' or 'assistant'
+    content: str
+    turn_index: int
+
+class SlidingWindowContext:
+    """
+    Hybrid sliding window: keep first N turns + recent M turns,
+    summarize the middle when budget is exceeded.
+    """
+
+    def __init__(
+        self,
+        client: anthropic.Anthropic,
+        model: str = "claude-3-haiku-20240307",   # cheap summarizer
+        max_history_tokens: int = 40_000,
+        anchor_turns: int = 2,      # always keep first N turns verbatim
+        recent_turns: int = 10,     # always keep last M turns verbatim
+        summary_model: str = "claude-3-haiku-20240307",
+    ):
+        self.client = client
+        self.model = model
+        self.summary_model = summary_model
+        self.max_history_tokens = max_history_tokens
+        self.anchor_turns = anchor_turns
+        self.recent_turns = recent_turns
+        self.history: list[Message] = []
+        self._summary: str | None = None
+        self._summary_covers_up_to: int = -1
+
+    def add_message(self, role: str, content: str) -> None:
+        turn = len(self.history)
+        self.history.append(Message(role=role, content=content, turn_index=turn))
+        self._maybe_compress()
+
+    def build_messages(self) -> list[dict]:
+        """
+        Build the messages array to send to the API.
+        Returns: system_injection (optional) + messages
+        """
+        anchor = self.history[:self.anchor_turns]
+        recent = self.history[-self.recent_turns:]
+
+        messages = []
+        for msg in anchor:
+            messages.append({"role": msg.role, "content": msg.content})
+
+        if self._summary:
+            # Inject summary as a system-level note in a user message
+            messages.append({
+                "role": "user",
+                "content": f"[Context from earlier in conversation: {self._summary}]",
+            })
+            # Need a placeholder assistant ACK to maintain alternation
+            messages.append({
+                "role": "assistant",
+                "content": "Understood, I have that context.",
+            })
+
+        for msg in recent:
+            if msg.turn_index &gt;= self.anchor_turns:  # avoid duplicating anchors
+                messages.append({"role": msg.role, "content": msg.content})
+
+        return messages
+
+    def _maybe_compress(self) -> None:
+        """Check if history exceeds budget; compress if so."""
+        total_chars = sum(len(m.content) for m in self.history)
+        # rough char-to-token ratio: 4 chars ≈ 1 token
+        estimated_tokens = total_chars // 4
+
+        if estimated_tokens &lt;= self.max_history_tokens:
+            return
+
+        # Identify turns eligible for summarization
+        compressible_start = self.anchor_turns
+        compressible_end   = max(self.anchor_turns, len(self.history) - self.recent_turns)
+
+        if compressible_end &lt;= compressible_start:
+            return  # not enough turns to compress
+
+        to_summarize = self.history[compressible_start:compressible_end]
+        conversation_text = "\n".join(
+            f"{m.role.upper()}: {m.content}" for m in to_summarize
+        )
+
+        response = self.client.messages.create(
+            model=self.summary_model,
+            max_tokens=1024,
+            system="You are a conversation summarizer. Create a concise summary "
+                   "of the key facts, decisions, and context from this conversation. "
+                   "Focus on information that would be needed to continue the task.",
+            messages=[{"role": "user", "content": conversation_text}],
+        )
+        self._summary = response.content[0].text
+        self._summary_covers_up_to = compressible_end - 1
+
+        # Remove compressed turns from history (keep anchors + recent)
+        self.history = (
+            self.history[:self.anchor_turns] +
+            self.history[compressible_end:]
+        )
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: TRUNCATION VS SUMMARIZATION                       -->
+            <!-- ============================================================ -->
+            <h2>5. Truncation vs Summarization</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Choosing the Right Compression Strategy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Not all context is worth the cost of summarization. The decision is economic: is the value of the compressed information greater than the cost of the summarization API call?</p>
+
+                    <div class="comparison-grid">
+                        <div class="compare-card" style="border-top: 3px solid #06b6d4;">
+                            <h4 style="color: #06b6d4;">Truncate When...</h4>
+                            <ul style="font-size:0.87rem; line-height:1.7; margin:0; padding-left:1.2rem;">
+                                <li>Content is verbose scaffolding (stack traces, full file reads)</li>
+                                <li>Tool output has a clear start/end with boilerplate in the middle</li>
+                                <li>The exact text doesn't matter, only key values do</li>
+                                <li>Content can be re-fetched on demand (idempotent tool calls)</li>
+                                <li>The session is new — not enough history to summarize</li>
+                            </ul>
+                        </div>
+                        <div class="compare-card" style="border-top: 3px solid #8b5cf6;">
+                            <h4 style="color: #8b5cf6;">Summarize When...</h4>
+                            <ul style="font-size:0.87rem; line-height:1.7; margin:0; padding-left:1.2rem;">
+                                <li>Conversation history encodes decisions + rationale</li>
+                                <li>The user has given preferences that should persist</li>
+                                <li>Earlier work produced results that later steps depend on</li>
+                                <li>The session is long (30+ turns) with multiple topic shifts</li>
+                                <li>You're running a multi-day agentic workflow</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h3>Cost Analysis: Summarization vs Lost Context</h3>
+                    <div class="math-box">
+                        <span class="formula">Summarization cost = input_tokens_compressed × $3/M + output_tokens_summary × $15/M</span>
+                        <br>
+                        Example: compress 30K tokens of history into a 2K summary<br>
+                        Input cost:  30,000 × $3/1,000,000 = <strong>$0.090</strong><br>
+                        Output cost:  2,000 × $15/1,000,000 = <strong>$0.030</strong><br>
+                        Total summarization cost: <strong>$0.120</strong><br><br>
+
+                        <span class="formula">Value of keeping that 30K verbatim (if it fits):</span>
+                        Cost per turn saved from re-work = estimated re-do cost × probability of needing it<br>
+                        If re-work probability = 20%, re-do cost = $2.00 per re-work<br>
+                        Expected value = 0.20 × $2.00 = <strong>$0.40</strong><br><br>
+
+                        <span class="formula">Decision: $0.40 &gt; $0.12 → Summarize is worth it here.</span>
+                        <br>
+                        But if re-work probability = 2%: expected value = $0.04 &lt; $0.12 → <strong>Truncate instead.</strong>
+                    </div>
+
+                    <h3>Smart Truncation for File Contents</h3>
+                    <p>File contents are the biggest single consumer of context tokens in coding agents. A 1,000-line Python file is ~30K tokens. Reading 10 files would exhaust most of a 200K window. Smart truncation uses the <strong>first + last N lines</strong> strategy, which preserves imports, class/function signatures (top) and the most recent logic (bottom):</p>
+
+                    <pre><code class="language-python">def smart_truncate_file(
+    content: str,
+    max_tokens: int = 4_000,
+    head_lines: int = 80,
+    tail_lines: int = 80,
+    encoding: str = "cl100k_base",
+) -> str:
+    """
+    Truncate a file to fit within max_tokens while preserving
+    the most structurally important parts:
+    - Head: imports, module docstring, class/function signatures
+    - Tail: most recently written logic
+    """
+    import tiktoken
+    enc = tiktoken.get_encoding(encoding)
+
+    if len(enc.encode(content)) &lt;= max_tokens:
+        return content  # already fits
+
+    lines = content.splitlines()
+    total = len(lines)
+
+    if total &lt;= head_lines + tail_lines:
+        # File is short; just encode as-is (may still exceed budget)
+        return content
+
+    head = lines[:head_lines]
+    tail = lines[total - tail_lines:]
+    omitted = total - head_lines - tail_lines
+
+    truncated = (
+        "\n".join(head) +
+        f"\n\n# ... [{omitted} lines omitted for context budget] ...\n\n" +
+        "\n".join(tail)
+    )
+    return truncated
+
+
+class TruncationStrategy:
+    """Strategy interface for different truncation approaches."""
+
+    def truncate(self, content: str, max_tokens: int) -> str:
+        raise NotImplementedError
+
+
+class HeadTailTruncation(TruncationStrategy):
+    """Keep first N% and last N% of content."""
+    def __init__(self, head_fraction: float = 0.4, tail_fraction: float = 0.4):
+        self.head_fraction = head_fraction
+        self.tail_fraction = tail_fraction
+
+    def truncate(self, content: str, max_tokens: int) -> str:
+        lines = content.splitlines()
+        head_n = int(len(lines) * self.head_fraction)
+        tail_n = int(len(lines) * self.tail_fraction)
+        return smart_truncate_file(content, max_tokens, head_n, tail_n)
+
+
+class SentenceBoundaryTruncation(TruncationStrategy):
+    """For prose/docs: truncate at sentence boundaries, not mid-sentence."""
+    def truncate(self, content: str, max_tokens: int) -> str:
+        import re, tiktoken
+        enc = tiktoken.get_encoding("cl100k_base")
+        sentences = re.split(r'(?&lt;=[.!?])\s+', content)
+        result, used = [], 0
+        for s in sentences:
+            t = len(enc.encode(s))
+            if used + t &gt; max_tokens:
+                break
+            result.append(s)
+            used += t
+        return " ".join(result) + " [truncated]"
+</code></pre>
+
+                    <div class="warning-box">
+                        <strong>Warning: Never truncate tool_use / tool_result pairs asymmetrically.</strong> The Anthropic API requires that every <code>tool_use</code> block has a corresponding <code>tool_result</code> block in a subsequent message. If you truncate one but not the other, the API returns a 400 error. Always treat them as an atomic pair — evict both or neither.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: PROMPT CACHING                                    -->
+            <!-- ============================================================ -->
+            <h2>6. Prompt Caching</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Anthropic Prompt Caching: Mechanics and Cost Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Anthropic's prompt caching feature (released 2024) allows you to mark portions of your context as cacheable. When the cache is hit, you pay <strong>10% of the normal input token price</strong> for those tokens. This is the single highest-leverage optimization available for agent harnesses with stable system prompts.</p>
+
+                    <h3>How It Works</h3>
+                    <p>You add a <code>cache_control</code> object with <code>type: "ephemeral"</code> to content blocks you want cached. Anthropic stores a KV cache of the transformer's key-value state up to that point. On the next call, if the prefix matches, the cached state is reused — the model doesn't re-process those tokens, and you pay 10% of input price.</p>
+
+                    <div class="math-box">
+                        <span class="formula">Cache write cost:  1.25× normal input price (one-time on first call)</span>
+                        <span class="formula">Cache read cost:   0.10× normal input price (every subsequent call)</span>
+                        <span class="formula">Cache TTL:         5 minutes (Anthropic resets if not used for 5 min)</span>
+                        <br>
+                        Break-even: writing a 10K-token prefix costs 12,500 token-equivalents.<br>
+                        First cached read saves 9,000 token-equivalents (90% of 10K).<br>
+                        <span class="formula">Break-even at: 2 API calls (write + 1 read already profitable)</span>
+                    </div>
+
+                    <h3>Real Numbers: Claude Code Estimated Cache Savings</h3>
+
+                    <table class="savings-table">
+                        <thead>
+                            <tr>
+                                <th>Context Section</th>
+                                <th>Tokens</th>
+                                <th>Cacheable?</th>
+                                <th>Cost per Turn (uncached)</th>
+                                <th>Cost per Turn (cached)</th>
+                                <th>Savings</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>System prompt</td>
+                                <td>8,000</td>
+                                <td>Yes (static)</td>
+                                <td>$0.024</td>
+                                <td>$0.0024</td>
+                                <td>90%</td>
+                            </tr>
+                            <tr>
+                                <td>Tool schemas (15 tools)</td>
+                                <td>4,500</td>
+                                <td>Yes (static)</td>
+                                <td>$0.014</td>
+                                <td>$0.0014</td>
+                                <td>90%</td>
+                            </tr>
+                            <tr>
+                                <td>Codebase context (indexed)</td>
+                                <td>30,000</td>
+                                <td>Partial (changes)</td>
+                                <td>$0.090</td>
+                                <td>$0.018</td>
+                                <td>80%</td>
+                            </tr>
+                            <tr>
+                                <td>Conversation history</td>
+                                <td>varies</td>
+                                <td>No (dynamic)</td>
+                                <td>full price</td>
+                                <td>full price</td>
+                                <td>0%</td>
+                            </tr>
+                            <tr class="highlight-row">
+                                <td colspan="5">Total savings (50-turn session)</td>
+                                <td>~65-75%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Designing Cache-Friendly Context Layouts</h3>
+                    <p>The cache only works on <strong>prefixes</strong>. Anthropic computes a hash of the message array from the beginning up to the <code>cache_control</code> breakpoint. If you insert dynamic content before a cacheable block, the cache is busted. The golden rule is: <strong>static content must come before dynamic content.</strong></p>
+
+                    <div class="priority-queue-visual">
+                        <div class="pq-row" style="background: rgba(239,68,68,0.05);">
+                            <span class="pq-priority pq-p1">BAD</span>
+                            <span class="pq-name">System prompt → User message → [cache_control] → Tool schemas</span>
+                            <span class="pq-tokens">Cache busts every turn because user message changes</span>
+                        </div>
+                        <div class="pq-row" style="background: rgba(34,197,94,0.05);">
+                            <span class="pq-priority" style="background:rgba(34,197,94,0.2); color:#22c55e; border:1px solid rgba(34,197,94,0.3);">GOOD</span>
+                            <span class="pq-name">System prompt [cache_control] → Tool schemas [cache_control] → User messages → Tool results</span>
+                            <span class="pq-tokens">Cache hits on every turn for the stable prefix</span>
+                        </div>
+                    </div>
+
+                    <h3>Code: Cache-Aware Context Builder</h3>
+                    <pre><code class="language-typescript">import Anthropic from "@anthropic-ai/sdk";
+
+/**
+ * Cache-aware context builder.
+ *
+ * Layout strategy (STATIC before DYNAMIC):
+ *   1. System prompt          [cache_control: ephemeral]  ← stable, always cached
+ *   2. Tool schemas           [cache_control: ephemeral]  ← stable, always cached
+ *   3. Long static docs       [cache_control: ephemeral]  ← semi-stable, cached
+ *   4. Conversation history                               ← dynamic, never cached
+ *   5. Latest user message                                ← dynamic, never cached
+ */
+export class CacheAwareContextBuilder {
+    private client: Anthropic;
+    private systemPrompt: string;
+    private toolSchemas: Anthropic.Tool[];
+    private staticDocs: string[];
+
+    constructor(
+        client: Anthropic,
+        systemPrompt: string,
+        toolSchemas: Anthropic.Tool[],
+        staticDocs: string[] = [],
+    ) {
+        this.client = client;
+        this.systemPrompt = systemPrompt;
+        this.toolSchemas = toolSchemas;
+        this.staticDocs = staticDocs;
+    }
+
+    buildRequest(
+        messages: Anthropic.MessageParam[],
+        maxTokens = 8096,
+    ): Anthropic.MessageCreateParams {
+        // System: static prefix with cache breakpoint after tool schemas
+        const systemBlocks: Anthropic.TextBlockParam[] = [
+            {
+                type: "text",
+                text: this.systemPrompt,
+                // @ts-ignore — cache_control is on beta, type definition varies
+                cache_control: { type: "ephemeral" },
+            },
+        ];
+
+        if (this.staticDocs.length > 0) {
+            systemBlocks.push({
+                type: "text",
+                text: "## Reference Documentation\n\n" + this.staticDocs.join("\n\n---\n\n"),
+                // @ts-ignore
+                cache_control: { type: "ephemeral" },
+            });
+        }
+
+        // Build tools array with cache marker on last schema
+        const tools: Anthropic.Tool[] = this.toolSchemas.map((tool, idx) => {
+            if (idx === this.toolSchemas.length - 1) {
+                return {
+                    ...tool,
+                    // @ts-ignore
+                    cache_control: { type: "ephemeral" },
+                };
+            }
+            return tool;
+        });
+
+        return {
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: maxTokens,
+            system: systemBlocks as unknown as string,  // SDK accepts array
+            tools,
+            messages,   // dynamic — never add cache_control here
+        };
+    }
+
+    async sendWithCacheTracking(
+        messages: Anthropic.MessageParam[],
+        maxTokens = 8096,
+    ) {
+        const request = this.buildRequest(messages, maxTokens);
+        const response = await this.client.messages.create(request);
+
+        // Log cache performance
+        const usage = response.usage as Anthropic.Usage &amp; {
+            cache_creation_input_tokens?: number;
+            cache_read_input_tokens?: number;
+        };
+
+        const cacheReadTokens   = usage.cache_read_input_tokens ?? 0;
+        const cacheWriteTokens  = usage.cache_creation_input_tokens ?? 0;
+        const uncachedTokens    = usage.input_tokens;
+
+        const normalCost  = (cacheReadTokens + cacheWriteTokens + uncachedTokens) * 3 / 1_000_000;
+        const actualCost  = (cacheReadTokens * 0.3 + cacheWriteTokens * 3.75 + uncachedTokens * 3) / 1_000_000;
+        const savings     = ((normalCost - actualCost) / normalCost * 100).toFixed(1);
+
+        console.log(`Cache stats: read=${cacheReadTokens}, write=${cacheWriteTokens}, savings=${savings}%`);
+
+        return response;
+    }
+}
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Production tip: 5-minute TTL management.</strong> Anthropic's cache TTL is 5 minutes. In interactive coding sessions, the user may pause for longer. Design your harness to detect potential cache expiration and proactively re-warm the cache with a zero-content call (send system prompt + empty message) if a long idle period is detected, or accept the one-time cache re-write cost on the next real call.
+                    </div>
+
+                    <h3>Multi-Turn Cache Cascade</h3>
+                    <p>For long agentic sessions, you can create a cascade of cache breakpoints. Each breakpoint freezes the KV state up to that point. The key insight is that once a turn is more than 5 minutes old and unlikely to change, you can promote it into a new cache breakpoint:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant H as Harness
+    participant Cache as Anthropic Cache
+    participant LLM as Claude
+
+    Note over H,LLM: Turn 1 (cold start)
+    H->>LLM: [SYS+cache] [TOOLS+cache] [U1]
+    LLM-->>H: A1 (cache WRITE: 12K tokens)
+
+    Note over H,LLM: Turn 2 (warm cache)
+    H->>LLM: [SYS+cache] [TOOLS+cache] [U1][A1][U2]
+    Cache-->>LLM: Cache HIT: 12K tokens (pay 10%)
+    LLM-->>H: A2
+
+    Note over H,LLM: Turn 20 (promote old history to cache)
+    H->>LLM: [SYS+cache] [TOOLS+cache] [U1..A10+cache] [U11..U20]
+    Cache-->>LLM: Cache HIT: 12K+history tokens
+    LLM-->>H: A20
+
+    Note over Cache: 2nd breakpoint cached turns 1-10
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: INTERVIEW TIPS                                    -->
+            <!-- ============================================================ -->
+            <h2>7. Interview Tips</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Interviewers Test in Context Engineering</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Context engineering questions appear in both system design and ML engineering interviews at companies building AI products. Here's what top-tier interviewers look for:</p>
+
+                    <div class="priority-queue-visual">
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p1">Must Know</span>
+                            <span class="pq-name">Token counting and cost modeling</span>
+                            <span class="pq-tokens">Be able to estimate token counts from character counts (4 chars ≈ 1 token), compute session costs, and identify cost drivers.</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p1">Must Know</span>
+                            <span class="pq-name">Priority-based eviction policy</span>
+                            <span class="pq-tokens">Explain why system prompts are P1, why recent messages are P2, and why old tool results are P4-P5. Draw the analogy to cache replacement policies.</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p2">Strong Signal</span>
+                            <span class="pq-name">Truncation vs summarization tradeoffs</span>
+                            <span class="pq-tokens">Discuss when each is appropriate. Calculate the break-even point. Show you understand the "lost in the middle" attention failure mode.</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p2">Strong Signal</span>
+                            <span class="pq-name">Message API constraints</span>
+                            <span class="pq-tokens">Understand alternating role requirement, tool_use/tool_result pairing, and how context assembly must preserve these invariants.</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p3">Differentiator</span>
+                            <span class="pq-name">Prompt caching mechanics</span>
+                            <span class="pq-tokens">Explain cache_control, static-before-dynamic ordering, TTL management, and cost math. Few candidates know this deeply.</span>
+                        </div>
+                        <div class="pq-row">
+                            <span class="pq-priority pq-p3">Differentiator</span>
+                            <span class="pq-name">Production system analysis</span>
+                            <span class="pq-tokens">Describe how Claude Code or Cursor likely manages context. Shows you think in production terms, not just theory.</span>
+                        </div>
+                    </div>
+
+                    <h3>Common Follow-Up Questions</h3>
+                    <div class="comparison-grid">
+                        <div class="compare-card" style="border-top: 3px solid #06b6d4;">
+                            <h4>System Design Interview</h4>
+                            <ul style="font-size:0.87rem; line-height:1.8; margin:0; padding-left:1.1rem;">
+                                <li>"How would you design the context management layer for a coding agent that supports sessions over multiple days?"</li>
+                                <li>"How do you handle context budget when you don't know the size of tool outputs in advance?"</li>
+                                <li>"Design a system that minimizes LLM costs for a company running 1M agent sessions/day."</li>
+                            </ul>
+                        </div>
+                        <div class="compare-card" style="border-top: 3px solid #8b5cf6;">
+                            <h4>Coding / Implementation</h4>
+                            <ul style="font-size:0.87rem; line-height:1.8; margin:0; padding-left:1.1rem;">
+                                <li>"Write a function that takes a list of messages and a token budget and returns the optimal subset."</li>
+                                <li>"Implement a sliding window conversation manager with summarization."</li>
+                                <li>"Given this conversation history, identify which messages to drop to fit in 50K tokens."</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="warning-box">
+                        <strong>Red flags to avoid in interviews:</strong>
+                        <ul style="margin: 0.5rem 0 0; padding-left: 1.1rem; line-height: 1.7;">
+                            <li>Suggesting "just use a bigger context window" as the primary solution — this shows you don't understand cost at scale.</li>
+                            <li>Not mentioning the O(n²) cost problem of growing context without eviction.</li>
+                            <li>Forgetting the response reserve — models need output tokens too; a full context window means the model cannot respond.</li>
+                            <li>Proposing summarization without mentioning the risk of losing exact details (file names, variable names, commit hashes).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: QUIZ                                              -->
+            <!-- ============================================================ -->
+            <h2>8. Knowledge Check</h2>
+
+            <div class="quiz-question">
+                <h4>Q1. You have a 200K token window. Your system prompt is 8K, tool schemas are 4K, and you want to reserve 12K for the response. A 60-turn session has accumulated 220K tokens of history and tool results. What is the maximum available budget for history + tool results, and by how much are you over-budget?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Available budget:</strong> 200,000 - 8,000 - 4,000 - 12,000 = <strong>176,000 tokens</strong><br>
+                    <strong>Over-budget by:</strong> 220,000 - 176,000 = <strong>44,000 tokens</strong><br><br>
+                    You need to truncate/evict 44,000 tokens from the P3-P5 history and old tool results. This is roughly 22 turns of average-sized messages (at ~2K tokens/turn). The strategy would be to summarize the oldest 30-40 turns into a 3-5K token summary, recovering approximately 55-75K tokens.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q2. Why must a "tool_use" content block and its corresponding "tool_result" always be treated as an atomic pair when evicting context items?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    The Anthropic Messages API validates that every <code>tool_use</code> block (in an assistant message) has a matching <code>tool_result</code> block (in the subsequent user message) with the same <code>tool_use_id</code>. If you evict one without the other, the API returns a 422/400 validation error mid-session, crashing the agent. Additionally, showing the model a tool call without its result (or a result without its call) confuses the model's attention about what happened and what step it's on in a multi-step task. Always evict the pair atomically.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q3. You're building a customer support agent. The system prompt is 6K tokens and changes every quarter. You have 200 concurrent users each making 15 API calls per session. Should you use prompt caching? Calculate the hourly cost savings at $3/M input tokens with 85% cache hit rate.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Yes, absolutely use caching.</strong><br><br>
+                    Without caching:<br>
+                    200 users × 15 calls × 6,000 tokens = 18,000,000 tokens/hour<br>
+                    Cost = 18M × $3/1M = <strong>$54/hour</strong><br><br>
+                    With caching (85% hit rate, 10% price for hits, 125% for first write):<br>
+                    Write calls: 200 × 1 = 200 calls × 6,000 × $3.75/M ≈ $4.50 (first call per session)<br>
+                    Read calls: 200 × 14 × 0.85 = 2,380 calls × 6,000 × $0.30/M ≈ $4.28<br>
+                    Uncached hits: 200 × 14 × 0.15 = 420 calls × 6,000 × $3/M ≈ $7.56<br>
+                    <strong>Total cached cost ≈ $16.34/hour</strong><br>
+                    <strong>Savings: ~70% ($37.66/hour)</strong>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q4. Describe the "lost in the middle" failure mode and explain how it affects your context assembly strategy.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    "Lost in the Middle" (Liu et al., Stanford 2023) demonstrated that LLMs perform significantly worse at retrieving information placed in the <em>middle</em> of a long context compared to the beginning or end. Attention scores for middle tokens are substantially lower.<br><br>
+                    <strong>Implications for context assembly:</strong>
+                    <ul style="margin: 0.5rem 0; padding-left: 1.1rem; line-height: 1.7;">
+                        <li>Place the most critical instructions at the <em>beginning</em> (system prompt) and the current task/question at the <em>end</em> (latest user message).</li>
+                        <li>Avoid burying critical tool results in the middle of long conversation history.</li>
+                        <li>If you must include a large file, consider placing it immediately before the user's question rather than at the start of the conversation.</li>
+                        <li>Use structured summaries rather than raw history dumps so key information is dense and near the top or bottom.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q5. What is the maximum number of cache_control breakpoints you should add per API request, and what is the layout order that maximizes cache hits?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    Anthropic supports up to <strong>4 cache_control breakpoints</strong> per request (as of Claude 3.5 Sonnet). The optimal layout from most-static to most-dynamic:<br><br>
+                    <ol style="margin: 0.3rem 0; padding-left: 1.1rem; line-height: 1.8;">
+                        <li>[cache #1] System prompt (most stable — only changes with major releases)</li>
+                        <li>[cache #2] Tool schemas (stable within a deployment version)</li>
+                        <li>[cache #3] Large static reference docs/codebase snapshot (semi-stable, update infrequently)</li>
+                        <li>[cache #4] Frozen conversation prefix (turns older than 5 min that won't change)</li>
+                        <li>Recent dynamic content (NO cache — changes every turn)</li>
+                    </ol>
+                    The cache works on prefixes: inserting dynamic content before a cache marker busts the cache for everything after it. Static content must always precede dynamic content.
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- MINI-PROJECT                                                  -->
+            <!-- ============================================================ -->
+            <div class="mini-project">
+                <h3>Mini-Project: Build a Production Token Budget Manager</h3>
+                <p><strong>Objective:</strong> Build a complete, testable <code>TokenBudgetManager</code> in Python that handles all edge cases a production agent harness will encounter.</p>
+
+                <h4>Requirements</h4>
+                <ol style="line-height: 1.8;">
+                    <li><strong>Priority Queue Eviction:</strong> Implement P1-P5 priority levels. P1 items are never dropped. Lower-priority items are evicted first. Within same priority, evict oldest-turn-index items first.</li>
+                    <li><strong>Atomic Pair Enforcement:</strong> Tool-use and tool-result pairs must be evicted atomically. Implement <code>add_tool_call_pair(call, result, turn_index)</code> that adds them as a linked unit.</li>
+                    <li><strong>Sliding Window:</strong> Implement <code>apply_sliding_window(max_history_turns)</code> that keeps the first 2 turns (anchor) + last N turns verbatim, with a summary slot for the middle.</li>
+                    <li><strong>Budget Report:</strong> Implement <code>get_budget_report()</code> returning a dict with per-category token counts, utilization percentage, and items-evicted count.</li>
+                    <li><strong>Alternation Validator:</strong> Implement <code>validate_alternation(messages)</code> that verifies the user/assistant alternation invariant and raises a descriptive error if violated.</li>
+                </ol>
+
+                <h4>Test Cases to Pass</h4>
+                <pre><code class="language-python">def test_p1_never_evicted():
+    mgr = TokenBudgetManager(total_tokens=10_000, response_reserve=2_000)
+    mgr.add("x" * 30_000, "system_prompt")  # 7,500 tokens (exceeds budget alone)
+    result = mgr.build()
+    # P1 system prompt must be in result even if it exceeds flexible budget
+    assert any(i.category == "system_prompt" for i in result)
+
+def test_tool_pair_atomicity():
+    mgr = TokenBudgetManager(total_tokens=5_000, response_reserve=500)
+    mgr.add("system", "system_prompt")          # small
+    mgr.add_tool_call_pair("bash('ls')", "file1.py\nfile2.py", turn_index=1)
+    mgr.add_tool_call_pair("bash('cat file1.py')", "x" * 8_000, turn_index=2)
+    result = mgr.build()
+    # Both members of a pair must appear together or not at all
+    pair_ids = {i.pair_id for i in result if i.pair_id}
+    for pair_id in pair_ids:
+        members = [i for i in result if i.pair_id == pair_id]
+        assert len(members) == 2, f"Pair {pair_id} has {len(members)} members"
+
+def test_alternation_invariant():
+    mgr = TokenBudgetManager(total_tokens=50_000, response_reserve=5_000)
+    # Add turns 1-5, then evict turn 3 (force a gap)
+    messages = mgr.build_messages(evict_turn=3)
+    is_valid, error = mgr.validate_alternation(messages)
+    assert is_valid, f"Alternation violated: {error}"
+</code></pre>
+
+                <h4>Extension Challenges</h4>
+                <ul style="line-height: 1.8;">
+                    <li>Add a <code>simulate(turns)</code> method that runs a mock agent session for N turns and reports per-turn cost, cache hit rate, and eviction statistics.</li>
+                    <li>Implement a <code>CacheAwareBuilder</code> that wraps your budget manager and adds cache_control markers automatically based on content stability scores.</li>
+                    <li>Benchmark your implementation: how many microseconds does <code>build()</code> take with 1,000 items? Target under 10ms.</li>
+                </ul>
+
+                <details style="margin-top: 1rem;">
+                    <summary style="cursor:pointer; color: #06b6d4; font-weight: 600;">Hint: Pair Tracking Pattern</summary>
+                    <div style="padding: 0.75rem; background: rgba(6,182,212,0.05); border-radius: 0.35rem; margin-top: 0.5rem; font-size: 0.88rem; line-height: 1.7;">
+                        Use a UUID for each tool call pair. Store it as a <code>pair_id</code> field on both the tool_use ContextItem and the tool_result ContextItem. When evicting, check if the item has a <code>pair_id</code>; if so, find its partner and evict both together. Use a dict <code>pair_registry: dict[str, list[ContextItem]]</code> to look up partners in O(1) time.
+                    </div>
+                </details>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- CHECKPOINT SUMMARY                                           -->
+            <!-- ============================================================ -->
+            <div class="checkpoint-summary">
+                <h3>Checkpoint Summary</h3>
+                <p style="font-size: 0.9rem; line-height: 1.6; color: var(--text-muted); margin-bottom: 1rem;">tl;dr for this module — what to take away and how to teach it back:</p>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <h4 style="color: #06b6d4; font-size: 0.95rem; margin-bottom: 0.5rem;">Core Mental Model</h4>
+                        <p style="font-size: 0.87rem; line-height: 1.6;">The context window is a cache. Context engineering is cache replacement policy design. The cardinal rule is: <em>always reserve response tokens, never fill the window to 100%.</em></p>
+
+                        <h4 style="color: #06b6d4; font-size: 0.95rem; margin-bottom: 0.5rem; margin-top: 0.75rem;">Key Formulas</h4>
+                        <div class="math-box" style="font-size:0.82rem;">
+                            <span class="formula">available = total - system - schemas - reserve</span>
+                            <span class="formula">cache_savings ≈ 90% on stable prefix tokens</span>
+                            <span class="formula">summarize if: p(reuse) × reuse_cost &gt; summarization_cost</span>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #06b6d4; font-size: 0.95rem; margin-bottom: 0.5rem;">5 Things to Remember</h4>
+                        <ol style="font-size: 0.87rem; line-height: 1.9; margin: 0; padding-left: 1.1rem;">
+                            <li>P1 (system + schemas + reserve) = NEVER drop</li>
+                            <li>Static before dynamic = cache hits every turn</li>
+                            <li>Truncate tool outputs (head+tail), summarize history</li>
+                            <li>tool_use + tool_result = atomic pair, evict together</li>
+                            <li>Keep first N turns as anchor (user's original intent)</li>
+                        </ol>
+
+                        <h4 style="color: #06b6d4; font-size: 0.95rem; margin-bottom: 0.5rem; margin-top: 0.75rem;">What Separates Good from Great</h4>
+                        <p style="font-size: 0.87rem; line-height: 1.6;">Good engineers implement truncation. Great engineers implement the full priority queue, validate alternation invariants, instrument per-turn cost/cache metrics, and design their system prompt layout for maximum cache hit rate from day one.</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(6,182,212,0.2);">
+                    <h4 style="color: #06b6d4; font-size: 0.9rem; margin-bottom: 0.5rem;">Suggested Flashcard Q&amp;As</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.82rem;">
+                        <div style="background: rgba(6,182,212,0.05); padding:0.5rem; border-radius:0.3rem;"><strong>Q:</strong> What is the response_reserve and why is it mandatory?<br><strong>A:</strong> Tokens the model needs to write its response. Without it, a full context window means a 0-token max_tokens, causing API errors.</div>
+                        <div style="background: rgba(6,182,212,0.05); padding:0.5rem; border-radius:0.3rem;"><strong>Q:</strong> What is the cost multiple for a prompt cache hit on Anthropic?<br><strong>A:</strong> 0.10× (10%) of normal input token price. Cache write is 1.25×.</div>
+                        <div style="background: rgba(6,182,212,0.05); padding:0.5rem; border-radius:0.3rem;"><strong>Q:</strong> Why is the first+last lines strategy good for file truncation?<br><strong>A:</strong> First lines = imports + signatures (structure). Last lines = most recent code (relevant to current task).</div>
+                        <div style="background: rgba(6,182,212,0.05); padding:0.5rem; border-radius:0.3rem;"><strong>Q:</strong> What is the maximum cache_control breakpoints per Anthropic API request?<br><strong>A:</strong> 4 breakpoints per request.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4" style="display:flex; justify-content:space-between; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                <a href="module-01.html" class="btn btn-secondary">&#8592; Module 1: Harness Architecture</a>
+                <a href="module-03.html" class="btn btn-primary">Module 3: Tool Design &#8594;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        // ---------------------------------------------------------- //
+        // Mermaid init                                                //
+        // ---------------------------------------------------------- //
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'default' : 'dark',
+            securityLevel: 'loose',
+            flowchart: { curve: 'basis' },
+        });
+
+        // ---------------------------------------------------------- //
+        // Sidebar toggle (mobile)                                     //
+        // ---------------------------------------------------------- //
+        const sidebarToggle  = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const sidebar        = document.getElementById('sidebar');
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('active');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('active');
+            });
+        }
+
+        // ---------------------------------------------------------- //
+        // Collapsible sections                                        //
+        // ---------------------------------------------------------- //
+        document.querySelectorAll('.collapsible-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const section = header.parentElement;
+                section.classList.toggle('open');
+            });
+        });
+
+        // ---------------------------------------------------------- //
+        // Token Budget Visualizer                                     //
+        // ---------------------------------------------------------- //
+        const slider = document.getElementById('turn-slider');
+        const label  = document.getElementById('turn-count-label');
+        const warn   = document.getElementById('budget-overflow-warning');
+
+        const TOTAL = 200000;
+        const SYSTEM_TOKENS = 12000; // system + schemas
+        const RESERVE = 12000;
+        const TOKENS_PER_TURN = 3700; // avg history+tools per turn
+
+        function updateBudgetBar(turns) {
+            label.textContent = turns;
+            const historyTokens = Math.min(turns * TOKENS_PER_TURN, TOTAL);
+            const toolTokens    = Math.min(turns * 2500, TOTAL);
+
+            const systemPct  = (SYSTEM_TOKENS / TOTAL) * 100;
+            const reservePct = (RESERVE / TOTAL) * 100;
+            const toolsPct   = Math.min((toolTokens / TOTAL) * 100, 100 - systemPct - reservePct);
+            const histPct    = Math.min((historyTokens / TOTAL) * 100, 100 - systemPct - reservePct - toolsPct);
+            const freePct    = Math.max(0, 100 - systemPct - reservePct - toolsPct - histPct);
+
+            document.getElementById('seg-system').style.width  = systemPct.toFixed(1) + '%';
+            document.getElementById('seg-reserve').style.width = reservePct.toFixed(1) + '%';
+            document.getElementById('seg-tools').style.width   = toolsPct.toFixed(1) + '%';
+            document.getElementById('seg-history').style.width = histPct.toFixed(1) + '%';
+            document.getElementById('seg-free').style.width    = freePct.toFixed(1) + '%';
+
+            const overflow = (historyTokens + toolTokens) > (TOTAL - SYSTEM_TOKENS - RESERVE);
+            warn.style.display = overflow ? 'block' : 'none';
+        }
+
+        if (slider) {
+            slider.addEventListener('input', () => updateBudgetBar(parseInt(slider.value)));
+            updateBudgetBar(10);
+        }
+
+        // ---------------------------------------------------------- //
+        // Pipeline step stepper                                       //
+        // ---------------------------------------------------------- //
+        const pipelineDescs = [
+            "Stage 1 — Collect: Gather all raw context items from memory, tools, conversation history, and the latest user message into a flat list. No filtering yet.",
+            "Stage 2 — Prioritize: Score each item with a priority (P1-P5) and sort by priority ascending, recency descending. This ordering drives eviction decisions.",
+            "Stage 3 — Truncate: Greedy-fill the available budget in priority order. P1 items are always included. Lower-priority items are dropped when the budget is exhausted.",
+            "Stage 4 — Format: Convert selected items into the API's message array format. Enforce user/assistant alternation, pair tool_use with tool_result, build system block.",
+            "Stage 5 — Validate: Final token count verification. If validation fails, apply emergency truncation (drop oldest P3-P5 items) until the count fits within budget.",
+        ];
+        let currentStep = 0;
+
+        function stepPipeline(delta) {
+            const steps = document.querySelectorAll('.pipeline-step');
+            steps[currentStep].classList.remove('active');
+            currentStep = Math.max(0, Math.min(steps.length - 1, currentStep + delta));
+            steps[currentStep].classList.add('active');
+            document.getElementById('pipeline-stage-desc').textContent = pipelineDescs[currentStep];
+        }
+
+        // ---------------------------------------------------------- //
+        // Quiz reveal buttons (fallback in case onclick not defined)  //
+        // ---------------------------------------------------------- //
+        document.querySelectorAll('.reveal-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const answer = this.nextElementSibling;
+                if (answer && answer.classList.contains('quiz-answer')) {
+                    answer.style.display = 'block';
+                    this.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
