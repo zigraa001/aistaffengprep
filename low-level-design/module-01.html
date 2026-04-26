@@ -1011,6 +1011,387 @@ public class UserService {
                 </div>
             </div>
 
+            <!-- Anti-SOLID: When Principles Hurt -->
+            <h2 class="mt-4">When Principles Become Anti-Patterns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Anti-SOLID: When Strict Adherence Creates Worse Code</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Staff-Level Judgment:</strong> Knowing principles is senior-level. Knowing when to <em>break</em> them is staff-level. Every principle has a point of diminishing returns.</p>
+
+                    <h4>SRP Taken Too Far</h4>
+                    <pre><code class="language-java">// BAD: SRP pushed to absurdity - "nano-classes"
+public class UserNameValidator { ... }
+public class UserEmailValidator { ... }
+public class UserAgeValidator { ... }
+public class UserAddressValidator { ... }
+public class UserPhoneValidator { ... }
+public class UserValidationOrchestrator { ... }
+
+// BETTER: One cohesive validator when rules are simple
+public class UserValidator {
+    public ValidationResult validate(User user) {
+        var errors = new ArrayList&lt;String&gt;();
+        if (user.name() == null || user.name().isBlank())
+            errors.add("Name is required");
+        if (!EMAIL_PATTERN.matcher(user.email()).matches())
+            errors.add("Invalid email");
+        if (user.age() &lt; 0 || user.age() &gt; 150)
+            errors.add("Invalid age");
+        return new ValidationResult(errors);
+    }
+}</code></pre>
+                    <p><strong>Rule of thumb:</strong> If splitting a class means you need an "orchestrator" or "coordinator" to glue the pieces back together, you've split too far.</p>
+
+                    <h4>OCP Over-Abstraction</h4>
+                    <pre><code class="language-java">// BAD: 3 classes for a feature that will never change
+public interface GreetingStrategy {
+    String greet(String name);
+}
+public class EnglishGreeting implements GreetingStrategy { ... }
+public class GreetingService {
+    private final GreetingStrategy strategy;
+    // ... constructor, delegation
+}
+
+// BETTER: Just write the code
+public class GreetingService {
+    public String greet(String name) {
+        return "Hello, " + name + "!";
+    }
+    // If you ACTUALLY need i18n later, refactor then
+}</code></pre>
+
+                    <h4>ISP Interface Explosion</h4>
+                    <pre><code class="language-java">// BAD: One method per interface
+public interface Readable { String read(); }
+public interface Writable { void write(String data); }
+public interface Deletable { void delete(); }
+public interface Listable { List&lt;String&gt; list(); }
+// Now every class implements 4+ interfaces
+
+// BETTER: Group by cohesive capability
+public interface FileStore {
+    String read(String path);
+    void write(String path, String data);
+    void delete(String path);
+    List&lt;String&gt; list(String prefix);
+}
+// Split ONLY when you have clients that genuinely use subsets</code></pre>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>The Staff Engineer Test:</strong> Before applying a principle, ask: "Does this make the code easier to understand, test, or change?" If the answer is no, the principle is hurting, not helping.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accidental vs Essential Duplication -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>DRY Deep Dive: Accidental vs Essential Duplication</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The DRY principle is the most commonly misapplied principle. Understanding the difference between accidental and essential duplication is a staff-level skill.</p>
+
+                    <h4>Accidental Duplication (DO NOT merge)</h4>
+                    <pre><code class="language-java">// These look identical TODAY but represent different business rules
+// that will evolve independently
+
+// Billing validation
+public boolean isValidAmount(BigDecimal amount) {
+    return amount != null &amp;&amp; amount.compareTo(BigDecimal.ZERO) &gt; 0;
+}
+
+// Inventory validation
+public boolean isValidQuantity(BigDecimal quantity) {
+    return quantity != null &amp;&amp; quantity.compareTo(BigDecimal.ZERO) &gt; 0;
+}
+
+// If you merge these into a shared "isPositive()" helper:
+// - Billing later needs currency-specific min amounts
+// - Inventory later needs integer-only validation
+// - Now you have a shared function with flags and conditionals</code></pre>
+
+                    <h4>Essential Duplication (DO merge)</h4>
+                    <pre><code class="language-java">// Same business rule expressed in multiple places
+// Tax calculation appears in OrderService, InvoiceService, ReportService
+
+// BAD: Duplicated everywhere
+public class OrderService {
+    public Money calculateTax(Money subtotal, String state) {
+        return switch (state) {
+            case "CA" -&gt; subtotal.multiply(0.0725);
+            case "NY" -&gt; subtotal.multiply(0.08);
+            default -&gt; subtotal.multiply(0.05);
+        };
+    }
+}
+
+// GOOD: Single source of truth
+public record TaxCalculator(Map&lt;String, BigDecimal&gt; stateRates) {
+    public Money calculateTax(Money subtotal, String state) {
+        BigDecimal rate = stateRates.getOrDefault(state,
+            new BigDecimal("0.05"));
+        return subtotal.multiply(rate);
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>The Litmus Test:</strong> "If this logic changes, should ALL the duplicates change the same way?" If yes &rarr; essential duplication, extract it. If no &rarr; accidental duplication, leave it alone.
+                    </div>
+                </div>
+            </div>
+
+            <!-- DDD Primer -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>DDD Primer: Value Objects, Aggregates &amp; Bounded Contexts</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Domain-Driven Design concepts are increasingly expected at staff level. They bridge the gap between design principles and real-world system architecture.</p>
+
+                    <h4>Value Objects (Immutable, Identity-Free)</h4>
+                    <pre><code class="language-java">// Java 17+ records are perfect for Value Objects
+public record Money(BigDecimal amount, Currency currency) {
+    public Money {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) &lt; 0)
+            throw new IllegalArgumentException("Amount must be non-negative");
+        Objects.requireNonNull(currency);
+    }
+
+    public Money add(Money other) {
+        if (!this.currency.equals(other.currency))
+            throw new IllegalArgumentException("Currency mismatch");
+        return new Money(this.amount.add(other.amount), this.currency);
+    }
+
+    public Money multiply(double factor) {
+        return new Money(
+            amount.multiply(BigDecimal.valueOf(factor))
+                .setScale(2, RoundingMode.HALF_UP),
+            currency
+        );
+    }
+}
+
+public record Address(String street, String city, String state, String zip) {
+    // Two addresses with same fields ARE the same address
+    // No separate "id" needed
+}
+
+public record DateRange(LocalDate start, LocalDate end) {
+    public DateRange {
+        if (end.isBefore(start))
+            throw new IllegalArgumentException("End before start");
+    }
+    public boolean contains(LocalDate date) {
+        return !date.isBefore(start) &amp;&amp; !date.isAfter(end);
+    }
+}</code></pre>
+
+                    <h4>Aggregates (Consistency Boundaries)</h4>
+                    <pre><code class="language-java">// Order is an Aggregate Root - it enforces invariants
+// across Order and its OrderItems
+public class Order {
+    private final OrderId id;
+    private final List&lt;OrderItem&gt; items = new ArrayList&lt;&gt;();
+    private OrderStatus status;
+    private Money total;
+
+    // All modifications go through the Aggregate Root
+    public void addItem(Product product, int quantity) {
+        if (status != OrderStatus.DRAFT)
+            throw new IllegalStateException("Cannot modify submitted order");
+        items.add(new OrderItem(product.id(), product.price(), quantity));
+        recalculateTotal();
+    }
+
+    public void submit() {
+        if (items.isEmpty())
+            throw new IllegalStateException("Cannot submit empty order");
+        this.status = OrderStatus.SUBMITTED;
+    }
+
+    // Never expose mutable internals
+    public List&lt;OrderItem&gt; items() {
+        return Collections.unmodifiableList(items);
+    }
+}</code></pre>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Why This Matters in LLD Interviews:</strong> When designing a Parking Lot or Library system, identifying aggregates helps you determine which objects should be modified together within a transaction boundary. A <code>ParkingFloor</code> and its <code>ParkingSpots</code> form an aggregate &mdash; you never modify a spot without going through the floor.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modern Java 17+ Examples -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Modern Java 17+: Records, Sealed Classes &amp; Pattern Matching</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Staff engineers should demonstrate awareness of modern Java features that make designs cleaner and more expressive.</p>
+
+                    <h4>Records for Immutable Data</h4>
+                    <pre><code class="language-java">// Before Java 16: 50+ lines of boilerplate
+public class UserDTO {
+    private final String name;
+    private final String email;
+    // constructor, getters, equals, hashCode, toString...
+}
+
+// Java 16+: One line
+public record UserDTO(String name, String email) {}
+
+// With validation
+public record Email(String value) {
+    public Email {
+        if (!value.matches("^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$"))
+            throw new IllegalArgumentException("Invalid email: " + value);
+    }
+}</code></pre>
+
+                    <h4>Sealed Classes for Closed Hierarchies</h4>
+                    <pre><code class="language-java">// Java 17: Explicitly control who can extend
+public sealed interface Shape
+    permits Circle, Rectangle, Triangle {
+    double area();
+}
+
+public record Circle(double radius) implements Shape {
+    public double area() { return Math.PI * radius * radius; }
+}
+
+public record Rectangle(double width, double height) implements Shape {
+    public double area() { return width * height; }
+}
+
+public record Triangle(double base, double height) implements Shape {
+    public double area() { return 0.5 * base * height; }
+}
+
+// Exhaustive pattern matching (Java 21+)
+public String describe(Shape shape) {
+    return switch (shape) {
+        case Circle c    -&gt; "Circle with radius " + c.radius();
+        case Rectangle r -&gt; "Rectangle " + r.width() + "x" + r.height();
+        case Triangle t  -&gt; "Triangle with base " + t.base();
+        // No default needed - compiler knows all cases!
+    };
+}</code></pre>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>When to Use in LLD Interviews:</strong>
+                        <ul>
+                            <li><strong>Records:</strong> DTOs, Value Objects, configuration, immutable data carriers</li>
+                            <li><strong>Sealed classes:</strong> Vehicle types (Car, Truck, Motorcycle), payment methods, state enums with behavior</li>
+                            <li><strong>Pattern matching:</strong> Replacing instanceof chains and visitor patterns</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flashcard Suggestions -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Flashcard Suggestions (5 Q/A Pairs)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Question</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Answer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What does SRP's "one reason to change" actually mean?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">One actor/stakeholder whose requirements would cause modifications. Not "one thing" - a report generator can format, calculate, and output but still has one reason to change (reporting requirements).</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">How do you distinguish accidental from essential duplication?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ask: "If this logic changes, should ALL copies change the same way?" Yes = essential (extract). No = accidental (leave alone). Two identical validators for different domains are accidental.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What are the 3 LSP contract rules?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1) Preconditions cannot be strengthened in subtype. 2) Postconditions cannot be weakened. 3) Invariants of the supertype must be preserved.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">When does OCP become over-engineering?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">When you create Strategy/Plugin abstractions for functionality that has never changed and likely never will. Apply OCP at proven change points, not speculative ones.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What is an Aggregate in DDD?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">A cluster of objects treated as a unit for data changes. Has a root entity that controls access. External objects can only reference the root. E.g., Order (root) + OrderItems.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Practice Exercise -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Practice Exercise: Refactor a Legacy Class</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Task:</strong> Refactor this class to follow SOLID principles. Identify which principles are violated and fix them.</p>
+
+                    <pre><code class="language-java">// BEFORE: Which principles does this violate?
+public class ReportGenerator {
+    private Connection dbConnection;
+
+    public ReportGenerator() {
+        this.dbConnection = DriverManager.getConnection("jdbc:mysql://...");
+    }
+
+    public String generateSalesReport(String format) {
+        // 1. Query database
+        ResultSet rs = dbConnection.createStatement()
+            .executeQuery("SELECT * FROM sales WHERE month = " + currentMonth);
+
+        // 2. Calculate totals
+        double total = 0;
+        while (rs.next()) { total += rs.getDouble("amount"); }
+
+        // 3. Format output
+        if (format.equals("HTML")) {
+            return "&lt;h1&gt;Sales: $" + total + "&lt;/h1&gt;";
+        } else if (format.equals("CSV")) {
+            return "sales," + total;
+        } else if (format.equals("PDF")) {
+            // PDF generation logic...
+            return "pdf-bytes";
+        }
+        throw new IllegalArgumentException("Unknown format");
+    }
+
+    public void emailReport(String to, String report) {
+        // SMTP sending logic...
+    }
+}</code></pre>
+
+                    <p><strong>Violations to identify:</strong></p>
+                    <ul>
+                        <li><strong>SRP:</strong> Database access, calculation, formatting, and emailing in one class</li>
+                        <li><strong>OCP:</strong> Adding a new format requires modifying the if-else chain</li>
+                        <li><strong>DIP:</strong> Hard dependency on JDBC Connection (not injectable)</li>
+                        <li><strong>Security:</strong> SQL injection via string concatenation</li>
+                    </ul>
+
+                    <p><strong>Challenge:</strong> Rewrite using interfaces, dependency injection, and the Strategy pattern for formatting. Use Java 17+ features where appropriate.</p>
+                </div>
+            </div>
+
             <h2 class="mt-4">Self-Check Quiz</h2>
             <div class="quiz-container" id="module-quiz"></div>
 
@@ -1066,6 +1447,18 @@ public class UserService {
                     options: ["Using interfaces", "Building features before they're needed", "Writing tests", "Refactoring code"],
                     correct: 1,
                     explanation: "YAGNI (You Ain't Gonna Need It) warns against implementing functionality based on speculation about future requirements."
+                },
+                {
+                    question: "What is a DDD Aggregate?",
+                    options: ["A collection of utility methods", "A cluster of objects treated as a unit for data changes with a root entity", "A type of design pattern", "A database table grouping"],
+                    correct: 1,
+                    explanation: "An Aggregate is a cluster of objects with a root entity that controls access. External objects reference only the root. This defines transaction/consistency boundaries."
+                },
+                {
+                    question: "When does applying SRP become harmful?",
+                    options: ["When classes have more than one method", "When splitting creates nano-classes that need an orchestrator to glue them together", "Always - SRP should never be broken", "When using Java records"],
+                    correct: 1,
+                    explanation: "If splitting a class means you need a coordinator/orchestrator to reassemble the behavior, you've split too far. The goal is cohesion, not minimalism."
                 }
             ];
 

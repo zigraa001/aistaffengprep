@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Locker System - LLD Problem</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <link rel="stylesheet" href="../../assets/css/animations.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="../index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations</div>
+                    <a href="../module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Design Principles
+                    </a>
+                    <a href="../module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">2</span>UML &amp; Class Diagrams
+                    </a>
+                    <a href="../module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">3</span>Interview Framework
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Design Patterns</div>
+                    <a href="../module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">4</span>Creational Patterns
+                    </a>
+                    <a href="../module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">5</span>Structural Patterns
+                    </a>
+                    <a href="../module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">6</span>Behavioral Patterns
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced Topics</div>
+                    <a href="../module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Concurrency Patterns
+                    </a>
+                    <a href="../module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Code Quality
+                    </a>
+                    <a href="../module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Testing &amp; TDD
+                    </a>
+                    <a href="../module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Advanced OOP
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Practice Problems</div>
+                    <a href="parking-lot.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P1</span>Parking Lot
+                    </a>
+                    <a href="elevator.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P2</span>Elevator System
+                    </a>
+                    <a href="vending-machine.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P3</span>Vending Machine
+                    </a>
+                    <a href="library.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P4</span>Library System
+                    </a>
+                    <a href="chess-game.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P5</span>Chess Game
+                    </a>
+                    <a href="amazon-locker.html" class="sidebar-link active">
+                        <span class="sidebar-link-number">P6</span>Amazon Locker
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Interview Prep</div>
+                    <a href="../module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Real-World Architecture
+                    </a>
+                    <a href="../module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Mock Interviews
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design an Amazon Locker System</h1>
+
+            <!-- Problem Statement -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(72, 187, 120, 0.15), rgba(56, 161, 105, 0.15)); border-left: 4px solid #48bb78;">
+                <p><strong>Difficulty:</strong> Medium-Hard LLD Problem | <strong>Time:</strong> 40-50 minutes</p>
+                <p>Design a package locker system (like Amazon Hub Locker) where delivery drivers deposit packages into lockers and customers pick them up using a one-time code. This problem tests state machine design, strategy pattern application, notification systems, and expiry/timeout handling -- all critical for staff-level interviews.</p>
+            </div>
+
+            <!-- Requirements Clarification -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li>A <strong>LockerLocation</strong> contains multiple lockers of varying sizes (Small, Medium, Large, Extra-Large)</li>
+                        <li>The system assigns a locker to a package based on package dimensions</li>
+                        <li>A delivery driver deposits a package into the assigned locker</li>
+                        <li>The system generates a unique OTP (one-time password) and sends it to the customer via SMS/email</li>
+                        <li>The customer enters the OTP at the locker kiosk to open the locker and retrieve the package</li>
+                        <li>Packages that are not picked up within a configurable time window (e.g., 3 days) expire and are returned to sender</li>
+                        <li>The system tracks all package state transitions (reserved, deposited, picked up, expired, returned)</li>
+                    </ul>
+
+                    <h4 class="mt-3">Non-Functional Requirements</h4>
+                    <ul>
+                        <li><strong>Concurrency:</strong> Multiple drivers may deposit at the same location simultaneously</li>
+                        <li><strong>Reliability:</strong> OTPs must be unique and time-bound; no two active packages share an OTP at the same location</li>
+                        <li><strong>Availability:</strong> Locker kiosks should work even with intermittent network connectivity</li>
+                        <li><strong>Scalability:</strong> Support thousands of locker locations across a metro area</li>
+                    </ul>
+
+                    <h4 class="mt-3">Clarifying Questions to Ask</h4>
+                    <ul>
+                        <li>"What locker sizes do we support?" (Small, Medium, Large, Extra-Large)</li>
+                        <li>"How long before an uncollected package expires?" (Configurable, default 3 days)</li>
+                        <li>"Can a customer have multiple packages at the same location?" (Yes, each gets its own locker and OTP)</li>
+                        <li>"How is the OTP delivered?" (SMS and email notification)</li>
+                        <li>"What happens on expiry?" (Package is flagged for return-to-sender pickup by driver)</li>
+                        <li>"Do we need to handle locker hardware/sensors?" (Out of scope for LLD, assume an API contract)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Assumptions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li>Each package has a pre-determined size category (computed from dimensions before delivery)</li>
+                        <li>A locker can hold exactly one package at a time</li>
+                        <li>OTPs are 6-digit numeric codes, unique per active package at a given location</li>
+                        <li>The system runs a scheduled job to detect and handle expired packages</li>
+                        <li>Hardware interaction (opening/closing locker door) is abstracted behind an interface</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Core Entities -->
+            <h2 class="mt-4">2. Core Entities</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Entity Identification</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Entity</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Responsibility</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Key Attributes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>LockerSystem</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Main controller; orchestrates deposits, pickups, expiry</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">locations, deliveries, allocationStrategy</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>LockerLocation</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">A physical site containing multiple lockers</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">locationId, address, lockers, activeOTPs</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Locker</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Individual locker compartment with size and state</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">lockerId, size, status, currentPackage</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Package</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">A package with size, lifecycle state, and ownership</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">packageId, requiredSize, status, customerId</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Delivery</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Links a package to a locker, tracks deposit/pickup times</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">deliveryId, package, locker, otp, depositTime, pickupTime, status</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Customer</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">End user who receives notification and picks up package</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">customerId, name, phone, email</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>OTPService</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Generates and validates one-time pickup codes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">generate(), validate(), invalidate()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>NotificationService</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sends SMS/email on deposit, reminder before expiry</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">observers, notify(), subscribe()</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Class Diagram -->
+            <h2 class="mt-4">3. Class Diagram</h2>
+
+            <div class="diagram-container">
+                <div class="mermaid">
+classDiagram
+    class LockerSystem {
+        -locations: Map~String, LockerLocation~
+        -deliveries: Map~String, Delivery~
+        -allocationStrategy: LockerAllocationStrategy
+        -otpService: OTPService
+        -notificationService: NotificationService
+        +reserveLocker(locationId, pkg): Delivery
+        +depositPackage(deliveryId): boolean
+        +pickupPackage(locationId, otp): Package
+        +handleExpiredPackages(): void
+    }
+
+    class LockerLocation {
+        -locationId: String
+        -address: String
+        -lockers: Map~LockerSize, List~Locker~~
+        -activeOTPs: Map~String, Delivery~
+        +getAvailableLockers(size): List~Locker~
+        +findDeliveryByOTP(otp): Delivery
+        +getTotalAvailable(): int
+    }
+
+    class Locker {
+        -lockerId: String
+        -size: LockerSize
+        -status: LockerStatus
+        -currentPackage: Package
+        +assignPackage(pkg): boolean
+        +releasePackage(): Package
+        +isAvailable(): boolean
+    }
+
+    class Package {
+        -packageId: String
+        -requiredSize: LockerSize
+        -status: PackageStatus
+        -customerId: String
+        +transitionTo(status): void
+    }
+
+    class Delivery {
+        -deliveryId: String
+        -pkg: Package
+        -locker: Locker
+        -otp: String
+        -depositTime: LocalDateTime
+        -pickupTime: LocalDateTime
+        -expiryTime: LocalDateTime
+        -status: DeliveryStatus
+        +isExpired(): boolean
+        +markDeposited(): void
+        +markPickedUp(): void
+        +markExpired(): void
+    }
+
+    class Customer {
+        -customerId: String
+        -name: String
+        -phone: String
+        -email: String
+    }
+
+    class LockerAllocationStrategy {
+        &lt;&lt;interface&gt;&gt;
+        +allocate(lockers, requiredSize): Locker
+    }
+
+    class BestFitStrategy {
+        +allocate(lockers, requiredSize): Locker
+    }
+
+    class FirstFitStrategy {
+        +allocate(lockers, requiredSize): Locker
+    }
+
+    class OTPService {
+        +generate(locationId): String
+        +validate(locationId, otp): boolean
+        +invalidate(locationId, otp): void
+    }
+
+    class NotificationService {
+        -observers: List~NotificationObserver~
+        +subscribe(observer): void
+        +notifyPackageDeposited(delivery, customer): void
+        +notifyExpiryReminder(delivery, customer): void
+    }
+
+    class LockerSize {
+        &lt;&lt;enumeration&gt;&gt;
+        SMALL
+        MEDIUM
+        LARGE
+        EXTRA_LARGE
+    }
+
+    class LockerStatus {
+        &lt;&lt;enumeration&gt;&gt;
+        AVAILABLE
+        RESERVED
+        OCCUPIED
+        OUT_OF_SERVICE
+    }
+
+    class PackageStatus {
+        &lt;&lt;enumeration&gt;&gt;
+        CREATED
+        IN_TRANSIT
+        DEPOSITED
+        PICKED_UP
+        EXPIRED
+        RETURNED
+    }
+
+    class DeliveryStatus {
+        &lt;&lt;enumeration&gt;&gt;
+        RESERVED
+        DEPOSITED
+        PICKED_UP
+        EXPIRED
+        RETURNED
+    }
+
+    LockerSystem "1" *-- "*" LockerLocation
+    LockerSystem "1" --> "1" LockerAllocationStrategy
+    LockerSystem "1" --> "1" OTPService
+    LockerSystem "1" --> "1" NotificationService
+    LockerLocation "1" *-- "*" Locker
+    LockerLocation "1" o-- "*" Delivery
+    Locker "1" o-- "0..1" Package
+    Delivery "1" --> "1" Package
+    Delivery "1" --> "1" Locker
+    Delivery "1" --> "1" Customer
+    LockerAllocationStrategy <|.. BestFitStrategy
+    LockerAllocationStrategy <|.. FirstFitStrategy
+    Locker --> LockerSize
+    Locker --> LockerStatus
+    Package --> PackageStatus
+    Delivery --> DeliveryStatus
+                </div>
+            </div>
+
+            <!-- State Machine -->
+            <h2 class="mt-4">4. Package Lifecycle State Machine</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>State Transitions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The package lifecycle is the heart of this design. Every package follows a strict state machine -- understanding these transitions and what triggers them is critical in the interview.</p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> RESERVED : System assigns locker
+    RESERVED --> DEPOSITED : Driver deposits package
+    RESERVED --> CANCELLED : Locker reservation timeout
+    DEPOSITED --> PICKED_UP : Customer enters valid OTP
+    DEPOSITED --> EXPIRED : Expiry window exceeded (3 days)
+    EXPIRED --> RETURNED : Driver picks up for return
+    PICKED_UP --> [*]
+    RETURNED --> [*]
+    CANCELLED --> [*]
+                        </div>
+                    </div>
+                    <h4 class="mt-3">State Transition Rules</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">From</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">To</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trigger</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Side Effects</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">--</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RESERVED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker allocated for incoming package</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker status set to RESERVED</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RESERVED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DEPOSITED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Driver scans package and places in locker</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OTP generated, notification sent, expiry timer starts</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DEPOSITED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PICKED_UP</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Customer enters correct OTP</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker opened, OTP invalidated, locker released</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DEPOSITED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">EXPIRED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Scheduled job detects past-due package</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OTP invalidated, return-to-sender flagged</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">EXPIRED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RETURNED</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Driver retrieves package for return</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker released back to AVAILABLE pool</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Design Patterns Used -->
+            <h2 class="mt-4">5. Design Patterns Used</h2>
+
+            <div class="card-grid">
+                <div class="card">
+                    <h3>State Pattern</h3>
+                    <p><strong>Where:</strong> Package and Locker status management</p>
+                    <p><strong>Why:</strong> The package lifecycle is a well-defined state machine. Using the State pattern ensures that only valid transitions are allowed and each state encapsulates its own behavior (e.g., what happens when a DEPOSITED package expires vs. gets picked up).</p>
+                </div>
+                <div class="card">
+                    <h3>Strategy Pattern</h3>
+                    <p><strong>Where:</strong> LockerAllocationStrategy (BestFitStrategy, FirstFitStrategy)</p>
+                    <p><strong>Why:</strong> Different allocation algorithms can be swapped at runtime. Best-fit minimizes wasted space (assigns smallest locker that fits). First-fit optimizes for speed. The system can A/B test strategies without code changes.</p>
+                </div>
+                <div class="card">
+                    <h3>Observer Pattern</h3>
+                    <p><strong>Where:</strong> NotificationService with SMS/Email observers</p>
+                    <p><strong>Why:</strong> When a package is deposited or nearing expiry, multiple notification channels need to fire. The Observer pattern decouples the delivery logic from notification delivery -- adding a push notification channel requires zero changes to the core system.</p>
+                </div>
+                <div class="card">
+                    <h3>Factory Pattern</h3>
+                    <p><strong>Where:</strong> Locker creation based on configuration</p>
+                    <p><strong>Why:</strong> Different locker locations have different size distributions. A factory encapsulates the creation logic, making it easy to configure locations from a spec (e.g., "20 small, 15 medium, 10 large, 5 extra-large").</p>
+                </div>
+            </div>
+
+            <!-- Java Implementation -->
+            <h2 class="mt-4">6. Java 17+ Implementation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Enums</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">public enum LockerSize {
+    SMALL(1),
+    MEDIUM(2),
+    LARGE(3),
+    EXTRA_LARGE(4);
+
+    private final int capacity;
+
+    LockerSize(int capacity) {
+        this.capacity = capacity;
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    /**
+     * Returns true if this locker size can fit a package
+     * requiring the given size.
+     */
+    public boolean canFit(LockerSize requiredSize) {
+        return this.capacity &gt;= requiredSize.capacity;
+    }
+}
+
+public enum LockerStatus {
+    AVAILABLE,
+    RESERVED,
+    OCCUPIED,
+    OUT_OF_SERVICE
+}
+
+public enum PackageStatus {
+    CREATED,
+    IN_TRANSIT,
+    DEPOSITED,
+    PICKED_UP,
+    EXPIRED,
+    RETURNED
+}
+
+public enum DeliveryStatus {
+    RESERVED,
+    DEPOSITED,
+    PICKED_UP,
+    EXPIRED,
+    RETURNED
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Records for DTOs (Java 17+)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Java records give us immutable, concise DTOs with auto-generated <code>equals()</code>, <code>hashCode()</code>, and <code>toString()</code>. Use these for data that crosses boundaries (API responses, events).</p>
+                    <pre><code class="language-java">/**
+ * Immutable snapshot of package information for API responses / events.
+ */
+public record PackageInfo(
+    String packageId,
+    LockerSize requiredSize,
+    String customerId,
+    PackageStatus status
+) {}
+
+/**
+ * Immutable snapshot of a delivery for external consumers.
+ */
+public record DeliveryInfo(
+    String deliveryId,
+    String packageId,
+    String lockerId,
+    String locationId,
+    DeliveryStatus status,
+    LocalDateTime depositTime,
+    LocalDateTime expiryTime
+) {}
+
+/**
+ * Notification payload sent to customers.
+ */
+public record PickupNotification(
+    String customerId,
+    String locationAddress,
+    String otp,
+    LocalDateTime expiryTime,
+    String packageId
+) {}
+
+/**
+ * Locker availability summary for a location.
+ */
+public record LocationAvailability(
+    String locationId,
+    String address,
+    Map&lt;LockerSize, Integer&gt; availableBySizeImmutable
+) {
+    public LocationAvailability {
+        // Defensive copy for immutability
+        availableBySizeImmutable = Map.copyOf(availableBySizeImmutable);
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Customer and Package</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">public class Customer {
+    private final String customerId;
+    private final String name;
+    private final String phone;
+    private final String email;
+
+    public Customer(String customerId, String name, String phone, String email) {
+        this.customerId = customerId;
+        this.name = name;
+        this.phone = phone;
+        this.email = email;
+    }
+
+    public String getCustomerId() { return customerId; }
+    public String getName() { return name; }
+    public String getPhone() { return phone; }
+    public String getEmail() { return email; }
+}
+
+public class Package {
+    private final String packageId;
+    private final LockerSize requiredSize;
+    private final String customerId;
+    private PackageStatus status;
+
+    // Valid state transitions
+    private static final Map&lt;PackageStatus, Set&lt;PackageStatus&gt;&gt; VALID_TRANSITIONS = Map.of(
+        PackageStatus.CREATED,    Set.of(PackageStatus.IN_TRANSIT),
+        PackageStatus.IN_TRANSIT, Set.of(PackageStatus.DEPOSITED),
+        PackageStatus.DEPOSITED,  Set.of(PackageStatus.PICKED_UP, PackageStatus.EXPIRED),
+        PackageStatus.EXPIRED,    Set.of(PackageStatus.RETURNED),
+        PackageStatus.PICKED_UP,  Set.of(),
+        PackageStatus.RETURNED,   Set.of()
+    );
+
+    public Package(String packageId, LockerSize requiredSize, String customerId) {
+        this.packageId = packageId;
+        this.requiredSize = requiredSize;
+        this.customerId = customerId;
+        this.status = PackageStatus.CREATED;
+    }
+
+    /**
+     * Enforces the state machine -- only valid transitions are permitted.
+     *
+     * @throws IllegalStateException if the transition is invalid
+     */
+    public synchronized void transitionTo(PackageStatus newStatus) {
+        Set&lt;PackageStatus&gt; allowed = VALID_TRANSITIONS.getOrDefault(
+            this.status, Set.of());
+        if (!allowed.contains(newStatus)) {
+            throw new IllegalStateException(
+                "Invalid transition: " + this.status + " -&gt; " + newStatus);
+        }
+        this.status = newStatus;
+    }
+
+    public String getPackageId() { return packageId; }
+    public LockerSize getRequiredSize() { return requiredSize; }
+    public String getCustomerId() { return customerId; }
+    public PackageStatus getStatus() { return status; }
+
+    public PackageInfo toInfo() {
+        return new PackageInfo(packageId, requiredSize, customerId, status);
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Locker - Thread-Safe State Management</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.util.concurrent.locks.ReentrantLock;
+
+public class Locker {
+    private final String lockerId;
+    private final LockerSize size;
+    private LockerStatus status;
+    private Package currentPackage;
+    private final ReentrantLock lock = new ReentrantLock();
+
+    public Locker(String lockerId, LockerSize size) {
+        this.lockerId = lockerId;
+        this.size = size;
+        this.status = LockerStatus.AVAILABLE;
+    }
+
+    public String getLockerId() { return lockerId; }
+    public LockerSize getSize() { return size; }
+
+    public LockerStatus getStatus() {
+        lock.lock();
+        try {
+            return status;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean isAvailable() {
+        lock.lock();
+        try {
+            return status == LockerStatus.AVAILABLE;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Reserves this locker for an incoming package.
+     * Thread-safe: uses lock to prevent double-reservation.
+     *
+     * @return true if reservation succeeded, false if locker was already taken
+     */
+    public boolean reserve() {
+        lock.lock();
+        try {
+            if (status != LockerStatus.AVAILABLE) {
+                return false;
+            }
+            status = LockerStatus.RESERVED;
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Deposits a package into this locker.
+     *
+     * @return true if deposit succeeded
+     * @throws IllegalStateException if locker is not in RESERVED state
+     */
+    public boolean assignPackage(Package pkg) {
+        lock.lock();
+        try {
+            if (status != LockerStatus.RESERVED) {
+                throw new IllegalStateException(
+                    "Locker " + lockerId + " is not reserved (status: " + status + ")");
+            }
+            if (!size.canFit(pkg.getRequiredSize())) {
+                return false;
+            }
+            this.currentPackage = pkg;
+            this.status = LockerStatus.OCCUPIED;
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Releases the package and makes the locker available again.
+     *
+     * @return the released package, or null if locker was empty
+     */
+    public Package releasePackage() {
+        lock.lock();
+        try {
+            Package pkg = this.currentPackage;
+            this.currentPackage = null;
+            this.status = LockerStatus.AVAILABLE;
+            return pkg;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Cancels a reservation (e.g., reservation timeout).
+     */
+    public void cancelReservation() {
+        lock.lock();
+        try {
+            if (status == LockerStatus.RESERVED) {
+                status = LockerStatus.AVAILABLE;
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public Package getCurrentPackage() {
+        lock.lock();
+        try {
+            return currentPackage;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Locker[%s, %s, %s]", lockerId, size, status);
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>LockerLocation - Managing Lockers at a Site</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class LockerLocation {
+    private final String locationId;
+    private final String address;
+    private final Map&lt;LockerSize, List&lt;Locker&gt;&gt; lockersBySize;
+    private final Map&lt;String, Delivery&gt; activeOTPs; // OTP -&gt; Delivery
+
+    public LockerLocation(String locationId, String address) {
+        this.locationId = locationId;
+        this.address = address;
+        this.lockersBySize = new ConcurrentHashMap&lt;&gt;();
+        this.activeOTPs = new ConcurrentHashMap&lt;&gt;();
+
+        for (LockerSize size : LockerSize.values()) {
+            lockersBySize.put(size, Collections.synchronizedList(new ArrayList&lt;&gt;()));
+        }
+    }
+
+    public void addLocker(Locker locker) {
+        lockersBySize.get(locker.getSize()).add(locker);
+    }
+
+    /**
+     * Returns all available lockers that can fit the given size.
+     * Searches from exact size upward (e.g., MEDIUM package can go
+     * into MEDIUM, LARGE, or EXTRA_LARGE locker).
+     */
+    public List&lt;Locker&gt; getAvailableLockers(LockerSize requiredSize) {
+        List&lt;Locker&gt; available = new ArrayList&lt;&gt;();
+        for (LockerSize size : LockerSize.values()) {
+            if (size.canFit(requiredSize)) {
+                lockersBySize.get(size).stream()
+                    .filter(Locker::isAvailable)
+                    .forEach(available::add);
+            }
+        }
+        return available;
+    }
+
+    public void registerOTP(String otp, Delivery delivery) {
+        activeOTPs.put(otp, delivery);
+    }
+
+    public void invalidateOTP(String otp) {
+        activeOTPs.remove(otp);
+    }
+
+    public Delivery findDeliveryByOTP(String otp) {
+        return activeOTPs.get(otp);
+    }
+
+    public int getTotalAvailable() {
+        return lockersBySize.values().stream()
+            .mapToInt(lockers -&gt; (int) lockers.stream()
+                .filter(Locker::isAvailable).count())
+            .sum();
+    }
+
+    public LocationAvailability getAvailability() {
+        Map&lt;LockerSize, Integer&gt; available = new EnumMap&lt;&gt;(LockerSize.class);
+        for (LockerSize size : LockerSize.values()) {
+            available.put(size, (int) lockersBySize.get(size).stream()
+                .filter(Locker::isAvailable).count());
+        }
+        return new LocationAvailability(locationId, address, available);
+    }
+
+    public String getLocationId() { return locationId; }
+    public String getAddress() { return address; }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>LockerAllocationStrategy - Best-Fit and First-Fit</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Strategy interface for locker allocation.
+ * Different strategies optimize for different goals:
+ * - BestFit: minimize wasted space (use smallest locker that fits)
+ * - FirstFit: minimize search time (use first available locker that fits)
+ */
+public interface LockerAllocationStrategy {
+    Optional&lt;Locker&gt; allocate(List&lt;Locker&gt; availableLockers, LockerSize requiredSize);
+}
+
+/**
+ * Best-Fit: Allocates the smallest available locker that fits the package.
+ *
+ * Why use this? Maximizes locker utilization. A small package won't
+ * block a large locker that a bigger package needs later.
+ *
+ * Trade-off: Slightly slower (must sort/compare all candidates).
+ */
+public class BestFitStrategy implements LockerAllocationStrategy {
+    @Override
+    public Optional&lt;Locker&gt; allocate(List&lt;Locker&gt; availableLockers, LockerSize requiredSize) {
+        return availableLockers.stream()
+            .filter(locker -&gt; locker.getSize().canFit(requiredSize))
+            .min(Comparator.comparingInt(locker -&gt; locker.getSize().getCapacity()));
+    }
+}
+
+/**
+ * First-Fit: Allocates the first available locker that fits.
+ *
+ * Why use this? Fastest allocation time O(1) in best case.
+ * Useful when locker utilization is low and speed matters.
+ *
+ * Trade-off: May waste large lockers on small packages.
+ */
+public class FirstFitStrategy implements LockerAllocationStrategy {
+    @Override
+    public Optional&lt;Locker&gt; allocate(List&lt;Locker&gt; availableLockers, LockerSize requiredSize) {
+        return availableLockers.stream()
+            .filter(locker -&gt; locker.getSize().canFit(requiredSize))
+            .findFirst();
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>OTPService - Generating and Validating One-Time Codes</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.security.SecureRandom;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Generates and manages one-time pickup codes.
+ *
+ * Key design decisions:
+ * 1. OTPs are unique per location (not globally) -- reduces collision space
+ * 2. Uses SecureRandom, not Random -- prevents OTP prediction attacks
+ * 3. 6-digit codes balance usability (easy to type) with security (1M combinations)
+ * 4. Thread-safe via ConcurrentHashMap
+ */
+public class OTPService {
+    private static final int OTP_LENGTH = 6;
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    // locationId -&gt; set of active OTPs at that location
+    private final Map&lt;String, Set&lt;String&gt;&gt; activeOTPsByLocation = new ConcurrentHashMap&lt;&gt;();
+
+    /**
+     * Generates a unique 6-digit OTP for the given location.
+     * Retries if there is a collision with an existing active OTP.
+     */
+    public String generate(String locationId) {
+        Set&lt;String&gt; activeOTPs = activeOTPsByLocation.computeIfAbsent(
+            locationId, k -&gt; ConcurrentHashMap.newKeySet());
+
+        String otp;
+        int maxRetries = 100;
+        int attempt = 0;
+        do {
+            otp = String.format("%0" + OTP_LENGTH + "d",
+                secureRandom.nextInt((int) Math.pow(10, OTP_LENGTH)));
+            attempt++;
+            if (attempt &gt; maxRetries) {
+                throw new IllegalStateException(
+                    "Cannot generate unique OTP after " + maxRetries + " attempts");
+            }
+        } while (activeOTPs.contains(otp));
+
+        activeOTPs.add(otp);
+        return otp;
+    }
+
+    /**
+     * Validates that the given OTP is active at the specified location.
+     */
+    public boolean validate(String locationId, String otp) {
+        Set&lt;String&gt; activeOTPs = activeOTPsByLocation.get(locationId);
+        return activeOTPs != null &amp;&amp; activeOTPs.contains(otp);
+    }
+
+    /**
+     * Invalidates an OTP after successful pickup or expiry.
+     */
+    public void invalidate(String locationId, String otp) {
+        Set&lt;String&gt; activeOTPs = activeOTPsByLocation.get(locationId);
+        if (activeOTPs != null) {
+            activeOTPs.remove(otp);
+        }
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>NotificationService - Observer Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * Observer interface for notification channels.
+ * Adding a new channel (e.g., push notifications) requires
+ * only implementing this interface -- zero core logic changes.
+ */
+public interface NotificationObserver {
+    void onPackageDeposited(PickupNotification notification);
+    void onExpiryReminder(PickupNotification notification);
+}
+
+/**
+ * SMS notification channel.
+ */
+public class SMSNotificationObserver implements NotificationObserver {
+    @Override
+    public void onPackageDeposited(PickupNotification notification) {
+        System.out.printf("[SMS -&gt; %s] Your package %s is ready for pickup " +
+            "at %s. OTP: %s. Expires: %s%n",
+            notification.customerId(), notification.packageId(),
+            notification.locationAddress(), notification.otp(),
+            notification.expiryTime());
+    }
+
+    @Override
+    public void onExpiryReminder(PickupNotification notification) {
+        System.out.printf("[SMS -&gt; %s] Reminder: Package %s expires at %s. " +
+            "Pick up soon!%n",
+            notification.customerId(), notification.packageId(),
+            notification.expiryTime());
+    }
+}
+
+/**
+ * Email notification channel.
+ */
+public class EmailNotificationObserver implements NotificationObserver {
+    @Override
+    public void onPackageDeposited(PickupNotification notification) {
+        System.out.printf("[EMAIL -&gt; %s] Package %s deposited at %s. " +
+            "Use code %s to pick up before %s.%n",
+            notification.customerId(), notification.packageId(),
+            notification.locationAddress(), notification.otp(),
+            notification.expiryTime());
+    }
+
+    @Override
+    public void onExpiryReminder(PickupNotification notification) {
+        System.out.printf("[EMAIL -&gt; %s] Your package %s at %s expires at %s.%n",
+            notification.customerId(), notification.packageId(),
+            notification.locationAddress(), notification.expiryTime());
+    }
+}
+
+/**
+ * NotificationService manages observers and dispatches events.
+ * Uses CopyOnWriteArrayList for thread-safe observer management.
+ */
+public class NotificationService {
+    private final List&lt;NotificationObserver&gt; observers = new CopyOnWriteArrayList&lt;&gt;();
+
+    public void subscribe(NotificationObserver observer) {
+        observers.add(observer);
+    }
+
+    public void unsubscribe(NotificationObserver observer) {
+        observers.remove(observer);
+    }
+
+    public void notifyPackageDeposited(PickupNotification notification) {
+        for (NotificationObserver observer : observers) {
+            // In production: dispatch asynchronously to avoid blocking
+            observer.onPackageDeposited(notification);
+        }
+    }
+
+    public void notifyExpiryReminder(PickupNotification notification) {
+        for (NotificationObserver observer : observers) {
+            observer.onExpiryReminder(notification);
+        }
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Delivery - Linking Package, Locker, and OTP</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+public class Delivery {
+    private final String deliveryId;
+    private final Package pkg;
+    private final Locker locker;
+    private final Customer customer;
+    private final String locationId;
+    private String otp;
+    private LocalDateTime depositTime;
+    private LocalDateTime pickupTime;
+    private LocalDateTime expiryTime;
+    private DeliveryStatus status;
+
+    private static final Duration DEFAULT_EXPIRY = Duration.ofDays(3);
+
+    public Delivery(Package pkg, Locker locker, Customer customer, String locationId) {
+        this.deliveryId = UUID.randomUUID().toString().substring(0, 10).toUpperCase();
+        this.pkg = pkg;
+        this.locker = locker;
+        this.customer = customer;
+        this.locationId = locationId;
+        this.status = DeliveryStatus.RESERVED;
+    }
+
+    public void markDeposited(String otp) {
+        if (status != DeliveryStatus.RESERVED) {
+            throw new IllegalStateException(
+                "Cannot deposit: delivery " + deliveryId + " is " + status);
+        }
+        this.otp = otp;
+        this.depositTime = LocalDateTime.now();
+        this.expiryTime = depositTime.plus(DEFAULT_EXPIRY);
+        this.status = DeliveryStatus.DEPOSITED;
+        this.pkg.transitionTo(PackageStatus.DEPOSITED);
+    }
+
+    public void markPickedUp() {
+        if (status != DeliveryStatus.DEPOSITED) {
+            throw new IllegalStateException(
+                "Cannot pick up: delivery " + deliveryId + " is " + status);
+        }
+        this.pickupTime = LocalDateTime.now();
+        this.status = DeliveryStatus.PICKED_UP;
+        this.pkg.transitionTo(PackageStatus.PICKED_UP);
+    }
+
+    public void markExpired() {
+        if (status != DeliveryStatus.DEPOSITED) {
+            throw new IllegalStateException(
+                "Cannot expire: delivery " + deliveryId + " is " + status);
+        }
+        this.status = DeliveryStatus.EXPIRED;
+        this.pkg.transitionTo(PackageStatus.EXPIRED);
+    }
+
+    public void markReturned() {
+        if (status != DeliveryStatus.EXPIRED) {
+            throw new IllegalStateException(
+                "Cannot return: delivery " + deliveryId + " is " + status);
+        }
+        this.status = DeliveryStatus.RETURNED;
+        this.pkg.transitionTo(PackageStatus.RETURNED);
+    }
+
+    public boolean isExpired() {
+        return status == DeliveryStatus.DEPOSITED
+            &amp;&amp; expiryTime != null
+            &amp;&amp; LocalDateTime.now().isAfter(expiryTime);
+    }
+
+    // Getters
+    public String getDeliveryId() { return deliveryId; }
+    public Package getPackage() { return pkg; }
+    public Locker getLocker() { return locker; }
+    public Customer getCustomer() { return customer; }
+    public String getLocationId() { return locationId; }
+    public String getOtp() { return otp; }
+    public LocalDateTime getDepositTime() { return depositTime; }
+    public LocalDateTime getPickupTime() { return pickupTime; }
+    public LocalDateTime getExpiryTime() { return expiryTime; }
+    public DeliveryStatus getStatus() { return status; }
+
+    public DeliveryInfo toInfo() {
+        return new DeliveryInfo(deliveryId, pkg.getPackageId(),
+            locker.getLockerId(), locationId, status, depositTime, expiryTime);
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>LockerSystem - Main Controller</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * LockerSystem is the main orchestrator.
+ *
+ * Key responsibilities:
+ * 1. Reserve a locker for a package (allocation strategy)
+ * 2. Handle package deposit (OTP generation, notification)
+ * 3. Handle customer pickup (OTP validation, locker release)
+ * 4. Handle expired packages (scheduled scan, return-to-sender)
+ *
+ * Note: NOT a Singleton -- unlike parking lots, you may have
+ * separate locker systems for different regions/tenants.
+ */
+public class LockerSystem {
+    private final Map&lt;String, LockerLocation&gt; locations;
+    private final Map&lt;String, Delivery&gt; deliveries; // deliveryId -&gt; Delivery
+    private final Map&lt;String, Customer&gt; customers;  // customerId -&gt; Customer
+    private final LockerAllocationStrategy allocationStrategy;
+    private final OTPService otpService;
+    private final NotificationService notificationService;
+
+    public LockerSystem(LockerAllocationStrategy strategy) {
+        this.locations = new ConcurrentHashMap&lt;&gt;();
+        this.deliveries = new ConcurrentHashMap&lt;&gt;();
+        this.customers = new ConcurrentHashMap&lt;&gt;();
+        this.allocationStrategy = strategy;
+        this.otpService = new OTPService();
+        this.notificationService = new NotificationService();
+    }
+
+    public void addLocation(LockerLocation location) {
+        locations.put(location.getLocationId(), location);
+    }
+
+    public void registerCustomer(Customer customer) {
+        customers.put(customer.getCustomerId(), customer);
+    }
+
+    public NotificationService getNotificationService() {
+        return notificationService;
+    }
+
+    // -------------------------------------------------------
+    // 1. RESERVE a locker for an incoming package
+    // -------------------------------------------------------
+
+    /**
+     * Reserves a locker at the given location for the package.
+     * Uses the configured allocation strategy to pick the best locker.
+     *
+     * @throws IllegalArgumentException if location not found
+     * @throws IllegalStateException if no locker available
+     */
+    public Delivery reserveLocker(String locationId, Package pkg, String customerId) {
+        LockerLocation location = locations.get(locationId);
+        if (location == null) {
+            throw new IllegalArgumentException("Location not found: " + locationId);
+        }
+
+        Customer customer = customers.get(customerId);
+        if (customer == null) {
+            throw new IllegalArgumentException("Customer not found: " + customerId);
+        }
+
+        // Get available lockers and apply allocation strategy
+        List&lt;Locker&gt; available = location.getAvailableLockers(pkg.getRequiredSize());
+        Locker locker = allocationStrategy.allocate(available, pkg.getRequiredSize())
+            .orElseThrow(() -&gt; new IllegalStateException(
+                "No locker available at " + locationId + " for size " + pkg.getRequiredSize()));
+
+        // Reserve the locker (thread-safe)
+        if (!locker.reserve()) {
+            // Race condition: locker was taken between check and reserve
+            throw new IllegalStateException("Locker reservation failed due to contention");
+        }
+
+        pkg.transitionTo(PackageStatus.IN_TRANSIT);
+
+        Delivery delivery = new Delivery(pkg, locker, customer, locationId);
+        deliveries.put(delivery.getDeliveryId(), delivery);
+
+        return delivery;
+    }
+
+    // -------------------------------------------------------
+    // 2. DEPOSIT a package into the reserved locker
+    // -------------------------------------------------------
+
+    /**
+     * Called when a driver physically places the package in the locker.
+     * Generates OTP and notifies the customer.
+     */
+    public boolean depositPackage(String deliveryId) {
+        Delivery delivery = deliveries.get(deliveryId);
+        if (delivery == null) {
+            throw new IllegalArgumentException("Delivery not found: " + deliveryId);
+        }
+
+        Locker locker = delivery.getLocker();
+        Package pkg = delivery.getPackage();
+
+        // Place package in locker
+        if (!locker.assignPackage(pkg)) {
+            return false;
+        }
+
+        // Generate OTP
+        String otp = otpService.generate(delivery.getLocationId());
+        delivery.markDeposited(otp);
+
+        // Register OTP at location for lookup during pickup
+        LockerLocation location = locations.get(delivery.getLocationId());
+        location.registerOTP(otp, delivery);
+
+        // Notify customer
+        PickupNotification notification = new PickupNotification(
+            delivery.getCustomer().getCustomerId(),
+            location.getAddress(),
+            otp,
+            delivery.getExpiryTime(),
+            pkg.getPackageId()
+        );
+        notificationService.notifyPackageDeposited(notification);
+
+        return true;
+    }
+
+    // -------------------------------------------------------
+    // 3. PICKUP -- customer enters OTP at the kiosk
+    // -------------------------------------------------------
+
+    /**
+     * Processes a customer pickup attempt.
+     *
+     * @param locationId the locker location
+     * @param otp the code entered by the customer
+     * @return the retrieved Package
+     * @throws IllegalArgumentException if OTP is invalid
+     */
+    public Package pickupPackage(String locationId, String otp) {
+        LockerLocation location = locations.get(locationId);
+        if (location == null) {
+            throw new IllegalArgumentException("Location not found: " + locationId);
+        }
+
+        // Validate OTP
+        if (!otpService.validate(locationId, otp)) {
+            throw new IllegalArgumentException("Invalid or expired OTP");
+        }
+
+        // Find the delivery associated with this OTP
+        Delivery delivery = location.findDeliveryByOTP(otp);
+        if (delivery == null) {
+            throw new IllegalArgumentException("No delivery found for OTP");
+        }
+
+        // Release package from locker
+        Locker locker = delivery.getLocker();
+        Package pkg = locker.releasePackage();
+
+        // Update delivery state
+        delivery.markPickedUp();
+
+        // Invalidate OTP
+        otpService.invalidate(locationId, otp);
+        location.invalidateOTP(otp);
+
+        return pkg;
+    }
+
+    // -------------------------------------------------------
+    // 4. EXPIRY HANDLING -- scheduled task
+    // -------------------------------------------------------
+
+    /**
+     * Scans all active deliveries and marks expired ones.
+     * In production, this runs as a scheduled task (e.g., every hour).
+     *
+     * Returns the list of expired deliveries for return-to-sender processing.
+     */
+    public List&lt;Delivery&gt; handleExpiredPackages() {
+        List&lt;Delivery&gt; expiredDeliveries = new ArrayList&lt;&gt;();
+
+        for (Delivery delivery : deliveries.values()) {
+            if (delivery.isExpired()) {
+                delivery.markExpired();
+
+                // Invalidate OTP
+                String otp = delivery.getOtp();
+                otpService.invalidate(delivery.getLocationId(), otp);
+                LockerLocation location = locations.get(delivery.getLocationId());
+                if (location != null) {
+                    location.invalidateOTP(otp);
+                }
+
+                expiredDeliveries.add(delivery);
+
+                System.out.printf("EXPIRED: Delivery %s, Package %s at location %s%n",
+                    delivery.getDeliveryId(),
+                    delivery.getPackage().getPackageId(),
+                    delivery.getLocationId());
+            }
+        }
+        return expiredDeliveries;
+    }
+
+    /**
+     * Called when a driver picks up an expired package for return.
+     * Releases the locker back to the available pool.
+     */
+    public void processReturn(String deliveryId) {
+        Delivery delivery = deliveries.get(deliveryId);
+        if (delivery == null) {
+            throw new IllegalArgumentException("Delivery not found: " + deliveryId);
+        }
+
+        delivery.markReturned();
+        delivery.getLocker().releasePackage();
+
+        System.out.printf("RETURNED: Package %s from locker %s%n",
+            delivery.getPackage().getPackageId(),
+            delivery.getLocker().getLockerId());
+    }
+
+    // -------------------------------------------------------
+    // Query methods
+    // -------------------------------------------------------
+
+    public LocationAvailability getLocationAvailability(String locationId) {
+        LockerLocation location = locations.get(locationId);
+        if (location == null) {
+            throw new IllegalArgumentException("Location not found: " + locationId);
+        }
+        return location.getAvailability();
+    }
+
+    public DeliveryInfo getDeliveryInfo(String deliveryId) {
+        Delivery delivery = deliveries.get(deliveryId);
+        if (delivery == null) {
+            throw new IllegalArgumentException("Delivery not found: " + deliveryId);
+        }
+        return delivery.toInfo();
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Expiry Handling - Scheduled Task</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>In production, package expiry is handled by a scheduled task that runs periodically. This keeps the core system clean -- expiry logic does not pollute the deposit/pickup paths.</p>
+                    <pre><code class="language-java">import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * Scheduled job that scans for expired packages.
+ *
+ * In production this might be:
+ * - A cron job / Kubernetes CronJob
+ * - AWS EventBridge + Lambda
+ * - A Spring @Scheduled method
+ *
+ * Here we use ScheduledExecutorService for simplicity.
+ */
+public class ExpiryScheduler {
+    private final LockerSystem lockerSystem;
+    private final ScheduledExecutorService scheduler;
+
+    public ExpiryScheduler(LockerSystem lockerSystem) {
+        this.lockerSystem = lockerSystem;
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -&gt; {
+            Thread t = new Thread(r, "expiry-scanner");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    /**
+     * Starts the expiry scanner. Runs every hour by default.
+     */
+    public void start() {
+        scheduler.scheduleAtFixedRate(() -&gt; {
+            try {
+                var expired = lockerSystem.handleExpiredPackages();
+                if (!expired.isEmpty()) {
+                    System.out.printf("Expiry scan: %d packages expired%n",
+                        expired.size());
+                }
+            } catch (Exception e) {
+                System.err.println("Expiry scan error: " + e.getMessage());
+            }
+        }, 0, 1, TimeUnit.HOURS);
+    }
+
+    public void stop() {
+        scheduler.shutdown();
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- Sequence Diagrams -->
+            <h2 class="mt-4">7. Sequence Diagrams</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Package Deposit Flow</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Driver
+    participant LockerSystem
+    participant LockerLocation
+    participant Strategy as AllocationStrategy
+    participant Locker
+    participant OTPService
+    participant NotifService as NotificationService
+    participant Customer
+
+    Driver->>LockerSystem: reserveLocker(locationId, package)
+    LockerSystem->>LockerLocation: getAvailableLockers(size)
+    LockerLocation-->>LockerSystem: List of available lockers
+    LockerSystem->>Strategy: allocate(lockers, size)
+    Strategy-->>LockerSystem: bestLocker
+    LockerSystem->>Locker: reserve()
+    Locker-->>LockerSystem: true
+    LockerSystem-->>Driver: Delivery (with lockerId)
+
+    Driver->>LockerSystem: depositPackage(deliveryId)
+    LockerSystem->>Locker: assignPackage(pkg)
+    Locker-->>LockerSystem: true
+    LockerSystem->>OTPService: generate(locationId)
+    OTPService-->>LockerSystem: "482917"
+    LockerSystem->>LockerLocation: registerOTP(otp, delivery)
+    LockerSystem->>NotifService: notifyPackageDeposited(notification)
+    NotifService->>Customer: SMS + Email with OTP
+    LockerSystem-->>Driver: success
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Customer Pickup Flow</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Customer
+    participant Kiosk
+    participant LockerSystem
+    participant OTPService
+    participant LockerLocation
+    participant Locker
+
+    Customer->>Kiosk: Enter OTP "482917"
+    Kiosk->>LockerSystem: pickupPackage(locationId, otp)
+    LockerSystem->>OTPService: validate(locationId, otp)
+    OTPService-->>LockerSystem: true
+    LockerSystem->>LockerLocation: findDeliveryByOTP(otp)
+    LockerLocation-->>LockerSystem: Delivery
+    LockerSystem->>Locker: releasePackage()
+    Locker-->>LockerSystem: Package
+    LockerSystem->>OTPService: invalidate(locationId, otp)
+    LockerSystem->>LockerLocation: invalidateOTP(otp)
+    LockerSystem-->>Kiosk: Package (locker opens)
+    Kiosk-->>Customer: Locker door opens, retrieve package
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edge Cases -->
+            <h2 class="mt-4">8. Edge Cases and Error Handling</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Critical Edge Cases</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scenario</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How It's Handled</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Code Location</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>All lockers full</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">AllocationStrategy returns empty Optional; system throws IllegalStateException with clear message. Caller can redirect to another nearby location.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LockerSystem.reserveLocker()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Wrong OTP entered</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OTPService.validate() returns false. In production, add a rate limiter (max 5 attempts per 15 min) to prevent brute force.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LockerSystem.pickupPackage()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Expired package</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Scheduled ExpiryScheduler marks delivery as EXPIRED, invalidates OTP. Package stays in locker until driver picks it up for return.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ExpiryScheduler, LockerSystem.handleExpiredPackages()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Oversized package</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LockerSize.canFit() check prevents assignment. If no locker of sufficient size exists, reservation fails gracefully.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker.assignPackage(), BestFitStrategy</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Concurrent reservation</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker.reserve() uses ReentrantLock. Only one thread can reserve a given locker. Losing thread gets false and retries with next available locker.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker.reserve()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>OTP collision</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OTPService retries generation up to 100 times. With 6 digits (1M combinations) and typically &lt;100 active packages per location, collision probability is negligible.</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OTPService.generate()</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Reservation timeout</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">If a driver reserves but never deposits (e.g., delivery van breaks down), a separate reservation timeout job cancels the reservation via Locker.cancelReservation().</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Locker.cancelReservation()</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Staff vs Senior -->
+            <h2 class="mt-4">9. Staff vs Senior Callout</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(237, 137, 54, 0.2), rgba(221, 107, 32, 0.2)); border-left: 4px solid #ed8936;">
+                <h3>What Separates Staff-Level Answers</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior Answer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff Answer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>State Machine</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Mentions states informally</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Defines explicit VALID_TRANSITIONS map, enforces invariants in code, discusses why invalid transitions are dangerous</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Concurrency</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Says "use synchronized"</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses ReentrantLock with try/finally, discusses lock granularity (per-locker vs per-location), explains why CAS might be better for status changes</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Strategy</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Implements one allocation approach</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extracts allocation into Strategy interface, explains trade-offs (best-fit vs first-fit vs random), mentions A/B testing strategies in production</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Security</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Generates random code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses SecureRandom, explains brute-force mitigation (rate limiting), discusses OTP scope (per-location uniqueness) and expiry</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Extensibility</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Focuses on current requirements</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Designs with Observer for notifications, Strategy for allocation, Records for DTOs -- shows how new features slot in without modifying existing code (Open/Closed Principle)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Scale-Out Section -->
+            <h2 class="mt-4">10. Scale-Out Considerations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Distributed Locker Network</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>In a real Amazon-scale deployment, the single-process design above needs to evolve. Here is how each concern scales:</p>
+
+                    <h4>Geo-Based Allocation</h4>
+                    <ul>
+                        <li><strong>Problem:</strong> When a customer places an order, the system must choose which locker location to assign (closest to the delivery address, with availability).</li>
+                        <li><strong>Solution:</strong> A separate <code>LocationSelectionService</code> queries a geo-index (e.g., PostGIS, Elasticsearch geo_point) for nearby locations, then checks real-time availability via a cache (Redis) before reserving.</li>
+                        <li><strong>Trade-off:</strong> Stale availability data might cause reservation failures; use optimistic locking with retry.</li>
+                    </ul>
+
+                    <h4>Distributed State</h4>
+                    <ul>
+                        <li><strong>Locker state:</strong> Each physical kiosk maintains local state and syncs with a central service via event sourcing. If the network is down, the kiosk can still validate OTPs using a locally cached set.</li>
+                        <li><strong>Database:</strong> Deliveries table sharded by locationId. OTP lookups are always scoped to a single location, so no cross-shard queries.</li>
+                        <li><strong>Event-driven:</strong> State transitions publish events (Kafka/SQS) consumed by analytics, notification, and billing services.</li>
+                    </ul>
+
+                    <h4>Analytics and Dynamic Pricing</h4>
+                    <ul>
+                        <li><strong>Usage analytics:</strong> Track utilization rates per location, peak hours, average pickup time. Feed into a dashboard for capacity planning.</li>
+                        <li><strong>Dynamic pricing:</strong> At high-demand locations, charge a premium for locker delivery. The AllocationStrategy can incorporate pricing signals.</li>
+                        <li><strong>Predictive pre-staging:</strong> ML model predicts which locations will fill up; proactively suggests alternative locations during checkout.</li>
+                    </ul>
+
+                    <h4>Reliability</h4>
+                    <ul>
+                        <li><strong>Idempotent operations:</strong> Deposit and pickup are idempotent (re-calling with same deliveryId/OTP is safe).</li>
+                        <li><strong>Dead letter queue:</strong> Failed notifications go to a DLQ for retry.</li>
+                        <li><strong>Circuit breaker:</strong> If the notification service is down, package is still deposited; notification retries asynchronously.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Interview Tips -->
+            <h2 class="mt-4">11. Interview Tips</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                <h3>Common Follow-up Questions</h3>
+                <ul>
+                    <li><strong>"How would you handle multiple packages for the same customer at the same location?"</strong> -- Each package gets its own locker and OTP. The customer receives multiple notifications. The kiosk UI shows a list after validating any one OTP (stretch goal).</li>
+                    <li><strong>"What if the customer wants to return a package via the locker?"</strong> -- Add a RETURN_DEPOSIT state. Customer requests a return OTP, deposits package, driver picks it up. Reuse the existing state machine with a parallel return flow.</li>
+                    <li><strong>"How would you add a waitlist when all lockers are full?"</strong> -- Introduce a WaitlistQueue per location. When a locker becomes available, the queue is drained FIFO. Notify the next customer and hold the reservation for a time window.</li>
+                    <li><strong>"How do you prevent OTP brute-force attacks?"</strong> -- Rate limit at the kiosk (max 5 attempts per 15 minutes). Lock out after repeated failures. Consider adding CAPTCHA for the mobile app flow. Use 8-digit OTPs at high-traffic locations.</li>
+                    <li><strong>"How would you monitor this system?"</strong> -- Key metrics: locker utilization rate, average pickup time, expiry rate, OTP validation failure rate. Alert on anomalies (sudden spike in failures could indicate an attack or hardware issue).</li>
+                </ul>
+            </div>
+
+            <div class="card" style="background: var(--warning-bg);">
+                <h3>Red Flags to Avoid</h3>
+                <ul>
+                    <li><strong>No state machine:</strong> Allowing arbitrary status changes (e.g., jumping from RESERVED to PICKED_UP) suggests lack of domain modeling rigor</li>
+                    <li><strong>Global OTPs:</strong> OTPs should be scoped per location, not globally unique -- explain why (reduces collision space, simplifies validation)</li>
+                    <li><strong>Ignoring concurrency:</strong> Two drivers depositing at the same location must not get the same locker. Use locks or CAS operations</li>
+                    <li><strong>No expiry handling:</strong> Forgetting the expiry flow means lockers get permanently stuck. Always design for the unhappy path</li>
+                    <li><strong>Hardcoded notification:</strong> Directly sending SMS in the deposit method violates Open/Closed -- use Observer or event bus</li>
+                    <li><strong>Singleton LockerSystem:</strong> Unlike a parking lot, locker systems span regions. Avoid unnecessary Singleton; explain the difference</li>
+                </ul>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="chess-game.html" class="btn btn-secondary">&larr; Previous: Chess Game</a>
+                <a href="../index.html" class="btn btn-primary">Back to LLD Overview &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+</body>
+</html>

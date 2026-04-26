@@ -979,7 +979,57 @@ public class ParkingLot {
                 </div>
             </div>
 
-            <h2 class="mt-4">7. Interview Tips</h2>
+            <h2 class="mt-4">7. Staff vs Senior Callout</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(139, 92, 246, 0.15)); border-left: 4px solid #ec4899;">
+                <h3>What Staff Engineers Discuss That Seniors Don't</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead><tr style="background: var(--border-color);"><th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th><th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior</th><th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff</th></tr></thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Concurrency</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adds locks to ParkingSpot</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Discusses retry with backoff when spot assignment fails, fairness (exponential backoff prevents starvation), lock ordering between spot and floor counters</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Payment Failure</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Assumes payment succeeds</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Discusses rollback: if payment fails after spot assignment, must release spot and re-queue. Uses compensating transaction pattern.</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Spot Strategy</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">First available</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Discusses trade-offs: first-available (fast), best-fit (space efficient), nearest-to-exit (customer convenience), load-balanced (even wear)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Testability</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses Singleton directly</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Injects dependencies (Clock for time-based tests, repository interfaces for persistence), avoids Singleton in favor of DI</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h2 class="mt-4">8. Scale-Out: Multi-Location Parking</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Scaling to 1000 Parking Lots</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">// Scale-out considerations:
+
+// 1. Remove Singleton - use ParkingLotManager
+public class ParkingLotManager {
+    private final Map&lt;String, ParkingLot&gt; lots; // lotId -> lot
+
+    public ParkingLot findNearestLot(GeoLocation location, VehicleType type) {
+        return lots.values().stream()
+            .filter(lot -&gt; !lot.isFull(type))
+            .min(Comparator.comparing(lot -&gt;
+                lot.getLocation().distanceTo(location)))
+            .orElse(null);
+    }
+}
+
+// 2. Distributed availability: Use Redis for real-time counts
+// Each lot publishes availability to Redis pub/sub
+// Mobile app subscribes for nearest available lots
+
+// 3. Reservation system: Allow pre-booking via time slots
+// Use distributed locks (Redisson) for concurrent reservations
+
+// 4. Analytics: Track peak hours, popular floors,
+// average duration by vehicle type for dynamic pricing</code></pre>
+                </div>
+            </div>
+
+            <h2 class="mt-4">9. Interview Tips</h2>
 
             <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
                 <h3>Common Follow-up Questions</h3>

@@ -860,6 +860,143 @@ Document q2Report = service.createReport("Q2 2026 Report", "Jane Doe");</code></
                 </div>
             </div>
 
+            <!-- Modern Java: Records vs Builders -->
+            <h2 class="mt-4">6. Modern Java: Records vs Builders</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>When Java 16+ Records Make Builder Obsolete</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Java records provide built-in immutability, equals/hashCode, and toString. For simple value objects with few fields, they replace both the class AND the builder.</p>
+
+                    <h4>Use Records When:</h4>
+                    <pre><code class="language-java">// Few required fields, no optional fields = use a record
+public record Coordinate(double lat, double lng) {}
+public record UserId(String value) {
+    public UserId {
+        if (value == null || value.isBlank())
+            throw new IllegalArgumentException("UserId cannot be blank");
+    }
+}
+
+// Records with "wither" methods for derived copies
+public record HttpHeader(String name, String value) {}
+
+public record SimpleRequest(String url, String method, List&lt;HttpHeader&gt; headers) {
+    public SimpleRequest {
+        headers = List.copyOf(headers); // Defensive copy, immutable
+    }
+    public SimpleRequest withHeader(String name, String value) {
+        var newHeaders = new ArrayList&lt;&gt;(headers);
+        newHeaders.add(new HttpHeader(name, value));
+        return new SimpleRequest(url, method, newHeaders);
+    }
+}</code></pre>
+
+                    <h4>Keep Builder When:</h4>
+                    <pre><code class="language-java">// Many optional fields with defaults = Builder still wins
+// The HttpRequest example earlier is a good use case:
+// - 8+ parameters, most optional
+// - Complex validation on build()
+// - Fluent construction is much clearer
+
+// Records DON'T support:
+// - Mutable builders (records are always immutable)
+// - Optional parameters with defaults (all params required)
+// - Inheritance (records are final)</code></pre>
+
+                    <h4>Supplier&lt;T&gt; and Function&lt;T,R&gt; as Lightweight Factories</h4>
+                    <pre><code class="language-java">// Instead of a full Factory class, use functional interfaces
+// when the creation logic is simple
+
+// Heavyweight Factory (overkill for simple cases)
+public class NotificationFactory {
+    public Notification create(String type) { ... }
+}
+
+// Lightweight: Map of suppliers
+Map&lt;String, Supplier&lt;Notification&gt;&gt; factories = Map.of(
+    "email", EmailNotification::new,
+    "sms", SMSNotification::new,
+    "push", PushNotification::new
+);
+
+Notification notification = factories.get("email").get();
+
+// Or with configuration via Function
+Map&lt;String, Function&lt;Config, Notification&gt;&gt; configuredFactories = Map.of(
+    "email", config -&gt; new EmailNotification(config.smtpHost()),
+    "sms", config -&gt; new SMSNotification(config.twilioKey())
+);
+
+Notification n = configuredFactories.get("sms").apply(appConfig);</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use Each Pattern:</strong>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                            <tr>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Singleton</strong></td>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Don't use when testability matters (prefer DI), when multiple instances are plausible (multi-tenant), or as a glorified global variable</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Factory</strong></td>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Don't use when there's only one implementation and unlikely to change. A simple constructor or <code>Supplier&lt;T&gt;</code> suffices</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Builder</strong></td>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Don't use for 1-3 required parameters with no optionals. Use a record or simple constructor</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Prototype</strong></td>
+                                <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Don't use when objects are cheap to create. Cloning adds complexity; only justified when construction is genuinely expensive</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flashcard Suggestions -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Flashcard Suggestions (5 Q/A Pairs)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Question</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Answer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Why is enum Singleton preferred over double-checked locking?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Enum Singleton handles serialization automatically, prevents reflection attacks, is thread-safe by JVM guarantee, and is more concise. Only downside: can't extend a class.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">When should you use a Record instead of a Builder?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">When you have few (1-4) required fields with no optional fields. Records give you immutability, equals, hashCode, toString for free with zero boilerplate.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What's the difference between Factory Method and Simple Factory?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Factory Method uses inheritance (subclasses decide what to create). Simple Factory uses a single class with conditional logic. Factory Method is more flexible but adds more classes.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">How can Supplier&lt;T&gt; replace a Factory class?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Store Supplier&lt;T&gt; instances in a Map keyed by type. Call .get() to create instances. Works well when creation logic is simple (just constructor calls).</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What's the Prototype pattern's key trade-off?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cloning avoids expensive construction but requires careful deep-copy implementation. Shallow copies share mutable state, causing bugs. Only worth it when construction is genuinely expensive.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <h2 class="mt-4">Pattern Comparison</h2>
 
             <div class="collapsible open">

@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 7: Concurrency Patterns - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/animations.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Design Principles
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>UML &amp; Class Diagrams
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Interview Framework
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Design Patterns</div>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Creational Patterns
+                    </a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Structural Patterns
+                    </a>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Behavioral Patterns
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced Topics</div>
+                    <a href="module-07.html" class="sidebar-link active" data-module="7">
+                        <span class="sidebar-link-number">7</span>Concurrency Patterns
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Code Quality
+                    </a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Testing &amp; TDD
+                    </a>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Advanced OOP
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Practice Problems</div>
+                    <a href="problems/parking-lot.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P1</span>Parking Lot
+                    </a>
+                    <a href="problems/elevator-system.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P2</span>Elevator System
+                    </a>
+                    <a href="problems/vending-machine.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P3</span>Vending Machine
+                    </a>
+                    <a href="problems/library-system.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P4</span>Library System
+                    </a>
+                    <a href="problems/chess-game.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P5</span>Chess Game
+                    </a>
+                    <a href="problems/amazon-locker.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P6</span>Amazon Locker
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Interview Prep</div>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Real-World Architecture
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Mock Interviews
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 7: Concurrency Patterns</h1>
+
+            <!-- Learning Objectives -->
+            <div class="card mt-3">
+                <h3>Learning Objectives</h3>
+                <ul>
+                    <li>Understand the Java Memory Model and happens-before guarantees</li>
+                    <li>Choose the right locking mechanism: <code>synchronized</code>, <code>ReentrantLock</code>, or <code>StampedLock</code></li>
+                    <li>Implement producer-consumer, reader-writer, and async composition patterns</li>
+                    <li>Detect, prevent, and reason about deadlocks in interview settings</li>
+                    <li>Size thread pools correctly and explain work-stealing to interviewers</li>
+                    <li>Use concurrent collections and synchronization utilities at scale</li>
+                </ul>
+            </div>
+
+            <!-- Why Concurrency Matters -->
+            <h2 class="mt-4">Why Concurrency Matters</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Real-World Motivation for Concurrency</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every large-scale system is concurrent. Netflix processes <strong>~2 million API requests per second</strong>. Google handles <strong>~99,000 search queries per second</strong>. Uber dispatches rides across millions of concurrent users. None of this works with a single thread.</p>
+
+                    <p><strong>Why you cannot avoid concurrency at staff level:</strong></p>
+                    <ul>
+                        <li><strong>Moore's Law shifted:</strong> Clock speeds plateaued around 2005. Performance gains now come from multi-core parallelism, not faster single cores. A modern server has 64-128 cores.</li>
+                        <li><strong>Latency hiding:</strong> While one thread waits on a 10ms network call, hundreds of other requests could be served. Blocking wastes 99% of available CPU cycles on I/O-heavy workloads.</li>
+                        <li><strong>Correctness under load:</strong> Race conditions, visibility bugs, and deadlocks are the top three causes of production incidents that only appear at scale. They never show up in unit tests.</li>
+                        <li><strong>Interview signal:</strong> Concurrency questions separate senior from staff candidates. Interviewers probe whether you can reason about ordering, visibility, and liveness -- not just write code that compiles.</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> New: Thread created
+    New --> Runnable: start()
+    Runnable --> Running: Scheduler picks
+    Running --> Runnable: yield() / preempted
+    Running --> Blocked: synchronized (waiting for monitor)
+    Blocked --> Runnable: Lock acquired
+    Running --> Waiting: wait() / join() / park()
+    Waiting --> Runnable: notify() / unpark()
+    Running --> TimedWaiting: sleep(n) / wait(n)
+    TimedWaiting --> Runnable: Timeout / notify()
+    Running --> Terminated: run() completes
+        </div>
+                        <p style="text-align:center; font-style:italic; margin-top:0.5rem;">Thread Lifecycle State Machine (Java)</p>
+                    </div>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>Interview Tip:</strong> When asked "Why is concurrency hard?", don't say "race conditions." Instead, explain the three fundamental problems: <strong>atomicity</strong> (compound actions aren't indivisible), <strong>visibility</strong> (threads may see stale values), and <strong>ordering</strong> (compilers and CPUs reorder instructions). All three stem from the memory model.
+                    </div>
+                </div>
+            </div>
+
+            <!-- synchronized vs ReentrantLock vs StampedLock -->
+            <h2 class="mt-4">1. synchronized vs ReentrantLock vs StampedLock</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Choosing the Right Lock</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Java offers three primary locking mechanisms, each designed for different use cases. Choosing the wrong one is a common source of bugs and performance problems.</p>
+
+                    <h4>synchronized -- The Built-In Monitor</h4>
+                    <p><strong>Why it exists:</strong> Every Java object has an intrinsic lock (monitor). <code>synchronized</code> is the simplest way to achieve mutual exclusion. The JVM handles lock acquisition and release automatically, even in the presence of exceptions.</p>
+
+                    <pre><code class="language-java">public class BankAccount {
+    private long balance;
+
+    // Method-level synchronization: locks on 'this'
+    public synchronized void deposit(long amount) {
+        // Only one thread can execute this at a time per instance
+        this.balance += amount;
+    }
+
+    public synchronized void withdraw(long amount) {
+        if (this.balance &lt; amount) {
+            throw new IllegalStateException("Insufficient funds");
+        }
+        this.balance -= amount;
+    }
+
+    // Block-level: finer granularity, locks on specific object
+    public void transfer(BankAccount target, long amount) {
+        // DANGER: naive approach can deadlock (see Deadlock section)
+        synchronized (this) {
+            synchronized (target) {
+                this.withdraw(amount);
+                target.deposit(amount);
+            }
+        }
+    }
+
+    public synchronized long getBalance() {
+        return this.balance;
+    }
+}</code></pre>
+
+                    <p><strong>When to use:</strong> Simple mutual exclusion, short critical sections, code where simplicity matters more than flexibility. Modern JVMs optimize <code>synchronized</code> aggressively (biased locking, lock coarsening, lock elision).</p>
+
+                    <h4>ReentrantLock -- Explicit Control</h4>
+                    <p><strong>Why it exists:</strong> <code>synchronized</code> cannot be interrupted, cannot time out, cannot try without blocking, and does not support fairness policies. <code>ReentrantLock</code> solves all of these.</p>
+
+                    <pre><code class="language-java">import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
+
+public class InventoryService {
+    private final ReentrantLock lock = new ReentrantLock(/* fair = */ true);
+    private final Map&lt;String, Integer&gt; stock = new HashMap&lt;&gt;();
+
+    /**
+     * Reserves stock with a timeout -- essential for high-throughput systems.
+     * At Netflix scale, you cannot afford threads blocking indefinitely
+     * on a lock held by a slow downstream call.
+     */
+    public boolean reserveStock(String sku, int quantity, long timeoutMs) {
+        boolean acquired = false;
+        try {
+            // tryLock: non-blocking attempt with timeout
+            acquired = lock.tryLock(timeoutMs, TimeUnit.MILLISECONDS);
+            if (!acquired) {
+                // Log, increment metric, return graceful failure
+                return false;
+            }
+
+            int available = stock.getOrDefault(sku, 0);
+            if (available &lt; quantity) {
+                return false;
+            }
+            stock.put(sku, available - quantity);
+            return true;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupt flag
+            return false;
+        } finally {
+            if (acquired) {
+                lock.unlock(); // MUST unlock in finally -- no auto-release!
+            }
+        }
+    }
+
+    /**
+     * lockInterruptibly: allows cancellation of waiting threads.
+     * Critical for systems with request deadlines.
+     */
+    public void restockInterruptible(String sku, int quantity)
+            throws InterruptedException {
+        lock.lockInterruptibly();
+        try {
+            stock.merge(sku, quantity, Integer::sum);
+        } finally {
+            lock.unlock();
+        }
+    }
+}</code></pre>
+
+                    <h4>StampedLock -- Optimistic Reads for Read-Heavy Workloads</h4>
+                    <p><strong>Why it exists:</strong> In read-heavy systems (e.g., a configuration cache read 10,000x/sec, written 1x/min), even <code>ReadWriteLock</code> adds unnecessary overhead because readers still acquire a shared lock. <code>StampedLock</code> offers <strong>optimistic reads</strong> that are essentially free when there is no contention with writers.</p>
+
+                    <pre><code class="language-java">import java.util.concurrent.locks.StampedLock;
+
+public class GeoPoint {
+    private double latitude;
+    private double longitude;
+    private final StampedLock lock = new StampedLock();
+
+    public void move(double newLat, double newLon) {
+        long stamp = lock.writeLock();
+        try {
+            this.latitude = newLat;
+            this.longitude = newLon;
+        } finally {
+            lock.unlockWrite(stamp);
+        }
+    }
+
+    /**
+     * Optimistic read: no lock acquired! Just a stamp validation.
+     * If a writer intervened, we fall back to a full read lock.
+     * This pattern gives near-zero overhead for reads when writes are rare.
+     */
+    public double distanceFromOrigin() {
+        long stamp = lock.tryOptimisticRead(); // non-blocking, returns stamp
+        double currentLat = this.latitude;
+        double currentLon = this.longitude;
+
+        if (!lock.validate(stamp)) {
+            // A writer intervened -- fall back to pessimistic read
+            stamp = lock.readLock();
+            try {
+                currentLat = this.latitude;
+                currentLon = this.longitude;
+            } finally {
+                lock.unlockRead(stamp);
+            }
+        }
+
+        return Math.sqrt(currentLat * currentLat + currentLon * currentLon);
+    }
+}</code></pre>
+
+                    <h4>Comparison Table</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Feature</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">synchronized</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">ReentrantLock</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">StampedLock</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auto-release on exception</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No (must use finally)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No (must use finally)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">tryLock with timeout</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Interruptible acquisition</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fairness policy</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reentrant</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Optimistic reads</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Condition variables</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">wait/notify (1 set)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multiple Conditions</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best for</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple cases</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Advanced locking</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Read-heavy workloads</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li><strong>StampedLock:</strong> Never use if you need reentrancy or condition variables. Never use in recursive code paths.</li>
+                            <li><strong>ReentrantLock:</strong> Overkill for simple cases -- the try/finally boilerplate is error-prone. Use <code>synchronized</code> unless you need timeouts, interruptibility, or fairness.</li>
+                            <li><strong>synchronized:</strong> Avoid when you need lock polling or timed waits. Also avoid for long-running critical sections that could block other threads indefinitely.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> Interviewers love asking "Why not just use synchronized everywhere?" The staff-level answer: "synchronized is fine for most cases thanks to JVM optimizations, but when I need tryLock with timeout for latency SLAs, multiple condition queues for producer-consumer, or optimistic reads for read-heavy caches, I reach for the java.util.concurrent alternatives."
+                    </div>
+                </div>
+            </div>
+
+            <!-- volatile, happens-before, JMM -->
+            <h2 class="mt-4">2. volatile, happens-before, and the Java Memory Model</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Memory Visibility Guarantees</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why the JMM exists:</strong> Modern CPUs have per-core caches (L1, L2) and store buffers. Without explicit memory ordering, Thread A's write to a variable may <em>never</em> become visible to Thread B -- it can sit in Thread A's store buffer or cache indefinitely. The Java Memory Model (JMM, JSR-133) defines the rules for when writes become visible across threads.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Thread A (Core 0)"
+        A_REG[Registers]
+        A_SB[Store Buffer]
+        A_L1[L1 Cache]
+    end
+    subgraph "Thread B (Core 1)"
+        B_REG[Registers]
+        B_SB[Store Buffer]
+        B_L1[L1 Cache]
+    end
+    subgraph "Shared"
+        L2[L2 Cache]
+        RAM[Main Memory]
+    end
+    A_REG --> A_SB --> A_L1 --> L2 --> RAM
+    B_REG --> B_SB --> B_L1 --> L2
+    style A_SB fill:#ff6b6b,color:#000
+    style B_SB fill:#ff6b6b,color:#000
+        </div>
+                        <p style="text-align:center; font-style:italic; margin-top:0.5rem;">Store buffers (red) are where visibility bugs hide. Writes may stay here and never reach main memory without a memory barrier.</p>
+                    </div>
+
+                    <h4>The happens-before Relationship</h4>
+                    <p>The JMM defines <strong>happens-before</strong> as a partial ordering. If action A <em>happens-before</em> action B, then A's effects are guaranteed visible to B. Key rules:</p>
+                    <ul>
+                        <li><strong>Monitor rule:</strong> An unlock on a monitor happens-before every subsequent lock on that same monitor.</li>
+                        <li><strong>Volatile rule:</strong> A write to a <code>volatile</code> field happens-before every subsequent read of that same field.</li>
+                        <li><strong>Thread start rule:</strong> <code>thread.start()</code> happens-before any action in the started thread.</li>
+                        <li><strong>Thread join rule:</strong> All actions in a thread happen-before <code>join()</code> returns in another thread.</li>
+                        <li><strong>Transitivity:</strong> If A happens-before B, and B happens-before C, then A happens-before C.</li>
+                    </ul>
+
+                    <h4>volatile -- Visibility Without Mutual Exclusion</h4>
+                    <pre><code class="language-java">public class FeatureFlagService {
+    // volatile ensures all threads see the latest value immediately
+    // after a write. Without volatile, Thread B might read a stale
+    // cached value of 'enabled' indefinitely.
+    private volatile boolean enabled = false;
+
+    // Writer thread (e.g., config reload)
+    public void enable() {
+        this.enabled = true; // volatile write: flushes store buffer
+    }
+
+    // Reader threads (e.g., request handlers) -- thousands concurrent
+    public boolean isEnabled() {
+        return this.enabled; // volatile read: invalidates cache line
+    }
+}
+
+// CLASSIC BUG: double-checked locking without volatile
+public class Singleton {
+    // WITHOUT volatile, another thread could see a partially
+    // constructed object (allocated but constructor not finished)
+    private static volatile Singleton instance;
+
+    public static Singleton getInstance() {
+        if (instance == null) {                  // 1st check (no lock)
+            synchronized (Singleton.class) {
+                if (instance == null) {          // 2nd check (with lock)
+                    instance = new Singleton();  // volatile write
+                }
+            }
+        }
+        return instance;                         // volatile read
+    }
+}</code></pre>
+
+                    <p><strong>What volatile does NOT do:</strong> It does not make compound operations atomic. <code>volatileCounter++</code> is still a race (read-modify-write). For atomic increments, use <code>AtomicLong</code> or <code>LongAdder</code>.</p>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> If asked about the JMM, start by saying: "The JMM solves two problems -- visibility and ordering. Visibility: when does Thread B see Thread A's write? Ordering: can the compiler or CPU reorder my instructions? The happens-before relationship is the formal guarantee that links them together." This framing immediately signals staff-level understanding.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Concurrent Collections -->
+            <h2 class="mt-4">3. Concurrent Collections</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Thread-Safe Data Structures</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why not just <code>Collections.synchronizedMap()</code>?</strong> Synchronized wrappers lock the entire collection for every operation, creating a bottleneck. At Google scale (millions of QPS), this serialization destroys throughput. The <code>java.util.concurrent</code> collections use fine-grained locking, lock striping, or lock-free algorithms to allow much higher concurrency.</p>
+
+                    <h4>ConcurrentHashMap -- The Workhorse</h4>
+                    <pre><code class="language-java">import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.LongAdder;
+
+public class HitCounter {
+    // ConcurrentHashMap uses lock striping internally:
+    // the table is divided into segments, each with its own lock.
+    // In Java 8+, it uses CAS + synchronized on individual bins.
+    private final ConcurrentHashMap&lt;String, LongAdder&gt; counters =
+        new ConcurrentHashMap&lt;&gt;();
+
+    /**
+     * computeIfAbsent is atomic -- no check-then-act race.
+     * LongAdder is faster than AtomicLong under high contention
+     * because it uses cell striping (each thread increments its
+     * own cell, cells are summed on read).
+     */
+    public void recordHit(String endpoint) {
+        counters.computeIfAbsent(endpoint, k -&gt; new LongAdder())
+                .increment();
+    }
+
+    public long getHitCount(String endpoint) {
+        LongAdder adder = counters.get(endpoint);
+        return adder == null ? 0 : adder.sum();
+    }
+
+    // Bulk operations (Java 8+): parallel with a parallelism threshold
+    public Map&lt;String, Long&gt; getAllCounts() {
+        Map&lt;String, Long&gt; snapshot = new HashMap&lt;&gt;();
+        // forEach with parallelism threshold of 1000:
+        // if map has &gt;1000 entries, operations run in ForkJoinPool
+        counters.forEach(1000, (key, adder) -&gt;
+            snapshot.put(key, adder.sum())
+        );
+        return snapshot;
+    }
+}</code></pre>
+
+                    <h4>CopyOnWriteArrayList -- For Read-Dominated Lists</h4>
+                    <pre><code class="language-java">import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * Event listener registry: written rarely (on startup or config change),
+ * read on every event (thousands/sec). CopyOnWriteArrayList creates a
+ * new array on every write, so reads never block and never see
+ * ConcurrentModificationException.
+ */
+public class EventBus {
+    private final CopyOnWriteArrayList&lt;EventListener&gt; listeners =
+        new CopyOnWriteArrayList&lt;&gt;();
+
+    public void register(EventListener listener) {
+        listeners.add(listener); // O(n) copy -- fine if writes are rare
+    }
+
+    public void unregister(EventListener listener) {
+        listeners.remove(listener);
+    }
+
+    public void publish(Event event) {
+        // Safe iteration: snapshot semantics, no lock needed
+        for (EventListener listener : listeners) {
+            listener.onEvent(event);
+        }
+    }
+}</code></pre>
+
+                    <h4>BlockingQueue Implementations</h4>
+                    <pre><code class="language-java">// ArrayBlockingQueue: bounded, backed by array, single lock
+// LinkedBlockingQueue: optionally bounded, separate put/take locks (higher throughput)
+// PriorityBlockingQueue: unbounded, priority-ordered
+// SynchronousQueue: zero-capacity, direct handoff (used in CachedThreadPool)
+
+// Choosing the right one:
+// - Bounded + backpressure needed?    -&gt; ArrayBlockingQueue
+// - High put/take throughput needed?  -&gt; LinkedBlockingQueue
+// - Priority ordering needed?         -&gt; PriorityBlockingQueue
+// - Direct producer-consumer handoff? -&gt; SynchronousQueue</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li><strong>CopyOnWriteArrayList:</strong> Never use for write-heavy workloads. Each write copies the entire array -- O(n) per write.</li>
+                            <li><strong>ConcurrentHashMap:</strong> Does not support null keys or values (unlike HashMap). If you need nulls, rethink your design or use a sentinel value.</li>
+                            <li><strong>size() / isEmpty():</strong> On concurrent collections, these are approximations, not exact. Never make business decisions based on <code>concurrentMap.size()</code>.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Producer-Consumer Pattern -->
+            <h2 class="mt-4">4. Producer-Consumer Pattern</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Decoupling Production from Consumption</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why this pattern matters:</strong> Almost every backend system is a producer-consumer pipeline. Web servers produce requests into a queue; worker threads consume them. Kafka producers write events; consumers process them. The pattern decouples the rate of production from the rate of consumption, absorbing bursts and enabling backpressure.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    P1[Producer 1] --> Q[BlockingQueue\n capacity=1000]
+    P2[Producer 2] --> Q
+    P3[Producer 3] --> Q
+    Q --> C1[Consumer 1]
+    Q --> C2[Consumer 2]
+    style Q fill:#4ecdc4,color:#000
+    style P1 fill:#667eea,color:#fff
+    style P2 fill:#667eea,color:#fff
+    style P3 fill:#667eea,color:#fff
+    style C1 fill:#f093fb,color:#000
+    style C2 fill:#f093fb,color:#000
+        </div>
+                        <p style="text-align:center; font-style:italic; margin-top:0.5rem;">Bounded buffer absorbs burst traffic; backpressure blocks producers when full.</p>
+                    </div>
+
+                    <h4>Implementation with BlockingQueue</h4>
+                    <pre><code class="language-java">import java.util.concurrent.*;
+
+public class LogIngestionPipeline {
+    // Bounded queue provides backpressure: producers block when full
+    private final BlockingQueue&lt;LogEntry&gt; queue;
+    private final ExecutorService producers;
+    private final ExecutorService consumers;
+    private volatile boolean running = true;
+
+    public LogIngestionPipeline(int queueCapacity, int numProducers, int numConsumers) {
+        this.queue = new ArrayBlockingQueue&lt;&gt;(queueCapacity);
+        this.producers = Executors.newFixedThreadPool(numProducers);
+        this.consumers = Executors.newFixedThreadPool(numConsumers);
+    }
+
+    public void start() {
+        // Start consumer threads
+        for (int i = 0; i &lt; 4; i++) {
+            consumers.submit(this::consumeLoop);
+        }
+    }
+
+    /**
+     * Called by HTTP handler threads (producers).
+     * offer() with timeout avoids indefinite blocking -- critical
+     * for maintaining response time SLAs.
+     */
+    public boolean submit(LogEntry entry) {
+        try {
+            boolean accepted = queue.offer(entry, 100, TimeUnit.MILLISECONDS);
+            if (!accepted) {
+                // Queue full -- shed load gracefully
+                Metrics.increment("log.ingestion.dropped");
+            }
+            return accepted;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private void consumeLoop() {
+        while (running) {
+            try {
+                // poll with timeout so we can check the 'running' flag
+                LogEntry entry = queue.poll(500, TimeUnit.MILLISECONDS);
+                if (entry != null) {
+                    processEntry(entry);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private void processEntry(LogEntry entry) {
+        // Parse, enrich, write to Elasticsearch / S3
+        // Real systems batch entries for throughput
+    }
+
+    public void shutdown() {
+        running = false;
+        producers.shutdown();
+        consumers.shutdown();
+        try {
+            consumers.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            consumers.shutdownNow();
+        }
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> When designing any LLD system with async processing, mention the producer-consumer pattern by name and discuss: (1) bounded vs unbounded queue, (2) backpressure strategy (block, drop, or buffer to disk), (3) graceful shutdown (drain the queue before stopping consumers).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reader-Writer Locks -->
+            <h2 class="mt-4">5. Reader-Writer Locks</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Maximizing Read Throughput</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why:</strong> In many systems, reads vastly outnumber writes. A cache might serve 100,000 reads/sec but only update every 30 seconds. Using a single mutex for both reads and writes forces all reads to serialize -- a massive throughput loss. Reader-writer locks allow concurrent reads while ensuring exclusive write access.</p>
+
+                    <h4>ReentrantReadWriteLock</h4>
+                    <pre><code class="language-java">import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+public class ConfigurationCache {
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final ReentrantReadWriteLock.ReadLock readLock = rwLock.readLock();
+    private final ReentrantReadWriteLock.WriteLock writeLock = rwLock.writeLock();
+    private Map&lt;String, String&gt; config = new HashMap&lt;&gt;();
+
+    /**
+     * Multiple threads can read simultaneously.
+     * Only blocks if a writer is active.
+     */
+    public String getProperty(String key) {
+        readLock.lock();
+        try {
+            return config.get(key);
+        } finally {
+            readLock.unlock();
+        }
+    }
+
+    /**
+     * Write lock is exclusive: blocks all readers AND writers.
+     * Reload the entire config atomically.
+     */
+    public void reloadConfig(Map&lt;String, String&gt; newConfig) {
+        writeLock.lock();
+        try {
+            this.config = new HashMap&lt;&gt;(newConfig);
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    /**
+     * Lock downgrade: write lock -&gt; read lock (supported).
+     * Useful when you want to update and then read without
+     * releasing the lock (which would allow another writer in).
+     */
+    public String computeIfAbsent(String key, Supplier&lt;String&gt; supplier) {
+        readLock.lock();
+        try {
+            String value = config.get(key);
+            if (value != null) {
+                return value;
+            }
+        } finally {
+            readLock.unlock();
+        }
+
+        // Must acquire write lock to update
+        writeLock.lock();
+        try {
+            // Double-check after acquiring write lock
+            String value = config.get(key);
+            if (value == null) {
+                value = supplier.get();
+                config.put(key, value);
+            }
+            // Downgrade: acquire read lock before releasing write lock
+            readLock.lock();
+            return value;
+        } finally {
+            writeLock.unlock();
+            // Still holding read lock -- other readers can proceed
+            readLock.unlock();
+        }
+    }
+}</code></pre>
+
+                    <h4>StampedLock Optimistic Read Pattern</h4>
+                    <pre><code class="language-java">import java.util.concurrent.locks.StampedLock;
+
+/**
+ * Rate limiter that tracks request counts per window.
+ * Reads (checking if rate limit exceeded) happen on every request.
+ * Writes (incrementing counter) happen on every request too,
+ * but we can optimistically read the current count first.
+ */
+public class SlidingWindowRateLimiter {
+    private final StampedLock lock = new StampedLock();
+    private long windowStart;
+    private int requestCount;
+    private final int maxRequests;
+    private final long windowMs;
+
+    public SlidingWindowRateLimiter(int maxRequests, long windowMs) {
+        this.maxRequests = maxRequests;
+        this.windowMs = windowMs;
+        this.windowStart = System.currentTimeMillis();
+        this.requestCount = 0;
+    }
+
+    public boolean tryAcquire() {
+        // Optimistic read first: if we're clearly under limit, no lock needed
+        long stamp = lock.tryOptimisticRead();
+        long ws = this.windowStart;
+        int rc = this.requestCount;
+        long now = System.currentTimeMillis();
+
+        if (lock.validate(stamp)) {
+            // No writer intervened
+            if (now - ws &gt; windowMs) {
+                // Window expired -- need write lock to reset
+            } else if (rc &lt; maxRequests) {
+                // Under limit but still need to increment (write)
+            } else {
+                return false; // Over limit, no write needed
+            }
+        }
+
+        // Fall back to write lock for mutation
+        stamp = lock.writeLock();
+        try {
+            if (System.currentTimeMillis() - windowStart &gt; windowMs) {
+                windowStart = System.currentTimeMillis();
+                requestCount = 1;
+                return true;
+            }
+            if (requestCount &lt; maxRequests) {
+                requestCount++;
+                return true;
+            }
+            return false;
+        } finally {
+            lock.unlockWrite(stamp);
+        }
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li><strong>ReentrantReadWriteLock:</strong> Avoid if writes are frequent (>20% of operations). The overhead of managing read/write separation is not worth it. Use a simple <code>ReentrantLock</code> instead.</li>
+                            <li><strong>StampedLock:</strong> Avoid if your read logic has side effects or is long-running. The optimistic read may need to retry, so your read code must be idempotent and fast.</li>
+                            <li>Note: <code>ReentrantReadWriteLock</code> supports lock upgrade from read to write only through a <strong>downgrade</strong> path (write then read). Attempting read-to-write upgrade causes deadlock.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CompletableFuture -->
+            <h2 class="mt-4">6. CompletableFuture &amp; Async Composition</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Non-Blocking Async Pipelines</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why:</strong> In microservice architectures, a single API call often fans out to 3-5 downstream services. Calling them sequentially wastes time. <code>CompletableFuture</code> lets you compose async operations -- running them in parallel, chaining transformations, and handling errors -- without callback hell.</p>
+
+                    <h4>Chaining, Combining, and Error Handling</h4>
+                    <pre><code class="language-java">import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class ProductPageService {
+    private final ProductService productService;
+    private final ReviewService reviewService;
+    private final RecommendationService recService;
+    private final PricingService pricingService;
+    private final ExecutorService executor = Executors.newFixedThreadPool(10);
+
+    /**
+     * Build a product page by fetching data from 4 services in parallel.
+     * Total latency = max(individual latencies), not sum.
+     * At Amazon scale, this reduces P99 from ~800ms to ~250ms.
+     */
+    public CompletableFuture&lt;ProductPage&gt; getProductPage(String productId) {
+
+        // Fan-out: all four calls start immediately
+        CompletableFuture&lt;Product&gt; productFuture =
+            CompletableFuture.supplyAsync(
+                () -&gt; productService.getProduct(productId), executor);
+
+        CompletableFuture&lt;List&lt;Review&gt;&gt; reviewsFuture =
+            CompletableFuture.supplyAsync(
+                () -&gt; reviewService.getReviews(productId), executor)
+            .exceptionally(ex -&gt; {
+                // Graceful degradation: reviews are non-critical
+                log.warn("Failed to fetch reviews: {}", ex.getMessage());
+                return List.of();
+            });
+
+        CompletableFuture&lt;List&lt;Product&gt;&gt; recsFuture =
+            CompletableFuture.supplyAsync(
+                () -&gt; recService.getRecommendations(productId), executor)
+            .completeOnTimeout(List.of(), 200, TimeUnit.MILLISECONDS);
+            // Timeout: if recs take &gt;200ms, show empty
+
+        CompletableFuture&lt;Price&gt; priceFuture =
+            CompletableFuture.supplyAsync(
+                () -&gt; pricingService.getPrice(productId), executor);
+
+        // Combine all results
+        return productFuture.thenCombine(priceFuture, (product, price) -&gt; {
+                product.setPrice(price);
+                return product;
+            })
+            .thenCombine(reviewsFuture, (product, reviews) -&gt; {
+                return new ProductPage(product, reviews);
+            })
+            .thenCombine(recsFuture, (page, recs) -&gt; {
+                page.setRecommendations(recs);
+                return page;
+            })
+            .orTimeout(500, TimeUnit.MILLISECONDS) // Overall deadline
+            .exceptionally(ex -&gt; {
+                // Final fallback: return cached/default page
+                log.error("Product page assembly failed", ex);
+                return ProductPage.fallback(productId);
+            });
+    }
+}
+
+// Chaining transformations
+CompletableFuture&lt;String&gt; pipeline =
+    CompletableFuture.supplyAsync(() -&gt; fetchRawData())    // Step 1
+        .thenApplyAsync(data -&gt; parse(data), executor)      // Step 2
+        .thenApplyAsync(parsed -&gt; validate(parsed), executor)// Step 3
+        .thenApplyAsync(valid -&gt; enrich(valid), executor)    // Step 4
+        .handle((result, ex) -&gt; {
+            if (ex != null) {
+                log.error("Pipeline failed at some stage", ex);
+                return "default";
+            }
+            return result;
+        });</code></pre>
+
+                    <h4>Common Composition Patterns</h4>
+                    <pre><code class="language-java">// allOf: Wait for ALL futures (fan-out, fan-in)
+CompletableFuture&lt;Void&gt; all = CompletableFuture.allOf(f1, f2, f3);
+
+// anyOf: Wait for FIRST to complete (racing / hedged requests)
+CompletableFuture&lt;Object&gt; first = CompletableFuture.anyOf(f1, f2, f3);
+
+// Hedged request: send same request to two replicas, take fastest
+public CompletableFuture&lt;Response&gt; hedgedRequest(Request req) {
+    CompletableFuture&lt;Response&gt; primary =
+        CompletableFuture.supplyAsync(() -&gt; replica1.call(req));
+    CompletableFuture&lt;Response&gt; secondary =
+        CompletableFuture.supplyAsync(() -&gt; replica2.call(req));
+    return CompletableFuture.anyOf(primary, secondary)
+        .thenApply(obj -&gt; (Response) obj);
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li>Do not use <code>CompletableFuture</code> for simple sequential logic -- it adds complexity for no benefit.</li>
+                            <li>Be careful with the default <code>ForkJoinPool.commonPool()</code>. Blocking I/O in the common pool starves CPU-bound tasks. Always pass a dedicated executor for I/O work.</li>
+                            <li>In Java 21+, consider Virtual Threads (Project Loom) as a simpler alternative to <code>CompletableFuture</code> for I/O-bound workloads.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> When designing an API gateway or aggregation service in an LLD interview, use <code>CompletableFuture</code> to fan out requests and combine results. Mention: (1) per-call timeouts via <code>completeOnTimeout</code>, (2) graceful degradation via <code>exceptionally</code>, (3) overall deadline via <code>orTimeout</code>. This is exactly how Amazon, Netflix, and Uber build their aggregation layers.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deadlock Detection & Prevention -->
+            <h2 class="mt-4">7. Deadlock Detection &amp; Prevention</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Breaking the Deadlock Cycle</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Four conditions for deadlock</strong> (all must hold simultaneously):</p>
+                    <ol>
+                        <li><strong>Mutual exclusion:</strong> A resource can only be held by one thread.</li>
+                        <li><strong>Hold and wait:</strong> A thread holds one resource while waiting for another.</li>
+                        <li><strong>No preemption:</strong> Resources cannot be forcibly taken from a thread.</li>
+                        <li><strong>Circular wait:</strong> Thread A waits for Thread B, which waits for Thread A.</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    TA[Thread A] -->|holds| L1[Lock 1]
+    TA -->|waits for| L2[Lock 2]
+    TB[Thread B] -->|holds| L2
+    TB -->|waits for| L1
+    style TA fill:#ff6b6b,color:#000
+    style TB fill:#ff6b6b,color:#000
+    style L1 fill:#ffd93d,color:#000
+    style L2 fill:#ffd93d,color:#000
+        </div>
+                        <p style="text-align:center; font-style:italic; margin-top:0.5rem;">Classic deadlock: circular dependency between two threads and two locks.</p>
+                    </div>
+
+                    <h4>Prevention Strategy 1: Lock Ordering</h4>
+                    <pre><code class="language-java">/**
+ * The classic "transfer between bank accounts" deadlock.
+ *
+ * BAD: transfer(A, B) locks A then B
+ *      transfer(B, A) locks B then A  -- DEADLOCK!
+ *
+ * FIX: Always acquire locks in a consistent global order.
+ * Use a unique, immutable ID (like account number) to define order.
+ */
+public class SafeBankTransfer {
+
+    public void transfer(BankAccount from, BankAccount to, long amount) {
+        // Determine lock order by account ID
+        BankAccount first = from.getId() &lt; to.getId() ? from : to;
+        BankAccount second = from.getId() &lt; to.getId() ? to : from;
+
+        // Tie-breaker for equal IDs (same account -- no-op, but be safe)
+        if (from.getId() == to.getId()) {
+            throw new IllegalArgumentException("Cannot transfer to same account");
+        }
+
+        synchronized (first) {
+            synchronized (second) {
+                if (from.getBalance() &lt; amount) {
+                    throw new InsufficientFundsException();
+                }
+                from.debit(amount);
+                to.credit(amount);
+            }
+        }
+    }
+}</code></pre>
+
+                    <h4>Prevention Strategy 2: tryLock with Timeout</h4>
+                    <pre><code class="language-java">/**
+ * When you cannot impose a global lock order (e.g., dynamic resource
+ * graphs), use tryLock with timeout to break the "no preemption" condition.
+ */
+public boolean transferWithRetry(BankAccount from, BankAccount to,
+                                  long amount, int maxRetries) {
+    for (int attempt = 0; attempt &lt; maxRetries; attempt++) {
+        boolean fromLocked = false;
+        boolean toLocked = false;
+        try {
+            fromLocked = from.getLock().tryLock(50, TimeUnit.MILLISECONDS);
+            toLocked = to.getLock().tryLock(50, TimeUnit.MILLISECONDS);
+
+            if (fromLocked &amp;&amp; toLocked) {
+                // Both locks acquired -- proceed
+                from.debit(amount);
+                to.credit(amount);
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } finally {
+            if (toLocked) to.getLock().unlock();
+            if (fromLocked) from.getLock().unlock();
+        }
+
+        // Back off with jitter before retrying
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextInt(10, 50));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+    return false; // All retries exhausted
+}</code></pre>
+
+                    <h4>Detection: Thread Dumps and JMX</h4>
+                    <pre><code class="language-java">// Programmatic deadlock detection via ThreadMXBean
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
+
+public class DeadlockDetector {
+    private final ThreadMXBean threadBean =
+        ManagementFactory.getThreadMXBean();
+
+    /**
+     * Run periodically (e.g., every 30s) in a monitoring thread.
+     * In production at Netflix, deadlock detection triggers alerts
+     * and automatic thread dumps for diagnosis.
+     */
+    public void checkForDeadlocks() {
+        long[] deadlockedThreads = threadBean.findDeadlockedThreads();
+        if (deadlockedThreads != null) {
+            ThreadInfo[] infos = threadBean.getThreadInfo(
+                deadlockedThreads, true, true);
+            StringBuilder sb = new StringBuilder("DEADLOCK DETECTED:\n");
+            for (ThreadInfo info : infos) {
+                sb.append(info.toString());
+            }
+            log.error(sb.toString());
+            alertService.sendCritical("Deadlock detected", sb.toString());
+        }
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> If an interviewer asks "How would you prevent deadlocks?", give three strategies in order of preference: (1) Lock ordering -- eliminates circular wait, simplest and most reliable. (2) tryLock with timeout -- handles cases where ordering is impractical. (3) Lock-free algorithms (CAS, atomic variables) -- eliminates locks entirely for simple operations. Then mention that in production, you always add deadlock detection via <code>ThreadMXBean</code> as a safety net.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Synchronization Utilities -->
+            <h2 class="mt-4">8. Synchronization Utilities</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>CountDownLatch, CyclicBarrier, Phaser</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>These utilities coordinate groups of threads. They are not about mutual exclusion (that is locks) -- they are about <strong>timing</strong>: making threads wait until a condition is met.</p>
+
+                    <h4>CountDownLatch -- One-Shot Gate</h4>
+                    <pre><code class="language-java">import java.util.concurrent.CountDownLatch;
+
+/**
+ * Real scenario: Service startup -- don't accept requests until
+ * all dependencies (DB, cache, config) are initialized.
+ * CountDownLatch counts down from N to 0. Once it hits 0, all
+ * waiting threads proceed. It cannot be reset -- it's a one-shot gate.
+ */
+public class ServiceBootstrap {
+    private final CountDownLatch readyLatch;
+    private final List&lt;Subsystem&gt; subsystems;
+
+    public ServiceBootstrap(List&lt;Subsystem&gt; subsystems) {
+        this.subsystems = subsystems;
+        this.readyLatch = new CountDownLatch(subsystems.size());
+    }
+
+    public void start() throws InterruptedException {
+        for (Subsystem sub : subsystems) {
+            new Thread(() -&gt; {
+                try {
+                    sub.initialize();
+                    log.info("{} ready", sub.getName());
+                } finally {
+                    readyLatch.countDown(); // Decrement regardless of success
+                }
+            }).start();
+        }
+
+        // Main thread blocks until all subsystems are initialized
+        boolean allReady = readyLatch.await(30, TimeUnit.SECONDS);
+        if (!allReady) {
+            throw new RuntimeException("Subsystems failed to start in 30s");
+        }
+
+        log.info("All subsystems ready -- accepting traffic");
+        httpServer.start();
+    }
+}</code></pre>
+
+                    <h4>CyclicBarrier -- Reusable Sync Point</h4>
+                    <pre><code class="language-java">import java.util.concurrent.CyclicBarrier;
+
+/**
+ * Real scenario: Parallel data pipeline where each phase must
+ * complete before the next begins. E.g., MapReduce-style processing.
+ * Unlike CountDownLatch, CyclicBarrier can be reused across rounds.
+ */
+public class ParallelMatrixComputation {
+    private final int numWorkers;
+    private final CyclicBarrier barrier;
+    private final double[][] matrix;
+
+    public ParallelMatrixComputation(double[][] matrix, int numWorkers) {
+        this.matrix = matrix;
+        this.numWorkers = numWorkers;
+        // Barrier action runs after all threads arrive
+        this.barrier = new CyclicBarrier(numWorkers, () -&gt; {
+            log.info("All workers finished phase -- merging results");
+            mergePartialResults();
+        });
+    }
+
+    public void compute() {
+        int rowsPerWorker = matrix.length / numWorkers;
+
+        for (int i = 0; i &lt; numWorkers; i++) {
+            int startRow = i * rowsPerWorker;
+            int endRow = (i == numWorkers - 1) ? matrix.length : startRow + rowsPerWorker;
+
+            new Thread(() -&gt; {
+                for (int phase = 0; phase &lt; 10; phase++) {
+                    processRows(startRow, endRow, phase);
+                    try {
+                        barrier.await(); // Wait for all workers
+                    } catch (Exception e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }).start();
+        }
+    }
+}</code></pre>
+
+                    <h4>Phaser -- Dynamic, Flexible Coordination</h4>
+                    <pre><code class="language-java">import java.util.concurrent.Phaser;
+
+/**
+ * Phaser is like a CyclicBarrier but supports:
+ * - Dynamic registration/deregistration of parties
+ * - Per-phase actions
+ * - Termination conditions
+ *
+ * Real scenario: Web crawler where threads join/leave dynamically
+ * as new URLs are discovered or crawl limits are reached.
+ */
+public class WebCrawler {
+    private final Phaser phaser = new Phaser(1); // Register self
+    private final Set&lt;String&gt; visited = ConcurrentHashMap.newKeySet();
+    private final int maxDepth;
+
+    public void crawl(String seedUrl) {
+        submitCrawlTask(seedUrl, 0);
+
+        // Wait for all phases to complete
+        // arriveAndDeregister: "I'm done, and remove me from the party count"
+        phaser.arriveAndDeregister();
+    }
+
+    private void submitCrawlTask(String url, int depth) {
+        if (depth &gt; maxDepth || !visited.add(url)) return;
+
+        phaser.register(); // Add a new party dynamically
+        CompletableFuture.runAsync(() -&gt; {
+            try {
+                List&lt;String&gt; links = fetchAndParse(url);
+                for (String link : links) {
+                    submitCrawlTask(link, depth + 1);
+                }
+            } finally {
+                phaser.arriveAndDeregister(); // Done with this task
+            }
+        });
+    }
+}</code></pre>
+
+                    <h4>Quick Comparison</h4>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Utility</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Reusable?</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic Parties?</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CountDownLatch</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wait for N events (startup, test synchronization)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CyclicBarrier</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-phase parallel computation</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Phaser</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic task graphs, crawlers, fork-join-like coordination</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li><strong>CountDownLatch:</strong> Don't use if you need to reset the gate. Use CyclicBarrier instead.</li>
+                            <li><strong>CyclicBarrier:</strong> Don't use if threads join/leave dynamically. One broken thread breaks the barrier for all.</li>
+                            <li><strong>Phaser:</strong> Overkill for simple "wait for N things" scenarios. Use CountDownLatch for simplicity.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thread Pools -->
+            <h2 class="mt-4">9. Thread Pools &amp; Executor Framework</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Sizing, Work-Stealing, and Virtual Threads</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why thread pools:</strong> Creating a thread costs ~1MB of stack memory and ~100us of OS time. At 10,000 requests/sec, you would create and destroy 10,000 threads per second -- the OS would spend more time managing threads than running your code. Thread pools amortize creation cost and bound resource usage.</p>
+
+                    <h4>Sizing Guidelines</h4>
+                    <pre><code class="language-java">/**
+ * Thread pool sizing formulas (Brian Goetz, "Java Concurrency in Practice"):
+ *
+ * CPU-bound tasks: threads = N_cpu + 1
+ *   Why +1? If a thread occasionally blocks (page fault, GC pause),
+ *   the extra thread keeps the CPU fully utilized.
+ *
+ * I/O-bound tasks: threads = N_cpu * (1 + W/C)
+ *   W = average wait time (I/O, network)
+ *   C = average compute time
+ *   Example: 8 cores, 100ms wait, 10ms compute
+ *            threads = 8 * (1 + 100/10) = 88 threads
+ *
+ * In practice, benchmark and adjust. These are starting points.
+ */
+public class ThreadPoolFactory {
+
+    // CPU-bound: image processing, encryption, compression
+    public static ExecutorService cpuBoundPool() {
+        int cpus = Runtime.getRuntime().availableProcessors();
+        return new ThreadPoolExecutor(
+            cpus + 1,                          // core pool size
+            cpus + 1,                          // max pool size (same for CPU-bound)
+            60L, TimeUnit.SECONDS,             // idle thread keepalive
+            new LinkedBlockingQueue&lt;&gt;(1000),   // bounded queue for backpressure
+            new ThreadPoolExecutor.CallerRunsPolicy() // backpressure: caller thread runs task
+        );
+    }
+
+    // I/O-bound: HTTP calls, DB queries, file I/O
+    public static ExecutorService ioBoundPool() {
+        int cpus = Runtime.getRuntime().availableProcessors();
+        int ioThreads = cpus * 10; // Assumes W/C ratio ~9
+        return new ThreadPoolExecutor(
+            cpus,                              // core: keep some always alive
+            ioThreads,                         // max: scale up under load
+            120L, TimeUnit.SECONDS,
+            new SynchronousQueue&lt;&gt;(),          // direct handoff -- forces thread creation
+            new ThreadPoolExecutor.AbortPolicy() // reject if at max
+        );
+    }
+}</code></pre>
+
+                    <h4>ForkJoinPool -- Work-Stealing for Recursive Tasks</h4>
+                    <pre><code class="language-java">import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RecursiveTask;
+
+/**
+ * ForkJoinPool uses work-stealing: each thread has its own deque.
+ * When a thread finishes its tasks, it steals from the tail of
+ * another thread's deque. This provides excellent load balancing
+ * for recursive divide-and-conquer problems.
+ *
+ * Used internally by parallel streams, CompletableFuture (common pool).
+ */
+public class ParallelMergeSort extends RecursiveTask&lt;int[]&gt; {
+    private static final int THRESHOLD = 1024;
+    private final int[] array;
+    private final int start;
+    private final int end;
+
+    public ParallelMergeSort(int[] array, int start, int end) {
+        this.array = array;
+        this.start = start;
+        this.end = end;
+    }
+
+    @Override
+    protected int[] compute() {
+        int length = end - start;
+
+        if (length &lt;= THRESHOLD) {
+            // Base case: sort sequentially
+            int[] subArray = Arrays.copyOfRange(array, start, end);
+            Arrays.sort(subArray);
+            return subArray;
+        }
+
+        int mid = start + length / 2;
+
+        // Fork: submit left half to another thread
+        ParallelMergeSort left = new ParallelMergeSort(array, start, mid);
+        left.fork();
+
+        // Compute right half in current thread
+        ParallelMergeSort right = new ParallelMergeSort(array, mid, end);
+        int[] rightResult = right.compute();
+
+        // Join: wait for left half
+        int[] leftResult = left.join();
+
+        return merge(leftResult, rightResult);
+    }
+
+    // Usage
+    public static int[] sort(int[] array) {
+        ForkJoinPool pool = new ForkJoinPool(
+            Runtime.getRuntime().availableProcessors()
+        );
+        return pool.invoke(new ParallelMergeSort(array, 0, array.length));
+    }
+}</code></pre>
+
+                    <h4>Java 21+: Virtual Threads (Project Loom)</h4>
+                    <pre><code class="language-java">// Virtual threads: lightweight (few KB vs 1MB), scheduled by JVM not OS.
+// Ideal for I/O-bound workloads -- you can have millions of them.
+// No need to size thread pools for I/O anymore.
+
+// Java 21+
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    List&lt;Future&lt;String&gt;&gt; futures = new ArrayList&lt;&gt;();
+    for (String url : urls) {
+        futures.add(executor.submit(() -&gt; fetchUrl(url)));
+    }
+    for (Future&lt;String&gt; f : futures) {
+        String result = f.get(); // Blocks virtual thread, not OS thread
+    }
+}
+
+// CAUTION: Virtual threads are NOT faster for CPU-bound work.
+// They excel at I/O-bound work where traditional threads waste
+// time blocked on network/disk calls.</code></pre>
+
+                    <div class="card" style="background: var(--success-bg);">
+                        <strong>Interview Tip:</strong> When asked about thread pool sizing, always start with: "It depends on whether the workload is CPU-bound or I/O-bound." Give the formulas, then say: "But these are starting points -- in production, I instrument the pool (queue depth, active threads, rejection count) and tune based on load testing. I also prefer bounded queues with a rejection policy over unbounded queues, because unbounded queues hide backpressure and cause OOM."
+                    </div>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to Use:</strong>
+                        <ul>
+                            <li><strong>ForkJoinPool:</strong> Don't use for I/O-bound tasks. Blocked threads in ForkJoinPool cause thread starvation since work-stealing only helps when threads are computing, not waiting.</li>
+                            <li><strong>CachedThreadPool:</strong> Dangerous in production -- it creates unlimited threads. A burst of traffic can spawn thousands of threads and OOM the JVM.</li>
+                            <li><strong>SingleThreadExecutor:</strong> Fine for sequential task queues, but never use for latency-sensitive work (everything waits in line).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff vs Senior Callout -->
+            <h2 class="mt-4">Staff vs Senior: What's the Difference?</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                <h3 style="margin-top: 0;">Staff-Level Concurrency Thinking</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Dimension</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Locking</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses synchronized correctly</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Chooses lock type based on contention profile and measures impact</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Thread Pools</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses Executors factory methods</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Configures ThreadPoolExecutor with bounded queues, rejection policies, and monitoring</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Deadlocks</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Knows what deadlocks are</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Designs lock ordering policies, adds runtime detection, reviews code for circular waits</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Testing</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Writes thread-safe code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses stress tests, ThreadSanitizer, jcstress, and formal reasoning about invariants</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Architecture</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Handles concurrency within a component</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Designs system-wide concurrency strategy: what's shared, what's partitioned, where locks live</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 1rem;"><strong>The staff-level mindset:</strong> "I don't just write thread-safe code; I design systems so that most code doesn't need to be thread-safe in the first place -- through immutability, message passing, and partitioning."</p>
+            </div>
+
+            <!-- Self-Check Quiz -->
+            <h2 class="mt-4">Self-Check Quiz</h2>
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- Flashcard Suggestions -->
+            <h2 class="mt-4">Flashcard Suggestions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5 Q/A Pairs for Spaced Repetition</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ol>
+                        <li>
+                            <strong>Q:</strong> What three problems does the Java Memory Model address?<br>
+                            <strong>A:</strong> Atomicity (compound actions aren't indivisible), visibility (threads may see stale values due to CPU caches), and ordering (compilers/CPUs can reorder instructions). The happens-before relationship is the formal guarantee that addresses all three.
+                        </li>
+                        <li>
+                            <strong>Q:</strong> When should you use StampedLock over ReentrantReadWriteLock?<br>
+                            <strong>A:</strong> When reads vastly outnumber writes and you can tolerate retrying reads. StampedLock's optimistic read acquires no lock and is essentially free, but requires validation. Use ReentrantReadWriteLock when you need reentrancy or cannot retry.
+                        </li>
+                        <li>
+                            <strong>Q:</strong> What is the thread pool sizing formula for I/O-bound tasks?<br>
+                            <strong>A:</strong> threads = N_cpu * (1 + W/C), where W is average wait time and C is average compute time. For example, 8 cores with 100ms wait and 10ms compute = 8 * 11 = 88 threads.
+                        </li>
+                        <li>
+                            <strong>Q:</strong> Name the four conditions required for deadlock.<br>
+                            <strong>A:</strong> Mutual exclusion (resource held exclusively), hold and wait (thread holds one lock while waiting for another), no preemption (locks can't be forcibly taken), and circular wait (A waits for B, B waits for A). Breaking any one condition prevents deadlock.
+                        </li>
+                        <li>
+                            <strong>Q:</strong> What is the difference between CountDownLatch and CyclicBarrier?<br>
+                            <strong>A:</strong> CountDownLatch is a one-shot gate that counts down from N to 0 and cannot be reset. CyclicBarrier is reusable across phases -- once all parties arrive, it resets automatically. Use CountDownLatch for "wait for N events", CyclicBarrier for "synchronize N threads repeatedly".
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Practice Exercise -->
+            <h2 class="mt-4">Practice Exercise</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Implement a Thread-Safe Bounded Buffer</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Challenge:</strong> Implement a generic <code>BoundedBuffer&lt;T&gt;</code> with the following requirements:</p>
+                    <ul>
+                        <li><code>put(T item)</code> -- blocks if the buffer is full</li>
+                        <li><code>T take()</code> -- blocks if the buffer is empty</li>
+                        <li><code>int size()</code> -- returns the current number of items</li>
+                        <li>Use <code>ReentrantLock</code> with two <code>Condition</code> variables (notFull, notEmpty)</li>
+                        <li>Support graceful shutdown via an <code>interrupt()</code>-friendly design</li>
+                    </ul>
+
+                    <p><strong>Stretch goals:</strong></p>
+                    <ul>
+                        <li>Add <code>offer(T item, long timeout, TimeUnit unit)</code> with timeout</li>
+                        <li>Add <code>drain(Collection&lt;T&gt; dest, int maxElements)</code> for batch consumption</li>
+                        <li>Write a stress test with 10 producers and 5 consumers that verifies no data is lost</li>
+                    </ul>
+
+                    <h4>Sample Solution</h4>
+                    <pre><code class="language-java">import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.TimeUnit;
+import java.util.Collection;
+
+public class BoundedBuffer&lt;T&gt; {
+    private final Object[] items;
+    private int head; // index of next take
+    private int tail; // index of next put
+    private int count;
+
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition notFull = lock.newCondition();
+    private final Condition notEmpty = lock.newCondition();
+
+    public BoundedBuffer(int capacity) {
+        if (capacity &lt;= 0) throw new IllegalArgumentException();
+        this.items = new Object[capacity];
+    }
+
+    public void put(T item) throws InterruptedException {
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length) {
+                notFull.await(); // Release lock and wait
+            }
+            items[tail] = item;
+            tail = (tail + 1) % items.length;
+            count++;
+            notEmpty.signal(); // Wake one waiting consumer
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public T take() throws InterruptedException {
+        lock.lockInterruptibly();
+        try {
+            while (count == 0) {
+                notEmpty.await(); // Release lock and wait
+            }
+            T item = (T) items[head];
+            items[head] = null; // Help GC
+            head = (head + 1) % items.length;
+            count--;
+            notFull.signal(); // Wake one waiting producer
+            return item;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public boolean offer(T item, long timeout, TimeUnit unit)
+            throws InterruptedException {
+        long nanos = unit.toNanos(timeout);
+        lock.lockInterruptibly();
+        try {
+            while (count == items.length) {
+                if (nanos &lt;= 0) return false;
+                nanos = notFull.awaitNanos(nanos);
+            }
+            items[tail] = item;
+            tail = (tail + 1) % items.length;
+            count++;
+            notEmpty.signal();
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int drain(Collection&lt;T&gt; dest, int maxElements) {
+        lock.lock();
+        try {
+            int n = Math.min(count, maxElements);
+            for (int i = 0; i &lt; n; i++) {
+                @SuppressWarnings("unchecked")
+                T item = (T) items[head];
+                dest.add(item);
+                items[head] = null;
+                head = (head + 1) % items.length;
+                count--;
+            }
+            notFull.signalAll(); // Wake all waiting producers
+            return n;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public int size() {
+        lock.lock();
+        try {
+            return count;
+        } finally {
+            lock.unlock();
+        }
+    }
+}</code></pre>
+
+                    <p><strong>Key design decisions to discuss in an interview:</strong></p>
+                    <ul>
+                        <li><strong>Two conditions vs one:</strong> Using separate <code>notFull</code> and <code>notEmpty</code> conditions avoids waking producers when only consumers should wake (and vice versa). With a single condition, <code>signalAll()</code> would wake all waiters unnecessarily.</li>
+                        <li><strong>Circular array:</strong> O(1) put and take with no array shifting. The modular arithmetic (<code>% items.length</code>) wraps around.</li>
+                        <li><strong>lockInterruptibly:</strong> Allows the thread to be interrupted while waiting for the lock, enabling graceful shutdown.</li>
+                        <li><strong>signal() vs signalAll():</strong> We use <code>signal()</code> for single put/take (only one waiter needs to wake) and <code>signalAll()</code> for <code>drain()</code> (multiple producers may need to wake).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-04.html" class="btn btn-secondary">&larr; Previous: Behavioral Patterns</a>
+                <a href="module-08.html" class="btn btn-primary">Next: Code Quality &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+
+            const quizQuestions = [
+                {
+                    question: "What does the 'volatile' keyword guarantee in Java?",
+                    options: ["Atomicity of compound operations", "Visibility of writes across threads", "Mutual exclusion", "Thread-safe iteration"],
+                    correct: 1,
+                    explanation: "volatile guarantees visibility: a write to a volatile variable is immediately visible to all threads. It does NOT guarantee atomicity of compound operations like increment (read-modify-write)."
+                },
+                {
+                    question: "Which lock type supports optimistic reads?",
+                    options: ["synchronized", "ReentrantLock", "ReentrantReadWriteLock", "StampedLock"],
+                    correct: 3,
+                    explanation: "StampedLock's tryOptimisticRead() returns a stamp without acquiring any lock. If no writer intervened, the read succeeds with near-zero overhead."
+                },
+                {
+                    question: "What is the thread pool sizing formula for I/O-bound tasks?",
+                    options: ["N_cpu + 1", "N_cpu * 2", "N_cpu * (1 + W/C)", "N_cpu / 2"],
+                    correct: 2,
+                    explanation: "For I/O-bound tasks: threads = N_cpu * (1 + Wait_time / Compute_time). This accounts for the fact that threads spend most of their time waiting on I/O, so more threads are needed to keep CPUs busy."
+                },
+                {
+                    question: "Which synchronization utility supports dynamic registration and deregistration of parties?",
+                    options: ["CountDownLatch", "CyclicBarrier", "Phaser", "Semaphore"],
+                    correct: 2,
+                    explanation: "Phaser supports dynamic registration (register()) and deregistration (arriveAndDeregister()) of parties at any time, making it ideal for dynamic task graphs like web crawlers."
+                },
+                {
+                    question: "Why is CachedThreadPool dangerous in production?",
+                    options: ["It is too slow", "It creates unlimited threads under load, risking OOM", "It does not support Callable", "It uses unfair scheduling"],
+                    correct: 1,
+                    explanation: "CachedThreadPool creates a new thread for every task if no idle thread is available, with no upper bound. A burst of traffic can spawn thousands of threads, exhausting memory and causing the JVM to crash."
+                },
+                {
+                    question: "What are the two separate Condition variables used for in a BoundedBuffer implementation?",
+                    options: ["Read and write synchronization", "Lock and unlock signaling", "notFull (wake producers) and notEmpty (wake consumers)", "Priority high and priority low"],
+                    correct: 2,
+                    explanation: "Two conditions allow targeted signaling: notFull wakes producers waiting to put, and notEmpty wakes consumers waiting to take. This avoids unnecessary wake-ups that would occur with a single condition and signalAll()."
+                }
+            ];
+
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+        });
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>

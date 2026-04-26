@@ -903,6 +903,192 @@ public class Application {
                 </div>
             </div>
 
+            <!-- Decorator Stacking Order -->
+            <h2 class="mt-4">6. Staff-Level Deep Dives</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Decorator Stacking Order Matters</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Critical insight that separates staff from senior:</strong> The order you stack decorators changes behavior. This is often missed in interviews.</p>
+
+                    <pre><code class="language-java">// Compress-then-Encrypt vs Encrypt-then-Compress
+
+// Option A: Compress first, then encrypt
+// Write path: data -> compress -> encrypt -> file
+// Read path:  file -> decrypt -> decompress -> data
+DataSource source = new FileDataSource("data.txt");
+source = new CompressionDecorator(source, 9);
+source = new EncryptionDecorator(source, key);
+
+// Option B: Encrypt first, then compress
+// Write path: data -> encrypt -> compress -> file
+// Read path:  file -> decompress -> decrypt -> data
+DataSource source = new FileDataSource("data.txt");
+source = new EncryptionDecorator(source, key);
+source = new CompressionDecorator(source, 9);
+
+// WHY IT MATTERS:
+// Option A is CORRECT: Compression works well on plaintext.
+//   Encrypted data looks random and doesn't compress well.
+// Option B is WRONG: Compressing encrypted data gives ~0% reduction.
+//   You pay compression CPU cost for no benefit.</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>Performance Impact:</strong> Deep decorator chains (5+ layers) add overhead from delegation and object allocation. For hot paths, consider collapsing decorators into a single class or using aspect-oriented approaches (Spring AOP) instead.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Functional Decorators via Function Composition</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>In modern Java, you can use <code>Function&lt;T,R&gt;</code> composition as a lightweight alternative to class-based decorators.</p>
+
+                    <pre><code class="language-java">// Functional decorator approach
+Function&lt;String, String&gt; encrypt = data -&gt; Base64.getEncoder()
+    .encodeToString(data.getBytes());
+Function&lt;String, String&gt; compress = data -&gt; /* compression logic */;
+Function&lt;String, String&gt; log = data -&gt; {
+    System.out.println("Processing " + data.length() + " bytes");
+    return data;
+};
+
+// Compose: log -> compress -> encrypt
+Function&lt;String, String&gt; pipeline = log
+    .andThen(compress)
+    .andThen(encrypt);
+
+String result = pipeline.apply("Hello World");
+
+// Spring's real-world dynamic proxies
+// @Transactional, @Cacheable, @Async are all Proxy pattern
+@Service
+public class OrderService {
+    @Transactional  // Spring creates a proxy that wraps this method
+    @Cacheable("orders")  // Another proxy layer for caching
+    public Order findById(Long id) {
+        return orderRepository.findById(id).orElseThrow();
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Facade Failure Handling</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Facades hide complexity, but they also hide failure modes. Staff engineers think about what happens when subsystems fail.</p>
+
+                    <pre><code class="language-java">// BAD: Facade that ignores subsystem failures
+public File convertVideo(String filename, String format) {
+    VideoFile file = new VideoFile(filename);
+    Codec codec = codecFactory.extract(file);         // What if unsupported?
+    VideoBuffer buffer = bitrateReader.read(file, codec); // What if corrupted?
+    AudioBuffer audio = audioMixer.fix(buffer);         // What if no audio?
+    return new File(buffer, audio, format);             // Silent data loss?
+}
+
+// BETTER: Facade with graceful degradation
+public ConversionResult convertVideo(String filename, String format) {
+    var warnings = new ArrayList&lt;String&gt;();
+
+    VideoFile file = new VideoFile(filename);
+    Codec codec;
+    try {
+        codec = codecFactory.extract(file);
+    } catch (UnsupportedCodecException e) {
+        return ConversionResult.failed("Unsupported codec: " + e.getMessage());
+    }
+
+    VideoBuffer buffer = bitrateReader.read(file, codec);
+
+    AudioBuffer audio;
+    try {
+        audio = audioMixer.fix(buffer);
+    } catch (NoAudioTrackException e) {
+        audio = AudioBuffer.silence(buffer.duration());
+        warnings.add("No audio track found, using silence");
+    }
+
+    File output = new File(buffer, audio, format);
+    return ConversionResult.success(output, warnings);
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- When NOT to Use -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>When NOT to Use Each Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pattern</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Don't Use When</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Adapter</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">You control both interfaces and can modify the source. Just change the interface directly.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Decorator</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">You need to add behavior to many methods (wrapping becomes tedious). Consider AOP or code generation instead.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Facade</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Clients need fine-grained control over subsystems. A facade that exposes everything defeats its purpose.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Proxy</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">The indirection adds latency to a hot path with no benefit. Use direct calls when you don't need access control, caching, or lazy init.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Composite</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Your structure isn't actually a tree. Don't force composite on flat lists just because items share an interface.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Flashcards -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Flashcard Suggestions (5 Q/A Pairs)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Question</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Answer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Why does decorator stacking order matter?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Behavior changes with order. E.g., compress-then-encrypt works (plaintext compresses well), but encrypt-then-compress wastes CPU (encrypted data is random, doesn't compress).</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">How does Spring use the Proxy pattern?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">@Transactional, @Cacheable, @Async create dynamic proxies around beans. The proxy intercepts method calls to add behavior (transaction management, caching, async execution).</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adapter vs Facade: key difference?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adapter converts one interface to another (1:1). Facade simplifies a complex subsystem into one interface (1:many). Adapter adapts, Facade simplifies.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">When is Decorator overkill?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">When you need to wrap many methods (tedious delegation), when chain depth causes performance issues, or when behavior is static (just add the code directly).</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">How can Function composition replace Decorator?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Chain Function&lt;T,R&gt; with .andThen() or .compose(). Lighter weight than class hierarchy, but only works for single-method interfaces (not multi-method contracts).</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <h2 class="mt-4">Pattern Comparison</h2>
 
             <div class="collapsible open">

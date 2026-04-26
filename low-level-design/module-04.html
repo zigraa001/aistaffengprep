@@ -1108,6 +1108,236 @@ public class HttpPipeline {
                 </div>
             </div>
 
+            <!-- Staff-Level Deep Dives -->
+            <h2 class="mt-4">6. Staff-Level Deep Dives</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Observer Deadlock: The Reentrant Notification Trap</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.15)); border-left: 4px solid #ef4444;">
+                        <strong>Dangerous Pattern:</strong> If an observer's <code>onUpdate()</code> calls back into the subject (e.g., calls <code>setPrice()</code>), you get reentrant notification which can cause infinite loops or deadlocks with synchronized blocks.
+                    </div>
+
+                    <pre><code class="language-java">// DANGEROUS: Reentrant observer
+public class AutoTrader implements StockObserver {
+    @Override
+    public void onPriceUpdate(String symbol, BigDecimal oldPrice, BigDecimal newPrice) {
+        if (shouldBuy(newPrice)) {
+            // This calls stock.setPrice() which triggers notifyObservers() again!
+            executeTrade(symbol, newPrice);  // INFINITE LOOP or DEADLOCK
+        }
+    }
+}
+
+// FIX 1: Use CopyOnWriteArrayList (already shown) + detect reentrancy
+public class Stock {
+    private final AtomicBoolean notifying = new AtomicBoolean(false);
+
+    public void setPrice(BigDecimal newPrice) {
+        BigDecimal oldPrice = this.price;
+        this.price = newPrice;
+
+        if (notifying.compareAndSet(false, true)) {
+            try {
+                for (StockObserver observer : observers) {
+                    observer.onPriceUpdate(symbol, oldPrice, newPrice);
+                }
+            } finally {
+                notifying.set(false);
+            }
+        }
+        // If already notifying, skip (prevent reentrancy)
+    }
+}
+
+// FIX 2: Async notification (preferred for slow observers)
+private final ExecutorService notificationPool =
+    Executors.newFixedThreadPool(4);
+
+public void setPrice(BigDecimal newPrice) {
+    BigDecimal oldPrice = this.price;
+    this.price = newPrice;
+
+    for (StockObserver observer : observers) {
+        notificationPool.submit(() -&gt;
+            observer.onPriceUpdate(symbol, oldPrice, newPrice));
+    }
+    // Observers run in separate threads - no deadlock risk
+    // Trade-off: observers see state eventually, not immediately
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Enum-Based State: Lighter Alternative for Simple FSMs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The full State pattern (separate class per state) is powerful but heavy. For simple state machines with &lt;5 states, an enum with methods is cleaner.</p>
+
+                    <pre><code class="language-java">// Enum-based State - cleaner for simple FSMs
+public enum TrafficLight {
+    RED {
+        public TrafficLight next() { return GREEN; }
+        public String action() { return "STOP"; }
+        public int durationSeconds() { return 30; }
+    },
+    GREEN {
+        public TrafficLight next() { return YELLOW; }
+        public String action() { return "GO"; }
+        public int durationSeconds() { return 25; }
+    },
+    YELLOW {
+        public TrafficLight next() { return RED; }
+        public String action() { return "CAUTION"; }
+        public int durationSeconds() { return 5; }
+    };
+
+    public abstract TrafficLight next();
+    public abstract String action();
+    public abstract int durationSeconds();
+}
+
+// Usage
+TrafficLight light = TrafficLight.RED;
+System.out.println(light.action());  // "STOP"
+light = light.next();                // GREEN
+System.out.println(light.action());  // "GO"
+
+// Use FULL State pattern when:
+// - States have complex behavior (many methods)
+// - States need injected dependencies
+// - State transitions depend on context/history
+// - You need to add states without modifying existing code</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Atomic Command Macro with Rollback</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The MacroCommand shown earlier has a bug: if command 3 of 5 fails, commands 1-2 are already executed with no rollback. Staff engineers address this.</p>
+
+                    <pre><code class="language-java">// Atomic macro: all-or-nothing execution
+public class AtomicMacroCommand implements Command {
+    private final String name;
+    private final List&lt;Command&gt; commands;
+    private final List&lt;Command&gt; executedCommands = new ArrayList&lt;&gt;();
+
+    @Override
+    public void execute() {
+        for (Command cmd : commands) {
+            try {
+                cmd.execute();
+                executedCommands.add(cmd);
+            } catch (Exception e) {
+                // Rollback all executed commands in reverse
+                rollback();
+                throw new MacroExecutionException(
+                    "Command failed: " + cmd.getDescription() +
+                    ". Rolled back " + executedCommands.size() + " commands.", e);
+            }
+        }
+    }
+
+    private void rollback() {
+        for (int i = executedCommands.size() - 1; i &gt;= 0; i--) {
+            try {
+                executedCommands.get(i).undo();
+            } catch (Exception e) {
+                // Log but continue rolling back remaining commands
+                System.err.println("Rollback failed for: " +
+                    executedCommands.get(i).getDescription());
+            }
+        }
+        executedCommands.clear();
+    }
+
+    @Override
+    public void undo() {
+        rollback();
+    }
+}</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Functional Alternatives: Consumer, Runnable as Lightweight Commands</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">// When you don't need undo, use lambdas instead of Command classes
+List&lt;Runnable&gt; tasks = List.of(
+    () -&gt; emailService.sendWelcome(user),
+    () -&gt; analyticsService.trackSignup(user),
+    () -&gt; slackService.notifyTeam(user)
+);
+
+tasks.forEach(Runnable::run);
+
+// Consumer&lt;T&gt; for parameterized actions
+Map&lt;String, Consumer&lt;Order&gt;&gt; orderActions = Map.of(
+    "confirm", order -&gt; order.setStatus(CONFIRMED),
+    "ship",    order -&gt; order.setStatus(SHIPPED),
+    "cancel",  order -&gt; { order.setStatus(CANCELLED); refundService.refund(order); }
+);
+
+orderActions.get("ship").accept(myOrder);</code></pre>
+                </div>
+            </div>
+
+            <!-- When NOT to Use -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>When NOT to Use Each Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pattern</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Don't Use When</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Strategy</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">There's only one algorithm that will never change. A simple method is fine. Don't create ShippingStrategy for one shipping method.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Observer</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notification order matters (use explicit method calls), or when observer count is always 1 (direct dependency is simpler).</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>State</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">States are trivial (2-3 states with simple transitions). Use an enum with a switch or enum-based State instead of full class hierarchy.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Command</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">You don't need undo, queueing, or logging. If it's a fire-and-forget action, use a direct method call or Runnable.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Chain of Resp.</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Processing order is fixed and all handlers always run. A simple sequential method call is clearer than a chain.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Flashcards -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Flashcard Suggestions (5 Q/A Pairs)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead><tr style="background: var(--border-color);"><th style="padding: 0.75rem; border: 1px solid var(--border-color);">Question</th><th style="padding: 0.75rem; border: 1px solid var(--border-color);">Answer</th></tr></thead>
+                        <tbody>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">How can Observer cause deadlocks?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">If onUpdate() calls back into the subject (reentrant notification). With synchronized blocks, this causes deadlock. Fix: use async notification or reentrancy guards.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">State vs Strategy: what's the key difference?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">State transitions happen automatically based on internal state. Strategy is explicitly chosen by the client. State objects know about other states; Strategy objects are independent.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">When should you use enum State vs class-based State?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Enum for simple FSMs (&lt;5 states, simple transitions, no dependencies). Class-based for complex states with many methods, injected dependencies, or when states must be extensible.</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">What's wrong with the naive MacroCommand?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">If command N fails, commands 1 to N-1 are already executed with no rollback. Fix: track executed commands and undo them in reverse on failure (atomic execution).</td></tr>
+                            <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">When can Consumer/Runnable replace Command pattern?</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">When you don't need undo, logging, or queueing. For fire-and-forget actions, lambdas and functional interfaces are simpler than Command class hierarchies.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <h2 class="mt-4">Pattern Comparison</h2>
 
             <div class="collapsible open">

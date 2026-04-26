@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 9: Testing &amp; TDD - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="../assets/css/animations.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Design Principles
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>UML &amp; Class Diagrams
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Interview Delivery Framework
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Design Patterns</div>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Creational Patterns
+                    </a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Structural Patterns
+                    </a>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Behavioral Patterns
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced Topics</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Concurrency Patterns
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Code Quality &amp; Refactoring
+                    </a>
+                    <a href="module-09.html" class="sidebar-link active" data-module="9">
+                        <span class="sidebar-link-number">9</span>Testing &amp; TDD
+                    </a>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Advanced OOP Concepts
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Practice Problems</div>
+                    <a href="problems/parking-lot.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P1</span>Parking Lot
+                    </a>
+                    <a href="problems/elevator-system.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P2</span>Elevator System
+                    </a>
+                    <a href="problems/vending-machine.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P3</span>Vending Machine
+                    </a>
+                    <a href="problems/library-system.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P4</span>Library System
+                    </a>
+                    <a href="problems/chess-game.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P5</span>Chess Game
+                    </a>
+                    <a href="problems/amazon-locker.html" class="sidebar-link">
+                        <span class="sidebar-link-number">P6</span>Amazon Locker
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Interview Prep</div>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Real-World Architecture
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Mock Interviews
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 9: Testing &amp; TDD</h1>
+
+            <div class="card mt-3">
+                <h3>Learning Objectives</h3>
+                <ul>
+                    <li>Master JUnit 5 features used in real production codebases: parameterized tests, nested classes, extensions</li>
+                    <li>Use Mockito effectively, knowing when to mock and when not to</li>
+                    <li>Understand the test pyramid and what belongs at each level</li>
+                    <li>Practice the TDD Red-Green-Refactor cycle through a complete worked example</li>
+                    <li>Test concurrent code safely using CountDownLatch and Awaitility</li>
+                    <li>Design code for testability from the start using dependency injection and interface extraction</li>
+                    <li>Articulate testing strategy at a staff-engineer level in interviews</li>
+                </ul>
+            </div>
+
+            <!-- Why Testing Matters -->
+            <h2 class="mt-4">Why Testing Matters for Staff Engineers</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Beyond "Write More Tests" &mdash; Strategic Testing</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>At the staff level, testing is not about code coverage metrics. It is about <strong>confidence in change</strong>. A well-tested system lets your organization ship faster because engineers can refactor, extend, and deploy without fear. A poorly-tested system calcifies &mdash; every change carries risk, so teams slow down.</p>
+
+                    <p><strong>Why interviewers ask about testing:</strong></p>
+                    <ul>
+                        <li><strong>Signal for production-readiness:</strong> Candidates who mention testing organically during LLD problems show they think about real systems, not just happy paths</li>
+                        <li><strong>Design quality indicator:</strong> Code that is hard to test is almost always poorly designed. If you can't test it, it has too many responsibilities or hidden dependencies</li>
+                        <li><strong>Staff-level influence:</strong> Staff engineers set testing standards for their teams. Interviewers want to see you can articulate <em>what</em> to test, <em>how much</em>, and <em>why</em></li>
+                    </ul>
+
+                    <p><strong>Real-world impact:</strong> Google's engineering practices research found that teams with high test coverage experienced <strong>40% fewer production incidents</strong> and were able to deploy <strong>2x more frequently</strong>. At Amazon, the "two-pizza team" model works precisely because automated tests serve as contracts between services, replacing the need for manual coordination.</p>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to test obsessively:</strong>
+                        <ul>
+                            <li>Prototypes and throwaway spikes &mdash; testing slows exploration</li>
+                            <li>Pure data classes (records/DTOs) with no logic</li>
+                            <li>Trivial getters/setters generated by Lombok or similar</li>
+                            <li>Third-party library internals &mdash; trust their tests, verify your integration</li>
+                        </ul>
+                        <p>The goal is <strong>meaningful coverage</strong>, not 100% line coverage. Test behavior, not implementation details.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JUnit 5 Deep Dive -->
+            <h2 class="mt-4">1. JUnit 5 Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>JUnit 5 &mdash; Modern Testing Essentials</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why JUnit 5 over JUnit 4:</strong> JUnit 5 (Jupiter) was a ground-up rewrite that introduced composable annotations, parameterized tests without runners, and an extension model that replaced the rigid <code>@Rule</code>/<code>@RunWith</code> system. Understanding these features lets you write expressive, maintainable tests.</p>
+
+                    <h4>@ParameterizedTest &mdash; Eliminate Repetition</h4>
+                    <p>Parameterized tests let you run the same test logic with different inputs. This is invaluable for boundary testing and equivalence partitioning.</p>
+
+                    <pre><code class="language-java">import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
+
+class PasswordValidatorTest {
+
+    private final PasswordValidator validator = new PasswordValidator();
+
+    @ParameterizedTest(name = "Password \"{0}\" should be {1}")
+    @CsvSource({
+        "'Str0ng!Pass', true",
+        "'short',       false",
+        "'nouppercas3!', false",
+        "'NOLOWERCASE3!', false",
+        "'NoSpecialChar3', false",
+        "'NoDigits!!aa', false",
+        "'',            false"
+    })
+    void shouldValidatePasswordStrength(String password, boolean expected) {
+        assertEquals(expected, validator.isStrong(password));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "\t", "\n"})
+    void shouldRejectBlankPasswords(String password) {
+        assertFalse(validator.isStrong(password));
+    }
+
+    // Custom argument provider for complex objects
+    @ParameterizedTest
+    @MethodSource("provideEdgeCasePasswords")
+    void shouldHandleEdgeCases(String password, boolean expected, String reason) {
+        assertEquals(expected, validator.isStrong(password),
+            () -&gt; "Failed for: " + reason);
+    }
+
+    static Stream&lt;Arguments&gt; provideEdgeCasePasswords() {
+        return Stream.of(
+            Arguments.of("A1!aaaaa", true, "minimum length exactly 8"),
+            Arguments.of("A1!aaaa", false, "one char below minimum"),
+            Arguments.of("A1!" + "a".repeat(128), true, "very long password"),
+            Arguments.of("P@ss\u00E9w0rd", true, "unicode characters")
+        );
+    }
+}</code></pre>
+
+                    <h4>@Nested &mdash; Organize Tests by Context</h4>
+                    <p>Nested test classes create a BDD-style hierarchy that makes test intent clear. Each nested class represents a scenario or state.</p>
+
+                    <pre><code class="language-java">@DisplayName("BankAccount")
+class BankAccountTest {
+
+    private BankAccount account;
+
+    @BeforeEach
+    void setUp() {
+        account = new BankAccount("ACC-001", "Alice");
+    }
+
+    @Nested
+    @DisplayName("when newly created")
+    class WhenNew {
+
+        @Test
+        @DisplayName("has zero balance")
+        void hasZeroBalance() {
+            assertEquals(BigDecimal.ZERO, account.getBalance());
+        }
+
+        @Test
+        @DisplayName("rejects withdrawal")
+        void rejectsWithdrawal() {
+            assertThrows(InsufficientFundsException.class,
+                () -&gt; account.withdraw(BigDecimal.ONE));
+        }
+    }
+
+    @Nested
+    @DisplayName("after depositing $100")
+    class AfterDeposit {
+
+        @BeforeEach
+        void deposit() {
+            account.deposit(new BigDecimal("100.00"));
+        }
+
+        @Test
+        @DisplayName("has correct balance")
+        void hasCorrectBalance() {
+            assertEquals(new BigDecimal("100.00"), account.getBalance());
+        }
+
+        @Test
+        @DisplayName("allows partial withdrawal")
+        void allowsPartialWithdrawal() {
+            account.withdraw(new BigDecimal("40.00"));
+            assertEquals(new BigDecimal("60.00"), account.getBalance());
+        }
+
+        @Nested
+        @DisplayName("and then withdrawing $60")
+        class AfterWithdrawal {
+
+            @BeforeEach
+            void withdraw() {
+                account.withdraw(new BigDecimal("60.00"));
+            }
+
+            @Test
+            @DisplayName("has $40 remaining")
+            void hasCorrectBalance() {
+                assertEquals(new BigDecimal("40.00"), account.getBalance());
+            }
+        }
+    }
+}</code></pre>
+
+                    <h4>assertAll &mdash; Grouped Assertions</h4>
+                    <p><code>assertAll</code> runs every assertion even if one fails, giving you a complete picture of what broke instead of stopping at the first failure.</p>
+
+                    <pre><code class="language-java">@Test
+void shouldCreateUserWithAllFields() {
+    User user = userService.createUser("alice", "alice@example.com", "Engineering");
+
+    assertAll("user properties",
+        () -&gt; assertNotNull(user.getId(), "id should be generated"),
+        () -&gt; assertEquals("alice", user.getUsername()),
+        () -&gt; assertEquals("alice@example.com", user.getEmail()),
+        () -&gt; assertEquals("Engineering", user.getDepartment()),
+        () -&gt; assertNotNull(user.getCreatedAt(), "createdAt should be set"),
+        () -&gt; assertTrue(user.isActive(), "new users should be active")
+    );
+}</code></pre>
+
+                    <h4>@TempDir &mdash; File System Tests Without Cleanup</h4>
+
+                    <pre><code class="language-java">class FileExporterTest {
+
+    @Test
+    void shouldExportReportToFile(@TempDir Path tempDir) throws IOException {
+        FileExporter exporter = new FileExporter();
+        Path outputFile = tempDir.resolve("report.csv");
+
+        exporter.exportReport(sampleReport(), outputFile);
+
+        assertTrue(Files.exists(outputFile));
+        List&lt;String&gt; lines = Files.readAllLines(outputFile);
+        assertEquals("Name,Score,Grade", lines.get(0)); // header
+        assertEquals(5, lines.size()); // header + 4 data rows
+    }
+}</code></pre>
+
+                    <h4>Custom Extensions</h4>
+                    <p>Extensions replace JUnit 4's <code>@Rule</code> and <code>@RunWith</code>. They let you inject behavior at any lifecycle point.</p>
+
+                    <pre><code class="language-java">// Timing extension - logs slow tests
+public class TimingExtension implements BeforeTestExecutionCallback,
+                                        AfterTestExecutionCallback {
+
+    private static final Logger log = LoggerFactory.getLogger(TimingExtension.class);
+
+    @Override
+    public void beforeTestExecution(ExtensionContext context) {
+        getStore(context).put("start", System.currentTimeMillis());
+    }
+
+    @Override
+    public void afterTestExecution(ExtensionContext context) {
+        long start = getStore(context).remove("start", long.class);
+        long duration = System.currentTimeMillis() - start;
+        if (duration &gt; 500) {
+            log.warn("SLOW TEST: {} took {}ms",
+                context.getDisplayName(), duration);
+        }
+    }
+
+    private ExtensionContext.Store getStore(ExtensionContext context) {
+        return context.getStore(
+            ExtensionContext.Namespace.create(getClass(), context.getRequiredTestMethod()));
+    }
+}
+
+// Usage
+@ExtendWith(TimingExtension.class)
+class PerformanceSensitiveTest {
+    // All tests in this class will be timed
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to use these features:</strong>
+                        <ul>
+                            <li><strong>@ParameterizedTest</strong> &mdash; Don't use when each case needs different assertion logic; write separate tests instead</li>
+                            <li><strong>@Nested</strong> &mdash; Don't nest more than 3 levels deep; it becomes hard to trace which @BeforeEach applies</li>
+                            <li><strong>Custom extensions</strong> &mdash; Don't write one for something Mockito or Spring already handles</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> When solving an LLD problem, mention "@ParameterizedTest for boundary validation" or "@Nested for state-based testing." It shows practical experience, not textbook knowledge.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mockito Mastery -->
+            <h2 class="mt-4">2. Mockito Mastery</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mockito &mdash; Isolating Units Under Test</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why mock:</strong> Mocks let you test a class in isolation by replacing its collaborators with controlled substitutes. This makes tests fast, deterministic, and focused on one behavior at a time.</p>
+
+                    <h4>Argument Captors &mdash; Verifying Complex Arguments</h4>
+
+                    <pre><code class="language-java">@ExtendWith(MockitoExtension.class)
+class OrderServiceTest {
+
+    @Mock private EmailService emailService;
+    @Mock private OrderRepository orderRepository;
+    @InjectMocks private OrderService orderService;
+
+    @Captor private ArgumentCaptor&lt;Email&gt; emailCaptor;
+
+    @Test
+    void shouldSendConfirmationEmailOnOrderPlacement() {
+        // Arrange
+        Order order = new Order("ORD-123", "alice@example.com",
+            List.of(new LineItem("Widget", 2, new BigDecimal("29.99"))));
+
+        when(orderRepository.save(any(Order.class)))
+            .thenReturn(order);
+
+        // Act
+        orderService.placeOrder(order);
+
+        // Assert - capture the email that was sent
+        verify(emailService).send(emailCaptor.capture());
+
+        Email sentEmail = emailCaptor.getValue();
+        assertAll(
+            () -&gt; assertEquals("alice@example.com", sentEmail.getTo()),
+            () -&gt; assertTrue(sentEmail.getSubject().contains("ORD-123")),
+            () -&gt; assertTrue(sentEmail.getBody().contains("Widget")),
+            () -&gt; assertTrue(sentEmail.getBody().contains("$59.98"))
+        );
+    }
+}</code></pre>
+
+                    <h4>Verify Interactions &mdash; Behavioral Assertions</h4>
+
+                    <pre><code class="language-java">@Test
+void shouldRetryCacheOnFailure() {
+    // Arrange
+    when(cacheService.get("user:42"))
+        .thenThrow(new CacheException("timeout"))  // first call fails
+        .thenReturn(Optional.of(cachedUser));        // retry succeeds
+
+    // Act
+    User user = userService.getUser(42);
+
+    // Assert
+    verify(cacheService, times(2)).get("user:42");   // called exactly twice
+    verify(databaseService, never()).findById(42);    // DB was NOT hit
+    assertEquals("Alice", user.getName());
+}
+
+@Test
+void shouldFallThroughToDatabaseWhenCacheMisses() {
+    when(cacheService.get("user:42")).thenReturn(Optional.empty());
+    when(databaseService.findById(42)).thenReturn(dbUser);
+
+    userService.getUser(42);
+
+    // Verify order of operations
+    InOrder inOrder = inOrder(cacheService, databaseService, cacheService);
+    inOrder.verify(cacheService).get("user:42");
+    inOrder.verify(databaseService).findById(42);
+    inOrder.verify(cacheService).put("user:42", dbUser);  // cache populated
+}</code></pre>
+
+                    <h4>Spy vs Mock</h4>
+                    <p>A <strong>mock</strong> is a complete substitute &mdash; all methods return defaults unless stubbed. A <strong>spy</strong> wraps a real object &mdash; unstubbed methods call the real implementation.</p>
+
+                    <pre><code class="language-java">@Test
+void spyExample() {
+    // Spy wraps real ArrayList - add/size work normally
+    List&lt;String&gt; spyList = spy(new ArrayList&lt;&gt;());
+    spyList.add("one");
+    spyList.add("two");
+    assertEquals(2, spyList.size());  // real implementation
+
+    // Override specific behavior
+    doReturn(100).when(spyList).size();
+    assertEquals(100, spyList.size()); // stubbed
+    assertEquals("one", spyList.get(0)); // still real
+}
+
+// When to use spy: testing legacy code you can't refactor yet
+@Test
+void testLegacyServiceWithSpy() {
+    LegacyPaymentGateway realGateway = new LegacyPaymentGateway();
+    LegacyPaymentGateway spyGateway = spy(realGateway);
+
+    // Override only the HTTP call, keep validation logic real
+    doReturn(new PaymentResponse(true, "TXN-001"))
+        .when(spyGateway).callRemoteApi(any());
+
+    PaymentResult result = spyGateway.processPayment(validPayment);
+    assertTrue(result.isSuccess());
+}</code></pre>
+
+                    <h4>@InjectMocks &mdash; Automatic Dependency Wiring</h4>
+
+                    <pre><code class="language-java">@ExtendWith(MockitoExtension.class)
+class NotificationServiceTest {
+
+    @Mock private EmailService emailService;
+    @Mock private SmsService smsService;
+    @Mock private PushNotificationService pushService;
+    @Mock private UserPreferenceRepository prefRepo;
+
+    // Mockito injects all @Mock fields that match constructor/field types
+    @InjectMocks private NotificationService notificationService;
+
+    @Test
+    void shouldSendViaPreferredChannel() {
+        when(prefRepo.getPreference("user-1"))
+            .thenReturn(new UserPreference(Channel.SMS));
+
+        notificationService.notify("user-1", "Your order shipped!");
+
+        verify(smsService).send(eq("user-1"), contains("order shipped"));
+        verify(emailService, never()).send(any(), any());
+        verify(pushService, never()).send(any(), any());
+    }
+}</code></pre>
+
+                    <div class="card" style="background: #1a1a2e; border-left: 4px solid #e74c3c;">
+                        <strong>When NOT to Mock:</strong>
+                        <ul>
+                            <li><strong>Value objects and data classes:</strong> Just use the real thing. Mocking <code>BigDecimal</code> or a <code>record</code> is absurd</li>
+                            <li><strong>Simple pure functions:</strong> If it has no side effects, call it directly</li>
+                            <li><strong>The class under test:</strong> Never mock what you are testing (use spy only as a last resort for legacy code)</li>
+                            <li><strong>Everything in integration tests:</strong> The whole point is to test components working together</li>
+                        </ul>
+                        <p><strong>Rule of thumb:</strong> Mock at architectural boundaries (network, database, external API). Do not mock internal domain logic.</p>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> Interviewers love hearing "I would mock the repository here but use real domain objects." It shows you understand test isolation <em>and</em> its limits.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Pyramid -->
+            <h2 class="mt-4">3. Test Pyramid in Java</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Test Pyramid &mdash; What to Test Where</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Test Pyramid"
+        E2E["E2E / UI Tests<br/>~5% of tests<br/>Slow, brittle, expensive<br/>(Selenium, Playwright)"]
+        INT["Integration Tests<br/>~20% of tests<br/>Medium speed<br/>(Spring Boot Test, Testcontainers)"]
+        UNIT["Unit Tests<br/>~75% of tests<br/>Fast, isolated, cheap<br/>(JUnit 5, Mockito)"]
+    end
+
+    UNIT --> INT --> E2E
+
+    style E2E fill:#e74c3c,stroke:#c0392b,color:#fff
+    style INT fill:#f39c12,stroke:#e67e22,color:#fff
+    style UNIT fill:#27ae60,stroke:#229954,color:#fff
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Level</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">What to Test</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tools</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Speed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Unit</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single class/method logic, edge cases, business rules, calculations</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">JUnit 5, Mockito, AssertJ</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;10ms per test</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Integration</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DB queries, API contracts, message serialization, multi-component flows</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">@SpringBootTest, Testcontainers, WireMock</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100ms&ndash;5s per test</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>E2E</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Critical user journeys, signup flow, checkout flow, login</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Selenium, Playwright, Cypress</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5&ndash;30s per test</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">The Boundary Question: Unit vs Integration</h4>
+                    <pre><code class="language-java">// UNIT TEST - mock the repository, test the service logic
+@Test
+void shouldApplyDiscountForLoyalCustomers() {
+    when(customerRepo.findById("C-1"))
+        .thenReturn(Optional.of(new Customer("C-1", Tier.GOLD, 3)));
+
+    OrderSummary summary = pricingService.calculatePrice(order, "C-1");
+
+    assertEquals(new BigDecimal("85.00"), summary.getTotal()); // 15% discount
+}
+
+// INTEGRATION TEST - real database, test the query
+@SpringBootTest
+@Testcontainers
+class CustomerRepositoryIntegrationTest {
+
+    @Container
+    static PostgreSQLContainer&lt;?&gt; postgres = new PostgreSQLContainer&lt;&gt;("postgres:15");
+
+    @Autowired private CustomerRepository customerRepo;
+
+    @Test
+    void shouldFindCustomersByTier() {
+        customerRepo.save(new Customer("C-1", Tier.GOLD, 3));
+        customerRepo.save(new Customer("C-2", Tier.SILVER, 1));
+        customerRepo.save(new Customer("C-3", Tier.GOLD, 5));
+
+        List&lt;Customer&gt; goldCustomers = customerRepo.findByTier(Tier.GOLD);
+
+        assertEquals(2, goldCustomers.size());
+        assertTrue(goldCustomers.stream().allMatch(c -&gt; c.getTier() == Tier.GOLD));
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to follow the pyramid blindly:</strong>
+                        <ul>
+                            <li><strong>Data-pipeline systems:</strong> Integration tests matter more than unit tests because the logic lives in how components connect</li>
+                            <li><strong>CRUD apps with little business logic:</strong> A thin unit layer is fine; integration tests provide more value</li>
+                            <li><strong>UI-heavy apps:</strong> Consider the "testing trophy" (Kent C. Dodds) which emphasizes integration tests over unit tests</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> If asked "How would you test this system?" walk through the pyramid. "Unit tests for the pricing engine, integration tests for the repository layer, and one E2E test for the critical checkout path."
+                    </div>
+                </div>
+            </div>
+
+            <!-- TDD Red-Green-Refactor -->
+            <h2 class="mt-4">4. TDD Red-Green-Refactor</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>TDD Worked Example &mdash; Building a ShoppingCart</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why TDD:</strong> TDD is not about testing &mdash; it is a <strong>design technique</strong>. Writing the test first forces you to think about the interface before the implementation. It naturally produces small, focused classes with clear contracts.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    R["RED<br/>Write a failing test"] --> G["GREEN<br/>Write minimum code<br/>to pass"]
+    G --> RF["REFACTOR<br/>Clean up, no new<br/>behavior"]
+    RF --> R
+
+    style R fill:#e74c3c,stroke:#c0392b,color:#fff
+    style G fill:#27ae60,stroke:#229954,color:#fff
+    style RF fill:#3498db,stroke:#2980b9,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>Cycle 1: RED &mdash; Empty cart has zero total</h4>
+                    <pre><code class="language-java">// Test (fails - ShoppingCart does not exist yet)
+class ShoppingCartTest {
+
+    @Test
+    void newCartHasZeroTotal() {
+        ShoppingCart cart = new ShoppingCart();
+        assertEquals(BigDecimal.ZERO, cart.getTotal());
+    }
+}</code></pre>
+
+                    <h4>Cycle 1: GREEN &mdash; Minimal implementation</h4>
+                    <pre><code class="language-java">public class ShoppingCart {
+    public BigDecimal getTotal() {
+        return BigDecimal.ZERO;
+    }
+}</code></pre>
+
+                    <h4>Cycle 2: RED &mdash; Adding one item</h4>
+                    <pre><code class="language-java">@Test
+void totalReflectsSingleItem() {
+    ShoppingCart cart = new ShoppingCart();
+    cart.addItem("Widget", new BigDecimal("9.99"), 1);
+    assertEquals(new BigDecimal("9.99"), cart.getTotal());
+}</code></pre>
+
+                    <h4>Cycle 2: GREEN</h4>
+                    <pre><code class="language-java">public class ShoppingCart {
+    private final List&lt;LineItem&gt; items = new ArrayList&lt;&gt;();
+
+    public void addItem(String name, BigDecimal price, int quantity) {
+        items.add(new LineItem(name, price, quantity));
+    }
+
+    public BigDecimal getTotal() {
+        return items.stream()
+            .map(item -&gt; item.price().multiply(BigDecimal.valueOf(item.quantity())))
+            .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    record LineItem(String name, BigDecimal price, int quantity) {}
+}</code></pre>
+
+                    <h4>Cycle 3: RED &mdash; Multiple items with quantities</h4>
+                    <pre><code class="language-java">@Test
+void totalSumsMultipleItems() {
+    ShoppingCart cart = new ShoppingCart();
+    cart.addItem("Widget", new BigDecimal("9.99"), 2);  // 19.98
+    cart.addItem("Gadget", new BigDecimal("24.50"), 1); // 24.50
+    assertEquals(new BigDecimal("44.48"), cart.getTotal());
+}
+// GREEN: already passes with current implementation!</code></pre>
+
+                    <h4>Cycle 4: RED &mdash; Removing items</h4>
+                    <pre><code class="language-java">@Test
+void removeItemReducesTotal() {
+    ShoppingCart cart = new ShoppingCart();
+    cart.addItem("Widget", new BigDecimal("9.99"), 2);
+    cart.addItem("Gadget", new BigDecimal("24.50"), 1);
+
+    cart.removeItem("Widget");
+
+    assertEquals(new BigDecimal("24.50"), cart.getTotal());
+    assertEquals(1, cart.getItemCount());
+}</code></pre>
+
+                    <h4>Cycle 4: GREEN</h4>
+                    <pre><code class="language-java">public void removeItem(String name) {
+    items.removeIf(item -&gt; item.name().equals(name));
+}
+
+public int getItemCount() {
+    return items.size();
+}</code></pre>
+
+                    <h4>Cycle 5: RED &mdash; Edge cases</h4>
+                    <pre><code class="language-java">@Test
+void rejectsNegativeQuantity() {
+    ShoppingCart cart = new ShoppingCart();
+    assertThrows(IllegalArgumentException.class,
+        () -&gt; cart.addItem("Widget", new BigDecimal("9.99"), -1));
+}
+
+@Test
+void rejectsNegativePrice() {
+    ShoppingCart cart = new ShoppingCart();
+    assertThrows(IllegalArgumentException.class,
+        () -&gt; cart.addItem("Widget", new BigDecimal("-5.00"), 1));
+}
+
+@Test
+void removeNonExistentItemIsNoOp() {
+    ShoppingCart cart = new ShoppingCart();
+    cart.addItem("Widget", new BigDecimal("9.99"), 1);
+    cart.removeItem("NonExistent");
+    assertEquals(1, cart.getItemCount());
+}</code></pre>
+
+                    <h4>Cycle 5: GREEN + REFACTOR</h4>
+                    <pre><code class="language-java">public void addItem(String name, BigDecimal price, int quantity) {
+    if (quantity &lt;= 0) {
+        throw new IllegalArgumentException("Quantity must be positive, got: " + quantity);
+    }
+    if (price.compareTo(BigDecimal.ZERO) &lt; 0) {
+        throw new IllegalArgumentException("Price must be non-negative, got: " + price);
+    }
+    items.add(new LineItem(name, price, quantity));
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to use strict TDD:</strong>
+                        <ul>
+                            <li><strong>Exploratory prototypes:</strong> When you don't know the interface yet, spiking first is faster</li>
+                            <li><strong>UI/presentation code:</strong> Visual output is better validated visually</li>
+                            <li><strong>Framework glue code:</strong> Configuration classes, annotations &mdash; test through integration tests instead</li>
+                        </ul>
+                        <p>Many experienced engineers use "test-first" for business logic and "test-after" for infrastructure code. That is fine.</p>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> If asked "Do you practice TDD?", avoid absolutist answers. Say: "I use TDD when designing new business logic because it clarifies the API. For integration and infrastructure code, I often write tests after the spike to lock in behavior."
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testing Concurrent Code -->
+            <h2 class="mt-4">5. Testing Concurrent Code</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Concurrency Testing &mdash; Making Nondeterminism Deterministic</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why this is hard:</strong> Concurrency bugs (race conditions, deadlocks, visibility issues) are nondeterministic. A test that passes 999 times and fails once is worse than no test at all because it creates false confidence. The key is to use synchronization primitives to <em>force</em> the interleaving you want to test.</p>
+
+                    <h4>CountDownLatch &mdash; Coordinating Concurrent Test Threads</h4>
+
+                    <pre><code class="language-java">@Test
+void shouldHandleConcurrentDeposits() throws InterruptedException {
+    BankAccount account = new BankAccount("ACC-1", BigDecimal.ZERO);
+    int threadCount = 100;
+    BigDecimal depositAmount = new BigDecimal("10.00");
+
+    CountDownLatch startGate = new CountDownLatch(1);  // all threads wait
+    CountDownLatch endGate = new CountDownLatch(threadCount);  // main waits
+
+    for (int i = 0; i &lt; threadCount; i++) {
+        new Thread(() -&gt; {
+            try {
+                startGate.await();  // wait for signal
+                account.deposit(depositAmount);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                endGate.countDown();
+            }
+        }).start();
+    }
+
+    startGate.countDown();    // release all threads simultaneously
+    endGate.await(5, TimeUnit.SECONDS);  // wait for all to finish
+
+    // If deposit is not thread-safe, this will likely fail
+    assertEquals(new BigDecimal("1000.00"), account.getBalance());
+}</code></pre>
+
+                    <h4>Awaitility &mdash; Elegant Async Assertions</h4>
+                    <p>Awaitility eliminates fragile <code>Thread.sleep()</code> calls and replaces them with polling-based assertions that wait only as long as needed.</p>
+
+                    <pre><code class="language-java">import static org.awaitility.Awaitility.*;
+
+@Test
+void shouldProcessEventAsynchronously() {
+    EventBus eventBus = new EventBus();
+    TestEventHandler handler = new TestEventHandler();
+    eventBus.subscribe("order.created", handler);
+
+    eventBus.publish(new OrderCreatedEvent("ORD-123"));
+
+    // Polls every 100ms, fails after 5s
+    await().atMost(5, TimeUnit.SECONDS)
+           .pollInterval(100, TimeUnit.MILLISECONDS)
+           .untilAsserted(() -&gt; {
+               assertTrue(handler.wasInvoked());
+               assertEquals("ORD-123", handler.getLastOrderId());
+           });
+}
+
+@Test
+void shouldDrainQueueWithinTimeout() {
+    WorkQueue queue = new WorkQueue(4);  // 4 worker threads
+    queue.submitAll(generateTasks(50));
+
+    await().atMost(10, TimeUnit.SECONDS)
+           .until(() -&gt; queue.getPendingCount() == 0);
+
+    assertEquals(50, queue.getCompletedCount());
+    assertEquals(0, queue.getFailedCount());
+}</code></pre>
+
+                    <h4>Testing Thread Safety of a Cache</h4>
+                    <pre><code class="language-java">@RepeatedTest(10)  // Run multiple times to increase chance of catching races
+void cacheShouldBeThreadSafe() throws InterruptedException {
+    ThreadSafeCache&lt;String, Integer&gt; cache = new ThreadSafeCache&lt;&gt;(100);
+    int threads = 50;
+    CountDownLatch latch = new CountDownLatch(1);
+    CountDownLatch done = new CountDownLatch(threads);
+    AtomicInteger errors = new AtomicInteger(0);
+
+    for (int i = 0; i &lt; threads; i++) {
+        final int id = i;
+        new Thread(() -&gt; {
+            try {
+                latch.await();
+                // Mix reads and writes
+                cache.put("key-" + id, id);
+                cache.get("key-" + (id % 10));
+                cache.put("shared-key", id);  // contention point
+                Integer val = cache.get("shared-key");
+                if (val == null) errors.incrementAndGet();
+            } catch (Exception e) {
+                errors.incrementAndGet();
+            } finally {
+                done.countDown();
+            }
+        }).start();
+    }
+
+    latch.countDown();
+    assertTrue(done.await(10, TimeUnit.SECONDS));
+    assertEquals(0, errors.get(), "Concurrent operations should not cause errors");
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to write concurrency tests:</strong>
+                        <ul>
+                            <li>If the class is inherently single-threaded (called only from one thread, e.g., a request-scoped bean)</li>
+                            <li>If thread safety is guaranteed by the container (e.g., stateless Spring singletons with no mutable fields)</li>
+                            <li>If the concurrency is handled by a well-tested library (ConcurrentHashMap, Executors) &mdash; test your logic, not the JDK</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> If your LLD design has shared mutable state (e.g., parking lot's available spots, elevator's current floor), mention that you would write a concurrency test using CountDownLatch. This signals production awareness.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Property-Based Testing -->
+            <h2 class="mt-4">6. Property-Based Testing</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Property-Based Testing with jqwik</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why property-based testing:</strong> Instead of testing with specific examples ("add 3 and 5, expect 8"), you specify <em>properties</em> that must hold for all inputs ("for any two positive integers, their sum is greater than either"). The framework generates hundreds of random inputs and tries to find a counterexample. This catches edge cases humans overlook.</p>
+
+                    <h4>jqwik Example: Testing a Sorting Function</h4>
+                    <pre><code class="language-java">import net.jqwik.api.*;
+
+class SortingPropertyTest {
+
+    @Property
+    void sortedOutputHasSameSizeAsInput(@ForAll List&lt;Integer&gt; input) {
+        List&lt;Integer&gt; sorted = Sorter.sort(input);
+        assertEquals(input.size(), sorted.size());
+    }
+
+    @Property
+    void sortedOutputIsOrdered(@ForAll List&lt;Integer&gt; input) {
+        List&lt;Integer&gt; sorted = Sorter.sort(input);
+        for (int i = 1; i &lt; sorted.size(); i++) {
+            assertTrue(sorted.get(i - 1) &lt;= sorted.get(i),
+                "Element at " + (i - 1) + " should be &lt;= element at " + i);
+        }
+    }
+
+    @Property
+    void sortedOutputContainsSameElements(@ForAll List&lt;Integer&gt; input) {
+        List&lt;Integer&gt; sorted = Sorter.sort(input);
+        // Same elements, same frequencies
+        assertEquals(
+            input.stream().sorted().collect(Collectors.toList()),
+            sorted
+        );
+    }
+
+    @Property
+    void sortingIsIdempotent(@ForAll List&lt;Integer&gt; input) {
+        List&lt;Integer&gt; sortedOnce = Sorter.sort(input);
+        List&lt;Integer&gt; sortedTwice = Sorter.sort(sortedOnce);
+        assertEquals(sortedOnce, sortedTwice);
+    }
+}</code></pre>
+
+                    <h4>When Property-Based Testing Shines</h4>
+                    <pre><code class="language-java">// Serialization round-trip: serialize then deserialize = original
+@Property
+void jsonRoundTrip(@ForAll("users") User user) {
+    String json = serializer.toJson(user);
+    User deserialized = serializer.fromJson(json, User.class);
+    assertEquals(user, deserialized);
+}
+
+@Provide
+Arbitrary&lt;User&gt; users() {
+    Arbitrary&lt;String&gt; names = Arbitraries.strings().alpha().ofMinLength(1).ofMaxLength(50);
+    Arbitrary&lt;String&gt; emails = Arbitraries.strings().alpha().ofMinLength(3)
+        .map(s -&gt; s + "@example.com");
+    Arbitrary&lt;Integer&gt; ages = Arbitraries.integers().between(0, 150);
+    return Combinators.combine(names, emails, ages).as(User::new);
+}
+
+// Encoding round-trip
+@Property
+void base64RoundTrip(@ForAll byte[] data) {
+    String encoded = Base64.getEncoder().encodeToString(data);
+    byte[] decoded = Base64.getDecoder().decode(encoded);
+    assertArrayEquals(data, decoded);
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to use property-based testing:</strong>
+                        <ul>
+                            <li><strong>CRUD operations</strong> &mdash; hard to express meaningful properties beyond "it doesn't crash"</li>
+                            <li><strong>Complex business rules</strong> where the property would just restate the implementation</li>
+                            <li><strong>UI tests</strong> &mdash; visual correctness is not easily expressed as a property</li>
+                            <li><strong>When example-based tests are clearer</strong> &mdash; don't use it just because you can</li>
+                        </ul>
+                        <p>Best for: parsers, serializers, encoders, mathematical functions, data structure invariants.</p>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> You probably won't write property-based tests in an interview, but mentioning "I'd also add property-based tests for the serializer round-trip" shows depth beyond the standard toolbox.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testability by Design -->
+            <h2 class="mt-4">7. Testability by Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Designing Code That Is Easy to Test</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why this matters most:</strong> The number one reason code is hard to test is not the testing tools &mdash; it is the code's design. Testable code is loosely coupled, has clear interfaces, and avoids hidden dependencies. These are the exact same properties that make code maintainable.</p>
+
+                    <h4>Dependency Injection &mdash; Pass, Don't Construct</h4>
+
+                    <pre><code class="language-java">// HARD TO TEST: creates its own dependency
+public class OrderProcessor {
+    public void process(Order order) {
+        PaymentGateway gateway = new StripePaymentGateway(); // hidden dependency!
+        gateway.charge(order.getTotal());
+        // How do you test this without hitting Stripe?
+    }
+}
+
+// EASY TO TEST: dependency injected
+public class OrderProcessor {
+    private final PaymentGateway gateway;
+
+    public OrderProcessor(PaymentGateway gateway) {  // inject it
+        this.gateway = gateway;
+    }
+
+    public void process(Order order) {
+        gateway.charge(order.getTotal());
+    }
+}
+
+// Test
+@Test
+void shouldChargeCorrectAmount() {
+    PaymentGateway mockGateway = mock(PaymentGateway.class);
+    OrderProcessor processor = new OrderProcessor(mockGateway);
+
+    processor.process(orderOf(new BigDecimal("49.99")));
+
+    verify(mockGateway).charge(new BigDecimal("49.99"));
+}</code></pre>
+
+                    <h4>Interface Extraction &mdash; Program to Abstractions</h4>
+
+                    <pre><code class="language-java">// HARD TO TEST: depends on concrete class with network calls
+public class ReportGenerator {
+    private final AwsS3Client s3Client; // concrete AWS SDK class
+
+    public Report generate(String dataKey) {
+        byte[] data = s3Client.getObject("my-bucket", dataKey); // real AWS call
+        return parseAndGenerate(data);
+    }
+}
+
+// EASY TO TEST: extract an interface
+public interface FileStorage {
+    byte[] read(String key);
+    void write(String key, byte[] data);
+}
+
+public class S3FileStorage implements FileStorage {
+    private final AwsS3Client s3Client;
+    // ... real implementation
+}
+
+public class ReportGenerator {
+    private final FileStorage storage;  // depends on interface
+
+    public Report generate(String dataKey) {
+        byte[] data = storage.read(dataKey);
+        return parseAndGenerate(data);
+    }
+}
+
+// Test with in-memory implementation
+public class InMemoryFileStorage implements FileStorage {
+    private final Map&lt;String, byte[]&gt; files = new HashMap&lt;&gt;();
+
+    @Override
+    public byte[] read(String key) {
+        return files.get(key);
+    }
+
+    @Override
+    public void write(String key, byte[] data) {
+        files.put(key, data);
+    }
+}
+
+@Test
+void shouldGenerateReportFromStoredData() {
+    InMemoryFileStorage storage = new InMemoryFileStorage();
+    storage.write("data.csv", "name,score\nAlice,95\nBob,87".getBytes());
+
+    ReportGenerator generator = new ReportGenerator(storage);
+    Report report = generator.generate("data.csv");
+
+    assertEquals(2, report.getRowCount());
+}</code></pre>
+
+                    <h4>Clock Injection &mdash; Taming Time</h4>
+                    <p>Code that calls <code>Instant.now()</code> or <code>LocalDate.now()</code> directly is impossible to test deterministically.</p>
+
+                    <pre><code class="language-java">// HARD TO TEST: time is not controllable
+public class SubscriptionService {
+    public boolean isExpired(Subscription sub) {
+        return sub.getExpiryDate().isBefore(LocalDate.now()); // untestable!
+    }
+}
+
+// EASY TO TEST: inject a Clock
+public class SubscriptionService {
+    private final Clock clock;
+
+    public SubscriptionService(Clock clock) {
+        this.clock = clock;
+    }
+
+    public boolean isExpired(Subscription sub) {
+        return sub.getExpiryDate().isBefore(LocalDate.now(clock));
+    }
+}
+
+// Production: new SubscriptionService(Clock.systemDefaultZone())
+// Test:
+@Test
+void shouldDetectExpiredSubscription() {
+    Clock fixedClock = Clock.fixed(
+        LocalDate.of(2025, 6, 15).atStartOfDay(ZoneId.systemDefault()).toInstant(),
+        ZoneId.systemDefault()
+    );
+    SubscriptionService service = new SubscriptionService(fixedClock);
+
+    Subscription sub = new Subscription(LocalDate.of(2025, 6, 1)); // expired
+
+    assertTrue(service.isExpired(sub));
+}
+
+@Test
+void shouldDetectActiveSubscription() {
+    Clock fixedClock = Clock.fixed(
+        LocalDate.of(2025, 6, 15).atStartOfDay(ZoneId.systemDefault()).toInstant(),
+        ZoneId.systemDefault()
+    );
+    SubscriptionService service = new SubscriptionService(fixedClock);
+
+    Subscription sub = new Subscription(LocalDate.of(2025, 12, 31)); // still active
+
+    assertFalse(service.isExpired(sub));
+}</code></pre>
+
+                    <h4>Avoiding Static Methods</h4>
+
+                    <pre><code class="language-java">// HARD TO TEST: static methods cannot be mocked (without PowerMock hacks)
+public class NotificationSender {
+    public void send(String userId, String message) {
+        String email = UserDirectory.lookupEmail(userId);  // static call!
+        SmtpClient.send(email, message);                   // static call!
+    }
+}
+
+// EASY TO TEST: wrap static calls behind injectable interfaces
+public class NotificationSender {
+    private final UserDirectory userDirectory;
+    private final MailClient mailClient;
+
+    public NotificationSender(UserDirectory userDirectory, MailClient mailClient) {
+        this.userDirectory = userDirectory;
+        this.mailClient = mailClient;
+    }
+
+    public void send(String userId, String message) {
+        String email = userDirectory.lookupEmail(userId);
+        mailClient.send(email, message);
+    }
+}</code></pre>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>When NOT to over-engineer for testability:</strong>
+                        <ul>
+                            <li><strong>Simple utility/math functions:</strong> <code>Math.max(a, b)</code> does not need an interface</li>
+                            <li><strong>One implementation forever:</strong> If there will never be a second implementation, an interface adds indirection for no gain. Use a class and mock it if needed</li>
+                            <li><strong>Prototypes:</strong> Adding DI and interfaces slows exploration. Refactor for testability when the design stabilizes</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Interview Tip:</strong> When presenting your LLD solution, say "I'm injecting the repository through the constructor so we can unit-test the service with a mock." This demonstrates design-for-testability naturally.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff vs Senior Callout -->
+            <div class="card mt-4" style="background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 165, 0, 0.15)); border-left: 4px solid #f0a500;">
+                <h3>Staff vs Senior: Testing Perspective</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-top: 0.5rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Dimension</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Senior Engineer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Staff Engineer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Scope</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Writes good tests for their own code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sets testing standards across teams, defines what "well-tested" means for the org</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Coverage</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Aims for high line coverage</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Defines meaningful coverage policies (e.g., "100% branch coverage on payment paths, 80% elsewhere")</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Strategy</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Follows the test pyramid</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adapts the testing strategy to the system (trophy for frontend, diamond for data pipelines)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Flaky Tests</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fixes flaky tests they encounter</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Builds infrastructure to detect, quarantine, and track flaky tests across the org</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>CI/CD</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ensures tests pass in CI</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Designs the test pipeline: parallelism, selective test runs, test impact analysis</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Influence</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Mentors juniors on writing tests</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Champions testing culture, makes the business case for investment in test infrastructure</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Self-Check Quiz -->
+            <h2 class="mt-4">Self-Check Quiz</h2>
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- Flashcard Suggestions -->
+            <h2 class="mt-4">Flashcard Suggestions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5 Q&amp;A Pairs for Spaced Repetition</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Front (Question)</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Back (Answer)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What is the difference between a Mockito <strong>mock</strong> and a <strong>spy</strong>?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">A mock is a complete substitute (all methods return defaults unless stubbed). A spy wraps a real object &mdash; unstubbed methods call the real implementation. Use spies for legacy code you can't refactor.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What are the three steps of the TDD cycle?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RED (write a failing test), GREEN (write minimum code to pass), REFACTOR (clean up without adding behavior). Then repeat.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">How do you make time-dependent code testable in Java?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Inject a <code>java.time.Clock</code> via the constructor. In production, pass <code>Clock.systemDefaultZone()</code>. In tests, pass <code>Clock.fixed(...)</code> to control the current time.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What is property-based testing and when is it most useful?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Instead of specific examples, you specify invariants that must hold for all generated inputs (e.g., "encoding then decoding produces the original"). Best for: serialization round-trips, parsers, mathematical functions, data structure invariants.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">What pattern lets you coordinate many threads to start simultaneously in a test?</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Use a <code>CountDownLatch(1)</code> as a start gate. All threads call <code>await()</code>, then the test calls <code>countDown()</code> to release them at once. A second latch counts completion.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Practice Exercise -->
+            <h2 class="mt-4">Practice Exercise: TDD a Stack</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Exercise &mdash; Build a Generic Stack Using TDD</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Task:</strong> Implement a generic <code>BoundedStack&lt;T&gt;</code> class using strict TDD (write the test first, then the code). The stack has a maximum capacity.</p>
+
+                    <h4>Requirements</h4>
+                    <ul>
+                        <li><code>push(T item)</code> &mdash; adds to the top; throws <code>StackOverflowException</code> if full</li>
+                        <li><code>pop()</code> &mdash; removes and returns the top; throws <code>EmptyStackException</code> if empty</li>
+                        <li><code>peek()</code> &mdash; returns the top without removing; throws <code>EmptyStackException</code> if empty</li>
+                        <li><code>size()</code> &mdash; returns the number of elements</li>
+                        <li><code>isEmpty()</code> and <code>isFull()</code> &mdash; boolean queries</li>
+                        <li>Rejects <code>null</code> items</li>
+                        <li>Capacity must be a positive integer (validated in constructor)</li>
+                    </ul>
+
+                    <h4>Suggested TDD Order</h4>
+                    <ol>
+                        <li>New stack is empty and has size 0</li>
+                        <li>Push one item, size is 1, isEmpty is false</li>
+                        <li>Push and pop returns the same item (LIFO)</li>
+                        <li>Push two, pop returns the second (LIFO order)</li>
+                        <li>Pop on empty stack throws EmptyStackException</li>
+                        <li>Peek returns top without removing</li>
+                        <li>Push to capacity, isFull is true</li>
+                        <li>Push beyond capacity throws StackOverflowException</li>
+                        <li>Push null throws NullPointerException</li>
+                        <li>Constructor rejects zero or negative capacity</li>
+                    </ol>
+
+                    <h4>Sample Solution</h4>
+
+                    <pre><code class="language-java">// Tests
+class BoundedStackTest {
+
+    @Test
+    void newStackIsEmpty() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        assertTrue(stack.isEmpty());
+        assertEquals(0, stack.size());
+    }
+
+    @Test
+    void pushIncreasesSize() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        stack.push("A");
+        assertFalse(stack.isEmpty());
+        assertEquals(1, stack.size());
+    }
+
+    @Test
+    void popReturnsLastPushedItem() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        stack.push("A");
+        assertEquals("A", stack.pop());
+        assertTrue(stack.isEmpty());
+    }
+
+    @Test
+    void stackIsLifo() {
+        BoundedStack&lt;Integer&gt; stack = new BoundedStack&lt;&gt;(5);
+        stack.push(1);
+        stack.push(2);
+        stack.push(3);
+        assertEquals(3, stack.pop());
+        assertEquals(2, stack.pop());
+        assertEquals(1, stack.pop());
+    }
+
+    @Test
+    void popOnEmptyThrows() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        assertThrows(EmptyStackException.class, stack::pop);
+    }
+
+    @Test
+    void peekReturnsTopWithoutRemoving() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        stack.push("A");
+        assertEquals("A", stack.peek());
+        assertEquals(1, stack.size()); // still there
+    }
+
+    @Test
+    void peekOnEmptyThrows() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        assertThrows(EmptyStackException.class, stack::peek);
+    }
+
+    @Test
+    void pushToCapacityMakesItFull() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(2);
+        stack.push("A");
+        stack.push("B");
+        assertTrue(stack.isFull());
+    }
+
+    @Test
+    void pushBeyondCapacityThrows() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(1);
+        stack.push("A");
+        assertThrows(StackOverflowException.class, () -&gt; stack.push("B"));
+    }
+
+    @Test
+    void pushNullThrows() {
+        BoundedStack&lt;String&gt; stack = new BoundedStack&lt;&gt;(5);
+        assertThrows(NullPointerException.class, () -&gt; stack.push(null));
+    }
+
+    @Test
+    void constructorRejectsInvalidCapacity() {
+        assertThrows(IllegalArgumentException.class, () -&gt; new BoundedStack&lt;&gt;(0));
+        assertThrows(IllegalArgumentException.class, () -&gt; new BoundedStack&lt;&gt;(-3));
+    }
+}
+
+// Implementation
+public class BoundedStack&lt;T&gt; {
+    private final Object[] elements;
+    private int top = -1;
+
+    public BoundedStack(int capacity) {
+        if (capacity &lt;= 0) {
+            throw new IllegalArgumentException(
+                "Capacity must be positive, got: " + capacity);
+        }
+        this.elements = new Object[capacity];
+    }
+
+    public void push(T item) {
+        Objects.requireNonNull(item, "Cannot push null onto stack");
+        if (isFull()) {
+            throw new StackOverflowException(
+                "Stack is full (capacity: " + elements.length + ")");
+        }
+        elements[++top] = item;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T pop() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        T item = (T) elements[top];
+        elements[top--] = null; // help GC
+        return item;
+    }
+
+    @SuppressWarnings("unchecked")
+    public T peek() {
+        if (isEmpty()) {
+            throw new EmptyStackException();
+        }
+        return (T) elements[top];
+    }
+
+    public int size() {
+        return top + 1;
+    }
+
+    public boolean isEmpty() {
+        return top == -1;
+    }
+
+    public boolean isFull() {
+        return top == elements.length - 1;
+    }
+}</code></pre>
+
+                    <p><strong>Bonus challenges:</strong></p>
+                    <ul>
+                        <li>Add a concurrency test: push and pop from multiple threads simultaneously</li>
+                        <li>Add a property-based test: "push N items then pop N items in reverse order"</li>
+                        <li>Implement <code>Iterable&lt;T&gt;</code> and test the iterator (should not modify the stack)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-08.html" class="btn btn-secondary">&larr; Previous: Code Quality &amp; Refactoring</a>
+                <a href="module-10.html" class="btn btn-primary">Next: Advanced OOP Concepts &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+
+            const quizQuestions = [
+                {
+                    question: "What does assertAll() do differently from writing multiple assertEquals() calls?",
+                    options: [
+                        "It runs faster",
+                        "It executes all assertions even if one fails, showing all failures at once",
+                        "It automatically retries failing assertions",
+                        "It generates parameterized test cases"
+                    ],
+                    correct: 1,
+                    explanation: "assertAll() runs every assertion in the group and reports all failures together, instead of stopping at the first failure. This gives you a complete picture of what's broken."
+                },
+                {
+                    question: "When should you use a Mockito spy instead of a mock?",
+                    options: [
+                        "Always, because spies are more realistic",
+                        "When testing legacy code where you want real behavior but need to override specific methods",
+                        "When you need faster test execution",
+                        "When the class has no interfaces"
+                    ],
+                    correct: 1,
+                    explanation: "Spies wrap real objects and call real methods unless overridden. They're useful for legacy code where you can't easily inject mocks but need to stub out specific operations like network calls."
+                },
+                {
+                    question: "What is the correct order of the TDD cycle?",
+                    options: [
+                        "Green, Red, Refactor",
+                        "Refactor, Red, Green",
+                        "Red, Green, Refactor",
+                        "Red, Refactor, Green"
+                    ],
+                    correct: 2,
+                    explanation: "RED (write a failing test first), GREEN (write the minimum code to make it pass), REFACTOR (clean up without changing behavior). Then repeat."
+                },
+                {
+                    question: "How do you make time-dependent code testable?",
+                    options: [
+                        "Use Thread.sleep() in tests to wait for the right time",
+                        "Mock the System class",
+                        "Inject a java.time.Clock and use Clock.fixed() in tests",
+                        "Set the system clock before each test"
+                    ],
+                    correct: 2,
+                    explanation: "Injecting a Clock through the constructor lets you pass Clock.fixed() in tests for deterministic time, and Clock.systemDefaultZone() in production."
+                },
+                {
+                    question: "Which testing technique is best for verifying serialization round-trips?",
+                    options: [
+                        "Mutation testing",
+                        "Property-based testing",
+                        "Integration testing",
+                        "End-to-end testing"
+                    ],
+                    correct: 1,
+                    explanation: "Property-based testing can generate hundreds of random objects and verify that serialize(deserialize(x)) == x for all of them, catching edge cases humans would miss."
+                },
+                {
+                    question: "What is the primary purpose of CountDownLatch in concurrency tests?",
+                    options: [
+                        "To count how many threads have failed",
+                        "To limit the number of threads",
+                        "To coordinate threads so they start simultaneously and signal completion",
+                        "To measure thread execution time"
+                    ],
+                    correct: 2,
+                    explanation: "A CountDownLatch(1) as a start gate releases all waiting threads at once (maximizing contention), and a second latch lets the test wait for all threads to finish before asserting."
+                }
+            ];
+
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+        });
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>

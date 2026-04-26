@@ -1162,20 +1162,22 @@ public class FloorDisplay implements ElevatorObserver {
 
 public class InternalPanel {
     private final Elevator elevator;
+    private final ElevatorController controller;
     private final int numFloors;
 
-    public InternalPanel(Elevator elevator, int numFloors) {
+    public InternalPanel(Elevator elevator, ElevatorController controller,
+            int numFloors) {
         this.elevator = elevator;
+        this.controller = controller;
         this.numFloors = numFloors;
     }
 
     public void pressFloorButton(int floor) {
-        if (floor < 1 || floor > numFloors) {
+        if (floor &lt; 1 || floor &gt; numFloors) {
             throw new IllegalArgumentException("Invalid floor");
         }
 
-        ElevatorController.getInstance(0, 0, 0)
-            .selectFloor(elevator.getId(), floor);
+        controller.selectFloor(elevator.getId(), floor);
     }
 
     public void pressOpenDoorButton() {
@@ -1340,7 +1342,60 @@ public void handlePowerFailure(Elevator elevator) {
                 </div>
             </div>
 
-            <h2>8. Interview Tips</h2>
+            <h2>8. Staff vs Senior Callout</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.15), rgba(139, 92, 246, 0.15)); border-left: 4px solid #ec4899;">
+                <h3>What Staff Engineers Discuss That Seniors Don't</h3>
+                <table>
+                    <tr><th>Aspect</th><th>Senior</th><th>Staff</th></tr>
+                    <tr><td>Concurrency</td><td>Uses synchronized on destinations</td><td>Discusses lock ordering between Elevator and Controller, uses ReentrantLock with tryLock to prevent deadlocks, considers lock-free alternatives with ConcurrentSkipListSet</td></tr>
+                    <tr><td>Scheduling</td><td>Implements nearest-elevator</td><td>Compares LOOK/SCAN/C-SCAN algorithms, discusses fairness guarantees, starvation prevention, and energy optimization</td></tr>
+                    <tr><td>Testability</td><td>Mentions testing exists</td><td>Injects Clock for time-dependent tests, uses DI instead of Singleton for controller, provides ScheduledExecutorService as injectable dependency</td></tr>
+                    <tr><td>Failure Modes</td><td>Handles basic errors</td><td>Discusses sensor failures, door obstruction recovery, graceful degradation when elevator count drops, monitoring/alerting integration</td></tr>
+                    <tr><td>Scale</td><td>Handles the given building</td><td>Discusses sky lobbies, express zones, multi-building coordination, and how the design changes at 100+ floors</td></tr>
+                </table>
+            </div>
+
+            <h2>9. Scale-Out: From One Building to Campus</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Scaling the Elevator System</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">// Scale-Out Considerations:
+
+// 1. Multi-Building: Replace Singleton with BuildingManager
+public class CampusElevatorManager {
+    private final Map&lt;String, ElevatorController&gt; buildings;
+
+    public ElevatorController getController(String buildingId) {
+        return buildings.get(buildingId);
+    }
+}
+
+// 2. 100+ Floor Building: Zone-based express elevators
+// - Low-rise: Floors 1-30 (local elevators)
+// - Mid-rise: Floors 30-60 (express to 30, local above)
+// - High-rise: Floors 60-100 (express to 60, local above)
+// - Sky lobbies at floors 30 and 60
+
+// 3. Monitoring Integration
+// - Track wait times per floor, peak hours
+// - Predictive pre-positioning during known patterns
+//   (e.g., morning rush: elevators wait at lobby)
+// - Energy optimization: sleep mode during off-hours
+
+// 4. Distributed Coordination
+// - Each elevator has its own microcontroller
+// - Central coordinator sends assignments
+// - Heartbeat monitoring for elevator health
+// - Graceful degradation: if coordinator fails,
+//   elevators fall back to independent LOOK algorithm</code></pre>
+                </div>
+            </div>
+
+            <h2>10. Interview Tips</h2>
 
             <div class="card">
                 <h3>Key Points to Emphasize</h3>
