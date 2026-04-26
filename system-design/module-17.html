@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 13: Search &amp; Indexing - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .formula-box {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem 0;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            text-align: center;
+            font-size: 1.1rem;
+            line-height: 2;
+        }
+        .formula-box .label {
+            color: #90cdf4;
+            font-weight: 600;
+            font-family: inherit;
+        }
+        .geohash-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2px;
+            max-width: 320px;
+            margin: 1rem auto;
+        }
+        .geohash-cell {
+            background: #2d3748;
+            color: #e2e8f0;
+            text-align: center;
+            padding: 0.75rem 0.5rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .geohash-cell.highlight {
+            background: #2b6cb0;
+            color: #fff;
+            font-weight: 700;
+        }
+        .precision-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .precision-table th, .precision-table td {
+            border: 1px solid #4a5568;
+            padding: 0.5rem 0.75rem;
+            text-align: center;
+        }
+        .precision-table th {
+            background: #2d3748;
+            color: #90cdf4;
+        }
+        .signal-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0.25rem 0;
+        }
+        .tradeoff-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        @media (max-width: 600px) {
+            .tradeoff-grid { grid-template-columns: 1fr; }
+        }
+        .tradeoff-card {
+            background: #1a202c;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            border-left: 4px solid #667eea;
+        }
+        .tradeoff-card h4 { margin-top: 0; color: #90cdf4; }
+        .tradeoff-card.con { border-left-color: #fc8181; }
+        .tradeoff-card.con h4 { color: #fc8181; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+
+            <!-- ============================================================ -->
+            <!-- HERO / TITLE -->
+            <!-- ============================================================ -->
+            <h1>Module 13: Search &amp; Indexing</h1>
+            <p class="subtitle" style="font-size:1.15rem;color:#a0aec0;margin-bottom:2rem;">
+                From inverted indexes to learning-to-rank &mdash; everything a staff engineer needs to
+                design, scale, and reason about search systems in interviews and production.
+            </p>
+
+            <!-- ============================================================ -->
+            <!-- LEARNING OBJECTIVES -->
+            <!-- ============================================================ -->
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why full-text search is fundamentally different from database queries</li>
+                    <li>How inverted indexes power every major search engine</li>
+                    <li>Elasticsearch / Lucene internals: shards, segments, scoring</li>
+                    <li>Autocomplete / typeahead architecture at scale</li>
+                    <li>Geo-spatial search with geohash, quadtrees, and R-trees</li>
+                    <li>Ranking &amp; relevance: BM25, learning-to-rank, personalization</li>
+                    <li>Scaling search: sharding, scatter-gather, caching, index update pipelines</li>
+                    <li>Real-world architectures at Google, Uber, and Amazon</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. WHY SEARCH IS HARD -->
+            <!-- ============================================================ -->
+            <h2 id="why-search-is-hard">1. Why Search Is Hard</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full-Text Search vs. Database Queries</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Relational databases excel at structured lookups: <code>SELECT * FROM users WHERE id = 42</code>
+                        executes in microseconds using a B-tree index. But try searching for <em>"best pizza near me open late"</em>
+                        and you hit a wall: every word must be matched loosely (stemming, synonyms, typo tolerance), relevance
+                        must be ranked, and results must appear in &lt;200 ms at enormous scale.
+                    </p>
+
+                    <table class="precision-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Database Query</th>
+                                <th>Full-Text Search</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Matching</td><td>Exact / range</td><td>Fuzzy, stemmed, synonym-aware</td></tr>
+                            <tr><td>Ranking</td><td>ORDER BY column</td><td>Relevance scoring (BM25, ML)</td></tr>
+                            <tr><td>Index type</td><td>B-tree / hash</td><td>Inverted index</td></tr>
+                            <tr><td>Latency target</td><td>&lt;10 ms typical</td><td>&lt;200 ms p99 for user-facing</td></tr>
+                            <tr><td>Scale example</td><td>Billions of rows</td><td>Google: 100B+ web pages indexed</td></tr>
+                            <tr><td>Updates</td><td>ACID transactions</td><td>Near-real-time (1-second refresh)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>The Scale Challenge</h4>
+                    <p>
+                        Google processes over <strong>8.5 billion searches per day</strong> (2024) against an index of 100+ billion web pages.
+                        Each query fans out to thousands of machines, each holding a shard of the index. Results are merged, re-ranked,
+                        and returned in under 500 ms including network round-trips. This requires:
+                    </p>
+                    <ul>
+                        <li><strong>Inverted indexes</strong> that compress billions of posting lists into memory</li>
+                        <li><strong>Tiered caching</strong> &mdash; result cache, posting list cache, filter cache</li>
+                        <li><strong>Scatter-gather parallelism</strong> across thousands of shards</li>
+                        <li><strong>Approximate scoring</strong> to avoid scoring every matching document</li>
+                    </ul>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        In interviews, demonstrate that you understand <em>why</em> search is a separate subsystem and not
+                        just a <code>LIKE '%term%'</code> query. A staff engineer chooses Elasticsearch when they need fuzzy
+                        matching, relevance ranking, or faceting &mdash; not for exact key lookups.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. INVERTED INDEX -->
+            <!-- ============================================================ -->
+            <h2 id="inverted-index">2. The Inverted Index</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How It Works: From Documents to Postings</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        An <strong>inverted index</strong> is the foundational data structure behind every search engine.
+                        Instead of mapping <em>document &rarr; words</em> (forward index), it maps <em>word &rarr; documents</em>.
+                        This lets you answer "which documents contain the word 'distributed'?" in O(1) lookup time rather
+                        than scanning every document.
+                    </p>
+
+                    <h4>Worked Example</h4>
+                    <p>Consider three documents:</p>
+                    <pre class="code-block"><code>Doc 1: "distributed systems are scalable"
+Doc 2: "search systems use inverted indexes"
+Doc 3: "distributed search at scale"</code></pre>
+
+                    <p><strong>Step 1 &mdash; Tokenization:</strong> Split each document into tokens (words), lowercased.</p>
+                    <p><strong>Step 2 &mdash; Stop-word removal:</strong> Remove common words like "are", "use", "at".</p>
+                    <p><strong>Step 3 &mdash; Stemming:</strong> Reduce words to root forms: "scalable" &rarr; "scalabl", "systems" &rarr; "system", "indexes" &rarr; "index".</p>
+                    <p><strong>Step 4 &mdash; Build the inverted index:</strong></p>
+
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Term</th><th>Document Frequency</th><th>Posting List (doc_id : position)</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>distribut</td><td>2</td><td>[1:0, 3:0]</td></tr>
+                            <tr><td>system</td><td>2</td><td>[1:1, 2:1]</td></tr>
+                            <tr><td>scalabl</td><td>1</td><td>[1:3]</td></tr>
+                            <tr><td>search</td><td>2</td><td>[2:0, 3:1]</td></tr>
+                            <tr><td>invert</td><td>1</td><td>[2:2]</td></tr>
+                            <tr><td>index</td><td>1</td><td>[2:3]</td></tr>
+                            <tr><td>scale</td><td>1</td><td>[3:2]</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Mermaid: Document-to-Index Mapping</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Documents
+        D1["Doc 1: distributed systems are scalable"]
+        D2["Doc 2: search systems use inverted indexes"]
+        D3["Doc 3: distributed search at scale"]
+    end
+
+    subgraph Analyzer
+        TOK[Tokenizer]
+        SW[Stop-word Filter]
+        ST[Stemmer]
+    end
+
+    subgraph InvertedIndex["Inverted Index"]
+        T1["distribut -> [1, 3]"]
+        T2["system -> [1, 2]"]
+        T3["search -> [2, 3]"]
+        T4["scalabl -> [1]"]
+        T5["invert -> [2]"]
+        T6["index -> [2]"]
+        T7["scale -> [3]"]
+    end
+
+    D1 --> TOK
+    D2 --> TOK
+    D3 --> TOK
+    TOK --> SW --> ST --> InvertedIndex
+                        </div>
+                    </div>
+
+                    <h4>Why Inverted Indexes Are Fast</h4>
+                    <ul>
+                        <li><strong>O(1) term lookup</strong> via hash map or sorted dictionary</li>
+                        <li><strong>Posting list intersection</strong> for AND queries: merge two sorted lists in O(n+m)</li>
+                        <li><strong>Compression:</strong> Delta-encoding + variable-byte encoding shrinks posting lists by 5-10x</li>
+                        <li><strong>Skip pointers:</strong> Allow jumping ahead in long posting lists during intersection</li>
+                    </ul>
+
+                    <h4>Key Concepts for Interviews</h4>
+                    <div class="card-grid">
+                        <div class="card">
+                            <h3>Tokenization</h3>
+                            <p>Breaking text into terms. Choices: whitespace, n-gram, word-piece (BERT-style). Affects recall vs. index size.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Stemming vs. Lemmatization</h3>
+                            <p>Stemming (Porter algorithm) is fast but crude: "running" &rarr; "run". Lemmatization uses dictionaries for accuracy: "better" &rarr; "good".</p>
+                        </div>
+                        <div class="card">
+                            <h3>Stop Words</h3>
+                            <p>High-frequency words ("the", "is", "at") that add noise. Modern engines keep them but down-weight using IDF.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Positional Index</h3>
+                            <p>Stores word positions to support phrase queries ("distributed systems") and proximity scoring.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. ELASTICSEARCH / LUCENE DEEP DIVE -->
+            <!-- ============================================================ -->
+            <h2 id="elasticsearch">3. Elasticsearch / Lucene Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Architecture: Nodes, Shards, and Replicas</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Elasticsearch is a distributed search engine built on top of Apache Lucene. It organizes data into
+                        <strong>indexes</strong> (logical namespaces), each split into <strong>shards</strong> (Lucene instances),
+                        each optionally replicated for fault tolerance.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    Client([Client]) --> Coord["Coordinating Node"]
+
+    Coord --> N1["Data Node 1"]
+    Coord --> N2["Data Node 2"]
+    Coord --> N3["Data Node 3"]
+
+    subgraph N1["Data Node 1"]
+        S0P["Shard 0 (Primary)"]
+        S2R["Shard 2 (Replica)"]
+    end
+    subgraph N2["Data Node 2"]
+        S1P["Shard 1 (Primary)"]
+        S0R["Shard 0 (Replica)"]
+    end
+    subgraph N3["Data Node 3"]
+        S2P["Shard 2 (Primary)"]
+        S1R["Shard 1 (Replica)"]
+    end
+
+    Master["Master Node<br/>(cluster state)"] -.-> N1
+    Master -.-> N2
+    Master -.-> N3
+                        </div>
+                    </div>
+
+                    <h4>Node Roles</h4>
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Role</th><th>Responsibility</th><th>Scaling Tip</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Master</td><td>Cluster state, shard allocation</td><td>3 dedicated master nodes for HA</td></tr>
+                            <tr><td>Data</td><td>Stores shards, executes queries</td><td>Scale horizontally; hot-warm-cold tiers</td></tr>
+                            <tr><td>Coordinating</td><td>Routes requests, merges results</td><td>Stateless; scale behind load balancer</td></tr>
+                            <tr><td>Ingest</td><td>Pre-processes documents (pipelines)</td><td>Separate if heavy transformations</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Lucene Internals: Segments</h4>
+                    <p>
+                        Each Lucene shard is composed of immutable <strong>segments</strong>. When documents are indexed:
+                    </p>
+                    <ol>
+                        <li>New documents go into an <strong>in-memory buffer</strong></li>
+                        <li>Every <code>refresh_interval</code> (default 1 second), the buffer is flushed to a new segment on disk &mdash; making documents <strong>searchable</strong></li>
+                        <li>Periodically, segments are <strong>merged</strong> into larger segments (background thread)</li>
+                        <li>Deleted documents are marked in a <code>.del</code> file and purged during merges</li>
+                    </ol>
+                    <p>
+                        This is why Elasticsearch is called <strong>near-real-time</strong>: there is a 1-second gap (configurable)
+                        between indexing and searchability.
+                    </p>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        Explain segment merging trade-offs: fewer segments = faster queries (less merging at read time),
+                        but aggressive merging burns I/O. Tuning <code>merge_policy</code> and <code>refresh_interval</code>
+                        is a key operational concern at scale.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Mappings, Analyzers, and Query DSL</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Mappings</h4>
+                    <p>
+                        Mappings define the schema: field names, types (<code>text</code>, <code>keyword</code>, <code>integer</code>,
+                        <code>geo_point</code>), and per-field analyzers. Key distinction:
+                    </p>
+                    <ul>
+                        <li><code>text</code> &mdash; analyzed (tokenized, stemmed). Used for full-text search.</li>
+                        <li><code>keyword</code> &mdash; stored verbatim. Used for exact match, aggregations, sorting.</li>
+                    </ul>
+
+                    <h4>Analyzer Pipeline</h4>
+                    <pre class="code-block"><code>{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "custom_english": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "english_stop", "english_stemmer"]
+        }
+      },
+      "filter": {
+        "english_stop": { "type": "stop", "stopwords": "_english_" },
+        "english_stemmer": { "type": "stemmer", "language": "english" }
+      }
+    }
+  }
+}</code></pre>
+
+                    <h4>Query DSL Examples</h4>
+                    <pre class="code-block"><code>// Match query (full-text, analyzed)
+{ "query": { "match": { "title": "distributed systems" } } }
+
+// Bool query (combine conditions)
+{
+  "query": {
+    "bool": {
+      "must":   [{ "match": { "title": "search engine" } }],
+      "filter": [{ "range": { "publish_date": { "gte": "2023-01-01" } } }],
+      "should": [{ "match": { "tags": "elasticsearch" } }],
+      "must_not": [{ "term": { "status": "draft" } }]
+    }
+  }
+}
+
+// Aggregation (faceted search)
+{
+  "size": 0,
+  "aggs": {
+    "by_category": {
+      "terms": { "field": "category.keyword", "size": 10 },
+      "aggs": {
+        "avg_rating": { "avg": { "field": "rating" } }
+      }
+    }
+  }
+}</code></pre>
+
+                    <h4>Relevance Scoring: TF-IDF and BM25</h4>
+                    <p>
+                        Elasticsearch uses <strong>BM25</strong> (Best Matching 25) as its default scoring function,
+                        which evolved from TF-IDF. The intuition:
+                    </p>
+
+                    <div class="formula-box">
+                        <span class="label">TF-IDF Intuition:</span><br/>
+                        score = TF(t, d) &times; IDF(t)<br/><br/>
+                        <span class="label">TF</span> (Term Frequency) = How often term t appears in document d<br/>
+                        <span class="label">IDF</span> (Inverse Document Frequency) = log(N / df) &mdash; rarer terms score higher
+                    </div>
+
+                    <p>
+                        <strong>BM25 improves on TF-IDF</strong> with two key refinements:
+                    </p>
+                    <ul>
+                        <li><strong>Saturation:</strong> TF doesn't grow linearly forever. A word appearing 100 times isn't 100x more relevant than once. BM25 uses parameter <code>k1</code> (default 1.2) to control saturation.</li>
+                        <li><strong>Document length normalization:</strong> Longer documents naturally have higher TF. Parameter <code>b</code> (default 0.75) penalizes longer documents proportionally.</li>
+                    </ul>
+
+                    <div class="formula-box">
+                        <span class="label">BM25:</span><br/>
+                        score(q, d) = &Sigma; IDF(t) &times; [ TF(t,d) &times; (k1 + 1) ] / [ TF(t,d) + k1 &times; (1 - b + b &times; |d| / avgdl) ]
+                    </div>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        Being able to explain BM25 intuitively (not just recite the formula) shows deep understanding. Key talking
+                        points: "BM25 saturates term frequency so a document mentioning 'java' 50 times doesn't dominate over one
+                        mentioning it 5 times. The <code>b</code> parameter normalizes for document length so a 10-page article
+                        doesn't always beat a concise one."
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. SEARCH AUTOCOMPLETE / TYPEAHEAD -->
+            <!-- ============================================================ -->
+            <h2 id="autocomplete">4. Search Autocomplete / Typeahead</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Trie Data Structure and Architecture</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Autocomplete must return suggestions within <strong>100 ms</strong> of each keystroke.
+                        At Google's scale, that means serving millions of prefix lookups per second with personalized,
+                        frequency-weighted results.
+                    </p>
+
+                    <h4>Trie (Prefix Tree)</h4>
+                    <p>
+                        A trie stores strings character by character along edges. To find all completions of a prefix,
+                        traverse to the prefix node and enumerate its subtree. Each node can store:
+                    </p>
+                    <ul>
+                        <li>A flag indicating "this is a complete word"</li>
+                        <li>Frequency / popularity count for ranking</li>
+                        <li>Top-k precomputed suggestions at each node (amortized O(1) lookups)</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    ROOT((" ")) --> c((c))
+    ROOT --> s((s))
+    c --> ca((a))
+    c --> co((o))
+    ca --> car["car <br/> freq: 500"]
+    ca --> cat["cat <br/> freq: 300"]
+    co --> cod((d))
+    cod --> code["code <br/> freq: 800"]
+    s --> se((e))
+    se --> sea["sea <br/> freq: 200"]
+    se --> ser((r))
+    ser --> search["search <br/> freq: 1500"]
+
+    style search fill:#2b6cb0,color:#fff
+    style code fill:#2b6cb0,color:#fff
+    style car fill:#38a169,color:#fff
+    style cat fill:#38a169,color:#fff
+    style sea fill:#38a169,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>Prefix Matching Algorithm</h4>
+                    <pre class="code-block"><code class="language-python">class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_word = False
+        self.frequency = 0
+        self.top_k = []   # precomputed top-k suggestions
+
+class AutocompleteTrie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word: str, freq: int):
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.is_word = True
+        node.frequency = freq
+
+    def search_prefix(self, prefix: str, k: int = 5) -&gt; list:
+        """Return top-k suggestions for a prefix."""
+        node = self.root
+        for ch in prefix:
+            if ch not in node.children:
+                return []
+            node = node.children[ch]
+
+        # If top_k is precomputed, return immediately (O(1))
+        if node.top_k:
+            return node.top_k[:k]
+
+        # Otherwise DFS to collect all words (expensive, offline only)
+        results = []
+        self._dfs(node, prefix, results)
+        results.sort(key=lambda x: -x[1])
+        return [word for word, freq in results[:k]]
+
+    def _dfs(self, node, prefix, results):
+        if node.is_word:
+            results.append((prefix, node.frequency))
+        for ch, child in node.children.items():
+            self._dfs(child, prefix + ch, results)</code></pre>
+
+                    <h4>Ranking Suggestions</h4>
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Signal</th><th>Weight</th><th>Example</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Global frequency</td><td>High</td><td>"amazon prime" has more searches than "amazon parrot"</td></tr>
+                            <tr><td>Recency</td><td>Medium</td><td>Trending queries get a time-decay boost</td></tr>
+                            <tr><td>Personalization</td><td>Medium</td><td>A developer sees "python tutorial" before "python snake"</td></tr>
+                            <tr><td>Location</td><td>Low-Med</td><td>"restaurants" biased toward user's city</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Architecture for Scale</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    User([User types 'sea']) --> LB[Load Balancer]
+    LB --> AC1["Autocomplete<br/>Service"]
+    LB --> AC2["Autocomplete<br/>Service"]
+
+    AC1 --> Cache[(Redis Cache<br/>prefix → top-k)]
+    AC2 --> Cache
+
+    Cache -- miss --> TrieShard1["Trie Shard A-M"]
+    Cache -- miss --> TrieShard2["Trie Shard N-Z"]
+
+    subgraph OfflinePipeline["Offline Pipeline (hourly)"]
+        Logs["Query Logs"] --> Spark["Spark / Flink<br/>Aggregation"]
+        Spark --> TrieBuild["Trie Builder"]
+        TrieBuild --> TrieShard1
+        TrieBuild --> TrieShard2
+    end
+                        </div>
+                    </div>
+
+                    <h4>Key Design Decisions</h4>
+                    <ul>
+                        <li><strong>Precompute top-k at each trie node:</strong> Avoids DFS at query time. Trade-off: more memory, but O(1) lookups.</li>
+                        <li><strong>Shard by prefix range:</strong> "a-m" on shard 1, "n-z" on shard 2. Each keystroke routes to exactly one shard.</li>
+                        <li><strong>Cache aggressively:</strong> Popular prefixes ("how", "what", "best") are cached in Redis. Cache hit rate often exceeds 90%.</li>
+                        <li><strong>Rebuild periodically:</strong> Tries are rebuilt hourly/daily from aggregated query logs rather than updated in real-time.</li>
+                        <li><strong>Client-side debouncing:</strong> Only send requests after 100-200 ms of no typing to reduce QPS.</li>
+                    </ul>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        Discuss the freshness vs. cost trade-off: real-time trie updates are complex (concurrent writes to a trie);
+                        periodic rebuilds are simpler but lag behind trending queries. A hybrid approach uses a small real-time
+                        layer for trending queries merged with a bulk-built trie.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. GEO-SEARCH / LOCATION-BASED SEARCH -->
+            <!-- ============================================================ -->
+            <h2 id="geo-search">5. Geo-Search / Location-Based Search</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Geohash, Quadtree, and Proximity Search</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Problem</h4>
+                    <p>
+                        "Find all restaurants within 5 km of my location" requires spatial indexing. A naive approach
+                        &mdash; computing the Haversine distance to every restaurant &mdash; is O(n) and impractical at
+                        scale (millions of points of interest).
+                    </p>
+
+                    <h4>Geohash</h4>
+                    <p>
+                        A <strong>geohash</strong> encodes a (latitude, longitude) pair into a short alphanumeric string.
+                        The key insight: <em>nearby locations share a common prefix</em>.
+                    </p>
+                    <ol>
+                        <li>Divide the world into a 2D grid</li>
+                        <li>Recursively subdivide each cell, alternating longitude and latitude bits</li>
+                        <li>Encode the bit sequence as base-32</li>
+                    </ol>
+
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Geohash Length</th><th>Cell Width</th><th>Cell Height</th><th>Use Case</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>1</td><td>5,000 km</td><td>5,000 km</td><td>Continent</td></tr>
+                            <tr><td>3</td><td>156 km</td><td>156 km</td><td>Large region</td></tr>
+                            <tr><td>5</td><td>4.9 km</td><td>4.9 km</td><td>City neighborhood</td></tr>
+                            <tr><td>6</td><td>1.2 km</td><td>0.6 km</td><td>City block</td></tr>
+                            <tr><td>7</td><td>153 m</td><td>153 m</td><td>Street</td></tr>
+                            <tr><td>9</td><td>4.8 m</td><td>4.8 m</td><td>Building</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Geohash Grid Example</h4>
+                    <div class="geohash-grid">
+                        <div class="geohash-cell">9q8y</div>
+                        <div class="geohash-cell highlight">9q8z</div>
+                        <div class="geohash-cell">9q9p</div>
+                        <div class="geohash-cell">9q9r</div>
+                        <div class="geohash-cell highlight">9q8x</div>
+                        <div class="geohash-cell highlight">9q8w</div>
+                        <div class="geohash-cell">9q9n</div>
+                        <div class="geohash-cell">9q9q</div>
+                        <div class="geohash-cell">9q8t</div>
+                        <div class="geohash-cell">9q8v</div>
+                        <div class="geohash-cell">9q9j</div>
+                        <div class="geohash-cell">9q9m</div>
+                        <div class="geohash-cell">9q8s</div>
+                        <div class="geohash-cell">9q8u</div>
+                        <div class="geohash-cell">9q9h</div>
+                        <div class="geohash-cell">9q9k</div>
+                    </div>
+                    <p style="text-align:center;color:#a0aec0;font-size:0.9rem;">
+                        Highlighted cells share the prefix "9q8" &mdash; querying this prefix returns all POIs in the neighborhood.
+                    </p>
+
+                    <h4>Proximity Search Algorithm</h4>
+                    <pre class="code-block"><code class="language-python">def find_nearby(lat, lng, radius_km, precision=6):
+    """Find nearby points using geohash prefix matching."""
+    import geohash2
+
+    # 1. Compute geohash of user's location
+    center_hash = geohash2.encode(lat, lng, precision)
+
+    # 2. Get neighboring geohash cells (handles edge cases)
+    neighbors = geohash2.neighbors(center_hash)
+    search_cells = [center_hash] + neighbors  # 9 cells total
+
+    # 3. Query DB for all POIs in these cells
+    candidates = []
+    for cell in search_cells:
+        candidates += db.query(
+            "SELECT * FROM pois WHERE geohash LIKE ?",
+            (cell + '%',)
+        )
+
+    # 4. Post-filter by exact distance (Haversine)
+    results = []
+    for poi in candidates:
+        dist = haversine(lat, lng, poi.lat, poi.lng)
+        if dist &lt;= radius_km:
+            results.append((poi, dist))
+
+    return sorted(results, key=lambda x: x[1])</code></pre>
+
+                    <h4>Quadtree</h4>
+                    <p>
+                        A <strong>quadtree</strong> recursively divides 2D space into four quadrants. Each leaf node contains
+                        up to a maximum number of points. It adapts to data density: dense areas (cities) have deep trees;
+                        sparse areas (oceans) have shallow trees.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    ROOT["World<br/>(-90,-180 to 90,180)"] --> NW["NW Quadrant"]
+    ROOT --> NE["NE Quadrant"]
+    ROOT --> SW["SW Quadrant"]
+    ROOT --> SE["SE Quadrant"]
+
+    NW --> NW1["NW-NW<br/>3 POIs"]
+    NW --> NW2["NW-NE<br/>1 POI"]
+    NW --> NW3["NW-SW<br/>0 POIs"]
+    NW --> NW4["NW-SE<br/>2 POIs"]
+
+    NE --> NE_leaf["15 POIs<br/>(dense area,<br/>subdivide further)"]
+    NE_leaf --> NE1["Sub-NW<br/>5 POIs"]
+    NE_leaf --> NE2["Sub-NE<br/>4 POIs"]
+    NE_leaf --> NE3["Sub-SW<br/>3 POIs"]
+    NE_leaf --> NE4["Sub-SE<br/>3 POIs"]
+
+    style NE_leaf fill:#c53030,color:#fff
+    style ROOT fill:#2b6cb0,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>Comparison: Geohash vs. Quadtree vs. R-tree</h4>
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Feature</th><th>Geohash</th><th>Quadtree</th><th>R-tree</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Index type</td><td>String prefix</td><td>In-memory tree</td><td>Balanced tree</td></tr>
+                            <tr><td>Adapts to density</td><td>No (fixed grid)</td><td>Yes</td><td>Yes</td></tr>
+                            <tr><td>Range queries</td><td>Prefix scan</td><td>Tree traversal</td><td>Bounding box search</td></tr>
+                            <tr><td>DB integration</td><td>Easy (string column)</td><td>Custom</td><td>PostGIS, MySQL Spatial</td></tr>
+                            <tr><td>Edge-case issues</td><td>Boundary discontinuity</td><td>None</td><td>None</td></tr>
+                            <tr><td>Used by</td><td>Redis, Elasticsearch</td><td>Custom services</td><td>PostgreSQL/PostGIS</td></tr>
+                        </tbody>
+                    </table>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        The geohash boundary problem: two points 1 meter apart can have completely different geohashes
+                        if they straddle a cell boundary. Always query <strong>neighboring cells</strong> (8 neighbors + center = 9 cells)
+                        and post-filter with Haversine. Mention this unprompted in interviews.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. SEARCH RANKING & RELEVANCE -->
+            <!-- ============================================================ -->
+            <h2 id="ranking">6. Search Ranking &amp; Relevance</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>From BM25 to Learning-to-Rank</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Raw BM25 scores are a starting point, but modern search systems layer multiple ranking stages
+                        to deliver truly relevant results. This is the <strong>ranking funnel</strong>:
+                    </p>
+
+                    <ol>
+                        <li><strong>Query Understanding</strong> &mdash; Before any retrieval happens</li>
+                        <li><strong>Candidate Retrieval</strong> &mdash; BM25 / embedding ANN to get top ~1000 docs</li>
+                        <li><strong>Scoring / Re-ranking</strong> &mdash; ML model scores top candidates</li>
+                        <li><strong>Post-processing</strong> &mdash; Diversity, freshness, business rules</li>
+                    </ol>
+
+                    <h4>Query Understanding</h4>
+                    <ul>
+                        <li><strong>Spell correction:</strong> "distribted systems" &rarr; "distributed systems" using edit distance, n-gram overlap, or neural models</li>
+                        <li><strong>Synonyms:</strong> "k8s" &rarr; "kubernetes"; "ML" &rarr; "machine learning"</li>
+                        <li><strong>Query expansion:</strong> "python web framework" expands to include "Django", "Flask", "FastAPI"</li>
+                        <li><strong>Intent classification:</strong> "apple" &mdash; fruit or company? Use context, user history, and trending signals.</li>
+                    </ul>
+
+                    <h4>Learning to Rank (L2R)</h4>
+                    <p>
+                        L2R treats ranking as a supervised ML problem. Training data comes from click logs, human judgments, or A/B tests.
+                    </p>
+
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Approach</th><th>How It Works</th><th>Example</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Pointwise</td>
+                                <td>Predict relevance score for each (query, doc) pair independently</td>
+                                <td>Linear regression, Random Forest</td>
+                            </tr>
+                            <tr>
+                                <td>Pairwise</td>
+                                <td>Predict which of two documents is more relevant</td>
+                                <td>RankSVM, LambdaMART</td>
+                            </tr>
+                            <tr>
+                                <td>Listwise</td>
+                                <td>Optimize the entire ranked list at once</td>
+                                <td>ListNet, LambdaRank</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Common L2R Features</h4>
+                    <div class="card-grid">
+                        <div class="card">
+                            <h3>Text Relevance</h3>
+                            <p>BM25 score, TF-IDF, exact match in title, query term coverage</p>
+                        </div>
+                        <div class="card">
+                            <h3>Document Quality</h3>
+                            <p>PageRank, domain authority, freshness, content length, spam score</p>
+                        </div>
+                        <div class="card">
+                            <h3>User Engagement</h3>
+                            <p>Click-through rate, dwell time, bounce rate, conversion rate</p>
+                        </div>
+                        <div class="card">
+                            <h3>Personalization</h3>
+                            <p>User's past searches, browsing history, location, language, device</p>
+                        </div>
+                    </div>
+
+                    <h4>A/B Testing Search Quality</h4>
+                    <p>
+                        Search quality is measured through offline and online metrics:
+                    </p>
+                    <ul>
+                        <li><strong>Offline:</strong> NDCG (Normalized Discounted Cumulative Gain), MAP (Mean Average Precision), MRR (Mean Reciprocal Rank)</li>
+                        <li><strong>Online:</strong> Click-through rate, zero-result rate, session success rate, time-to-click</li>
+                        <li><strong>Interleaving:</strong> Show results from two ranking models interleaved in one page; measure which model's results get more clicks (more sensitive than A/B)</li>
+                    </ul>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        A staff engineer understands that BM25 alone is insufficient for product search. Mentioning the ranking
+                        funnel (retrieve with BM25 &rarr; re-rank with ML &rarr; post-process for diversity) and metrics like NDCG
+                        demonstrates mature search thinking.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. SCALING SEARCH -->
+            <!-- ============================================================ -->
+            <h2 id="scaling-search">7. Scaling Search</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Sharding, Scatter-Gather, and Index Pipelines</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Sharding Strategies</h4>
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Strategy</th><th>How</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Document-based</td>
+                                <td>hash(doc_id) % N</td>
+                                <td>Even distribution, simple</td>
+                                <td>Every query hits all shards</td>
+                            </tr>
+                            <tr>
+                                <td>Term-based</td>
+                                <td>Each shard owns a range of terms</td>
+                                <td>Query hits fewer shards</td>
+                                <td>Hot terms cause skew</td>
+                            </tr>
+                            <tr>
+                                <td>Tenant-based</td>
+                                <td>Each tenant on dedicated shards</td>
+                                <td>Isolation, per-tenant tuning</td>
+                                <td>Uneven shard sizes</td>
+                            </tr>
+                            <tr>
+                                <td>Time-based</td>
+                                <td>Index per day/week</td>
+                                <td>Easy retention, hot-warm-cold</td>
+                                <td>Cross-time queries span indexes</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Scatter-Gather Pattern</h4>
+                    <p>
+                        In document-based sharding (the default for Elasticsearch), every search query is:
+                    </p>
+                    <ol>
+                        <li><strong>Scatter:</strong> The coordinating node sends the query to all shards in parallel</li>
+                        <li><strong>Local execution:</strong> Each shard returns its local top-k results</li>
+                        <li><strong>Gather:</strong> The coordinating node merges results from all shards and returns global top-k</li>
+                    </ol>
+                    <p>
+                        Tail latency is dominated by the <em>slowest shard</em>. Mitigation strategies:
+                    </p>
+                    <ul>
+                        <li><strong>Hedged requests:</strong> Send to both primary and replica; use whichever responds first</li>
+                        <li><strong>Adaptive replica selection:</strong> Route to the least-loaded replica</li>
+                        <li><strong>Early termination:</strong> Stop scoring after reaching a "good enough" threshold</li>
+                    </ul>
+
+                    <h4>Caching Search Results</h4>
+                    <div class="tradeoff-grid">
+                        <div class="tradeoff-card">
+                            <h4>Result Cache</h4>
+                            <p>Cache entire search result pages. Key = normalized query string. High hit rate for popular queries. Invalidate on index refresh.</p>
+                        </div>
+                        <div class="tradeoff-card">
+                            <h4>Query Cache (Node Level)</h4>
+                            <p>Elasticsearch caches filter clause results as bitsets. Reused across queries sharing the same filter. Automatic; no configuration needed.</p>
+                        </div>
+                        <div class="tradeoff-card">
+                            <h4>Field Data Cache</h4>
+                            <p>Caches field values for sorting and aggregations. Memory-hungry; prefer doc_values (column-oriented on-disk) in modern ES.</p>
+                        </div>
+                        <div class="tradeoff-card con">
+                            <h4>Cache Invalidation</h4>
+                            <p>Every index refresh (1s default) invalidates the request cache. For rarely-changing data, increase refresh_interval to improve cache hit rate.</p>
+                        </div>
+                    </div>
+
+                    <h4>Index Update Pipeline (CDC to Search)</h4>
+                    <p>
+                        In most architectures, the source of truth is a relational database, and Elasticsearch is a
+                        derived data store. The index must stay in sync:
+                    </p>
+                    <pre class="code-block"><code>Source DB (PostgreSQL)
+    |
+    v
+CDC Stream (Debezium / DynamoDB Streams)
+    |
+    v
+Message Queue (Kafka)
+    |
+    v
+Index Writer Service
+    |
+    v
+Elasticsearch Cluster</code></pre>
+
+                    <ul>
+                        <li><strong>Dual writes are dangerous:</strong> Writing to both DB and ES in application code risks inconsistency (one write can fail).</li>
+                        <li><strong>CDC (Change Data Capture)</strong> captures DB changes from the write-ahead log and streams them to Kafka.</li>
+                        <li><strong>Consumer lag:</strong> Monitor Kafka consumer lag to detect indexing falling behind. Alert if lag exceeds SLA (e.g., 30 seconds).</li>
+                        <li><strong>Full re-index:</strong> Periodically rebuild the entire index from the source DB to fix drift. Use aliases to swap atomically.</li>
+                    </ul>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        Dual writes are a common anti-pattern. Always recommend CDC-based pipelines for keeping search
+                        indexes in sync. Mention alias-based zero-downtime re-indexing: index into <code>products_v2</code>,
+                        then atomically swap the <code>products</code> alias from <code>v1</code> to <code>v2</code>.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. REAL-WORLD SYSTEMS -->
+            <!-- ============================================================ -->
+            <h2 id="real-world">8. Real-World Systems</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Google, Uber, and Amazon Search Architectures</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Google Web Search</h4>
+                    <ul>
+                        <li><strong>Scale:</strong> 100+ billion web pages indexed, 8.5B queries/day</li>
+                        <li><strong>PageRank:</strong> Link analysis algorithm treating the web as a graph. A page's rank is proportional to the rank of pages linking to it. While now just one of hundreds of signals, it was the founding insight.</li>
+                        <li><strong>Caffeine (2010):</strong> Replaced batch indexing with a continuous pipeline that indexes new content within seconds.</li>
+                        <li><strong>BERT/MUM (2019-2021):</strong> Transformer models for query understanding, capturing semantic meaning beyond keyword matching.</li>
+                        <li><strong>Architecture:</strong> Web &rarr; Crawl &rarr; Parse &rarr; Index &rarr; Serve. Each stage is a separate distributed system with its own sharding and replication.</li>
+                    </ul>
+
+                    <h4>Elasticsearch at Uber</h4>
+                    <ul>
+                        <li><strong>Scale:</strong> 150+ Elasticsearch clusters, some with 1000+ nodes</li>
+                        <li><strong>Use cases:</strong> Trip search, driver matching, fraud detection, logging</li>
+                        <li><strong>Challenge:</strong> Multi-tenant clusters with noisy neighbors. Solution: dedicated clusters for critical use cases, resource quotas for shared ones.</li>
+                        <li><strong>Operational tooling:</strong> Automated shard rebalancing, cluster health monitoring, automated index lifecycle management (ILM).</li>
+                    </ul>
+
+                    <h4>Amazon Product Search</h4>
+                    <ul>
+                        <li><strong>Scale:</strong> 350+ million products, billions of queries/month</li>
+                        <li><strong>Challenge:</strong> Structured (category, price, brand) + unstructured (description, reviews) data in one search</li>
+                        <li><strong>Approach:</strong>
+                            <ul>
+                                <li>Structured filters (facets) use inverted indexes on keyword fields</li>
+                                <li>Text search uses BM25 + semantic embeddings (DSSM - Deep Structured Semantic Model)</li>
+                                <li>Re-ranking considers purchase probability, profit margin, Prime eligibility, reviews</li>
+                                <li>Personalization: past purchases, browsing history, collaborative filtering</li>
+                            </ul>
+                        </li>
+                        <li><strong>A9/Cosmo:</strong> Amazon's search engine evolved from A9 to Cosmo, incorporating more ML-driven retrieval and ranking.</li>
+                    </ul>
+
+                    <span class="signal-badge">Staff-Level Signal</span>
+                    <p>
+                        Reference specific real-world architectures to show you've studied production search systems.
+                        "At Uber's scale with 150+ ES clusters, operational concerns like noisy neighbors and automated
+                        ILM become as important as the search algorithm itself."
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. INTERVIEW APPLICATION -->
+            <!-- ============================================================ -->
+            <h2 id="interview">9. Interview Application</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>When to Use Search, Common Problems, and Trade-Offs</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>When to Use Search vs. Database Queries</h4>
+                    <table class="precision-table">
+                        <thead>
+                            <tr><th>Use Search (Elasticsearch) When...</th><th>Use Database (SQL/NoSQL) When...</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Full-text search with relevance ranking</td><td>Exact key lookups (user by ID)</td></tr>
+                            <tr><td>Fuzzy matching, typo tolerance</td><td>Transactional writes (ACID needed)</td></tr>
+                            <tr><td>Faceted navigation (filter + count)</td><td>Joins across many tables</td></tr>
+                            <tr><td>Aggregations on text + numeric data</td><td>Simple range queries on indexed columns</td></tr>
+                            <tr><td>Log analytics, time-series exploration</td><td>Source of truth storage</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>System Design Problems Involving Search</h4>
+                    <div class="card-grid">
+                        <div class="card">
+                            <h3>Design Twitter Search</h3>
+                            <p>Inverted index on tweet text. Real-time indexing (&lt;10s). Sharded by time (recent tweets are hot). Ranking by relevance + recency + engagement.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Design Yelp / Nearby Places</h3>
+                            <p>Geohash or quadtree for spatial indexing. Combine location filter with text search. Rank by distance + rating + relevance.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Design Google Autocomplete</h3>
+                            <p>Trie with precomputed top-k. Sharded by prefix. Offline rebuild from query logs. Client-side debouncing + caching.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Design E-Commerce Search</h3>
+                            <p>Structured + unstructured search. Facets (brand, price, category). Personalized ranking. Spell correction + synonyms.</p>
+                        </div>
+                        <div class="card">
+                            <h3>Design a Log Search System</h3>
+                            <p>Time-based indexes (daily rollover). Hot-warm-cold architecture. Retention policies. Querying across time ranges (ELK stack).</p>
+                        </div>
+                        <div class="card">
+                            <h3>Design a Code Search Engine</h3>
+                            <p>Trigram index for substring search. Language-aware tokenization. Repository-level ranking. Handle billions of lines (like Sourcegraph/grep.app).</p>
+                        </div>
+                    </div>
+
+                    <h4>Key Trade-Offs to Discuss</h4>
+                    <div class="tradeoff-grid">
+                        <div class="tradeoff-card">
+                            <h4>Relevance vs. Latency</h4>
+                            <p>More sophisticated ranking (ML re-ranking, semantic search) improves relevance but adds latency. Budget your time: 50 ms for retrieval, 50 ms for re-ranking, 100 ms total.</p>
+                        </div>
+                        <div class="tradeoff-card">
+                            <h4>Freshness vs. Cost</h4>
+                            <p>Real-time indexing requires more resources (higher refresh rate, more segment merges). Many use cases tolerate seconds to minutes of lag.</p>
+                        </div>
+                        <div class="tradeoff-card">
+                            <h4>Precision vs. Recall</h4>
+                            <p>Strict matching (precision) returns fewer but more accurate results. Loose matching (recall) finds more but includes noise. Tune based on use case: legal search needs precision; e-commerce needs recall.</p>
+                        </div>
+                        <div class="tradeoff-card con">
+                            <h4>Consistency vs. Availability</h4>
+                            <p>Search indexes are eventually consistent by nature (CDC pipeline lag). Accept stale reads for availability. Never use search as source of truth.</p>
+                        </div>
+                    </div>
+
+                    <h4>Interview Framework: Designing a Search System</h4>
+                    <ol>
+                        <li><strong>Clarify requirements:</strong> What is being searched? How fresh must results be? What ranking signals matter?</li>
+                        <li><strong>Data model:</strong> Define the document schema, which fields are searchable (text vs. keyword), facets.</li>
+                        <li><strong>Indexing pipeline:</strong> Source of truth &rarr; CDC &rarr; Kafka &rarr; Index writer &rarr; Elasticsearch. Never dual-write.</li>
+                        <li><strong>Query path:</strong> Query understanding &rarr; BM25 retrieval &rarr; ML re-ranking &rarr; Post-processing.</li>
+                        <li><strong>Scaling:</strong> Shard strategy, replica count, caching layers, scatter-gather optimization.</li>
+                        <li><strong>Operational concerns:</strong> Monitoring (search latency, zero-result rate), re-indexing strategy, capacity planning.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. SELF-CHECK QUIZ -->
+            <!-- ============================================================ -->
+            <h2 id="quiz">10. Self-Check Quiz</h2>
+
+            <div id="search-quiz"></div>
+
+            <!-- ============================================================ -->
+            <!-- NAVIGATION -->
+            <!-- ============================================================ -->
+            <div class="flex flex-between mt-4">
+                <a href="module-16.html" class="btn btn-secondary">&larr; Previous: Microservices</a>
+                <a href="module-18.html" class="btn btn-primary">Next: Monitoring &amp; Reliability &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        // Self-check quiz
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                StaffEngPrep.Quiz.create('search-quiz', {
+                    title: 'Search & Indexing Knowledge Check',
+                    questions: [
+                        {
+                            question: 'What is the primary data structure used by search engines to map terms to documents?',
+                            options: [
+                                'B-tree index',
+                                'Inverted index',
+                                'Hash table',
+                                'Skip list'
+                            ],
+                            correct: 1,
+                            explanation: 'An inverted index maps each term to a posting list of documents that contain it. B-trees are used for exact/range lookups in databases, not full-text search.'
+                        },
+                        {
+                            question: 'Why does BM25 use a saturation function for term frequency?',
+                            options: [
+                                'To make queries faster by limiting computation',
+                                'To prevent documents with very high term frequency from dominating results disproportionately',
+                                'To normalize document length across the corpus',
+                                'To penalize stop words automatically'
+                            ],
+                            correct: 1,
+                            explanation: 'BM25\'s saturation function (controlled by k1) ensures that a term appearing 100 times in a document is not scored 100x higher than one appearing once. There are diminishing returns in relevance as TF increases.'
+                        },
+                        {
+                            question: 'In Elasticsearch, what is a "segment"?',
+                            options: [
+                                'A logical partition of an index across nodes',
+                                'An immutable Lucene data structure on disk containing an inverted index',
+                                'A replica of a shard for fault tolerance',
+                                'A time-based partition of log data'
+                            ],
+                            correct: 1,
+                            explanation: 'Segments are immutable Lucene data files. New documents create new segments during refresh. Background merge processes combine smaller segments into larger ones. Shards (not segments) are the unit of distribution.'
+                        },
+                        {
+                            question: 'What is the main problem with using geohash for proximity search, and how is it solved?',
+                            options: [
+                                'Geohashes are too long; use shorter prefixes',
+                                'Two nearby points can have different geohash prefixes at cell boundaries; query 9 cells (center + 8 neighbors)',
+                                'Geohashes only work in the Northern Hemisphere; use R-trees elsewhere',
+                                'Geohashes cannot represent points at sea; combine with a spatial database'
+                            ],
+                            correct: 1,
+                            explanation: 'The boundary problem means two points 1 meter apart can have completely different geohash prefixes. The solution is to always query the center cell plus its 8 neighboring cells, then post-filter with exact distance (Haversine).'
+                        },
+                        {
+                            question: 'Why is dual-writing to both a database and Elasticsearch considered an anti-pattern?',
+                            options: [
+                                'It doubles the write latency for every operation',
+                                'Elasticsearch does not support write operations directly',
+                                'If one write succeeds and the other fails, the systems become inconsistent with no easy recovery',
+                                'It violates Elasticsearch\'s licensing terms'
+                            ],
+                            correct: 2,
+                            explanation: 'Dual writes risk partial failures: the DB write succeeds but the ES write fails (or vice versa), leaving the systems out of sync. CDC-based pipelines (DB → WAL → Kafka → ES) guarantee that any committed DB change eventually reaches the search index.'
+                        },
+                        {
+                            question: 'In the scatter-gather pattern, what primarily determines query latency?',
+                            options: [
+                                'The average response time across all shards',
+                                'The response time of the fastest shard',
+                                'The response time of the slowest shard (tail latency)',
+                                'The number of documents in the index'
+                            ],
+                            correct: 2,
+                            explanation: 'Scatter-gather latency is bounded by the slowest shard since the coordinator must wait for all shards to respond before merging. This is why hedged requests and adaptive replica selection are critical for reducing tail latency.'
+                        },
+                        {
+                            question: 'What is the key advantage of precomputing top-k suggestions at each trie node for autocomplete?',
+                            options: [
+                                'It reduces the memory footprint of the trie',
+                                'It enables O(1) lookup time for suggestions instead of a DFS traversal',
+                                'It allows real-time updates to the trie without rebuilding',
+                                'It eliminates the need for a cache layer'
+                            ],
+                            correct: 1,
+                            explanation: 'Without precomputation, returning suggestions requires a DFS of the subtree below the prefix node, which is O(n) in the number of descendants. Precomputing top-k at each node makes lookups O(1) at the cost of additional memory and offline computation.'
+                        },
+                        {
+                            question: 'In a search ranking funnel, what is the purpose of the re-ranking stage?',
+                            options: [
+                                'To retrieve candidate documents from the inverted index',
+                                'To correct spelling errors in the user query',
+                                'To apply a more computationally expensive ML model to the top candidates from initial retrieval',
+                                'To split the query across multiple shards'
+                            ],
+                            correct: 2,
+                            explanation: 'The re-ranking stage applies a sophisticated ML model (e.g., LambdaMART, neural ranker) to the top ~1000 candidates from BM25 retrieval. This two-stage approach balances relevance quality with latency: cheap retrieval for recall, expensive ML for precision on the short list.'
+                        }
+                    ]
+                });
+            }
+        });
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

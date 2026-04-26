@@ -106,7 +106,7 @@
         getOverallProgress(course) {
             const totalModules = {
                 'coding': 9,
-                'systemDesign': 12,
+                'systemDesign': 18,
                 'companySpecific': 6,
                 'behavioral': 6
             };

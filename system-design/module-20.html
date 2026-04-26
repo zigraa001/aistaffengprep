@@ -1,0 +1,1517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 16: Staff-Level Design Thinking - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .signal-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .signal-badge.green {
+            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        }
+        .signal-badge.red {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+        }
+        .signal-badge.orange {
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+        }
+        .decision-matrix {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .decision-matrix th, .decision-matrix td {
+            border: 1px solid var(--border-color, #e2e8f0);
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .decision-matrix th {
+            background: var(--bg-secondary, #f7fafc);
+            font-weight: 600;
+        }
+        .decision-matrix tr:nth-child(even) {
+            background: var(--bg-secondary, #f7fafc);
+        }
+        .cost-bar {
+            height: 1.5rem;
+            border-radius: 0.25rem;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .cost-bar.compute { background: #667eea; }
+        .cost-bar.storage { background: #48bb78; }
+        .cost-bar.network { background: #ed8936; }
+        .cost-bar.managed { background: #e53e3e; }
+        .lens-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+        .lens-card {
+            border: 2px solid var(--border-color, #e2e8f0);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        .lens-card h4 {
+            margin-top: 0.5rem;
+        }
+        .lens-card .icon {
+            font-size: 2rem;
+        }
+        .checklist-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .checklist-table th, .checklist-table td {
+            border: 1px solid var(--border-color, #e2e8f0);
+            padding: 0.6rem 0.75rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        .checklist-table th {
+            background: var(--bg-secondary, #f7fafc);
+            font-weight: 600;
+        }
+        .quiz-container { margin: 2rem 0; }
+        .quiz-question {
+            background: var(--bg-secondary, #f7fafc);
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .quiz-question h4 { margin-top: 0; }
+        .quiz-options label {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            margin: 0.25rem 0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .quiz-options label:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .quiz-options input[type="radio"] { margin-right: 0.5rem; }
+        .quiz-feedback {
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        .quiz-feedback.correct {
+            background: rgba(56, 161, 105, 0.15);
+            border: 1px solid #38a169;
+            color: #22543d;
+        }
+        .quiz-feedback.incorrect {
+            background: rgba(229, 62, 62, 0.15);
+            border: 1px solid #e53e3e;
+            color: #742a2a;
+        }
+        .quiz-submit {
+            padding: 0.5rem 1.5rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+        .quiz-submit:hover { opacity: 0.9; }
+        blockquote {
+            border-left: 4px solid #667eea;
+            margin: 1rem 0;
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-secondary, #f7fafc);
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        blockquote p { margin: 0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 16: Staff-Level Design Thinking</h1>
+            <p style="font-size: 1.1rem; color: var(--text-secondary);">
+                The capstone module. Everything you have learned across modules 1&ndash;15 converges here into the
+                judgment, trade-off analysis, and organizational awareness that separates a <strong>staff engineer</strong> from a senior engineer.
+                This module is opinionated, practical, and designed to change how you present designs in interviews.
+            </p>
+
+            <!-- ========================================== -->
+            <!-- SECTION 1: What Makes Staff Different      -->
+            <!-- ========================================== -->
+            <h2 id="what-makes-staff-different">1. What Makes a Staff Engineer's Design Different</h2>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why "correct" is table stakes &mdash; staff-level signals go far beyond functional design</li>
+                    <li>The three lenses every staff engineer uses: Technical, Organizational, Business</li>
+                    <li>How to demonstrate judgment, influence, and long-term thinking in an interview setting</li>
+                </ul>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Beyond "Correct": Influence, Judgment, Business Alignment</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        A senior engineer is expected to produce a <em>working</em> design. A staff engineer is expected to produce the <em>right</em> design &mdash;
+                        one that accounts for the organization's capabilities, the business context, migration risk, cost envelope, and where the system needs to be in two years, not just today.
+                    </p>
+
+                    <p><strong>The core shift:</strong></p>
+                    <ul>
+                        <li><strong>Senior:</strong> "Here is a design that meets the requirements."</li>
+                        <li><strong>Staff:</strong> "Here is a design that meets the requirements, aligns with our platform strategy, can be built by two teams in parallel, migrates incrementally from the legacy system, and costs 40% less than the alternative."</li>
+                    </ul>
+
+                    <p>
+                        In an interview, you demonstrate this shift not by <em>adding more components</em> but by <em>narrating the reasoning</em> behind each choice.
+                        Interviewers listen for <strong>unprompted</strong> considerations: cost, team structure, migration path, operational burden, and long-term evolution.
+                    </p>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Proactively surface trade-offs and business context.</strong> Do not wait for the interviewer to ask "What about cost?" or "How would you migrate?" Bring these up yourself.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Three Lenses</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every design decision should be examined through three lenses simultaneously:</p>
+
+                    <div class="lens-grid">
+                        <div class="lens-card">
+                            <div class="icon">&#128295;</div>
+                            <h4>Technical Lens</h4>
+                            <p>Correctness, performance, reliability, scalability, security. This is where most engineers stop.</p>
+                        </div>
+                        <div class="lens-card">
+                            <div class="icon">&#127963;</div>
+                            <h4>Organizational Lens</h4>
+                            <p>Team boundaries, ownership, on-call burden, hiring plan, Conway's Law. Can your org actually build and run this?</p>
+                        </div>
+                        <div class="lens-card">
+                            <div class="icon">&#128200;</div>
+                            <h4>Business Lens</h4>
+                            <p>Revenue impact, time-to-market, cost envelope, regulatory constraints. Does this serve the business strategy?</p>
+                        </div>
+                    </div>
+
+                    <p><strong>Example:</strong> You could design a custom ML ranking service (technically optimal), but if the team has no ML expertise and the business needs to ship in 6 weeks, a managed service like AWS Personalize is the staff-level call &mdash; even if it is technically inferior.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    subgraph "Staff-Level Design Thinking"
+        REQ["Requirements &amp; Constraints"] --> TL["Technical Lens"]
+        REQ --> OL["Organizational Lens"]
+        REQ --> BL["Business Lens"]
+        TL --> SYNTH["Synthesis &amp; Judgment"]
+        OL --> SYNTH
+        BL --> SYNTH
+        SYNTH --> DESIGN["Design Decision"]
+        DESIGN --> TRADEOFF["Explicit Trade-off Documentation"]
+        DESIGN --> MIGRATE["Migration Plan"]
+        DESIGN --> EVOLVE["Evolution Strategy"]
+    end
+                        </div>
+                    </div>
+
+                    <span class="signal-badge red">Red Flag</span>
+                    <p>
+                        <strong>Designing in a vacuum.</strong> If you never mention who builds it, how it gets deployed, or what it costs, you are signaling "senior, not staff."
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 2: Multi-Region Architecture       -->
+            <!-- ========================================== -->
+            <h2 id="multi-region">2. Multi-Region Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Active-Active vs Active-Passive</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Multi-region is not a "nice to have" for global products. It is a hard requirement driven by latency, compliance (GDPR data residency), and disaster recovery. The two primary strategies differ fundamentally in complexity and cost.</p>
+
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Active-Passive</th>
+                                <th>Active-Active</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Traffic handling</strong></td>
+                                <td>Primary region serves all traffic; secondary is a warm/hot standby</td>
+                                <td>Both regions serve traffic simultaneously</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Failover time</strong></td>
+                                <td>Minutes (DNS TTL, connection draining)</td>
+                                <td>Seconds (traffic shifts via load balancer)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data replication</strong></td>
+                                <td>Async replication to secondary; possible data loss (RPO &gt; 0)</td>
+                                <td>Sync or async depending on consistency needs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Conflict resolution</strong></td>
+                                <td>Not needed (single writer)</td>
+                                <td>Required (last-writer-wins, CRDTs, application-level merge)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cost</strong></td>
+                                <td>~1.3&ndash;1.5x single-region (idle standby resources)</td>
+                                <td>~1.8&ndash;2.2x single-region (full duplicate + cross-region replication)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Complexity</strong></td>
+                                <td>Moderate</td>
+                                <td>High &mdash; conflict resolution, testing, deployment coordination</td>
+                            </tr>
+                            <tr>
+                                <td><strong>When to use</strong></td>
+                                <td>DR requirement, single-geography user base, budget constrained</td>
+                                <td>Global user base, strict latency SLAs (&lt;100ms), zero-downtime requirement</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Default to active-passive unless you can articulate a specific reason for active-active.</strong> Active-active is often over-engineered in interviews. Saying "We don't need active-active here because our users are 90% US-based and a 2-minute failover meets our SLA" demonstrates judgment.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Data Replication Strategies</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The choice of replication strategy determines your consistency guarantees, latency, and failure modes:</p>
+
+                    <ul>
+                        <li><strong>Synchronous replication:</strong> Write is acknowledged only after all replicas confirm. Guarantees strong consistency but adds cross-region latency (50&ndash;300ms per write). Used sparingly for critical data (financial transactions, user authentication tokens).</li>
+                        <li><strong>Asynchronous replication:</strong> Write is acknowledged after the primary confirms; replicas catch up later. Low write latency but risk of data loss during failover (RPO &gt; 0). Most common for content, user activity, logs.</li>
+                        <li><strong>Semi-synchronous:</strong> Write confirmed after at least one replica acknowledges. Compromise between latency and durability. MySQL semi-sync replication uses this model.</li>
+                    </ul>
+
+                    <h4>Conflict Resolution for Multi-Writer</h4>
+                    <p>In active-active with multiple write regions, conflicts are inevitable. Common strategies:</p>
+                    <ol>
+                        <li><strong>Last-Writer-Wins (LWW):</strong> Timestamp-based. Simple but loses data silently. Works for low-conflict data (user preferences, session state).</li>
+                        <li><strong>CRDTs (Conflict-Free Replicated Data Types):</strong> Data structures that mathematically guarantee convergence. Great for counters, sets, and flags. Used by Riak, Redis CRDB, and SoundCloud.</li>
+                        <li><strong>Application-level merge:</strong> Business logic decides how to merge. Most flexible but most complex. Used when domain knowledge is required (e.g., merging shopping carts).</li>
+                        <li><strong>Region-pinning:</strong> Each entity is "owned" by one region. Writes for that entity always route to the owning region. Avoids conflicts entirely at the cost of higher write latency for non-local entities.</li>
+                    </ol>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Partition your data by conflict tolerance.</strong> Not all data needs the same replication strategy. User profile edits can use LWW. Financial transactions need synchronous replication. Activity feeds can be eventually consistent. Articulating this per-entity strategy is a strong staff signal.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>DNS-Based Routing</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>DNS is the first layer of multi-region traffic management. The three main routing policies:</p>
+                    <ul>
+                        <li><strong>Latency-based routing:</strong> Route users to the region with lowest measured latency. AWS Route 53 and Cloudflare use network probes to maintain latency tables. Best for active-active with global users.</li>
+                        <li><strong>Geo-based routing:</strong> Route based on user's geographic location (country, continent). Used for data residency compliance (GDPR) and content localization. Simpler than latency-based but less precise.</li>
+                        <li><strong>Failover routing:</strong> Primary region serves all traffic; DNS switches to secondary on health check failure. TTL matters: a 60-second TTL means up to 60 seconds of downtime during failover. Some clients cache beyond TTL.</li>
+                    </ul>
+
+                    <p><strong>Layer beyond DNS:</strong> For sub-second failover, use an anycast load balancer (Cloudflare, AWS Global Accelerator) in front of DNS. This provides IP-level routing that does not depend on DNS TTL propagation.</p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Region Active-Active Architecture Diagram</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    USERS_US["Users (US)"] --> GLB["Global Load Balancer<br/>(Anycast / Route 53)"]
+    USERS_EU["Users (EU)"] --> GLB
+    USERS_APAC["Users (APAC)"] --> GLB
+
+    GLB -->|Latency-based| US_REGION
+    GLB -->|Latency-based| EU_REGION
+    GLB -->|Latency-based| APAC_REGION
+
+    subgraph US_REGION ["US-East Region"]
+        US_LB["Regional LB"] --> US_APP["App Servers"]
+        US_APP --> US_DB["Primary DB<br/>(Read/Write)"]
+        US_APP --> US_CACHE["Redis Cluster"]
+    end
+
+    subgraph EU_REGION ["EU-West Region"]
+        EU_LB["Regional LB"] --> EU_APP["App Servers"]
+        EU_APP --> EU_DB["Primary DB<br/>(Read/Write)"]
+        EU_APP --> EU_CACHE["Redis Cluster"]
+    end
+
+    subgraph APAC_REGION ["APAC Region"]
+        APAC_LB["Regional LB"] --> APAC_APP["App Servers"]
+        APAC_APP --> APAC_DB["Primary DB<br/>(Read/Write)"]
+        APAC_APP --> APAC_CACHE["Redis Cluster"]
+    end
+
+    US_DB <-->|"Async Replication<br/>+ Conflict Resolution"| EU_DB
+    EU_DB <-->|"Async Replication<br/>+ Conflict Resolution"| APAC_DB
+    US_DB <-->|"Async Replication<br/>+ Conflict Resolution"| APAC_DB
+                        </div>
+                    </div>
+                    <p><strong>Real-world example &mdash; Netflix:</strong> Netflix runs active-active across three AWS regions (us-east-1, us-west-2, eu-west-1). Their data replication layer uses <em>Cassandra</em> with tunable consistency (LOCAL_QUORUM for writes, LOCAL_ONE for reads). During the 2017 us-east-1 outage, Netflix shifted all traffic to the remaining two regions within seconds, with zero user-visible downtime.</p>
+
+                    <p><strong>Real-world example &mdash; CockroachDB:</strong> CockroachDB's "global tables" use consensus-based replication (Raft) across regions. Reads are served locally from the nearest replica with stale reads or follower reads, while writes go through the Raft leader. This gives linearizable consistency with acceptable read latency but higher write latency for cross-region transactions.</p>
+
+                    <h4>Cost Implications</h4>
+                    <p>Multi-region is expensive. The primary cost drivers:</p>
+                    <ul>
+                        <li><strong>Cross-region data transfer:</strong> $0.02&ndash;$0.09/GB depending on cloud provider and regions. At 10TB/month replication, this is $200&ndash;$900/month just for replication traffic.</li>
+                        <li><strong>Duplicate infrastructure:</strong> Compute, storage, managed services replicated across regions.</li>
+                        <li><strong>Operational overhead:</strong> Multi-region deployments, testing, monitoring. Budget 30&ndash;50% more engineering time for operational tasks.</li>
+                    </ul>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 3: Cost Optimization at Scale      -->
+            <!-- ========================================== -->
+            <h2 id="cost-optimization">3. Cost Optimization at Scale</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Cloud Cost Anatomy</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Most engineers dramatically underestimate the cost of their designs. At staff level, you are expected to have intuition about cost magnitudes and identify the top cost drivers in any architecture.</p>
+
+                    <h4>The Big Four Cost Categories</h4>
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Typical Share</th>
+                                <th>Examples</th>
+                                <th>Optimization Lever</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="cost-bar compute" style="width: 120px;">&nbsp;</span> <strong>Compute</strong></td>
+                                <td>40&ndash;60%</td>
+                                <td>EC2, Lambda, ECS, GKE</td>
+                                <td>Right-sizing, spot/preemptible, reserved instances</td>
+                            </tr>
+                            <tr>
+                                <td><span class="cost-bar storage" style="width: 80px;">&nbsp;</span> <strong>Storage</strong></td>
+                                <td>15&ndash;25%</td>
+                                <td>S3, EBS, RDS storage, DynamoDB</td>
+                                <td>Tiering (hot/warm/cold), lifecycle policies, compression</td>
+                            </tr>
+                            <tr>
+                                <td><span class="cost-bar network" style="width: 70px;">&nbsp;</span> <strong>Network</strong></td>
+                                <td>10&ndash;20%</td>
+                                <td>Data transfer out, cross-AZ, cross-region, NAT gateway</td>
+                                <td>CDN, data locality, compression, VPC endpoints</td>
+                            </tr>
+                            <tr>
+                                <td><span class="cost-bar managed" style="width: 60px;">&nbsp;</span> <strong>Managed Services</strong></td>
+                                <td>10&ndash;20%</td>
+                                <td>RDS, ElastiCache, Kafka (MSK), OpenSearch</td>
+                                <td>Right-sizing, self-managed alternatives (at scale)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>The Hidden Killer: Data Transfer Costs</h4>
+                    <p>
+                        AWS charges $0.01&ndash;$0.02/GB for cross-AZ traffic, $0.02/GB for cross-region, and $0.09/GB for internet egress.
+                        A chatty microservice architecture doing 1 billion cross-AZ requests/day at 10KB each generates <strong>10TB/day of cross-AZ traffic = ~$3,000/month</strong> just for internal communication.
+                    </p>
+                    <p>This is why service mesh locality-aware routing, gRPC (smaller payloads), and co-locating tightly coupled services matter at scale.</p>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>When drawing architecture diagrams, annotate data flows with approximate volumes.</strong> "This path does 50K requests/second at 2KB each = 100MB/s." This immediately surfaces cost and performance bottlenecks.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Cost Optimization Strategies</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Compute Optimization</h4>
+                    <ul>
+                        <li><strong>Reserved Instances / Savings Plans:</strong> 30&ndash;60% savings for predictable workloads. Commit 1&ndash;3 years. Use for baseline capacity.</li>
+                        <li><strong>Spot Instances:</strong> 60&ndash;90% savings for fault-tolerant workloads. Batch processing, CI/CD, stateless workers. Can be interrupted with 2 minutes notice.</li>
+                        <li><strong>Right-sizing:</strong> Most instances are over-provisioned. Use CloudWatch / monitoring to identify instances using &lt;30% CPU. Downsizing from c5.4xlarge to c5.2xlarge saves $2,400/year per instance.</li>
+                        <li><strong>Auto-scaling:</strong> Scale to zero during off-peak. A system that runs 16 c5.2xlarge 24/7 but only needs them 12 hours/day wastes $105K/year.</li>
+                    </ul>
+
+                    <h4>Storage Tiering</h4>
+                    <ul>
+                        <li><strong>Hot (S3 Standard / SSD):</strong> Frequently accessed data. Last 30 days of user activity.</li>
+                        <li><strong>Warm (S3 IA / HDD):</strong> Occasionally accessed. 30&ndash;90 day old data. 40&ndash;50% cheaper than hot.</li>
+                        <li><strong>Cold (S3 Glacier / Archive):</strong> Rarely accessed. Compliance data, old logs. 80&ndash;90% cheaper than hot.</li>
+                    </ul>
+                    <p>Implement S3 Lifecycle policies to automatically transition objects. A system storing 100TB/month that moves data from Standard to Glacier after 90 days saves <strong>~$180K/year</strong>.</p>
+
+                    <h4>FinOps Practices</h4>
+                    <p>FinOps is the practice of bringing financial accountability to cloud spending:</p>
+                    <ol>
+                        <li><strong>Tag everything:</strong> Team, service, environment. Without tags, you cannot attribute costs.</li>
+                        <li><strong>Set budgets and alerts:</strong> Per-team, per-service. Alert at 80% of monthly budget.</li>
+                        <li><strong>Weekly cost reviews:</strong> Top 10 cost changes week-over-week, attributed to specific PRs or deployments.</li>
+                        <li><strong>Unit economics:</strong> Track cost-per-request, cost-per-user, cost-per-GB-stored. These metrics make cost real to engineering teams.</li>
+                    </ol>
+
+                    <h4>Example: How a Design Choice Saves $500K/Year</h4>
+                    <p>Consider a notification service sending 1 billion push notifications/month:</p>
+                    <pre><code class="language-text">Option A: AWS SNS (managed)
+  - $0.50 per million requests = $500/month for publishing
+  - $1.00 per million mobile pushes = $1,000/month
+  - Total: ~$1,500/month = $18K/year
+  - Operational cost: ~0.5 FTE
+
+Option B: Self-managed Kafka + custom push service
+  - 6x m5.2xlarge Kafka brokers = $4,200/month
+  - 10x c5.xlarge push workers = $2,400/month
+  - Total infra: ~$6,600/month = $79K/year
+  - Operational cost: ~1.5 FTE ($150K/year loaded)
+  - Total: ~$229K/year
+
+Staff decision: Use SNS. The managed service saves $211K/year in total
+cost of ownership despite appearing "less optimal" technically.
+
+BUT: At 50 billion notifications/month, the math flips:
+  - SNS: $75K/month = $900K/year
+  - Self-managed (scaled): $25K/month infra + $150K FTE = $450K/year
+  - At this scale, self-managed saves $450K/year.</code></pre>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Always include operational cost (people) in build vs. buy analysis.</strong> A "free" open-source solution that requires 1 FTE to maintain costs $150&ndash;250K/year loaded.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 4: Migration Strategies            -->
+            <!-- ========================================== -->
+            <h2 id="migration-strategies">4. Migration Strategies</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Strangler Fig Pattern</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Named after strangler fig trees that grow around a host tree and eventually replace it. The pattern incrementally
+                        replaces a legacy system by routing traffic to the new system piece by piece, feature by feature.
+                    </p>
+
+                    <h4>How It Works</h4>
+                    <ol>
+                        <li><strong>Identify a seam:</strong> Find a feature boundary in the legacy system (e.g., user authentication, search, order processing).</li>
+                        <li><strong>Build the replacement:</strong> Implement the feature in the new system.</li>
+                        <li><strong>Route traffic:</strong> Use a proxy/gateway to route that feature's traffic to the new system.</li>
+                        <li><strong>Validate:</strong> Compare results between old and new system (shadow traffic or A/B).</li>
+                        <li><strong>Cut over:</strong> Once validated, permanently route to the new system.</li>
+                        <li><strong>Repeat:</strong> Move to the next feature.</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Phase 1: Shadow"
+        C1["Client"] --> GW1["API Gateway"]
+        GW1 -->|100%| LEGACY1["Legacy System"]
+        GW1 -.->|Shadow| NEW1["New Service<br/>(Auth Module)"]
+    end
+
+    subgraph "Phase 2: Canary"
+        C2["Client"] --> GW2["API Gateway"]
+        GW2 -->|90%| LEGACY2["Legacy System"]
+        GW2 -->|10%| NEW2["New Service<br/>(Auth Module)"]
+    end
+
+    subgraph "Phase 3: Cutover"
+        C3["Client"] --> GW3["API Gateway"]
+        GW3 -->|0%| LEGACY3["Legacy System<br/>(Deprecated)"]
+        GW3 -->|100%| NEW3["New Service<br/>(Auth Module)"]
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Key insight:</strong> The API gateway / routing layer is the enabler. Without it, you cannot incrementally shift traffic. This is why investing in a good API gateway early pays dividends during migration.</p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Dual-Write, Shadow Traffic, and Feature Flags</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Dual-Write with Reconciliation</h4>
+                    <p>
+                        During data migration, write to both the old and new data store simultaneously. A reconciliation job periodically compares the two stores and fixes discrepancies.
+                    </p>
+                    <p><strong>Dangers of dual-write:</strong></p>
+                    <ul>
+                        <li><strong>Ordering issues:</strong> If write to Store A succeeds but write to Store B fails (or arrives out of order), the stores diverge.</li>
+                        <li><strong>Performance:</strong> Doubles write latency (sequential) or adds complexity (async).</li>
+                        <li><strong>Better alternative:</strong> Use Change Data Capture (CDC) &mdash; write to one store and use a CDC pipeline (Debezium, DynamoDB Streams) to replicate to the other. Single source of truth, no ordering issues.</li>
+                    </ul>
+
+                    <h4>Shadow Traffic / Dark Launching</h4>
+                    <p>
+                        Send a copy of production traffic to the new system without serving its responses to users. Compare the new system's outputs against the old system's outputs. This validates correctness and performance under real load without risk.
+                    </p>
+                    <p><strong>Netflix uses this extensively.</strong> Before launching a new recommendation algorithm, they run it in shadow mode for weeks, comparing its recommendations against the current algorithm. Only when metrics are comparable or better do they start a canary rollout.</p>
+
+                    <h4>Feature Flags for Gradual Rollout</h4>
+                    <p>Feature flags (LaunchDarkly, Unleash, homegrown) decouple deployment from release:</p>
+                    <ul>
+                        <li><strong>Percentage rollout:</strong> 1% &rarr; 5% &rarr; 25% &rarr; 50% &rarr; 100% over days/weeks.</li>
+                        <li><strong>User segment targeting:</strong> Internal users first, then beta users, then general availability.</li>
+                        <li><strong>Kill switch:</strong> Instant rollback without redeployment. Critical for migrations.</li>
+                    </ul>
+
+                    <h4>Data Migration: Online vs Offline</h4>
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Approach</th>
+                                <th>Downtime</th>
+                                <th>Complexity</th>
+                                <th>When to Use</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Offline (big bang)</strong></td>
+                                <td>Hours to days</td>
+                                <td>Low</td>
+                                <td>Small datasets (&lt;100GB), acceptable maintenance window</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Online (CDC-based)</strong></td>
+                                <td>Seconds (final cutover)</td>
+                                <td>High</td>
+                                <td>Large datasets, zero-downtime requirement, 24/7 systems</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Hybrid (bulk + CDC)</strong></td>
+                                <td>Minutes</td>
+                                <td>Medium</td>
+                                <td>Large datasets with short maintenance window tolerance</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Zero-Downtime Migration Checklist</h4>
+                    <ol>
+                        <li>Set up CDC pipeline from old to new store</li>
+                        <li>Backfill historical data while CDC streams ongoing changes</li>
+                        <li>Validate data consistency (row counts, checksums, sample comparison)</li>
+                        <li>Deploy application code that can read from both stores (feature flagged)</li>
+                        <li>Shadow-read: read from new store, compare with old store, serve old store's result</li>
+                        <li>Canary: serve 1% of reads from new store</li>
+                        <li>Gradually increase to 100% reads from new store</li>
+                        <li>Switch writes to new store (brief dual-write or instant cutover)</li>
+                        <li>Decommission old store after bake period</li>
+                    </ol>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>In interviews, always describe how you would migrate to your proposed design from the current state.</strong> A design that cannot be reached incrementally from the status quo is an academic exercise, not a staff-level proposal.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 5: System Evolution & Tech Debt    -->
+            <!-- ========================================== -->
+            <h2 id="system-evolution">5. System Evolution &amp; Technical Debt</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Designing for Change vs YAGNI</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        This is one of the hardest judgment calls in engineering. Over-engineering wastes time and adds complexity.
+                        Under-engineering creates expensive rewrites. Staff engineers find the sweet spot.
+                    </p>
+
+                    <p><strong>The principle:</strong> Design for the <em>known unknowns</em>, not the <em>unknown unknowns</em>.</p>
+                    <ul>
+                        <li><strong>Known unknown:</strong> "We'll need to support multiple payment providers eventually." &rarr; Use a payment gateway abstraction layer now. Low cost, high value.</li>
+                        <li><strong>Unknown unknown:</strong> "Maybe we'll need to support voice commands someday." &rarr; Do not build for this. YAGNI.</li>
+                    </ul>
+
+                    <p><strong>Practical heuristic:</strong> Add an abstraction layer when the cost of adding it now is &lt;20% of the cost of adding it later. Otherwise, defer.</p>
+
+                    <h4>When to Invest in Platform vs Features</h4>
+                    <p>A staff engineer must constantly balance platform work (developer productivity, reliability, observability) against feature work (revenue-generating). The decision framework:</p>
+                    <ul>
+                        <li><strong>Invest in platform when:</strong> Multiple teams are building the same thing independently, developer velocity is measurably declining, incidents are increasing, or onboarding time is growing.</li>
+                        <li><strong>Invest in features when:</strong> The business is in growth mode, product-market fit is still being validated, or competitive pressure demands shipping speed.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Technical Debt Quadrants (Martin Fowler)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Not all technical debt is bad. Martin Fowler's quadrant helps categorize and prioritize it:</p>
+
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Deliberate</th>
+                                <th>Inadvertent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Reckless</strong></td>
+                                <td>"We don't have time for design." <br/><em>Dangerous. Fix immediately.</em></td>
+                                <td>"What's layered architecture?" <br/><em>Knowledge gap. Invest in training.</em></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Prudent</strong></td>
+                                <td>"Ship now, refactor next quarter." <br/><em>Acceptable if tracked and scheduled.</em></td>
+                                <td>"Now we know how we should have done it." <br/><em>Normal. Schedule refactoring.</em></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Making the Case for Tech Debt Reduction</h4>
+                    <p>Staff engineers must translate technical debt into business language:</p>
+                    <ul>
+                        <li><strong>Instead of:</strong> "The codebase is a mess and we need to refactor."</li>
+                        <li><strong>Say:</strong> "Each new feature in module X takes 3 weeks instead of 1 because of coupling issues. A 4-week investment to decouple it will pay back in 2 sprints."</li>
+                    </ul>
+                    <p>Quantify: incident frequency, developer velocity (PRs/week), onboarding time, bug rate. These are the numbers that earn executive buy-in.</p>
+
+                    <h4>Versioning Strategies for Long-Lived Systems</h4>
+                    <ul>
+                        <li><strong>API versioning:</strong> URL-based (/v1/, /v2/) or header-based (Accept: application/vnd.api+json;version=2). Support N-1 versions minimum. Deprecation timeline of 6&ndash;12 months.</li>
+                        <li><strong>Schema evolution:</strong> Use backward-compatible changes (additive only). Avro/Protobuf with schema registries (Confluent Schema Registry) enforce compatibility.</li>
+                        <li><strong>Database migrations:</strong> Expand-contract pattern. Add new column &rarr; migrate data &rarr; update code &rarr; remove old column. Never break backward compatibility in a single step.</li>
+                    </ul>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Speak about system evolution in terms of phases.</strong> "In phase 1 we ship with a monolith. In phase 2, when we hit 10K requests/second, we extract the search service. In phase 3, we add a dedicated ML ranking layer." This shows you think in terms of evolutionary architecture.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 6: Conway's Law                    -->
+            <!-- ========================================== -->
+            <h2 id="conways-law">6. Conway's Law &amp; Organizational Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Conway's Law in Practice</span>
+                </div>
+                <div class="collapsible-content">
+                    <blockquote>
+                        <p>"Any organization that designs a system will produce a design whose structure is a copy of the organization's communication structure." &mdash; Melvin Conway, 1967</p>
+                    </blockquote>
+
+                    <p>
+                        This is not just an observation &mdash; it is a force of nature in software engineering. If you have four teams building a compiler, you will get a four-pass compiler. If your org has a "frontend team" and a "backend team," you will get a system with a thick API boundary between frontend and backend, regardless of whether that is the right architecture.
+                    </p>
+
+                    <h4>The Inverse Conway Maneuver</h4>
+                    <p>
+                        Since Conway's Law is inevitable, <em>use it deliberately</em>. Structure your teams to match the architecture you <em>want</em>, not the one you have.
+                    </p>
+                    <p><strong>Example:</strong> If you want a microservices architecture with independent deployment, create small, autonomous teams that own entire services (including frontend, backend, and data layer). If you organize by layer (frontend team, backend team, DBA team), you will get a tightly coupled monolith regardless of your stated architecture goals.</p>
+
+                    <h4>Team Topologies</h4>
+                    <p>From <em>Team Topologies</em> by Matthew Skelton and Manuel Pais, four fundamental team types:</p>
+
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Team Type</th>
+                                <th>Purpose</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Stream-aligned</strong></td>
+                                <td>Aligned to a single stream of work (product feature, user journey). This is the primary team type.</td>
+                                <td>Checkout Team, Search Team, User Onboarding Team</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Platform</strong></td>
+                                <td>Provides self-service capabilities to stream-aligned teams. Reduces cognitive load.</td>
+                                <td>Kubernetes platform team, CI/CD team, Data platform team</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Enabling</strong></td>
+                                <td>Helps stream-aligned teams adopt new capabilities. Temporary engagement model.</td>
+                                <td>SRE consultants, ML enablement team</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Complicated-subsystem</strong></td>
+                                <td>Owns a subsystem requiring deep specialist knowledge.</td>
+                                <td>Video encoding team, Cryptography team, ML model serving team</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>When proposing a design, mention team ownership.</strong> "This design has three services. Service A and B would be owned by the existing Payments team. Service C requires ML expertise, so it would either be a complicated-subsystem team or we partner with the ML platform team." This demonstrates organizational awareness.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 7: Capacity Planning               -->
+            <!-- ========================================== -->
+            <h2 id="capacity-planning">7. Capacity Planning &amp; Growth</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>10x Planning: Design for the Next Order of Magnitude</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        A staff engineer designs for the next 10x of growth, not 100x. Designing for 100x is over-engineering. Designing for 2x is under-engineering. The sweet spot is <strong>10x</strong>: enough headroom that you are not constantly re-architecting, but not so much that you waste resources on speculative infrastructure.
+                    </p>
+
+                    <h4>What Breaks at Each Order of Magnitude</h4>
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Scale</th>
+                                <th>What Typically Breaks</th>
+                                <th>Remediation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>10x</strong> (e.g., 1K &rarr; 10K RPS)</td>
+                                <td>Database connections, in-memory caches, single-node bottlenecks</td>
+                                <td>Connection pooling, read replicas, add caching layer, horizontal scaling of stateless services</td>
+                            </tr>
+                            <tr>
+                                <td><strong>100x</strong> (e.g., 10K &rarr; 1M RPS)</td>
+                                <td>Database architecture (single primary), monolithic service boundaries, centralized queues</td>
+                                <td>Shard databases, decompose into services, distributed queues (Kafka), CDN for static content</td>
+                            </tr>
+                            <tr>
+                                <td><strong>1000x</strong> (e.g., 1M &rarr; 1B RPS)</td>
+                                <td>Everything. Network fabric, storage architecture, team organization, deployment pipeline</td>
+                                <td>Custom infrastructure, edge computing, multi-region, dedicated hardware, fundamental re-architecture</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Horizontal vs Vertical Scaling Decisions</h4>
+                    <p><strong>Vertical scaling (scale up)</strong> is simpler but has hard limits:</p>
+                    <ul>
+                        <li>Fastest path to more capacity. No code changes.</li>
+                        <li>Works until you hit the largest available instance (e.g., r6g.16xlarge = 512GB RAM).</li>
+                        <li>Single point of failure unless combined with replication.</li>
+                        <li><strong>Use for:</strong> databases in early stage, caches, single-leader systems.</li>
+                    </ul>
+                    <p><strong>Horizontal scaling (scale out)</strong> is the long-term strategy:</p>
+                    <ul>
+                        <li>Requires stateless services or explicit state partitioning (sharding).</li>
+                        <li>Adds complexity: service discovery, load balancing, distributed coordination.</li>
+                        <li>No hard upper limit (in theory).</li>
+                        <li><strong>Use for:</strong> stateless application servers, read replicas, worker pools, storage (sharded).</li>
+                    </ul>
+
+                    <p><strong>When to re-architect vs optimize:</strong></p>
+                    <ul>
+                        <li><strong>Optimize</strong> when you can get 2&ndash;5x improvement through caching, query optimization, connection pooling, or right-sizing. Low risk, high ROI.</li>
+                        <li><strong>Re-architect</strong> when the fundamental architecture cannot support the next 10x. Sharding a monolithic database, extracting a service, switching from polling to event-driven. High risk, necessary investment.</li>
+                    </ul>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>State your scale target explicitly.</strong> "We're at 5K RPS today. I'm designing for 50K RPS. At 50K, we'll need to shard the user database and add a caching layer. I'm not designing for 500K RPS now because the additional complexity isn't justified." This shows calibrated judgment.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 8: Trade-off Analysis Framework    -->
+            <!-- ========================================== -->
+            <h2 id="tradeoff-analysis">8. Trade-off Analysis Framework</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Structuring Trade-off Discussions</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Every significant design decision involves trade-offs. Staff engineers do not just identify trade-offs &mdash; they
+                        <em>structure</em> the discussion so that the decision is clear, defensible, and reversible where possible.
+                    </p>
+
+                    <h4>The Decision Matrix Template</h4>
+                    <p>For any significant decision (database choice, sync vs async, monolith vs microservices), present it as a weighted decision matrix:</p>
+
+                    <table class="decision-matrix">
+                        <thead>
+                            <tr>
+                                <th>Criterion (Weight)</th>
+                                <th>Option A: PostgreSQL</th>
+                                <th>Option B: DynamoDB</th>
+                                <th>Option C: CockroachDB</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Query flexibility (25%)</strong></td>
+                                <td>9/10 &mdash; Full SQL, joins, aggregations</td>
+                                <td>4/10 &mdash; Key-value + limited queries</td>
+                                <td>8/10 &mdash; SQL-compatible, some limits</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Horizontal scalability (25%)</strong></td>
+                                <td>5/10 &mdash; Requires pgBouncer + Citus</td>
+                                <td>10/10 &mdash; Automatic, unlimited</td>
+                                <td>9/10 &mdash; Built-in, automatic</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Operational complexity (20%)</strong></td>
+                                <td>6/10 &mdash; Well-understood, good tooling</td>
+                                <td>9/10 &mdash; Fully managed, serverless</td>
+                                <td>5/10 &mdash; Newer, less ecosystem</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cost at 10TB (15%)</strong></td>
+                                <td>7/10 &mdash; ~$2K/month RDS</td>
+                                <td>5/10 &mdash; ~$5K/month (provisioned)</td>
+                                <td>4/10 &mdash; ~$8K/month (managed)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Team expertise (15%)</strong></td>
+                                <td>9/10 &mdash; All engineers know SQL</td>
+                                <td>6/10 &mdash; Some NoSQL experience</td>
+                                <td>3/10 &mdash; No one has used it</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Weighted Score</strong></td>
+                                <td><strong>7.2</strong></td>
+                                <td><strong>7.0</strong></td>
+                                <td><strong>6.2</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key insight:</strong> The weights matter more than the scores. Choosing different weights often changes the outcome. Be explicit about <em>why</em> you weight criteria the way you do. "I'm weighting team expertise at 15% because we need to ship in 8 weeks and cannot afford a learning curve" is the kind of reasoning interviewers want to hear.</p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Common Trade-off Pairs</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Build vs Buy</h4>
+                    <p><strong>Build when:</strong> It is a core differentiator, you need deep customization, the managed service does not exist or is immature, or you are at a scale where self-managed is significantly cheaper.</p>
+                    <p><strong>Buy when:</strong> It is commodity infrastructure (databases, queues, monitoring), time-to-market matters, your team lacks domain expertise, or the managed service is battle-tested.</p>
+
+                    <h4>Consistency vs Availability</h4>
+                    <p>This is not abstract CAP theorem &mdash; it is concrete decisions:</p>
+                    <ul>
+                        <li><strong>Choose consistency:</strong> Financial transactions, inventory counts, user authentication. "I'd rather show an error than show incorrect data."</li>
+                        <li><strong>Choose availability:</strong> Social media feeds, recommendation engines, analytics dashboards. "I'd rather show slightly stale data than show nothing."</li>
+                    </ul>
+
+                    <h4>Latency vs Throughput</h4>
+                    <ul>
+                        <li><strong>Optimize for latency:</strong> User-facing APIs, real-time search, game servers. Every millisecond matters for user experience.</li>
+                        <li><strong>Optimize for throughput:</strong> Batch processing, data pipelines, bulk imports. Total volume processed per unit time matters more than individual request latency.</li>
+                    </ul>
+
+                    <h4>Complexity vs Flexibility</h4>
+                    <ul>
+                        <li><strong>Accept complexity when:</strong> Requirements are genuinely diverse and changing, the system serves multiple teams with different needs, or the flexibility reduces total system count.</li>
+                        <li><strong>Prefer simplicity when:</strong> Requirements are stable and well-understood, a single team owns the system, or operational burden is a concern.</li>
+                    </ul>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Never present a single option.</strong> Always present at least two alternatives with explicit trade-offs. "I'm going with Option A because of X, Y, Z. The main thing we give up is W, which I'm comfortable with because [reason]." This demonstrates you considered alternatives.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 9: Influence Without Authority     -->
+            <!-- ========================================== -->
+            <h2 id="influence-without-authority">9. Influence Without Authority in Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Writing Design Docs &amp; RFCs</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        At the staff level, your primary output shifts from code to <em>decisions</em>. Design docs and RFCs are the vehicles for those decisions.
+                        A well-written design doc is one of the highest-leverage activities a staff engineer can perform.
+                    </p>
+
+                    <h4>Effective Design Doc Structure</h4>
+                    <ol>
+                        <li><strong>Context &amp; Problem Statement:</strong> What problem are we solving? Why now? What is the cost of inaction?</li>
+                        <li><strong>Goals &amp; Non-Goals:</strong> Explicitly state what you are NOT solving. This prevents scope creep and shows judgment.</li>
+                        <li><strong>Proposed Solution:</strong> The design, with diagrams.</li>
+                        <li><strong>Alternatives Considered:</strong> At least 2 alternatives with pros/cons. This is where trust is built.</li>
+                        <li><strong>Trade-offs &amp; Risks:</strong> What are we giving up? What could go wrong?</li>
+                        <li><strong>Migration Plan:</strong> How do we get from here to there?</li>
+                        <li><strong>Success Metrics:</strong> How do we know this worked?</li>
+                    </ol>
+
+                    <h4>Architecture Decision Records (ADRs)</h4>
+                    <p>
+                        ADRs capture the <em>why</em> behind architectural decisions. They are lightweight documents (1&ndash;2 pages) stored alongside the code. The format:
+                    </p>
+                    <pre><code class="language-markdown"># ADR-042: Use Kafka over SQS for order events
+
+## Status: Accepted
+
+## Context
+We need an event streaming platform for order events.
+Current volume: 10K events/sec. Expected in 12 months: 100K events/sec.
+Multiple consumers need the same events (notifications, analytics, billing).
+
+## Decision
+Use Apache Kafka (MSK) instead of SQS.
+
+## Consequences
+- (+) Fan-out to multiple consumers without duplicating messages
+- (+) Event replay capability for new consumers
+- (+) Handles 100K events/sec without architectural change
+- (-) Higher operational complexity than SQS
+- (-) Team needs Kafka training (2-week investment)
+- (-) Higher base cost ($1,200/month vs $400/month at current volume)
+
+## Alternatives Rejected
+- SQS + SNS fan-out: Simpler but no replay, complex at scale
+- Kinesis: AWS-native but partition limit concerns at 100K/sec</code></pre>
+
+                    <h4>Building Consensus Across Teams</h4>
+                    <ul>
+                        <li><strong>Pre-socialize:</strong> Before the formal review, share the doc 1:1 with key stakeholders. Incorporate their feedback. By the time the doc reaches formal review, major objections should already be addressed.</li>
+                        <li><strong>Use data, not authority:</strong> "Benchmarks show Option A handles 3x the throughput at 60% of the cost" is more persuasive than "I think Option A is better."</li>
+                        <li><strong>Acknowledge trade-offs explicitly:</strong> Saying "This approach adds operational complexity, and here is how we mitigate it" builds trust. Pretending there are no downsides destroys it.</li>
+                        <li><strong>Disagree and commit:</strong> If the group decides differently than you recommended, commit fully. Document why in the ADR. Revisit only if new data emerges.</li>
+                    </ul>
+
+                    <h4>How This Shows Up in Interviews</h4>
+                    <p>
+                        Interviewers look for collaboration signals even in a solo whiteboard session. Phrases that demonstrate influence:
+                    </p>
+                    <ul>
+                        <li>"If I were proposing this to my team, I would first validate the assumption that..."</li>
+                        <li>"This is a reversible decision, so I'd start with the simpler approach and iterate..."</li>
+                        <li>"The main pushback I'd expect is around operational complexity, and here's how I'd address it..."</li>
+                        <li>"I'd want to get buy-in from the platform team before committing to this approach..."</li>
+                    </ul>
+
+                    <span class="signal-badge green">Staff Signal</span>
+                    <p>
+                        <strong>Narrate your decision-making process out loud.</strong> Interviewers cannot read your mind. When you say "I'm choosing X over Y because of Z," you are demonstrating the same skill you would use to write a design doc or ADR.
+                    </p>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 10: Real-World Staff Decisions     -->
+            <!-- ========================================== -->
+            <h2 id="real-world-decisions">10. Real-World Staff-Level Design Decisions</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Case Studies from Industry Leaders</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Amazon: The Service-Oriented Architecture Mandate (2002)</h4>
+                    <p>
+                        In 2002, Jeff Bezos issued the now-famous API mandate: all teams must expose their data and functionality through service interfaces.
+                        No direct database access, no shared memory, no backdoors. All communication must be through well-defined APIs.
+                    </p>
+                    <p><strong>Why this was a staff-level decision:</strong></p>
+                    <ul>
+                        <li>It was not the technically simplest solution. Direct database access was faster to implement.</li>
+                        <li>It was an <em>organizational</em> decision disguised as a technical one. It enforced team autonomy and clear ownership boundaries.</li>
+                        <li>It was a 10-year bet. The short-term cost was enormous (rewriting internal integrations). The long-term payoff was AWS &mdash; the same APIs that internal teams used became the foundation of AWS services sold externally.</li>
+                    </ul>
+                    <p><strong>Lesson:</strong> The best architectural decisions optimize for organizational velocity over individual team convenience.</p>
+
+                    <h4>Google: Spanner &mdash; The Global Database</h4>
+                    <p>
+                        Google built Spanner to solve a specific problem: their advertising system needed a globally distributed, strongly consistent database.
+                        Existing solutions (Bigtable) were eventually consistent, leading to complex application-level conflict resolution.
+                    </p>
+                    <p><strong>The key trade-off:</strong> Spanner uses synchronized atomic clocks (TrueTime) to provide external consistency across regions. This requires dedicated hardware (GPS receivers + atomic clocks in every datacenter), adding significant infrastructure cost. But it eliminates the much larger cost of application developers reasoning about eventual consistency.</p>
+                    <p><strong>Lesson:</strong> Sometimes investing in hard infrastructure problems eliminates entire classes of application complexity. This is a staff-level insight &mdash; solving the problem at the right layer of the stack.</p>
+
+                    <h4>Netflix: Chaos Engineering as Culture</h4>
+                    <p>
+                        Netflix did not just build Chaos Monkey as a tool. They made chaos engineering a <em>cultural practice</em>.
+                        Every service is expected to handle failures gracefully. Teams are evaluated on their failure modes, not just their features.
+                    </p>
+                    <p><strong>How this changed their architecture:</strong></p>
+                    <ul>
+                        <li>Every service has circuit breakers, fallbacks, and graceful degradation built in from day one.</li>
+                        <li>Blast radius is a first-class design consideration. Services are designed to limit the impact of any single failure.</li>
+                        <li>GameDay exercises simulate region-wide outages quarterly. Teams that fail are not punished &mdash; they are given resources to improve.</li>
+                    </ul>
+                    <p><strong>Lesson:</strong> Reliability is not a feature you add later. It is a cultural practice embedded in how you design, build, and operate systems.</p>
+
+                    <h4>Uber: Domain-Oriented Microservice Architecture (DOMA)</h4>
+                    <p>
+                        By 2018, Uber had ~2,200 microservices. The original vision of independent, small services had devolved into a distributed monolith with tangled dependencies, unpredictable failure cascades, and ownership confusion.
+                    </p>
+                    <p><strong>DOMA introduced:</strong></p>
+                    <ul>
+                        <li><strong>Domains:</strong> Logical groupings of related services (Marketplace, Payments, Rider, Driver). Each domain has a clear owner (a senior engineer or group).</li>
+                        <li><strong>Gateways:</strong> Each domain exposes a single gateway API. Internal services within a domain can communicate freely, but cross-domain communication goes through the gateway.</li>
+                        <li><strong>Layering:</strong> Infrastructure layer &rarr; Business logic layer &rarr; Presentation layer. Strict dependency direction (upper layers depend on lower, never the reverse).</li>
+                    </ul>
+                    <p><strong>Lesson:</strong> Microservices without domain boundaries become a distributed monolith. The organizational structure (domains, ownership) matters as much as the technical structure.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Uber DOMA Architecture"
+        subgraph PRES ["Presentation Layer"]
+            RIDER_APP["Rider App"]
+            DRIVER_APP["Driver App"]
+        end
+        subgraph BIZ ["Business Logic Layer"]
+            subgraph MKT ["Marketplace Domain"]
+                MKT_GW["Marketplace Gateway"]
+                MKT_S1["Matching Service"]
+                MKT_S2["Pricing Service"]
+                MKT_S3["Surge Service"]
+            end
+            subgraph PAY ["Payments Domain"]
+                PAY_GW["Payments Gateway"]
+                PAY_S1["Billing Service"]
+                PAY_S2["Wallet Service"]
+            end
+        end
+        subgraph INFRA ["Infrastructure Layer"]
+            KAFKA["Kafka"]
+            STORAGE["Storage"]
+            OBSERVE["Observability"]
+        end
+
+        RIDER_APP --> MKT_GW
+        RIDER_APP --> PAY_GW
+        DRIVER_APP --> MKT_GW
+        MKT_GW --> MKT_S1
+        MKT_GW --> MKT_S2
+        MKT_GW --> MKT_S3
+        PAY_GW --> PAY_S1
+        PAY_GW --> PAY_S2
+        MKT_GW -.->|"Cross-domain<br/>via Gateway"| PAY_GW
+        MKT_S1 --> KAFKA
+        PAY_S1 --> STORAGE
+    end
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 11: Interview Signals Checklist    -->
+            <!-- ========================================== -->
+            <h2 id="interview-signals">11. Interview Signals Checklist</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Interviewers Look For at Staff Level</span>
+                </div>
+                <div class="collapsible-content">
+                    <table class="checklist-table">
+                        <thead>
+                            <tr>
+                                <th>Signal</th>
+                                <th>What It Looks Like</th>
+                                <th>Example Phrase</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Unprompted trade-off discussion</strong></td>
+                                <td>Candidate surfaces trade-offs without being asked</td>
+                                <td>"The trade-off here is consistency vs latency. For this use case, I'd choose..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Business context awareness</strong></td>
+                                <td>Candidate connects technical decisions to business outcomes</td>
+                                <td>"This approach lets us ship in 4 weeks instead of 12, which matters because..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cost consciousness</strong></td>
+                                <td>Candidate mentions cost implications of design choices</td>
+                                <td>"At this scale, DynamoDB would cost ~$15K/month. We could reduce that by..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Organizational awareness</strong></td>
+                                <td>Candidate considers team structure and ownership</td>
+                                <td>"This service should be owned by the Payments team since they have domain expertise..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Migration thinking</strong></td>
+                                <td>Candidate describes how to get from current state to proposed state</td>
+                                <td>"We'd use a strangler fig pattern to migrate incrementally..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Evolution mindset</strong></td>
+                                <td>Candidate designs in phases, not a single end state</td>
+                                <td>"Phase 1 is a monolith. At 50K RPS, we extract the search service..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Operational empathy</strong></td>
+                                <td>Candidate considers who will be on-call for this system</td>
+                                <td>"I'd add a circuit breaker here so the on-call engineer doesn't get paged for transient failures..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Alternatives considered</strong></td>
+                                <td>Candidate presents multiple options before choosing</td>
+                                <td>"I considered three approaches: A, B, and C. I'm going with B because..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Quantitative reasoning</strong></td>
+                                <td>Candidate uses numbers to justify decisions</td>
+                                <td>"At 10K RPS with 2KB payloads, that's 20MB/s. A single Redis instance can handle this..."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Scope management</strong></td>
+                                <td>Candidate explicitly scopes what they will and will not address</td>
+                                <td>"For this design, I'm going to focus on the write path. The read path is important but I'll tackle it after..."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Common Follow-Up Questions and How to Handle Them</h4>
+                    <ul>
+                        <li><strong>"What if traffic increases 100x?"</strong> &mdash; Do not redesign from scratch. Identify the bottleneck that would break first (usually the database) and describe the specific change needed (sharding, read replicas, caching). Show you understand the <em>order</em> in which things break.</li>
+                        <li><strong>"How would you handle a region going down?"</strong> &mdash; Describe your failover strategy specifically: DNS failover time, data replication lag (RPO), connection draining, and how long until full recovery. Numbers matter.</li>
+                        <li><strong>"Why not use [alternative technology]?"</strong> &mdash; Acknowledge it is a valid option. Explain your criteria and why your choice scored higher on the criteria that matter most for this specific problem. Never dismiss alternatives.</li>
+                        <li><strong>"How would you test this?"</strong> &mdash; Describe load testing (target throughput), chaos testing (failure injection), and integration testing. Mention specific tools (Locust, Gremlin, Toxiproxy) to show practical experience.</li>
+                        <li><strong>"Who builds this?"</strong> &mdash; Map components to teams. Identify the critical path. Mention what can be built in parallel. This is a pure staff signal question.</li>
+                    </ul>
+
+                    <h4>Red Flags That Signal "Senior, Not Staff"</h4>
+                    <table class="checklist-table">
+                        <thead>
+                            <tr>
+                                <th>Red Flag</th>
+                                <th>What to Do Instead</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Jumping straight to the solution without clarifying requirements</td>
+                                <td>Spend 5 minutes on requirements, constraints, and scope</td>
+                            </tr>
+                            <tr>
+                                <td>Presenting only one option</td>
+                                <td>Always present at least two alternatives with trade-offs</td>
+                            </tr>
+                            <tr>
+                                <td>Never mentioning cost</td>
+                                <td>Annotate major components with approximate cost</td>
+                            </tr>
+                            <tr>
+                                <td>No migration plan</td>
+                                <td>Describe how you get from current state to proposed state</td>
+                            </tr>
+                            <tr>
+                                <td>Over-engineering ("Let's add Kafka, Redis, Elasticsearch, and a service mesh")</td>
+                                <td>Start simple, add complexity only when justified by requirements</td>
+                            </tr>
+                            <tr>
+                                <td>Technology-first thinking ("I love Kafka so I'll use Kafka")</td>
+                                <td>Requirements-first: "We need event replay and fan-out, so Kafka fits"</td>
+                            </tr>
+                            <tr>
+                                <td>Ignoring operational concerns</td>
+                                <td>Mention monitoring, alerting, on-call, deployment strategy</td>
+                            </tr>
+                            <tr>
+                                <td>Not asking clarifying questions</td>
+                                <td>Clarify scale, consistency requirements, user geography, team size</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- SECTION 12: Self-Check Quiz                -->
+            <!-- ========================================== -->
+            <h2 id="quiz">12. Self-Check Quiz</h2>
+
+            <div class="quiz-container" id="staffQuiz">
+
+                <!-- Question 1 -->
+                <div class="quiz-question" data-correct="c">
+                    <h4>Q1: A startup with 10 engineers needs a notification system handling 1M pushes/month. Which approach demonstrates the best staff-level thinking?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q1" value="a"> Build a custom Kafka-based notification pipeline for maximum flexibility and future scale</label>
+                        <label><input type="radio" name="q1" value="b"> Use AWS SNS but also build an abstraction layer, event replay system, and multi-region failover from day one</label>
+                        <label><input type="radio" name="q1" value="c"> Use AWS SNS directly. At 1M/month, cost is negligible ($1.50). Revisit when volume hits 100M/month or custom routing logic is needed</label>
+                        <label><input type="radio" name="q1" value="d"> Build a thin wrapper around email APIs since push notifications are not core to the business</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. At 1M/month, the managed service is almost free. The staff signal is knowing when NOT to over-engineer. A 10-person startup's most expensive resource is engineering time, not AWS bills.</div>
+                    <div class="quiz-feedback incorrect">Not quite. The staff-level answer is C. At this scale, a managed service is nearly free, and engineering time is the scarcest resource. Over-engineering early is a common anti-pattern.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 2 -->
+                <div class="quiz-question" data-correct="b">
+                    <h4>Q2: You are designing a system for a US-based company with 95% US traffic and a 99.9% uptime SLA. Which multi-region strategy is most appropriate?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q2" value="a"> Active-active across us-east-1 and eu-west-1 with CRDTs for conflict resolution</label>
+                        <label><input type="radio" name="q2" value="b"> Active-passive with us-east-1 as primary and us-west-2 as hot standby, with async replication and DNS failover</label>
+                        <label><input type="radio" name="q2" value="c"> Single-region in us-east-1 with multi-AZ deployment</label>
+                        <label><input type="radio" name="q2" value="d"> Active-active across three US regions for maximum availability</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. Active-passive meets the 99.9% SLA (8.7 hours downtime/year) with much lower complexity than active-active. The user base is US-concentrated, so a US-based standby region minimizes latency. Active-active would be over-engineering for this scenario.</div>
+                    <div class="quiz-feedback incorrect">The best answer is B. 99.9% allows ~8.7 hours of downtime per year. Active-passive with DNS failover (minutes of downtime per incident) easily meets this. Active-active adds conflict resolution complexity that is not justified for a US-centric user base.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 3 -->
+                <div class="quiz-question" data-correct="d">
+                    <h4>Q3: According to the Technical Debt Quadrant, which type of debt is most dangerous?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q3" value="a"> Prudent + Deliberate: "We'll ship now and refactor next quarter"</label>
+                        <label><input type="radio" name="q3" value="b"> Prudent + Inadvertent: "Now we know how we should have built it"</label>
+                        <label><input type="radio" name="q3" value="c"> Reckless + Inadvertent: "What's layered architecture?"</label>
+                        <label><input type="radio" name="q3" value="d"> Reckless + Deliberate: "We don't have time for design"</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. Reckless + Deliberate debt is the most dangerous because the team knowingly cuts corners without a plan to repay the debt. It compounds quickly and often leads to rewrites.</div>
+                    <div class="quiz-feedback incorrect">The most dangerous is D (Reckless + Deliberate). The team knowingly cuts corners with no plan to address it. This compounds into system-wide issues that often require expensive rewrites.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 4 -->
+                <div class="quiz-question" data-correct="b">
+                    <h4>Q4: Your team is migrating from a monolithic order service to microservices. The monolith handles 50K orders/day. What is the safest migration approach?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q4" value="a"> Big-bang rewrite: freeze features for 3 months, rebuild everything, and switch over in a single deployment</label>
+                        <label><input type="radio" name="q4" value="b"> Strangler fig: extract one capability at a time (e.g., order validation first), shadow traffic to validate, then gradually shift production traffic via feature flags</label>
+                        <label><input type="radio" name="q4" value="c"> Dual-write to both systems simultaneously from day one, with manual reconciliation</label>
+                        <label><input type="radio" name="q4" value="d"> Keep the monolith and just add a caching layer to improve performance</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. The strangler fig pattern minimizes risk by migrating incrementally. Shadow traffic validates correctness under real load. Feature flags enable instant rollback. This is the gold standard for production migrations.</div>
+                    <div class="quiz-feedback incorrect">The best answer is B. Strangler fig with shadow traffic and feature flags is the safest approach. Big-bang rewrites have a high failure rate. Dual-write has ordering issues. Caching does not address the architectural problem.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 5 -->
+                <div class="quiz-question" data-correct="c">
+                    <h4>Q5: You are at 5K RPS and designing for growth. What is the right scale target?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q5" value="a"> 10K RPS (2x) &mdash; conservative and practical</label>
+                        <label><input type="radio" name="q5" value="b"> 500K RPS (100x) &mdash; we never want to re-architect</label>
+                        <label><input type="radio" name="q5" value="c"> 50K RPS (10x) &mdash; the next order of magnitude</label>
+                        <label><input type="radio" name="q5" value="d"> 5M RPS (1000x) &mdash; think big from the start</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. 10x is the sweet spot: enough headroom to avoid constant re-architecture, but not so much that you over-engineer. At 50K RPS, you know specifically what will need to change (usually database sharding and caching).</div>
+                    <div class="quiz-feedback incorrect">The best answer is C (10x). Design for the next order of magnitude. 2x is under-engineering (you will need to redesign too soon). 100x and 1000x are over-engineering (adding complexity for speculative future needs).</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 6 -->
+                <div class="quiz-question" data-correct="a">
+                    <h4>Q6: Conway's Law suggests that system architecture mirrors organizational structure. When designing a microservices architecture, which team structure best supports it?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q6" value="a"> Small, cross-functional stream-aligned teams, each owning a complete service (frontend, backend, data)</label>
+                        <label><input type="radio" name="q6" value="b"> Separate frontend, backend, and database teams that coordinate through project managers</label>
+                        <label><input type="radio" name="q6" value="c"> A large platform team that builds all services, with product managers requesting features</label>
+                        <label><input type="radio" name="q6" value="d"> Rotating engineers across services every quarter to prevent knowledge silos</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. Cross-functional, stream-aligned teams naturally produce independently deployable services because their communication boundaries match service boundaries. This is the Inverse Conway Maneuver in action.</div>
+                    <div class="quiz-feedback incorrect">The best answer is A. Per the Inverse Conway Maneuver, you should structure teams to match the architecture you want. Cross-functional teams owning complete services naturally produce independent microservices.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 7 -->
+                <div class="quiz-question" data-correct="d">
+                    <h4>Q7: In a system design interview, which response best demonstrates staff-level thinking when asked about database choice?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q7" value="a"> "I'd use PostgreSQL because it's the best relational database"</label>
+                        <label><input type="radio" name="q7" value="b"> "I'd use DynamoDB because it scales infinitely"</label>
+                        <label><input type="radio" name="q7" value="c"> "I'd use CockroachDB because it provides global consistency"</label>
+                        <label><input type="radio" name="q7" value="d"> "I considered PostgreSQL, DynamoDB, and CockroachDB. Given our query patterns (complex joins), team expertise (strong SQL), and scale (10TB, 5K RPS), PostgreSQL with read replicas gives us the best balance. We'd revisit if we need to shard beyond a single primary."</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. This answer demonstrates alternatives considered, criteria-based decision making, team awareness, quantitative reasoning, and an evolution plan. All five are staff-level signals.</div>
+                    <div class="quiz-feedback incorrect">The best answer is D. It demonstrates five staff signals simultaneously: alternatives considered, criteria-based decision, team awareness, quantitative reasoning, and an evolution plan.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+                <!-- Question 8 -->
+                <div class="quiz-question" data-correct="b">
+                    <h4>Q8: Your company's cloud bill has grown 40% YoY to $2M/month. Which is the highest-leverage cost optimization to investigate first?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q8" value="a"> Switch all services from containers to serverless Lambda functions</label>
+                        <label><input type="radio" name="q8" value="b"> Analyze the top 10 cost line items, right-size over-provisioned instances, and purchase Reserved Instances for stable workloads</label>
+                        <label><input type="radio" name="q8" value="c"> Move everything to spot instances to save 90%</label>
+                        <label><input type="radio" name="q8" value="d"> Build all managed services in-house to avoid vendor markup</label>
+                    </div>
+                    <div class="quiz-feedback correct">Correct. The highest-ROI first step is always understanding where the money goes (tagging + analysis), then right-sizing (low risk, immediate savings), then purchasing commitments for predictable workloads (30-60% savings). Architectural changes like serverless migration are higher risk and should come after low-hanging fruit.</div>
+                    <div class="quiz-feedback incorrect">The best answer is B. Start with understanding and optimizing what you have (analysis, right-sizing, reserved instances) before making architectural changes. This is lowest risk and highest immediate ROI. Serverless migration, spot instances for everything, and replacing managed services are all higher-risk strategies to consider later.</div>
+                    <button class="quiz-submit" onclick="checkAnswer(this)">Check Answer</button>
+                </div>
+
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- Summary / Key Takeaways                    -->
+            <!-- ========================================== -->
+            <h2 id="key-takeaways">Key Takeaways</h2>
+
+            <div class="card">
+                <h3>The Staff Engineer System Design Cheat Sheet</h3>
+                <ol>
+                    <li><strong>Three lenses, always:</strong> Technical + Organizational + Business. If you only address the technical lens, you are presenting a senior-level design.</li>
+                    <li><strong>Start simple, evolve deliberately:</strong> Phase 1 is the simplest thing that works. Phase 2 is the first known scaling bottleneck. Phase 3 is speculative &mdash; describe it but do not over-build.</li>
+                    <li><strong>Quantify everything:</strong> RPS, data volume, cost, latency, team size. Numbers turn opinions into analysis.</li>
+                    <li><strong>Migration is part of the design:</strong> A design without a migration path is a fantasy.</li>
+                    <li><strong>Trade-offs are features, not bugs:</strong> Every choice has a downside. Naming the downside explicitly builds trust.</li>
+                    <li><strong>Cost is a first-class requirement:</strong> Include cost estimates for your top 3 infrastructure components.</li>
+                    <li><strong>Teams build systems, not individuals:</strong> Factor team structure, expertise, and ownership into every decision.</li>
+                    <li><strong>Influence through clarity:</strong> Design docs, ADRs, and structured trade-off analysis are your primary tools.</li>
+                </ol>
+            </div>
+
+            <div class="card">
+                <h3>Suggested Flashcard Q&amp;A Pairs</h3>
+                <ol>
+                    <li><strong>Q:</strong> What three lenses should a staff engineer apply to every design decision? <br/><strong>A:</strong> Technical (correctness, performance), Organizational (team structure, ownership, operational burden), and Business (cost, time-to-market, revenue impact).</li>
+                    <li><strong>Q:</strong> When should you choose active-passive over active-active multi-region? <br/><strong>A:</strong> When users are concentrated in one geography, the SLA allows minutes of failover, and you want to avoid conflict resolution complexity.</li>
+                    <li><strong>Q:</strong> What is the Inverse Conway Maneuver? <br/><strong>A:</strong> Deliberately structuring teams to match the desired system architecture, since Conway's Law means org structure inevitably shapes system design.</li>
+                    <li><strong>Q:</strong> What scale factor should you design for? <br/><strong>A:</strong> 10x (the next order of magnitude). 2x is under-engineering; 100x is over-engineering.</li>
+                    <li><strong>Q:</strong> What is the strangler fig migration pattern? <br/><strong>A:</strong> Incrementally replacing a legacy system by routing traffic feature-by-feature to the new system via a proxy/gateway, validating with shadow traffic, and gradually cutting over.</li>
+                </ol>
+            </div>
+
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-19.html" class="btn btn-secondary">&larr; Previous: Security &amp; Authentication</a>
+                <a href="module-07.html" class="btn btn-primary">Next: RESHADE Framework Mastery &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        function checkAnswer(button) {
+            var questionDiv = button.closest('.quiz-question');
+            var correct = questionDiv.getAttribute('data-correct');
+            var selected = questionDiv.querySelector('input[type="radio"]:checked');
+
+            if (!selected) {
+                alert('Please select an answer.');
+                return;
+            }
+
+            var feedbacks = questionDiv.querySelectorAll('.quiz-feedback');
+            // Hide all feedback first
+            feedbacks.forEach(function(fb) { fb.style.display = 'none'; });
+
+            if (selected.value === correct) {
+                questionDiv.querySelector('.quiz-feedback.correct').style.display = 'block';
+            } else {
+                questionDiv.querySelector('.quiz-feedback.incorrect').style.display = 'block';
+            }
+
+            // Disable further changes
+            var radios = questionDiv.querySelectorAll('input[type="radio"]');
+            radios.forEach(function(r) { r.disabled = true; });
+            button.disabled = true;
+            button.textContent = 'Answered';
+        }
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

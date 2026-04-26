@@ -1,0 +1,1398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 14: Monitoring &amp; Reliability - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .nines-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .nines-table th, .nines-table td { padding: 0.75rem 1rem; border: 1px solid var(--border-color, #333); text-align: left; }
+        .nines-table th { background: var(--card-bg, #1a1a2e); font-weight: 600; }
+        .nines-table tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+        .highlight-row { background: rgba(102, 126, 234, 0.15) !important; }
+        .severity-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 0.25rem; font-size: 0.85rem; font-weight: 600; }
+        .sev-critical { background: #e53e3e; color: #fff; }
+        .sev-high { background: #ed8936; color: #fff; }
+        .sev-medium { background: #ecc94b; color: #1a202c; }
+        .sev-low { background: #48bb78; color: #fff; }
+        .staff-signal { background: linear-gradient(135deg, rgba(102,126,234,0.15), rgba(118,75,162,0.15)); border-left: 4px solid #667eea; padding: 1rem 1.25rem; margin: 1.5rem 0; border-radius: 0 0.5rem 0.5rem 0; }
+        .staff-signal h4 { color: #667eea; margin-bottom: 0.5rem; }
+        .postmortem-template { background: var(--card-bg, #1a1a2e); border: 1px solid var(--border-color, #333); border-radius: 0.75rem; padding: 1.5rem; margin: 1rem 0; font-family: monospace; font-size: 0.9rem; line-height: 1.6; }
+        .metric-card { background: var(--card-bg, #1a1a2e); border: 1px solid var(--border-color, #333); border-radius: 0.75rem; padding: 1.25rem; text-align: center; }
+        .metric-card .metric-value { font-size: 2rem; font-weight: 700; color: #667eea; }
+        .metric-card .metric-label { font-size: 0.85rem; color: var(--text-secondary, #a0aec0); margin-top: 0.25rem; }
+        .comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1rem 0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 14: Monitoring &amp; Reliability</h1>
+            <p class="subtitle">Building observable, resilient systems that staff engineers are expected to design and defend in interviews.</p>
+
+            <!-- Learning Objectives -->
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Quantify reliability using SLIs, SLOs, SLAs, and error budgets</li>
+                    <li>Implement the three pillars of observability: metrics, logging, and distributed tracing</li>
+                    <li>Design effective alerting strategies that avoid alert fatigue</li>
+                    <li>Apply reliability patterns: circuit breakers, bulkheads, retries with backoff</li>
+                    <li>Run chaos engineering experiments and blameless postmortems</li>
+                    <li>Integrate monitoring into every system design interview answer</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: WHY RELIABILITY MATTERS -->
+            <!-- ============================================================ -->
+            <h2>1. Why Reliability Matters</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Business Case for Reliability</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Reliability is not a nice-to-have feature -- it is the <em>foundation</em> on which every other feature depends. A system that is unavailable cannot serve users, process revenue, or fulfill its purpose. At staff level, you are expected to reason about reliability quantitatively, not just say "we need high availability."</p>
+
+                    <h3>The Nines of Availability</h3>
+                    <p>Availability is commonly expressed as "nines." Each additional nine represents a 10x reduction in allowed downtime. The table below shows what each level means in practice:</p>
+
+                    <table class="nines-table">
+                        <thead>
+                            <tr>
+                                <th>Availability</th>
+                                <th>Downtime / Year</th>
+                                <th>Downtime / Month</th>
+                                <th>Downtime / Week</th>
+                                <th>Typical Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>99% (two nines)</td>
+                                <td>3.65 days</td>
+                                <td>7.31 hours</td>
+                                <td>1.68 hours</td>
+                                <td>Batch / internal tools</td>
+                            </tr>
+                            <tr>
+                                <td>99.9% (three nines)</td>
+                                <td>8.77 hours</td>
+                                <td>43.8 minutes</td>
+                                <td>10.1 minutes</td>
+                                <td>SaaS applications</td>
+                            </tr>
+                            <tr class="highlight-row">
+                                <td>99.95%</td>
+                                <td>4.38 hours</td>
+                                <td>21.9 minutes</td>
+                                <td>5.04 minutes</td>
+                                <td>Cloud provider APIs</td>
+                            </tr>
+                            <tr>
+                                <td>99.99% (four nines)</td>
+                                <td>52.6 minutes</td>
+                                <td>4.38 minutes</td>
+                                <td>1.01 minutes</td>
+                                <td>Payment / auth systems</td>
+                            </tr>
+                            <tr>
+                                <td>99.999% (five nines)</td>
+                                <td>5.26 minutes</td>
+                                <td>26.3 seconds</td>
+                                <td>6.05 seconds</td>
+                                <td>Telecom, 911 systems</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Cost of Downtime at Scale</h3>
+                    <p>Downtime is not abstract -- it has real financial and reputational consequences:</p>
+                    <ul>
+                        <li><strong>Amazon</strong>: Estimated to lose ~$220,000 per minute of downtime (based on 2023 revenue figures)</li>
+                        <li><strong>Google</strong>: A 5-minute outage in 2013 reduced global internet traffic by 40%</li>
+                        <li><strong>Facebook</strong>: The October 2021 outage lasted ~6 hours and cost an estimated $100M+ in revenue</li>
+                        <li><strong>Delta Airlines</strong>: A 2016 systems outage cost $150M in cancelled flights and rebooking</li>
+                    </ul>
+                    <p>Beyond direct revenue loss, downtime erodes user trust. Studies show that 88% of users are less likely to return to a site after a bad experience, and reputational damage can persist long after systems are restored.</p>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>In interviews, don't just say "we need 99.99% availability." Explain <em>why</em> your chosen target is right for the problem. A logging analytics dashboard does not need the same availability as a payment gateway. Staff engineers reason about the cost-benefit tradeoff: each additional nine of availability is roughly 10x more expensive to achieve, so you must justify the investment.</p>
+                    </div>
+
+                    <h3>Compound Availability</h3>
+                    <p>When components are chained in series, overall availability is the product of individual availabilities. When components are in parallel (redundant), availability increases.</p>
+
+                    <pre><code class="code-block">Series:   A_total = A1 x A2 x A3
+  Example: 99.9% x 99.9% x 99.9% = 99.7% (three services in series)
+
+Parallel: A_total = 1 - (1 - A1) x (1 - A2)
+  Example: 1 - (1 - 0.999) x (1 - 0.999) = 99.9999% (two redundant instances)</code></pre>
+
+                    <p>This is why redundancy is critical for high-availability systems, and why you should identify the weakest link in any dependency chain. A system is only as reliable as its least reliable serial dependency.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: SLIs, SLOs, SLAs -->
+            <!-- ============================================================ -->
+            <h2>2. SLIs, SLOs, and SLAs</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Google SRE Approach to Reliability</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Google's Site Reliability Engineering (SRE) framework popularized a structured approach to reliability that has become the industry standard. The three pillars are SLIs, SLOs, and SLAs -- each building on the previous.</p>
+
+                    <h3>Definitions</h3>
+                    <div class="comparison-grid">
+                        <div class="card">
+                            <h4>SLI (Service Level Indicator)</h4>
+                            <p>A <strong>quantitative measure</strong> of some aspect of the level of service provided. SLIs are the raw metrics you measure.</p>
+                            <p><em>Examples:</em> Request latency (p99), error rate (% of 5xx), throughput (requests/sec), availability (% of successful probes)</p>
+                        </div>
+                        <div class="card">
+                            <h4>SLO (Service Level Objective)</h4>
+                            <p>A <strong>target value or range</strong> for an SLI. SLOs are internal goals your team commits to.</p>
+                            <p><em>Examples:</em> "99.9% of requests complete in &lt;200ms", "Error rate &lt;0.1% over a rolling 30-day window"</p>
+                        </div>
+                        <div class="card">
+                            <h4>SLA (Service Level Agreement)</h4>
+                            <p>A <strong>contractual obligation</strong> with consequences (credits, penalties) if the SLO is not met. SLAs are always looser than SLOs.</p>
+                            <p><em>Examples:</em> "99.9% monthly uptime or customer receives 10% credit" (AWS, Azure, GCP all publish SLAs)</p>
+                        </div>
+                    </div>
+
+                    <h3>How to Choose Good SLIs</h3>
+                    <p>Good SLIs share several characteristics. They should be:</p>
+                    <ul>
+                        <li><strong>User-facing:</strong> Measure what the user experiences, not internal system health. A user cares about "did the page load in under 2 seconds?" not "is CPU below 70%."</li>
+                        <li><strong>Proportional:</strong> Expressed as a ratio (good events / total events) so they naturally produce a percentage.</li>
+                        <li><strong>Actionable:</strong> When an SLI degrades, the team can identify and fix the underlying issue.</li>
+                    </ul>
+
+                    <table class="nines-table">
+                        <thead>
+                            <tr>
+                                <th>Service Type</th>
+                                <th>Key SLIs</th>
+                                <th>Typical SLO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>User-facing HTTP API</td>
+                                <td>Availability, latency (p50, p99), error rate</td>
+                                <td>99.9% success, p99 &lt; 300ms</td>
+                            </tr>
+                            <tr>
+                                <td>Data pipeline</td>
+                                <td>Freshness, throughput, completeness</td>
+                                <td>Data &lt; 10 min stale, 99.9% records processed</td>
+                            </tr>
+                            <tr>
+                                <td>Storage system</td>
+                                <td>Durability, availability, latency</td>
+                                <td>99.999999999% durability (11 nines), 99.99% availability</td>
+                            </tr>
+                            <tr>
+                                <td>Streaming / real-time</td>
+                                <td>End-to-end latency, message loss rate</td>
+                                <td>p99 &lt; 500ms, &lt; 0.01% message loss</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Error Budgets</h3>
+                    <p>An error budget is the complement of your SLO. If your SLO is 99.9% availability over a 30-day window, your error budget is 0.1% -- approximately 43 minutes of downtime per month. The error budget is the most powerful concept in SRE because it turns reliability into a negotiation:</p>
+
+                    <ul>
+                        <li><strong>Budget remaining:</strong> The team can deploy risky changes, run experiments, and ship faster.</li>
+                        <li><strong>Budget exhausted:</strong> The team freezes feature work and focuses on reliability improvements (postmortems, automation, hardening).</li>
+                    </ul>
+
+                    <p>This creates an elegant feedback loop: product teams want to ship fast but also want to keep the error budget healthy, so they naturally invest in testing, rollback mechanisms, and canary deployments.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Measure
+        A[SLI Collection] --> B[SLO Evaluation]
+    end
+    subgraph Decide
+        B --> C{Error Budget<br/>Remaining?}
+        C -- "Yes (healthy)" --> D[Ship Features]
+        C -- "No (exhausted)" --> E[Reliability Focus]
+    end
+    subgraph Act
+        D --> F[Deploy Changes]
+        E --> G[Fix Toil &amp; Harden]
+        F --> A
+        G --> A
+    end
+                        </div>
+                    </div>
+
+                    <h3>Example SLO Dashboard Metrics</h3>
+                    <div class="comparison-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">99.94%</div>
+                            <div class="metric-label">Availability (30d rolling)</div>
+                            <p style="font-size:0.85rem; margin-top:0.5rem;">SLO target: 99.9% -- 26 min budget remaining</p>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">187ms</div>
+                            <div class="metric-label">p99 Latency</div>
+                            <p style="font-size:0.85rem; margin-top:0.5rem;">SLO target: &lt;300ms -- within budget</p>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">0.03%</div>
+                            <div class="metric-label">Error Rate (5xx)</div>
+                            <p style="font-size:0.85rem; margin-top:0.5rem;">SLO target: &lt;0.1% -- healthy</p>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">72%</div>
+                            <div class="metric-label">Error Budget Remaining</div>
+                            <p style="font-size:0.85rem; margin-top:0.5rem;">18 days into 30-day window</p>
+                        </div>
+                    </div>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>When you propose an SLO in an interview, also mention how you would <em>enforce</em> it. Error budgets are meaningless if nobody acts on them. Describe the error budget policy: who gets paged, when feature freezes kick in, and how the budget is reviewed weekly. This shows organizational maturity beyond just technical design.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: THREE PILLARS OF OBSERVABILITY -->
+            <!-- ============================================================ -->
+            <h2>3. The Three Pillars of Observability</h2>
+
+            <p>Observability is the ability to understand a system's internal state by examining its external outputs. The three pillars -- metrics, logs, and traces -- provide complementary views of system behavior.</p>
+
+            <!-- 3A: Metrics -->
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>3a. Metrics</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Metrics are <strong>numeric time-series data</strong> that describe the state of a system over time. They are highly compressible, cheap to store at scale, and excellent for dashboards and alerting. Tools include Prometheus, Datadog, CloudWatch, and Grafana for visualization.</p>
+
+                    <h3>The RED Method (Request-Scoped)</h3>
+                    <p>Designed by Tom Wilkie (Grafana Labs), the RED method focuses on the experience of each request:</p>
+                    <ul>
+                        <li><strong>R</strong>ate: Number of requests per second your service is handling</li>
+                        <li><strong>E</strong>rrors: Number of those requests that fail (5xx, timeouts, etc.)</li>
+                        <li><strong>D</strong>uration: Distribution of how long those requests take (p50, p95, p99)</li>
+                    </ul>
+                    <p>RED is ideal for <strong>request-driven services</strong> (APIs, web servers, microservices). It answers: "Are users having a good experience?"</p>
+
+                    <h3>The USE Method (Resource-Scoped)</h3>
+                    <p>Created by Brendan Gregg (Netflix), the USE method focuses on infrastructure health:</p>
+                    <ul>
+                        <li><strong>U</strong>tilization: Percentage of time the resource is busy (CPU at 80%, disk at 60%)</li>
+                        <li><strong>S</strong>aturation: Amount of work queued that the resource cannot serve (queue depth, memory swap)</li>
+                        <li><strong>E</strong>rrors: Count of error events on the resource (disk errors, NIC packet drops)</li>
+                    </ul>
+                    <p>USE is ideal for <strong>infrastructure components</strong> (CPU, memory, disk, network). It answers: "Which resource is the bottleneck?"</p>
+
+                    <h3>The Four Golden Signals (Google SRE)</h3>
+                    <p>Google SRE combines both approaches into four golden signals that every service should monitor:</p>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Signal</th><th>What It Measures</th><th>Example Metric</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Latency</strong></td><td>Time to serve a request</td><td>http_request_duration_seconds (histogram)</td></tr>
+                            <tr><td><strong>Traffic</strong></td><td>Demand on the system</td><td>http_requests_total (counter)</td></tr>
+                            <tr><td><strong>Errors</strong></td><td>Rate of failed requests</td><td>http_errors_total / http_requests_total</td></tr>
+                            <tr><td><strong>Saturation</strong></td><td>How "full" the system is</td><td>thread_pool_active / thread_pool_max</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Prometheus Metric Types</h3>
+                    <pre><code class="code-block"># Counter - monotonically increasing (e.g., total requests)
+http_requests_total{method="GET", endpoint="/api/users", status="200"} 145823
+
+# Gauge - value that goes up and down (e.g., active connections)
+active_connections{service="api-gateway"} 342
+
+# Histogram - distributes observations into buckets (e.g., latency)
+http_request_duration_seconds_bucket{le="0.1"} 24054
+http_request_duration_seconds_bucket{le="0.25"} 33079
+http_request_duration_seconds_bucket{le="0.5"} 34091
+http_request_duration_seconds_bucket{le="1.0"} 34183
+
+# Summary - calculates quantiles client-side (e.g., p99 latency)
+http_request_duration_seconds{quantile="0.99"} 0.287</code></pre>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>Know when to use histograms vs. summaries: histograms can be aggregated across instances (use <code>histogram_quantile()</code> in PromQL), while summaries compute quantiles per instance and <em>cannot</em> be meaningfully aggregated. For most use cases, prefer histograms. Also, discuss metric cardinality: adding high-cardinality labels (like user_id) to Prometheus metrics is a common anti-pattern that causes storage and memory explosions.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3B: Logging -->
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>3b. Logging</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Logs provide <strong>detailed, event-level context</strong> about what happened and why. While metrics tell you something is wrong, logs help you understand <em>why</em> it is wrong. The challenge is managing logs at scale -- a service handling 100k RPS can produce terabytes of logs per day.</p>
+
+                    <h3>Structured Logging</h3>
+                    <p>Always use structured logging (JSON or key-value pairs) instead of free-form text. Structured logs are parseable, searchable, and can be indexed efficiently.</p>
+
+                    <pre><code class="code-block">// BAD: Unstructured log
+logger.info("User 12345 placed order 67890 for $99.99")
+
+// GOOD: Structured log (JSON)
+logger.info({
+  "event": "order_placed",
+  "user_id": "12345",
+  "order_id": "67890",
+  "amount_usd": 99.99,
+  "payment_method": "credit_card",
+  "trace_id": "abc-def-123",
+  "timestamp": "2025-03-15T14:30:00Z",
+  "service": "order-service",
+  "environment": "production"
+})</code></pre>
+
+                    <h3>Log Levels</h3>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Level</th><th>When to Use</th><th>Production Guidance</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>FATAL</strong></td><td>Application cannot continue</td><td>Always log, always alert</td></tr>
+                            <tr><td><strong>ERROR</strong></td><td>Unexpected failure, needs attention</td><td>Always log, alert on rate</td></tr>
+                            <tr><td><strong>WARN</strong></td><td>Unexpected but recoverable</td><td>Always log, monitor trends</td></tr>
+                            <tr><td><strong>INFO</strong></td><td>Significant business events</td><td>Log in production (be selective)</td></tr>
+                            <tr><td><strong>DEBUG</strong></td><td>Detailed diagnostic info</td><td>Off in prod (enable via feature flag)</td></tr>
+                            <tr><td><strong>TRACE</strong></td><td>Very fine-grained detail</td><td>Off in prod (use for local debugging)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Centralized Log Aggregation Architecture</h3>
+                    <p>At scale, logs must be shipped from many services to a centralized system for search and analysis. The ELK stack (Elasticsearch, Logstash, Kibana) and its alternatives (Loki, Splunk, Datadog Logs) are industry standards.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Services
+        S1[Service A] --> F1[Filebeat / Fluentd]
+        S2[Service B] --> F2[Filebeat / Fluentd]
+        S3[Service C] --> F3[Filebeat / Fluentd]
+    end
+    subgraph Ingestion
+        F1 --> K[Kafka / Buffer]
+        F2 --> K
+        F3 --> K
+        K --> L[Logstash / Vector]
+    end
+    subgraph Storage &amp; Query
+        L --> ES[Elasticsearch / Loki]
+        ES --> KB[Kibana / Grafana]
+    end
+    subgraph Alerting
+        ES --> AL[Alert Rules]
+        AL --> PG[PagerDuty / Slack]
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Key architectural decisions:</strong></p>
+                    <ul>
+                        <li><strong>Buffer layer (Kafka):</strong> Decouples log producers from consumers, preventing log storms from overwhelming the indexing layer. This is critical at scale.</li>
+                        <li><strong>Agents (Filebeat/Fluentd):</strong> Lightweight processes on each host that tail log files and forward them. They handle backpressure and retries.</li>
+                        <li><strong>Retention policy:</strong> Hot storage (fast SSD, 7-14 days), warm storage (slower disk, 30-90 days), cold/archive (S3/GCS, 1+ year). Balance cost against investigation needs.</li>
+                        <li><strong>Sampling:</strong> For ultra-high-volume services, sample DEBUG-level logs (e.g., 1%) while keeping all ERROR logs.</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>Discuss log cost management in interviews. At companies like Uber and Netflix, logging costs can exceed $1M/month. Strategies include: log-level sampling, dropping low-value fields before indexing, tiered retention, and log-based metrics (extract counters from logs instead of storing every event). Also mention correlation: every log line should carry a <code>trace_id</code> so you can correlate logs with traces and metrics.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3C: Distributed Tracing -->
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>3c. Distributed Tracing</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Distributed tracing tracks a single request as it traverses multiple services. While metrics show aggregate behavior and logs show individual events, traces show the <strong>causal chain</strong> of a request across the entire system. This is essential for debugging latency issues in microservice architectures.</p>
+
+                    <h3>Core Concepts</h3>
+                    <ul>
+                        <li><strong>Trace:</strong> The end-to-end journey of a single request, identified by a unique trace ID.</li>
+                        <li><strong>Span:</strong> A named, timed operation within a trace. Each service creates one or more spans. Spans form a tree/DAG.</li>
+                        <li><strong>Context Propagation:</strong> Passing the trace ID and parent span ID between services via HTTP headers (e.g., <code>traceparent</code>, <code>X-B3-TraceId</code>) or gRPC metadata.</li>
+                        <li><strong>Baggage:</strong> Key-value pairs propagated with the trace for cross-cutting concerns (e.g., user tier, experiment ID).</li>
+                    </ul>
+
+                    <h3>OpenTelemetry (OTel)</h3>
+                    <p>OpenTelemetry is the CNCF standard that unifies tracing, metrics, and logging instrumentation. It provides:</p>
+                    <ul>
+                        <li>Language-specific SDKs (Python, Java, Go, Node.js, .NET)</li>
+                        <li>Auto-instrumentation for common frameworks (Spring, Express, Django)</li>
+                        <li>The OTLP protocol for exporting telemetry data</li>
+                        <li>The OpenTelemetry Collector for receiving, processing, and exporting data to backends (Jaeger, Zipkin, Datadog, Honeycomb)</li>
+                    </ul>
+
+                    <h3>Trace Example: E-Commerce Checkout</h3>
+                    <p>The following sequence diagram shows how a trace propagates across three services during a checkout flow:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant U as User Browser
+    participant AG as API Gateway
+    participant OS as Order Service
+    participant PS as Payment Service
+    participant IS as Inventory Service
+
+    U->>AG: POST /checkout<br/>[trace_id: abc123]
+    AG->>OS: CreateOrder<br/>[trace_id: abc123, span: s1]
+    OS->>IS: ReserveStock<br/>[trace_id: abc123, span: s2]
+    IS-->>OS: StockReserved (45ms)
+    OS->>PS: ChargePayment<br/>[trace_id: abc123, span: s3]
+    PS-->>OS: PaymentConfirmed (320ms)
+    OS-->>AG: OrderCreated (412ms)
+    AG-->>U: 200 OK (425ms)
+
+    Note over AG,PS: Total trace duration: 425ms<br/>Payment service is the bottleneck (320ms)
+                        </div>
+                    </div>
+
+                    <h3>Sampling Strategies</h3>
+                    <p>At high traffic volumes, tracing every request is prohibitively expensive. Sampling strategies include:</p>
+                    <ul>
+                        <li><strong>Head-based sampling:</strong> Decide at the entry point whether to trace. Simple (e.g., sample 1% of requests), but you miss interesting traces.</li>
+                        <li><strong>Tail-based sampling:</strong> Collect all spans, then decide after the trace completes whether to keep it. Keeps error traces and slow traces but requires buffering all spans temporarily. More expensive but far more useful.</li>
+                        <li><strong>Priority sampling:</strong> Always trace error requests, requests above a latency threshold, or requests matching certain attributes (e.g., specific user IDs for debugging).</li>
+                    </ul>
+
+                    <pre><code class="code-block"># OpenTelemetry Python - basic instrumentation
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+# Setup
+provider = TracerProvider()
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="otel-collector:4317"))
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer("order-service")
+
+# Create a span
+with tracer.start_as_current_span("process_order") as span:
+    span.set_attribute("order.id", order_id)
+    span.set_attribute("order.amount", 99.99)
+
+    # Child span for database call
+    with tracer.start_as_current_span("db_insert_order") as db_span:
+        db_span.set_attribute("db.system", "postgresql")
+        db_span.set_attribute("db.statement", "INSERT INTO orders ...")
+        result = db.insert(order)
+
+    # Child span for downstream service call
+    with tracer.start_as_current_span("call_payment_service") as pay_span:
+        pay_span.set_attribute("rpc.service", "PaymentService")
+        response = payment_client.charge(order)</code></pre>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>In interviews, mention tail-based sampling as the preferred approach for production systems. Explain why: head-based sampling at 1% means you only have a 1% chance of capturing any given error trace. With tail-based sampling via the OTel Collector, you keep 100% of error traces and interesting outliers while discarding the majority of healthy traces. Also discuss the cost of context propagation: it adds a few hundred bytes of headers to every inter-service call, which is negligible for HTTP but matters for high-frequency gRPC streams.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: ALERTING -->
+            <!-- ============================================================ -->
+            <h2>4. Alerting</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Effective Alerting Strategy</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Alerting is the bridge between observability data and human action. Done well, alerts catch real problems before users notice. Done poorly, alert fatigue desensitizes on-call engineers and real incidents get missed.</p>
+
+                    <h3>Alert Fatigue: The Silent Killer</h3>
+                    <p>Alert fatigue occurs when engineers receive so many alerts that they begin to ignore them. This is extremely dangerous -- it directly contributed to major incidents at companies like Knight Capital ($440M loss in 45 minutes, 2012).</p>
+                    <p>Signs of alert fatigue:</p>
+                    <ul>
+                        <li>On-call engineer receives &gt;5 pages per shift that require no action</li>
+                        <li>Alerts are routinely acknowledged and immediately closed without investigation</li>
+                        <li>&gt;30% of alerts are false positives</li>
+                        <li>Team maintains a "known issues" doc of alerts to ignore</li>
+                    </ul>
+
+                    <h3>Symptom-Based vs. Cause-Based Alerts</h3>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Approach</th><th>Alert On</th><th>Example</th><th>Pros / Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Symptom-based</strong> (preferred)</td>
+                                <td>User-visible impact</td>
+                                <td>"Error rate &gt; 1% for 5 min"</td>
+                                <td>Low noise, catches unknown causes. Slower to detect.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cause-based</strong></td>
+                                <td>Specific known failure</td>
+                                <td>"Database CPU &gt; 90%"</td>
+                                <td>Fast detection for known issues. Miss novel failures, high noise.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Best practice:</strong> Page on symptoms (user impact), use cause-based alerts as non-paging informational signals. Google SRE recommends: "If a human must take action, it should be because users are affected, not because a metric crossed a threshold."</p>
+
+                    <h3>Severity Levels and Escalation</h3>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Severity</th><th>Criteria</th><th>Response</th><th>Notification</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="severity-badge sev-critical">P0 / SEV1</span></td>
+                                <td>Service down, major revenue impact, data loss risk</td>
+                                <td>Immediate (wake people up)</td>
+                                <td>PagerDuty, phone call, incident channel</td>
+                            </tr>
+                            <tr>
+                                <td><span class="severity-badge sev-high">P1 / SEV2</span></td>
+                                <td>Degraded performance, partial outage, SLO at risk</td>
+                                <td>Within 30 minutes</td>
+                                <td>PagerDuty, Slack alert channel</td>
+                            </tr>
+                            <tr>
+                                <td><span class="severity-badge sev-medium">P2 / SEV3</span></td>
+                                <td>Non-critical feature broken, workaround exists</td>
+                                <td>Next business day</td>
+                                <td>Slack, email, ticket created</td>
+                            </tr>
+                            <tr>
+                                <td><span class="severity-badge sev-low">P3 / SEV4</span></td>
+                                <td>Minor issue, cosmetic, low user impact</td>
+                                <td>Backlog / sprint planning</td>
+                                <td>Ticket only</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Runbooks</h3>
+                    <p>Every paging alert should link to a runbook -- a document that tells the on-call engineer exactly what to do. A good runbook includes:</p>
+                    <ul>
+                        <li><strong>What this alert means:</strong> Brief explanation of the symptom and potential causes</li>
+                        <li><strong>Impact:</strong> What users experience when this fires</li>
+                        <li><strong>Diagnostic steps:</strong> Dashboards to check, queries to run, commands to execute</li>
+                        <li><strong>Mitigation steps:</strong> How to restore service quickly (rollback, failover, restart, scale up)</li>
+                        <li><strong>Escalation path:</strong> Who to contact if the runbook steps do not resolve the issue</li>
+                        <li><strong>Previous incidents:</strong> Links to relevant postmortems</li>
+                    </ul>
+
+                    <pre><code class="code-block"># Example: Prometheus Alerting Rule (YAML)
+groups:
+  - name: api-availability
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) &gt; 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API error rate above 1% for 5 minutes"
+          description: "Current error rate: {{ $value | humanizePercentage }}"
+          runbook_url: "https://wiki.internal/runbooks/high-error-rate"
+          dashboard: "https://grafana.internal/d/api-overview"
+
+      - alert: HighP99Latency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) &gt; 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API p99 latency above 500ms for 10 minutes"
+          runbook_url: "https://wiki.internal/runbooks/high-latency"</code></pre>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>When discussing alerting in an interview, mention multi-window, multi-burn-rate alerting (from the Google SRE book). Instead of a simple threshold, you alert when the error rate would exhaust the error budget at the current burn rate. For example: alert on a 14.4x burn rate over 1 hour (consuming the 30-day budget in ~2 days) as critical, and a 3x burn rate over 6 hours as a warning. This dramatically reduces false positives while catching real problems quickly.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: CHAOS ENGINEERING -->
+            <!-- ============================================================ -->
+            <h2>5. Chaos Engineering</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Proactive Failure Testing</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Chaos engineering is the discipline of experimenting on a system to build confidence in its ability to withstand turbulent conditions in production. Instead of waiting for failures to find you, you proactively inject them under controlled conditions.</p>
+
+                    <h3>Netflix: Chaos Monkey and the Simian Army</h3>
+                    <p>Netflix pioneered chaos engineering out of necessity. When they migrated to AWS in 2011, they needed to ensure their services could handle the inherent unreliability of cloud infrastructure.</p>
+                    <ul>
+                        <li><strong>Chaos Monkey:</strong> Randomly terminates VM instances in production during business hours. Forces engineers to design services that tolerate instance failure.</li>
+                        <li><strong>Latency Monkey:</strong> Injects artificial delays into RESTful client-server communications to simulate degradation.</li>
+                        <li><strong>Conformity Monkey:</strong> Finds instances that do not adhere to best practices and shuts them down.</li>
+                        <li><strong>Chaos Gorilla:</strong> Simulates an entire AWS Availability Zone failure.</li>
+                        <li><strong>Chaos Kong:</strong> Simulates an entire AWS Region failure (the ultimate test).</li>
+                    </ul>
+
+                    <h3>Principles of Chaos Engineering</h3>
+                    <ol>
+                        <li><strong>Build a hypothesis around steady-state behavior:</strong> Define what "normal" looks like using SLIs (e.g., "p99 latency stays under 200ms, error rate under 0.1%").</li>
+                        <li><strong>Vary real-world events:</strong> Inject failures that actually happen: server crashes, network partitions, disk full, clock skew, DNS failures.</li>
+                        <li><strong>Run experiments in production:</strong> Staging environments often do not match production fidelity. Start small (canary), but production is where you learn the most.</li>
+                        <li><strong>Automate experiments to run continuously:</strong> One-off tests provide a snapshot; continuous experiments catch regressions.</li>
+                        <li><strong>Minimize blast radius:</strong> Use canary groups, feature flags, and automatic rollback to limit the impact of experiments.</li>
+                    </ol>
+
+                    <h3>Failure Injection Types</h3>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Failure Type</th><th>What It Tests</th><th>Tools</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Process kill</td><td>Service restart, health checks, failover</td><td>Chaos Monkey, kill -9, Litmus</td></tr>
+                            <tr><td>Network latency</td><td>Timeout handling, circuit breakers</td><td>tc netem, Toxiproxy, Chaos Mesh</td></tr>
+                            <tr><td>Network partition</td><td>Split-brain handling, consistency</td><td>iptables, Chaos Mesh, Gremlin</td></tr>
+                            <tr><td>Disk full / I/O errors</td><td>Graceful degradation, log rotation</td><td>fallocate, dd, Chaos Mesh</td></tr>
+                            <tr><td>CPU/Memory stress</td><td>Throttling, OOM handling, autoscaling</td><td>stress-ng, Gremlin</td></tr>
+                            <tr><td>DNS failure</td><td>Caching, fallback resolution</td><td>iptables, Chaos Mesh</td></tr>
+                            <tr><td>Clock skew</td><td>Distributed consensus, TTLs, certs</td><td>libfaketime, Chaos Mesh</td></tr>
+                            <tr><td>Dependency failure</td><td>Fallbacks, graceful degradation</td><td>Toxiproxy, service mesh fault injection (Istio)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Game Days</h3>
+                    <p>A game day is a planned chaos engineering exercise where the team simulates a major incident scenario. It tests not just the technical systems but also the human response process -- communication, coordination, decision-making under pressure.</p>
+                    <p>Google calls their version "DiRT" (Disaster Recovery Testing). They regularly simulate scenarios like:</p>
+                    <ul>
+                        <li>Loss of an entire data center</li>
+                        <li>Key person unavailable ("what if the DBA is on vacation?")</li>
+                        <li>Simultaneous failure of multiple independent systems</li>
+                        <li>Catastrophic data corruption requiring restore from backup</li>
+                    </ul>
+
+                    <h3>Real-World Examples</h3>
+                    <p><strong>Amazon:</strong> Teams are required to have "correction of error" (COE) documents and regularly test their systems' resilience. AWS GameDay events bring teams together to compete on incident response.</p>
+                    <p><strong>Google DiRT:</strong> In one DiRT exercise, Google deliberately made the corporate headquarters "unavailable" to test whether critical services could be managed by distributed teams. They discovered that several manual processes depended on physical access to the building.</p>
+                    <p><strong>Slack:</strong> Runs "Disasterpiece Theater" exercises where they simulate production failures and evaluate both the technical response and the incident management process. They credit these exercises with reducing mean time to recovery (MTTR) by over 50%.</p>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>In system design interviews, proactively mention chaos engineering when discussing reliability. For example: "We would run chaos experiments injecting 500ms latency between the API and database to validate our circuit breaker configuration and ensure the timeout is set correctly." This demonstrates that you think about systems holistically -- not just the happy path, but how they fail. Staff engineers own the reliability story end-to-end.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: INCIDENT MANAGEMENT -->
+            <!-- ============================================================ -->
+            <h2>6. Incident Management</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Incident Lifecycle</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>How an organization responds to incidents is as important as how it prevents them. Staff engineers are expected to lead incident response and drive improvements from postmortems.</p>
+
+                    <h3>Incident Response Flowchart</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Alert Fires] --> B{Auto-mitigated?}
+    B -- Yes --> C[Log &amp; Monitor]
+    B -- No --> D[On-Call Acknowledges]
+    D --> E[Assess Severity]
+    E --> F{SEV1/SEV2?}
+    F -- Yes --> G[Declare Incident]
+    G --> H[Assign Incident Commander]
+    H --> I[Open War Room / Bridge]
+    I --> J[Triage &amp; Diagnose]
+    J --> K[Implement Mitigation]
+    K --> L{Service Restored?}
+    L -- No --> J
+    L -- Yes --> M[Monitor Stability]
+    M --> N[Incident Resolved]
+    N --> O[Schedule Postmortem<br/>within 48 hours]
+    F -- No --> P[On-Call Investigates]
+    P --> Q[Fix &amp; Document]
+                        </div>
+                    </div>
+
+                    <h3>Incident Commander Role</h3>
+                    <p>The Incident Commander (IC) is the single point of authority during an incident. The IC does <strong>not</strong> debug the issue -- their job is to coordinate the response:</p>
+                    <ul>
+                        <li><strong>Delegate tasks:</strong> Assign people to debugging, communication, and mitigation workstreams</li>
+                        <li><strong>Make decisions:</strong> When there are competing mitigation strategies, the IC decides</li>
+                        <li><strong>Communicate status:</strong> Regular updates to stakeholders (every 15-30 min for SEV1)</li>
+                        <li><strong>Manage scope:</strong> Prevent scope creep -- focus on mitigation first, root cause later</li>
+                        <li><strong>Call for help:</strong> Escalate to additional teams when needed</li>
+                    </ul>
+
+                    <h3>Blameless Postmortems</h3>
+                    <p>A postmortem is a structured review of an incident conducted after resolution. The goal is to learn and improve, not to assign blame. Blameless culture is essential: if people fear punishment, they will hide mistakes and the organization cannot learn.</p>
+
+                    <div class="postmortem-template">
+<strong>INCIDENT POSTMORTEM TEMPLATE</strong>
+
+<strong>Title:</strong> [Brief description, e.g., "API Gateway 503 errors for 47 minutes"]
+<strong>Date:</strong> YYYY-MM-DD
+<strong>Severity:</strong> SEV1 / SEV2 / SEV3
+<strong>Duration:</strong> HH:MM (time to detect) + HH:MM (time to mitigate)
+<strong>Authors:</strong> [Names]
+<strong>Incident Commander:</strong> [Name]
+
+<strong>SUMMARY</strong>
+[2-3 sentences: What happened, impact, root cause, resolution]
+
+<strong>IMPACT</strong>
+- Users affected: [number or percentage]
+- Revenue impact: [estimated]
+- SLO burn: [how much error budget consumed]
+
+<strong>TIMELINE</strong> (all times UTC)
+- HH:MM - [Event / action taken]
+- HH:MM - Alert fires: [alert name]
+- HH:MM - On-call acknowledges
+- HH:MM - Incident declared, IC assigned
+- HH:MM - Root cause identified
+- HH:MM - Mitigation applied
+- HH:MM - Service restored, monitoring
+
+<strong>ROOT CAUSE</strong>
+[Detailed technical explanation of what failed and why.
+ Use the "5 Whys" technique to dig deeper.]
+
+<strong>CONTRIBUTING FACTORS</strong>
+- [Factor 1: e.g., missing circuit breaker]
+- [Factor 2: e.g., inadequate load testing]
+
+<strong>WHAT WENT WELL</strong>
+- [e.g., Alert fired within 2 minutes of impact]
+- [e.g., Runbook was accurate and up to date]
+
+<strong>WHAT WENT POORLY</strong>
+- [e.g., Took 20 minutes to identify the failing service]
+- [e.g., No automated rollback mechanism]
+
+<strong>ACTION ITEMS</strong>
+| Action | Owner | Priority | Due Date |
+|--------|-------|----------|----------|
+| Add circuit breaker to payment call | @alice | P0 | 2025-04-01 |
+| Create automated rollback | @bob | P1 | 2025-04-15 |
+| Add load test for checkout flow | @carol | P2 | 2025-05-01 |
+
+<strong>LESSONS LEARNED</strong>
+[Key takeaways that should be shared broadly]
+                    </div>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>Staff engineers do not just participate in postmortems -- they drive systemic improvements across teams. When discussing incidents in interviews, emphasize: (1) you focus on systems and processes, not individuals; (2) you track action items to completion and verify they actually prevent recurrence; (3) you look for patterns across multiple incidents that reveal organizational gaps (e.g., "we had three incidents this quarter caused by untested config changes, so we need a config validation pipeline").</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: RELIABILITY PATTERNS -->
+            <!-- ============================================================ -->
+            <h2>7. Reliability Patterns</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Circuit Breaker Pattern</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The circuit breaker pattern prevents a service from repeatedly calling a failing downstream dependency. Like an electrical circuit breaker, it "trips" when failures exceed a threshold, stopping calls and returning a fallback response until the downstream recovers.</p>
+
+                    <h3>State Machine</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open : Failure threshold exceeded<br/>(e.g., 5 failures in 10s)
+    Open --> HalfOpen : Timeout expires<br/>(e.g., after 30s)
+    HalfOpen --> Closed : Probe request succeeds
+    HalfOpen --> Open : Probe request fails
+    Closed --> Closed : Success / failure below threshold
+
+    note right of Closed : Normal operation<br/>All requests pass through
+    note right of Open : Fail fast<br/>Return fallback immediately
+    note right of HalfOpen : Testing recovery<br/>Allow one probe request
+                        </div>
+                    </div>
+
+                    <pre><code class="code-block">// Circuit Breaker implementation (Python)
+import time
+from enum import Enum
+
+class State(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, recovery_timeout=30, expected_exception=Exception):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.expected_exception = expected_exception
+        self.state = State.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.success_count = 0
+
+    def call(self, func, *args, **kwargs):
+        if self.state == State.OPEN:
+            if time.time() - self.last_failure_time &gt; self.recovery_timeout:
+                self.state = State.HALF_OPEN
+                self.success_count = 0
+            else:
+                raise CircuitBreakerOpenError("Circuit is OPEN - failing fast")
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except self.expected_exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        if self.state == State.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count &gt;= 3:  # require 3 consecutive successes
+                self.state = State.CLOSED
+                self.failure_count = 0
+        else:
+            self.failure_count = 0
+
+    def _on_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count &gt;= self.failure_threshold:
+            self.state = State.OPEN</code></pre>
+
+                    <p><strong>Real-world usage:</strong> Netflix Hystrix (now in maintenance mode), Resilience4j (Java), Polly (.NET), gobreaker (Go). Service meshes like Istio and Linkerd can implement circuit breakers at the infrastructure layer without code changes.</p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Retry with Exponential Backoff + Jitter</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Retries handle transient failures, but naive retries (immediate, fixed interval) can cause a "retry storm" that overwhelms recovering services. Exponential backoff spaces out retries, and jitter decorrelates them across clients.</p>
+
+                    <pre><code class="code-block">import random
+import time
+
+def retry_with_backoff(func, max_retries=5, base_delay=1.0, max_delay=60.0):
+    """Retry with exponential backoff and full jitter."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except TransientError as e:
+            if attempt == max_retries - 1:
+                raise  # exhausted retries
+
+            # Exponential backoff: 1s, 2s, 4s, 8s, 16s...
+            exp_delay = min(base_delay * (2 ** attempt), max_delay)
+
+            # Full jitter: random value between 0 and exp_delay
+            # This prevents thundering herd when many clients retry
+            jitter_delay = random.uniform(0, exp_delay)
+
+            print(f"Attempt {attempt + 1} failed, retrying in {jitter_delay:.2f}s")
+            time.sleep(jitter_delay)</code></pre>
+
+                    <p><strong>Why jitter matters:</strong> Without jitter, if 1000 clients all fail at the same time, they all retry at the same time (1s, 2s, 4s...), creating synchronized spikes. With full jitter, retries are spread uniformly across the backoff window, reducing peak load on the recovering service by orders of magnitude.</p>
+
+                    <p><strong>Key design decisions:</strong></p>
+                    <ul>
+                        <li><strong>Which errors to retry:</strong> Only retry transient errors (503, 429, network timeouts). Never retry 400 Bad Request or 401 Unauthorized -- those will never succeed.</li>
+                        <li><strong>Idempotency:</strong> Retries are only safe if the operation is idempotent. For non-idempotent operations (e.g., payment), use idempotency keys.</li>
+                        <li><strong>Retry budgets:</strong> Limit retries to a percentage of total requests (e.g., Google recommends 10%). If &gt;10% of requests are retries, something is fundamentally wrong.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Bulkhead Isolation</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Named after watertight compartments in ships, the bulkhead pattern isolates failures so that a problem in one component does not cascade to others. Without bulkheads, a slow downstream service can consume all your thread pool or connection pool resources, causing the entire application to become unresponsive.</p>
+
+                    <h3>Implementation Strategies</h3>
+                    <ul>
+                        <li><strong>Thread pool isolation:</strong> Each downstream dependency gets its own thread pool. If the payment service is slow, only payment threads are blocked; the catalog service continues normally.</li>
+                        <li><strong>Semaphore isolation:</strong> Lightweight alternative using counting semaphores. Less overhead than thread pools but no timeout capability.</li>
+                        <li><strong>Process isolation:</strong> Run different workloads in separate containers or VMs. Heaviest isolation but simplest to reason about.</li>
+                        <li><strong>Connection pool partitioning:</strong> Divide database connection pools by workload type (e.g., 60% for reads, 30% for writes, 10% for admin queries).</li>
+                    </ul>
+
+                    <pre><code class="code-block">// Java - Bulkhead with separate thread pools (Resilience4j)
+BulkheadConfig paymentBulkhead = BulkheadConfig.custom()
+    .maxConcurrentCalls(25)      // max 25 concurrent calls to payment
+    .maxWaitDuration(Duration.ofMillis(500))  // wait 500ms for a slot
+    .build();
+
+BulkheadConfig inventoryBulkhead = BulkheadConfig.custom()
+    .maxConcurrentCalls(50)      // inventory gets more capacity
+    .maxWaitDuration(Duration.ofMillis(200))
+    .build();
+
+// If payment is slow, only 25 threads are blocked
+// Inventory, catalog, and other services continue normally</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Timeouts, Deadline Propagation &amp; Graceful Degradation</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Timeouts</h3>
+                    <p>Every network call must have a timeout. Without timeouts, a hung downstream service causes callers to wait indefinitely, consuming resources and cascading failures upstream. Set timeouts based on the dependency's expected latency distribution:</p>
+                    <ul>
+                        <li>Connect timeout: How long to wait for TCP connection (typically 1-5s)</li>
+                        <li>Read timeout: How long to wait for a response after connecting (varies by dependency)</li>
+                        <li>Rule of thumb: Set timeout to p999 (99.9th percentile) of the dependency's response time, plus some buffer</li>
+                    </ul>
+
+                    <h3>Deadline Propagation</h3>
+                    <p>In a chain of microservices (A calls B calls C calls D), each service should propagate the remaining deadline rather than setting independent timeouts. Otherwise, service D might start processing a request that A has already timed out on.</p>
+
+                    <pre><code class="code-block"># gRPC deadline propagation example
+# Service A sets a 5-second deadline
+# When B receives the request, 1 second has elapsed
+# B propagates a 4-second deadline to C
+# When C receives it, 0.5 seconds more have elapsed
+# C propagates a 3.5-second deadline to D
+
+# In gRPC (Python), deadlines propagate automatically:
+stub.ProcessOrder(request, timeout=5.0)
+
+# In HTTP, propagate via header:
+# X-Request-Deadline: 2025-03-15T14:30:05.000Z
+remaining = deadline - time.now()
+if remaining &lt;= 0:
+    return 504  # already expired, don't call downstream</code></pre>
+
+                    <h3>Graceful Degradation</h3>
+                    <p>When a dependency fails, serve a degraded but usable experience instead of a hard error:</p>
+                    <ul>
+                        <li><strong>Netflix:</strong> If the personalized recommendation service is down, show trending/popular content instead</li>
+                        <li><strong>Amazon:</strong> If the review service is slow, show the product page without reviews</li>
+                        <li><strong>Twitter/X:</strong> If the like-count service is unavailable, show the tweet without engagement metrics</li>
+                    </ul>
+
+                    <h3>Load Shedding</h3>
+                    <p>When a system is overloaded, it is better to reject some requests cleanly (returning 503) than to accept all of them and serve all of them slowly. Load shedding is the intentional rejection of excess load to protect the service.</p>
+                    <ul>
+                        <li><strong>LIFO queue:</strong> When the queue is full, drop the oldest requests (they have probably already timed out)</li>
+                        <li><strong>Priority-based:</strong> Shed low-priority traffic first (health checks, analytics) while preserving critical paths (checkout, auth)</li>
+                        <li><strong>Cooperative load shedding (CoDel):</strong> Google's algorithm that sheds requests based on queue wait time rather than queue depth</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>In interviews, connect these patterns together. A well-designed system uses <strong>timeouts + retries + circuit breakers + bulkheads</strong> as a defense-in-depth strategy. For example: "Calls to the payment service have a 3-second timeout, retry once with jitter on transient failures, trip a circuit breaker after 5 consecutive failures, and are isolated in a bulkhead with a max of 20 concurrent calls. If the circuit is open, we return a 'payment pending' response and process asynchronously via a message queue." This kind of layered thinking is what distinguishes staff engineers.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: CAPACITY PLANNING -->
+            <!-- ============================================================ -->
+            <h2>8. Capacity Planning</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Load Testing and Scaling Strategies</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Capacity planning ensures your system can handle expected and unexpected load. It combines load testing, trend analysis, and auto-scaling to prevent both over-provisioning (wasted money) and under-provisioning (outages).</p>
+
+                    <h3>Types of Performance Tests</h3>
+                    <table class="nines-table">
+                        <thead>
+                            <tr><th>Test Type</th><th>Purpose</th><th>Duration</th><th>Load Profile</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Load test</strong></td>
+                                <td>Verify behavior at expected peak</td>
+                                <td>30-60 minutes</td>
+                                <td>Ramp up to 1x-2x expected peak</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stress test</strong></td>
+                                <td>Find the breaking point</td>
+                                <td>15-30 minutes</td>
+                                <td>Ramp beyond capacity until failure</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Soak test (endurance)</strong></td>
+                                <td>Detect memory leaks, resource exhaustion</td>
+                                <td>4-24 hours</td>
+                                <td>Sustained moderate load</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Spike test</strong></td>
+                                <td>Verify auto-scaling response</td>
+                                <td>Variable</td>
+                                <td>Sudden 10x traffic spike</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Load Testing Tools</h3>
+                    <div class="comparison-grid">
+                        <div class="card">
+                            <h4>k6 (Grafana)</h4>
+                            <p>JavaScript-based, developer-friendly. Excellent for CI/CD integration. Writes tests as code, supports complex scenarios, built-in metrics export to Grafana Cloud.</p>
+                        </div>
+                        <div class="card">
+                            <h4>Locust (Python)</h4>
+                            <p>Python-based, distributed. Easy to define user behavior as Python code. Great web UI for real-time monitoring. Strong community.</p>
+                        </div>
+                        <div class="card">
+                            <h4>Gatling (Scala/Java)</h4>
+                            <p>JVM-based, excellent for high throughput. Detailed HTML reports. Strong in enterprise environments. Good protocol support (HTTP, WebSocket, gRPC).</p>
+                        </div>
+                    </div>
+
+                    <pre><code class="code-block">// k6 load test example (JavaScript)
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },   // ramp up to 100 VUs
+    { duration: '5m', target: 100 },   // hold at 100 VUs
+    { duration: '2m', target: 500 },   // spike to 500 VUs
+    { duration: '5m', target: 500 },   // hold at 500 VUs
+    { duration: '2m', target: 0 },     // ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(99)&lt;500'],  // p99 latency under 500ms
+    http_req_failed: ['rate&lt;0.01'],    // error rate under 1%
+  },
+};
+
+export default function () {
+  const res = http.get('https://api.example.com/products');
+  check(res, {
+    'status is 200': (r) =&gt; r.status === 200,
+    'latency &lt; 500ms': (r) =&gt; r.timings.duration &lt; 500,
+  });
+  sleep(1); // simulate user think time
+}</code></pre>
+
+                    <h3>Auto-Scaling Strategies</h3>
+                    <ul>
+                        <li><strong>Reactive auto-scaling:</strong> Scale based on current metrics (CPU &gt; 70%, request queue depth &gt; 100). Simple but always lagging behind demand.</li>
+                        <li><strong>Predictive auto-scaling:</strong> Use historical patterns (e.g., "traffic peaks at 9 AM EST on Mondays") to pre-scale before demand arrives. AWS and GCP both offer this.</li>
+                        <li><strong>Custom metrics scaling:</strong> Scale on application-specific metrics (active WebSocket connections, queue depth, GPU utilization) rather than generic CPU/memory.</li>
+                    </ul>
+
+                    <h3>Performance Budgets</h3>
+                    <p>Just as error budgets track reliability, performance budgets track latency and throughput ceilings. Define budgets for each service and break them down by component:</p>
+                    <pre><code class="code-block">Checkout API total latency budget: 800ms (p99)
+  ├── API Gateway + auth:     50ms
+  ├── Order service logic:   100ms
+  ├── Inventory DB query:    100ms
+  ├── Payment service call:  400ms
+  ├── Event publish (async):  50ms
+  └── Margin / buffer:       100ms
+
+If any component exceeds its budget, it requires investigation.</code></pre>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>When discussing capacity planning, mention that load testing should happen <em>regularly</em> (weekly or on every major deployment), not just once before launch. Also discuss the difference between synthetic load tests and production load analysis. Synthetic tests may not capture realistic access patterns (zipfian distributions, hot keys). Staff engineers combine both: load tests for baseline + production profiling for real-world patterns.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 9: REAL-WORLD CASE STUDIES -->
+            <!-- ============================================================ -->
+            <h2>9. Real-World Case Studies</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Google SRE: Error Budgets in Practice</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Google's SRE team has operated at massive scale for over a decade, and their error budget approach is now the gold standard. Key lessons:</p>
+                    <ul>
+                        <li><strong>Error budgets align incentives:</strong> Product teams and SRE teams used to be adversarial (product wants to ship, SRE wants stability). Error budgets gave them a shared vocabulary: "We have 15 minutes of budget left this month; let's postpone the risky migration until next month."</li>
+                        <li><strong>Not all services need the same SLO:</strong> Google Search has a much tighter SLO than an internal admin tool. Google Maps tiles (static data) have a different SLO profile than real-time traffic updates.</li>
+                        <li><strong>SLO reviews happen quarterly:</strong> Teams review whether their SLO is too tight (wasting engineering effort on reliability that users don't need) or too loose (accumulating tech debt).</li>
+                        <li><strong>Toil budgets complement error budgets:</strong> Google SRE defines "toil" as repetitive, manual work that could be automated. Teams target &lt;50% of time spent on toil; the rest goes to engineering improvements.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>AWS Outage Postmortems: Lessons Learned</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>AWS publishes detailed postmortems for major outages. Some of the most instructive:</p>
+
+                    <h4>US-EAST-1 S3 Outage (Feb 2017)</h4>
+                    <p>An engineer executing a routine playbook accidentally removed more S3 servers than intended. The S3 subsystem took over 4 hours to recover because the indexing and placement services had not been restarted in years and took much longer than expected to bootstrap.</p>
+                    <p><strong>Lessons:</strong></p>
+                    <ul>
+                        <li>Safeguards on operational commands should prevent removing too many servers at once</li>
+                        <li>Regularly restart long-running subsystems so recovery paths are exercised</li>
+                        <li>Blast radius: half the internet was affected because so many services depended on us-east-1 S3</li>
+                    </ul>
+
+                    <h4>US-EAST-1 Kinesis Outage (Nov 2020)</h4>
+                    <p>A small capacity addition to the Kinesis front-end fleet triggered a cascade of failures in the internal metadata service. The number of threads used for inter-server communication scaled with the number of servers, and adding new servers pushed the thread count past OS limits.</p>
+                    <p><strong>Lessons:</strong></p>
+                    <ul>
+                        <li>Capacity additions can be as risky as code deployments</li>
+                        <li>Hidden coupling between fleet size and thread count was not tested</li>
+                        <li>Cascading dependencies: CloudWatch, Lambda, Cognito, and many other services depended on Kinesis and were affected</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Slack: Observability at Scale</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Slack processes billions of events per day and has invested heavily in observability. Key aspects of their approach:</p>
+                    <ul>
+                        <li><strong>Custom metrics pipeline:</strong> Slack built Bedrock, a custom metrics aggregation system, because off-the-shelf tools could not handle their cardinality and throughput requirements (millions of unique time series).</li>
+                        <li><strong>Trace-driven debugging:</strong> When a user reports "Slack is slow," their support tooling can pull the specific trace for that user's session, showing exactly where latency was introduced.</li>
+                        <li><strong>Canary deployments with automatic rollback:</strong> Every deployment goes to a canary fleet first. If error rate or latency degrades compared to the control group, the deployment is automatically rolled back within minutes.</li>
+                        <li><strong>Disasterpiece Theater:</strong> Slack's regular chaos engineering exercises, where they simulate production failures and evaluate response. Teams write up the results and share learnings across the organization.</li>
+                        <li><strong>On-call health:</strong> Slack tracks on-call metrics (pages per shift, time to acknowledge, sleep interruptions) and uses this data to improve alert quality and reduce toil.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 10: INTERVIEW APPLICATION -->
+            <!-- ============================================================ -->
+            <h2>10. Interview Application</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Integrating Monitoring into Every Design Answer</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>At staff level, monitoring and reliability are not optional add-ons -- they are expected components of every system design answer. Here is how to weave them in naturally:</p>
+
+                    <h3>The Monitoring Section in Your Answer</h3>
+                    <p>After discussing the core architecture, dedicate 3-5 minutes to observability:</p>
+                    <ol>
+                        <li><strong>Define SLIs/SLOs:</strong> "For this URL shortener, our primary SLIs would be redirect latency (p99 &lt; 50ms), availability (99.99%), and redirect success rate (&gt;99.9%)."</li>
+                        <li><strong>Identify key metrics:</strong> "I'd track redirects per second (traffic), cache hit rate (efficiency), expired link lookups (errors), and database connection pool utilization (saturation)."</li>
+                        <li><strong>Describe alerting:</strong> "We'd alert on error rate exceeding 0.5% for 5 minutes (symptom-based) and cache hit rate dropping below 80% (cause-based, non-paging)."</li>
+                        <li><strong>Discuss failure modes:</strong> "If the database is down, we serve from cache with a degraded experience. If cache is down, we fall through to the database with a circuit breaker."</li>
+                        <li><strong>Mention tracing:</strong> "Each redirect would carry a trace ID so we can debug latency issues across the load balancer, cache, and database layers."</li>
+                    </ol>
+
+                    <h3>Common Interview Questions</h3>
+                    <div class="card">
+                        <h4>"What metrics would you track for system X?"</h4>
+                        <p>Use the RED method for user-facing services and USE for infrastructure. Organize your answer around the four golden signals: latency, traffic, errors, saturation. Always mention business metrics alongside technical metrics (e.g., "orders per minute" not just "requests per second").</p>
+                    </div>
+                    <div class="card">
+                        <h4>"How would you detect and handle failures?"</h4>
+                        <p>Structure your answer as: <strong>Detect</strong> (health checks, metric-based alerts, anomaly detection) -> <strong>Contain</strong> (circuit breakers, bulkheads, load shedding) -> <strong>Recover</strong> (automated failover, graceful degradation, rollback) -> <strong>Learn</strong> (postmortem, action items). This shows a mature, systematic approach.</p>
+                    </div>
+                    <div class="card">
+                        <h4>"How would you ensure this system is reliable?"</h4>
+                        <p>Cover all layers: <strong>Prevention</strong> (testing, code review, canary deploys), <strong>Detection</strong> (monitoring, alerting, SLOs), <strong>Mitigation</strong> (circuit breakers, retries, graceful degradation), <strong>Recovery</strong> (automated rollback, failover, disaster recovery), and <strong>Learning</strong> (postmortems, chaos engineering). Mention specific nines of availability and justify them.</p>
+                    </div>
+
+                    <h3>Mistakes to Avoid</h3>
+                    <ul>
+                        <li>Designing only the happy path and not discussing failure modes</li>
+                        <li>Saying "we'll add monitoring" as an afterthought without specifics</li>
+                        <li>Proposing 99.999% availability without discussing the extreme cost</li>
+                        <li>Ignoring cascading failures in microservice architectures</li>
+                        <li>No mention of how you would detect problems (alerting) vs. just logging</li>
+                        <li>Proposing retries without discussing idempotency</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <h4>Staff-Level Signal</h4>
+                        <p>The strongest signal you can send in a system design interview is <em>proactively</em> discussing failure modes without being asked. When you describe a component, immediately follow with: "This could fail in these ways, and here's how we handle each one." Staff engineers think about reliability as a first-class concern, not a bolt-on. This is the single biggest differentiator between senior and staff-level answers.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 11: SELF-CHECK QUIZ -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">Self-Check Quiz</h2>
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-17.html" class="btn btn-secondary">&larr; Previous: Search &amp; Indexing</a>
+                <a href="module-19.html" class="btn btn-primary">Next: Security &amp; Authentication &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mark sidebar completed modules
+            document.querySelectorAll('.sidebar-link[data-module]').forEach(function(link) {
+                var moduleNum = parseInt(link.dataset.module);
+                if (StaffEngPrep && StaffEngPrep.ProgressTracker && StaffEngPrep.ProgressTracker.isModuleComplete('systemDesign', moduleNum)) {
+                    link.classList.add('completed');
+                }
+            });
+
+            // Quiz questions
+            var quizQuestions = [
+                {
+                    question: "What is the maximum allowed downtime per year for a system with 99.99% (four nines) availability?",
+                    options: ["8.77 hours", "52.6 minutes", "5.26 minutes", "4.38 hours"],
+                    correct: 1,
+                    explanation: "99.99% availability allows only 0.01% downtime, which is approximately 52.6 minutes per year (365.25 * 24 * 60 * 0.0001)."
+                },
+                {
+                    question: "What is the difference between an SLO and an SLA?",
+                    options: [
+                        "SLOs are stricter than SLAs",
+                        "SLAs have contractual consequences; SLOs are internal targets",
+                        "SLOs apply to internal tools; SLAs apply to external services",
+                        "There is no difference; they are synonyms"
+                    ],
+                    correct: 1,
+                    explanation: "An SLA is a contractual agreement with penalties (e.g., service credits) if violated. An SLO is an internal reliability target, typically set tighter than the SLA to provide a safety margin."
+                },
+                {
+                    question: "In the RED method, what does 'D' stand for?",
+                    options: ["Durability", "Duration", "Disk usage", "Dependencies"],
+                    correct: 1,
+                    explanation: "RED stands for Rate, Errors, Duration. Duration measures the distribution of request latency (p50, p95, p99)."
+                },
+                {
+                    question: "Why is tail-based sampling preferred over head-based sampling for distributed tracing?",
+                    options: [
+                        "It is cheaper to implement",
+                        "It captures 100% of error and slow traces instead of randomly sampling them",
+                        "It requires less network bandwidth",
+                        "It does not require context propagation"
+                    ],
+                    correct: 1,
+                    explanation: "Tail-based sampling decides whether to keep a trace after it completes, so it can retain all error traces and latency outliers. Head-based sampling decides upfront and may discard interesting traces."
+                },
+                {
+                    question: "What is the primary purpose of an error budget?",
+                    options: [
+                        "To calculate the cost of downtime in dollars",
+                        "To balance velocity (shipping features) with reliability",
+                        "To determine how many engineers to hire",
+                        "To set the SLA for customers"
+                    ],
+                    correct: 1,
+                    explanation: "Error budgets enable a data-driven balance: when budget remains, teams ship fast; when budget is exhausted, teams focus on reliability. This aligns product and SRE incentives."
+                },
+                {
+                    question: "In a circuit breaker, what happens in the Half-Open state?",
+                    options: [
+                        "All requests are rejected immediately",
+                        "A limited number of probe requests are allowed through to test recovery",
+                        "Requests are queued until the downstream recovers",
+                        "The circuit resets to Closed automatically"
+                    ],
+                    correct: 1,
+                    explanation: "In Half-Open state, the circuit breaker allows a small number of probe requests through. If they succeed, the circuit closes (healthy). If they fail, it reopens."
+                },
+                {
+                    question: "Why should retries include jitter (randomization)?",
+                    options: [
+                        "To make debugging easier with random delays",
+                        "To prevent synchronized retry storms (thundering herd) when many clients retry at the same time",
+                        "To reduce total retry duration",
+                        "To improve network throughput"
+                    ],
+                    correct: 1,
+                    explanation: "Without jitter, exponential backoff still creates synchronized bursts. Jitter spreads retries uniformly, reducing peak load on recovering services and preventing thundering herd."
+                },
+                {
+                    question: "What is the most important principle of a blameless postmortem?",
+                    options: [
+                        "Identify the engineer who caused the incident",
+                        "Focus on systemic improvements to processes and systems, not individual blame",
+                        "Minimize the documented impact to protect the company",
+                        "Complete it within 24 hours of the incident"
+                    ],
+                    correct: 1,
+                    explanation: "Blameless postmortems focus on systemic improvements. If people fear punishment, they hide mistakes and the organization cannot learn. The goal is to fix the system, not blame individuals."
+                }
+            ];
+
+            if (StaffEngPrep && StaffEngPrep.Quiz) {
+                var quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+        });
+
+        function completeModule() {
+            if (StaffEngPrep && StaffEngPrep.ProgressTracker) {
+                StaffEngPrep.ProgressTracker.markModuleComplete('systemDesign', 18);
+            }
+            alert('Module 14 (Monitoring & Reliability) marked as complete!');
+            window.location.href = 'module-19.html';
+        }
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

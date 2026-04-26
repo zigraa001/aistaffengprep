@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design a Payment System - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Payment System</h1>
+            <p class="text-muted">Examples: Stripe, PayPal, Square, Adyen</p>
+
+            <!-- Difficulty Card -->
+            <div class="card mt-3" style="background: var(--danger-bg, #2d1b1b);">
+                <strong>Difficulty:</strong> Hard (Staff-Level) | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <div class="card mt-3" style="background: var(--info-bg, #1a2332);">
+                <h3>Staff-Level Signals</h3>
+                <ul>
+                    <li><strong>Correctness over availability:</strong> Financial systems demand exactly-once semantics and strong consistency -- a stark contrast from typical "AP" system design answers.</li>
+                    <li><strong>Domain modeling:</strong> Double-entry bookkeeping, ledger immutability, and reconciliation are non-negotiable for real payment platforms.</li>
+                    <li><strong>Regulatory awareness:</strong> PCI DSS, SOX, PSD2/SCA -- demonstrating knowledge of compliance constraints shows senior judgment.</li>
+                    <li><strong>Failure reasoning:</strong> Staff engineers obsess over what happens when things go wrong -- double charges, partial failures, and network partitions.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. REQUIREMENTS CLARIFICATION                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Process payments:</strong> Accept one-time and recurring payments from buyers on behalf of merchants.</li>
+                        <li><strong>Multiple payment methods:</strong> Credit/debit cards, bank transfers (ACH), digital wallets (Apple Pay, Google Pay).</li>
+                        <li><strong>Multi-currency support:</strong> Accept payments in 135+ currencies, settle in merchant's preferred currency.</li>
+                        <li><strong>Refunds &amp; chargebacks:</strong> Full and partial refunds, chargeback dispute management.</li>
+                        <li><strong>Merchant payouts:</strong> Aggregate settled funds and disburse to merchant bank accounts on a configurable schedule.</li>
+                        <li><strong>Payment status tracking:</strong> Real-time status updates via webhooks and polling APIs.</li>
+                        <li><strong>Ledger &amp; reporting:</strong> Complete financial ledger with audit trail for every money movement.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Exactly-once processing:</strong> A payment must never be charged twice, even under retries or network failures.</li>
+                        <li><strong>Strong consistency:</strong> Financial data requires linearizable reads/writes -- eventual consistency is unacceptable for balances.</li>
+                        <li><strong>PCI DSS compliance:</strong> Cardholder data must be tokenized and stored in an isolated, audited environment.</li>
+                        <li><strong>Auditability:</strong> Every state transition must be logged immutably for SOX / regulatory audits.</li>
+                        <li><strong>High availability:</strong> 99.99% uptime -- payment downtime directly costs merchants revenue.</li>
+                        <li><strong>Low latency:</strong> Payment authorization in &lt; 2 seconds end-to-end.</li>
+                        <li><strong>Fault tolerance:</strong> Graceful degradation when downstream payment processors are unavailable.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. CAPACITY ESTIMATION                                       -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Assumptions:</strong><br>
+                        - $10B annual payment volume<br>
+                        - Average transaction: $50<br>
+                        - 200M transactions / year<br>
+                        - Peak: 3x average (Black Friday, holiday sales)<br><br>
+
+                        <strong>Transactions Per Second (TPS):</strong><br>
+                        200M / (365 * 86,400) &asymp; 6.3 TPS average<br>
+                        Peak: ~20 TPS (manageable, but consistency requirements make it hard)<br><br>
+
+                        <strong>Ledger Storage (5 years):</strong><br>
+                        Each payment creates ~4 ledger entries (double-entry + fees)<br>
+                        200M * 4 * 5 = 4B ledger rows<br>
+                        ~500 bytes/row &rarr; 2 TB raw ledger data<br><br>
+
+                        <strong>Payment Records:</strong><br>
+                        200M * 5 years * 2 KB/record &asymp; 2 TB<br><br>
+
+                        <strong>Key Insight:</strong> The challenge is NOT raw throughput (20 TPS is low). The challenge is <em>correctness under failure</em>, <em>exactly-once semantics</em>, and <em>regulatory compliance</em>. This is what makes it a staff-level problem.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. HIGH-LEVEL DESIGN                                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. High-Level Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Architecture Overview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The payment system is decomposed into services that each own a specific concern. The <strong>Payment Gateway</strong> is the entry point; it validates, deduplicates, and routes requests. The <strong>Payment Processor</strong> orchestrates the actual charge flow. The <strong>Ledger Service</strong> is the financial source of truth.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    Client["Client / Merchant API"]
+    GW["Payment Gateway<br/>(Auth, Rate Limit, Idempotency)"]
+    PS["Payment Service<br/>(Orchestrator)"]
+    Risk["Risk Engine<br/>(Fraud Scoring)"]
+    Token["Token Vault<br/>(PCI Scope)"]
+    PSP1["PSP Adapter: Visa/MC"]
+    PSP2["PSP Adapter: ACH"]
+    PSP3["PSP Adapter: Wallets"]
+    Ledger["Ledger Service<br/>(Double-Entry)"]
+    Settle["Settlement Service"]
+    Notify["Notification Service<br/>(Webhooks)"]
+    Recon["Reconciliation Service"]
+    DB[(Payment DB<br/>PostgreSQL)]
+    LedgerDB[(Ledger DB<br/>PostgreSQL)]
+    Queue["Message Queue<br/>(Kafka)"]
+
+    Client -->|"POST /payments"| GW
+    GW --> PS
+    PS --> Risk
+    PS --> Token
+    PS --> PSP1
+    PS --> PSP2
+    PS --> PSP3
+    PS --> Ledger
+    PS --> DB
+    Ledger --> LedgerDB
+    PS -->|"payment.completed"| Queue
+    Queue --> Settle
+    Queue --> Notify
+    Queue --> Recon
+    Settle --> LedgerDB
+    Recon --> LedgerDB
+                        </div>
+                    </div>
+
+                    <h4>Component Responsibilities</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Component</th><th>Responsibility</th><th>Key Properties</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Payment Gateway</td><td>API entry point, authentication, rate limiting, idempotency check</td><td>Stateless, horizontally scalable</td></tr>
+                            <tr><td>Payment Service</td><td>Orchestrates the payment lifecycle (authorize, capture, settle)</td><td>Owns the state machine, writes to Payment DB</td></tr>
+                            <tr><td>Risk Engine</td><td>Real-time fraud scoring, velocity checks, rule evaluation</td><td>ML model serving, &lt; 100ms latency budget</td></tr>
+                            <tr><td>Token Vault</td><td>Stores and retrieves tokenized card data (PCI DSS scope)</td><td>Isolated network, HSM-backed encryption</td></tr>
+                            <tr><td>PSP Adapters</td><td>Abstract communication with external processors (Visa, ACH, etc.)</td><td>Circuit breaker, retry with idempotency key</td></tr>
+                            <tr><td>Ledger Service</td><td>Immutable double-entry bookkeeping for all money movements</td><td>Append-only, strongly consistent</td></tr>
+                            <tr><td>Settlement Service</td><td>Aggregates captured payments, initiates merchant payouts</td><td>Batch processing, daily/weekly cycles</td></tr>
+                            <tr><td>Reconciliation Service</td><td>Compares internal ledger with PSP statements and bank records</td><td>Detects discrepancies, generates alerts</td></tr>
+                            <tr><td>Notification Service</td><td>Delivers webhooks and status updates to merchants</td><td>At-least-once delivery, exponential backoff</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. DATA MODEL                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Data Model</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Core Tables</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>payments</h4>
+                    <pre class="code-block"><code>CREATE TABLE payments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+    merchant_id     UUID NOT NULL REFERENCES merchants(id),
+    amount          BIGINT NOT NULL,          -- in smallest currency unit (cents)
+    currency        CHAR(3) NOT NULL,         -- ISO 4217
+    status          VARCHAR(20) NOT NULL,     -- CREATED, PROCESSING, AUTHORIZED,
+                                              -- CAPTURED, SETTLED, FAILED, REFUNDED
+    payment_method  VARCHAR(20) NOT NULL,     -- CARD, ACH, WALLET
+    token_id        UUID,                     -- reference to tokenized payment method
+    psp_reference   VARCHAR(255),             -- external processor reference
+    risk_score      DECIMAL(5,2),
+    failure_reason  TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Partition by created_at for efficient archival
+    CONSTRAINT valid_amount CHECK (amount &gt; 0),
+    CONSTRAINT valid_status CHECK (status IN (
+        'CREATED','PROCESSING','AUTHORIZED','CAPTURED',
+        'SETTLED','FAILED','REFUNDED','CANCELLED'
+    ))
+);</code></pre>
+
+                    <h4>ledger_entries (Double-Entry Bookkeeping)</h4>
+                    <pre class="code-block"><code>CREATE TABLE ledger_entries (
+    id              BIGSERIAL PRIMARY KEY,
+    transaction_id  UUID NOT NULL,            -- groups debit + credit pair
+    payment_id      UUID NOT NULL REFERENCES payments(id),
+    account_id      UUID NOT NULL REFERENCES accounts(id),
+    entry_type      VARCHAR(6) NOT NULL,      -- DEBIT or CREDIT
+    amount          BIGINT NOT NULL,          -- always positive
+    currency        CHAR(3) NOT NULL,
+    description     TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Immutable: no UPDATE or DELETE allowed (enforced by trigger)
+    CONSTRAINT valid_entry CHECK (entry_type IN ('DEBIT', 'CREDIT')),
+    CONSTRAINT positive_amount CHECK (amount &gt; 0)
+);
+
+-- Critical index for reconciliation
+CREATE INDEX idx_ledger_payment ON ledger_entries(payment_id);
+CREATE INDEX idx_ledger_account ON ledger_entries(account_id, created_at);</code></pre>
+
+                    <h4>merchants</h4>
+                    <pre class="code-block"><code>CREATE TABLE merchants (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name            VARCHAR(255) NOT NULL,
+    email           VARCHAR(255) NOT NULL,
+    payout_schedule VARCHAR(20) DEFAULT 'DAILY', -- DAILY, WEEKLY, MONTHLY
+    default_currency CHAR(3) DEFAULT 'USD',
+    risk_tier       VARCHAR(10) DEFAULT 'STANDARD',
+    pci_compliant   BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);</code></pre>
+
+                    <h4>accounts (Internal Ledger Accounts)</h4>
+                    <pre class="code-block"><code>CREATE TABLE accounts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_type      VARCHAR(20) NOT NULL,     -- MERCHANT, PLATFORM, BUYER
+    owner_id        UUID NOT NULL,
+    account_type    VARCHAR(20) NOT NULL,     -- RECEIVABLE, PAYABLE, REVENUE, CASH
+    currency        CHAR(3) NOT NULL,
+    balance         BIGINT NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    UNIQUE(owner_type, owner_id, account_type, currency)
+);</code></pre>
+
+                    <h4>payment_methods (Tokenized)</h4>
+                    <pre class="code-block"><code>CREATE TABLE payment_methods (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    customer_id     UUID NOT NULL,
+    type            VARCHAR(20) NOT NULL,     -- CARD, BANK_ACCOUNT, WALLET
+    token           VARCHAR(255) NOT NULL,    -- reference to Token Vault
+    last_four       CHAR(4),
+    brand           VARCHAR(20),              -- VISA, MASTERCARD, AMEX
+    exp_month       SMALLINT,
+    exp_year        SMALLINT,
+    is_default      BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+
+    -- NOTE: No raw card numbers stored here. Only tokens.
+);</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. DEEP DIVES                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. Deep Dives</h2>
+
+            <!-- 5a. Double-Entry Bookkeeping -->
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>5a. Double-Entry Bookkeeping</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why it matters:</strong> Every real payment platform (Stripe, Square, PayPal) uses double-entry bookkeeping internally. The principle is simple: <em>every money movement creates exactly two entries -- a debit in one account and a credit in another</em>. The sum of all debits must always equal the sum of all credits. This invariant is what makes financial systems auditable and self-verifying.</p>
+
+                    <p><strong>Why not just a single "balance" column?</strong> A single balance field is fragile: you lose the audit trail, you cannot reconstruct history, and you cannot detect corruption. With double-entry, you can independently verify every balance by summing the ledger entries.</p>
+
+                    <h4>Example: $100 Payment from Buyer to Merchant (2.9% fee)</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Transaction</th><th>Account</th><th>Debit</th><th>Credit</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td rowspan="2">Payment captured</td><td>Buyer Cash (Asset)</td><td></td><td>$100.00</td></tr>
+                            <tr><td>Platform Holding (Liability)</td><td>$100.00</td><td></td></tr>
+                            <tr><td rowspan="2">Fee extraction</td><td>Platform Holding (Liability)</td><td></td><td>$2.90</td></tr>
+                            <tr><td>Platform Revenue (Revenue)</td><td>$2.90</td><td></td></tr>
+                            <tr><td rowspan="2">Merchant payout</td><td>Platform Holding (Liability)</td><td></td><td>$97.10</td></tr>
+                            <tr><td>Merchant Payable (Liability)</td><td>$97.10</td><td></td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Example: Refund of $100</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Transaction</th><th>Account</th><th>Debit</th><th>Credit</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td rowspan="2">Refund issued</td><td>Platform Holding (Liability)</td><td>$100.00</td><td></td></tr>
+                            <tr><td>Buyer Cash (Asset)</td><td></td><td>$100.00</td></tr>
+                            <tr><td rowspan="2">Fee reversal</td><td>Platform Revenue (Revenue)</td><td></td><td>$2.90</td></tr>
+                            <tr><td>Platform Holding (Liability)</td><td>$2.90</td><td></td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> Explaining double-entry bookkeeping unprompted demonstrates deep domain knowledge. Most candidates just say "store the payment in a database." Staff engineers understand that the ledger IS the system -- everything else is orchestration around it.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5b. Idempotency -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5b. Idempotency -- The Most Critical Property</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why it is critical:</strong> Network failures, client retries, and load balancer timeouts mean the same payment request can arrive multiple times. Without idempotency, a customer gets charged twice. This is the single most important correctness property in a payment system.</p>
+
+                    <h4>Idempotency Key Flow</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant GW as Payment Gateway
+    participant Cache as Idempotency Store<br/>(Redis + DB)
+    participant PS as Payment Service
+    participant PSP as Payment Processor
+
+    C->>GW: POST /payments<br/>Idempotency-Key: abc-123
+    GW->>Cache: Lookup key "abc-123"
+    alt Key not found (first request)
+        Cache-->>GW: NOT FOUND
+        GW->>Cache: Store key "abc-123" = PROCESSING
+        GW->>PS: Process payment
+        PS->>PSP: Authorize + Capture
+        PSP-->>PS: Success (ref: psp-456)
+        PS-->>GW: Payment completed
+        GW->>Cache: Update key "abc-123" = COMPLETED + response
+        GW-->>C: 200 OK (payment result)
+    else Key found with COMPLETED status (retry)
+        Cache-->>GW: COMPLETED + cached response
+        GW-->>C: 200 OK (cached result, no reprocessing)
+    else Key found with PROCESSING status (concurrent)
+        Cache-->>GW: PROCESSING
+        GW-->>C: 409 Conflict (payment in progress)
+    end
+                        </div>
+                    </div>
+
+                    <h4>Implementation Details</h4>
+                    <pre class="code-block"><code>-- Idempotency key table
+CREATE TABLE idempotency_keys (
+    key             VARCHAR(255) PRIMARY KEY,
+    merchant_id     UUID NOT NULL,
+    status          VARCHAR(20) NOT NULL,    -- PROCESSING, COMPLETED, FAILED
+    request_hash    CHAR(64) NOT NULL,       -- SHA-256 of request body
+    response_code   INT,
+    response_body   JSONB,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL     -- TTL: 24-72 hours
+);
+
+-- Lookup is: WHERE key = ? AND merchant_id = ?
+-- This prevents cross-merchant key collisions</code></pre>
+
+                    <p><strong>Key design decisions:</strong></p>
+                    <ul>
+                        <li><strong>Request hash:</strong> If the same idempotency key is sent with a different request body, reject it (400 Bad Request). This prevents misuse.</li>
+                        <li><strong>TTL:</strong> Keys expire after 24-72 hours. This bounds storage growth while covering reasonable retry windows.</li>
+                        <li><strong>Atomic status transitions:</strong> Use <code>UPDATE ... WHERE status = 'PROCESSING'</code> with row-level locking to prevent races.</li>
+                        <li><strong>PSP-level idempotency:</strong> Forward the idempotency key (or a derived key) to the PSP so that retries at the processor level are also safe.</li>
+                    </ul>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> Discuss the difference between <em>at-most-once</em> (drop duplicates) and <em>exactly-once</em> (idempotent processing). Explain that true exactly-once requires idempotency at every layer: client, gateway, service, AND external PSP.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5c. Payment State Machine -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5c. Payment State Machine</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Payments are modeled as a finite state machine. Every transition is explicit and audited. Invalid transitions are rejected, preventing data corruption.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> CREATED : Client submits payment
+    CREATED --> PROCESSING : Risk check passed
+    CREATED --> FAILED : Risk check rejected
+
+    PROCESSING --> AUTHORIZED : PSP authorizes hold
+    PROCESSING --> FAILED : PSP declines
+
+    AUTHORIZED --> CAPTURED : Merchant captures funds
+    AUTHORIZED --> CANCELLED : Auth voided (no capture)
+    AUTHORIZED --> FAILED : Auth expired (typically 7 days)
+
+    CAPTURED --> SETTLED : Settlement batch completes
+    CAPTURED --> REFUND_PENDING : Refund initiated
+
+    REFUND_PENDING --> REFUNDED : Refund confirmed by PSP
+    REFUND_PENDING --> CAPTURED : Refund failed
+
+    SETTLED --> REFUND_PENDING : Post-settlement refund
+
+    FAILED --> [*]
+    CANCELLED --> [*]
+    REFUNDED --> [*]
+    SETTLED --> [*]
+                        </div>
+                    </div>
+
+                    <h4>State Transition Enforcement</h4>
+                    <pre class="code-block"><code># Python: State machine with explicit valid transitions
+VALID_TRANSITIONS = {
+    'CREATED':        ['PROCESSING', 'FAILED'],
+    'PROCESSING':     ['AUTHORIZED', 'FAILED'],
+    'AUTHORIZED':     ['CAPTURED', 'CANCELLED', 'FAILED'],
+    'CAPTURED':       ['SETTLED', 'REFUND_PENDING'],
+    'SETTLED':        ['REFUND_PENDING'],
+    'REFUND_PENDING': ['REFUNDED', 'CAPTURED'],
+}
+
+def transition_payment(payment, new_status, reason=None):
+    allowed = VALID_TRANSITIONS.get(payment.status, [])
+    if new_status not in allowed:
+        raise InvalidTransitionError(
+            f"Cannot transition from {payment.status} to {new_status}"
+        )
+
+    old_status = payment.status
+    payment.status = new_status
+    payment.updated_at = datetime.utcnow()
+
+    # Immutable audit log -- NEVER delete these
+    AuditLog.create(
+        payment_id=payment.id,
+        from_status=old_status,
+        to_status=new_status,
+        reason=reason,
+        timestamp=payment.updated_at,
+        actor='system'
+    )</code></pre>
+
+                    <p><strong>Why separate Authorize and Capture?</strong> Authorization places a hold on the buyer's funds. Capture actually moves the money. This two-phase approach lets merchants verify inventory, check for fraud, or handle pre-orders before committing the charge. Hotels and car rentals rely heavily on auth-only flows.</p>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> Drawing the state machine proactively shows you understand that payments are not a simple request-response -- they are a long-lived process with multiple possible outcomes. Discuss edge cases: what happens if an authorization expires? What if a capture partially fails?
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5d. Saga Pattern for Distributed Payment Flow -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5d. Saga Pattern for Distributed Transactions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>The problem:</strong> A typical e-commerce checkout involves multiple services: Order Service (create order), Payment Service (charge money), and Inventory Service (reserve stock). You cannot use a traditional distributed transaction (2PC) because these are separate services, possibly with separate databases.</p>
+
+                    <p><strong>The solution:</strong> Use the Saga pattern -- a sequence of local transactions, each with a compensating action that undoes its effect if a later step fails.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant O as Order Service
+    participant P as Payment Service
+    participant I as Inventory Service
+    participant L as Ledger Service
+
+    Note over O,L: Happy Path
+    O->>O: 1. Create Order (PENDING)
+    O->>P: 2. Authorize Payment
+    P->>P: Hold funds on buyer's card
+    P-->>O: Authorization successful
+    O->>I: 3. Reserve Inventory
+    I->>I: Decrement stock count
+    I-->>O: Reservation confirmed
+    O->>P: 4. Capture Payment
+    P->>L: Record ledger entries
+    P-->>O: Capture confirmed
+    O->>O: 5. Confirm Order (COMPLETED)
+
+    Note over O,L: Failure + Compensation
+    rect rgb(60, 20, 20)
+        O->>I: 3. Reserve Inventory
+        I-->>O: OUT OF STOCK
+        O->>P: Compensate: Void Authorization
+        P->>P: Release hold on buyer's card
+        O->>O: Compensate: Cancel Order (FAILED)
+    end
+                        </div>
+                    </div>
+
+                    <h4>Choreography vs. Orchestration</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Approach</th><th>How It Works</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Choreography</strong></td>
+                                <td>Each service emits events; other services react</td>
+                                <td>Loosely coupled, no single point of failure</td>
+                                <td>Hard to track overall saga state, debugging is painful</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Orchestration</strong></td>
+                                <td>Central coordinator drives the saga step by step</td>
+                                <td>Clear flow, easy to monitor and debug</td>
+                                <td>Coordinator is a single point of failure (mitigated with HA)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Recommendation for payments:</strong> Use <strong>orchestration</strong>. Payment flows must be deterministic and auditable. A central Payment Saga Coordinator makes it trivial to answer "what happened to payment X?" -- critical during incident response.</p>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> Explain why 2PC is impractical across microservices (latency, availability, heterogeneous data stores) and why sagas with compensating transactions are the industry-standard approach. Discuss the trade-off: sagas provide eventual consistency with explicit compensation, not atomicity.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5e. Reconciliation -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5e. Reconciliation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>What is reconciliation?</strong> It is the process of verifying that your internal ledger matches external sources of truth: the PSP's transaction records and the bank's settlement statements. Discrepancies indicate bugs, fraud, or operational failures.</p>
+
+                    <h4>Three-Way Reconciliation</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Source</th><th>Contains</th><th>Frequency</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Internal Ledger</td><td>Every debit/credit entry for every payment</td><td>Real-time</td></tr>
+                            <tr><td>PSP Settlement Report</td><td>Transactions processed, fees deducted, net amounts</td><td>Daily (T+1)</td></tr>
+                            <tr><td>Bank Statement</td><td>Actual money movements in/out of bank accounts</td><td>Daily (T+1 or T+2)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Reconciliation Process</h4>
+                    <pre class="code-block"><code># Simplified reconciliation logic
+def reconcile_daily(date):
+    internal = ledger_service.get_entries(date)
+    psp_report = psp_client.download_settlement(date)
+    bank_stmt = bank_client.get_statement(date)
+
+    # Step 1: Match internal ledger to PSP report
+    for psp_txn in psp_report.transactions:
+        internal_txn = internal.find_by_psp_ref(psp_txn.reference)
+        if not internal_txn:
+            alert("MISSING_INTERNAL", psp_txn)  # PSP has it, we don't
+        elif internal_txn.amount != psp_txn.amount:
+            alert("AMOUNT_MISMATCH", internal_txn, psp_txn)
+
+    # Step 2: Find orphaned internal records
+    for txn in internal:
+        if not psp_report.has_reference(txn.psp_reference):
+            alert("MISSING_PSP", txn)  # We have it, PSP doesn't
+
+    # Step 3: Verify bank settlement totals
+    expected_net = psp_report.total_net
+    actual_deposit = bank_stmt.find_deposit(psp_report.batch_id)
+    if abs(expected_net - actual_deposit) &gt; TOLERANCE:
+        alert("BANK_MISMATCH", expected_net, actual_deposit)</code></pre>
+
+                    <p><strong>Common discrepancies:</strong></p>
+                    <ul>
+                        <li><strong>Timing differences:</strong> A payment captured at 11:59 PM may appear in tomorrow's PSP report.</li>
+                        <li><strong>Currency conversion:</strong> FX rates applied by the PSP may differ from your recorded rate.</li>
+                        <li><strong>Fee discrepancies:</strong> Tiered pricing means fees vary by volume, card type, and region.</li>
+                        <li><strong>Chargebacks:</strong> Disputes appear in bank statements before your system processes them.</li>
+                    </ul>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> Mentioning reconciliation unprompted is a strong differentiator. Most candidates focus only on the "happy path." Staff engineers know that the real complexity in payment systems lives in the reconciliation, dispute, and settlement layers.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5f. Fraud Detection & Risk Scoring -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5f. Fraud Detection &amp; Risk Scoring</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The Risk Engine evaluates every payment in real-time before authorization. It combines rule-based checks with ML-based scoring.</p>
+
+                    <h4>Signals Used for Risk Scoring</h4>
+                    <ul>
+                        <li><strong>Velocity checks:</strong> Number of transactions from the same card/IP/device in the last hour.</li>
+                        <li><strong>Geolocation:</strong> Does the IP location match the billing address? Is the buyer in a high-risk country?</li>
+                        <li><strong>Device fingerprinting:</strong> Browser, OS, screen resolution, timezone -- is this a known good device?</li>
+                        <li><strong>Transaction amount:</strong> Is this unusually large for this buyer or merchant?</li>
+                        <li><strong>Card BIN analysis:</strong> Prepaid cards and certain BIN ranges carry higher risk.</li>
+                        <li><strong>Behavioral signals:</strong> Time spent on checkout, copy-paste of card number (vs. typing).</li>
+                    </ul>
+
+                    <h4>Risk Decision Flow</h4>
+                    <pre class="code-block"><code>def evaluate_risk(payment, context):
+    score = 0.0
+
+    # Rule-based checks (fast, deterministic)
+    if context.velocity_1h &gt; 10:
+        score += 0.3
+    if context.ip_country != payment.billing_country:
+        score += 0.2
+    if payment.amount &gt; context.merchant_avg_amount * 5:
+        score += 0.15
+
+    # ML model (trained on historical fraud data)
+    ml_score = fraud_model.predict(payment.features())
+    score = 0.4 * score + 0.6 * ml_score  # weighted blend
+
+    # Decision
+    if score &gt; 0.85:
+        return RiskDecision.BLOCK
+    elif score &gt; 0.6:
+        return RiskDecision.CHALLENGE  # 3D Secure / OTP
+    else:
+        return RiskDecision.ALLOW</code></pre>
+
+                    <p><strong>3D Secure (3DS):</strong> When risk is medium, trigger a 3DS challenge (e.g., SMS OTP or biometric verification). This shifts liability for fraud from the merchant to the card issuer -- a critical commercial consideration.</p>
+                </div>
+            </div>
+
+            <!-- 5g. PCI DSS Compliance & Tokenization -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5g. PCI DSS Compliance &amp; Tokenization</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>PCI DSS</strong> (Payment Card Industry Data Security Standard) governs how cardholder data is stored, processed, and transmitted. Violating PCI DSS can result in fines of $5K-$100K/month and loss of card processing privileges.</p>
+
+                    <h4>Tokenization Architecture</h4>
+                    <p>The key strategy is <strong>minimizing PCI scope</strong>. Raw card numbers (PANs) never touch your main application. Instead:</p>
+                    <ol>
+                        <li>The client sends card data directly to the <strong>Token Vault</strong> (via a Stripe.js-style SDK or iframe).</li>
+                        <li>The Token Vault encrypts the PAN using HSM-backed keys and returns a <strong>token</strong> (e.g., <code>tok_abc123</code>).</li>
+                        <li>Your Payment Service only ever handles tokens -- never raw card data.</li>
+                        <li>When charging, the Token Vault decrypts the PAN and sends it to the PSP over a secured channel.</li>
+                    </ol>
+
+                    <h4>Network Isolation</h4>
+                    <pre class="code-block"><code>+--------------------------------------------------+
+|  Main VPC (non-PCI scope)                        |
+|                                                  |
+|  [Payment Gateway] [Payment Service] [Ledger]    |
+|         |                                        |
++---------|----------------------------------------+
+          | Token references only (tok_abc123)
++---------|----------------------------------------+
+|  PCI VPC (isolated, audited, restricted access)  |
+|         v                                        |
+|  [Token Vault]  &lt;--&gt;  [HSM]                     |
+|         |                                        |
+|  [PCI Proxy] --&gt; [Visa/MC Network]              |
++--------------------------------------------------+</code></pre>
+
+                    <p><strong>Key PCI requirements for the interview:</strong></p>
+                    <ul>
+                        <li>Cardholder data encrypted at rest (AES-256) and in transit (TLS 1.2+).</li>
+                        <li>Access logging for every PCI-scope system -- who accessed what, when.</li>
+                        <li>Network segmentation: PCI systems on separate VLANs/VPCs with firewall rules.</li>
+                        <li>Regular penetration testing and vulnerability scanning.</li>
+                        <li>No storage of CVV/CVC after authorization (even encrypted).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 5h. Multi-Currency Support -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5h. Multi-Currency Support</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Multi-currency adds significant complexity. The core question is: <strong>when do you convert currencies?</strong></p>
+
+                    <h4>Conversion Strategies</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>Description</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Charge-time conversion</strong></td>
+                                <td>Convert to merchant's currency at the moment of charge</td>
+                                <td>Merchant sees a predictable amount</td>
+                                <td>Buyer may see unexpected amounts due to FX markup</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Settlement-time conversion</strong></td>
+                                <td>Store in original currency, convert during settlement</td>
+                                <td>More accurate FX rates, simpler charge flow</td>
+                                <td>Merchant faces FX risk until settlement</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Multi-currency ledger</strong></td>
+                                <td>Maintain separate ledger accounts per currency</td>
+                                <td>No conversion needed until payout; accurate bookkeeping</td>
+                                <td>More complex ledger, need FX entries for cross-currency payouts</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Best practice:</strong> Use a <strong>multi-currency ledger</strong>. Record every transaction in its original currency. Create explicit FX ledger entries when converting for payouts. This keeps the ledger accurate and auditable.</p>
+
+                    <pre class="code-block"><code>-- FX conversion as an explicit ledger entry
+-- Merchant earned EUR 85 from a sale, payout is in USD
+
+-- Debit: Merchant EUR account
+INSERT INTO ledger_entries (transaction_id, payment_id, account_id, entry_type, amount, currency)
+VALUES ('fx-001', 'pay-123', 'merchant-eur-acct', 'DEBIT', 8500, 'EUR');
+
+-- Credit: Merchant USD account (at rate 1 EUR = 1.08 USD)
+INSERT INTO ledger_entries (transaction_id, payment_id, account_id, entry_type, amount, currency)
+VALUES ('fx-001', 'pay-123', 'merchant-usd-acct', 'CREDIT', 9180, 'USD');
+
+-- Record the FX rate used for audit
+INSERT INTO fx_conversions (transaction_id, from_currency, to_currency, rate, source, timestamp)
+VALUES ('fx-001', 'EUR', 'USD', 1.0800, 'reuters', now());</code></pre>
+                </div>
+            </div>
+
+            <!-- 5i. Retry Handling -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>5i. Retry Handling: When to Retry vs. When to Fail</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Retry logic in payment systems is nuanced. Blindly retrying can cause double charges. Never retrying can cause lost revenue. The key is classifying failures correctly.</p>
+
+                    <h4>Failure Classification</h4>
+                    <table>
+                        <thead>
+                            <tr><th>Failure Type</th><th>Example</th><th>Retryable?</th><th>Action</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Network timeout</td><td>PSP did not respond in 10s</td><td>Yes (with idempotency key)</td><td>Retry up to 3x with exponential backoff</td></tr>
+                            <tr><td>PSP 5xx error</td><td>PSP internal server error</td><td>Yes</td><td>Retry with backoff; fall back to secondary PSP if persistent</td></tr>
+                            <tr><td>Soft decline</td><td>"Insufficient funds", "Try again"</td><td>Maybe</td><td>Retry after delay (card may have funds later), or prompt buyer</td></tr>
+                            <tr><td>Hard decline</td><td>"Card stolen", "Invalid card"</td><td>No</td><td>Fail immediately, notify merchant</td></tr>
+                            <tr><td>Fraud block</td><td>Risk engine blocked the transaction</td><td>No</td><td>Fail, log for review</td></tr>
+                            <tr><td>Validation error</td><td>Invalid currency, missing fields</td><td>No</td><td>Return 400 to client</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Critical Rule: Unknown State Is the Hardest</h4>
+                    <p>When a network timeout occurs, you do NOT know if the PSP processed the payment. You must:</p>
+                    <ol>
+                        <li><strong>Query the PSP</strong> using your idempotency key to check the status.</li>
+                        <li>If the PSP confirms it was processed, record it as successful.</li>
+                        <li>If the PSP has no record, retry with the same idempotency key.</li>
+                        <li>If the PSP is unreachable, mark the payment as <code>UNKNOWN</code> and reconcile later.</li>
+                    </ol>
+
+                    <pre class="code-block"><code>async def charge_with_retry(payment, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            result = await psp.charge(
+                amount=payment.amount,
+                currency=payment.currency,
+                token=payment.token_id,
+                idempotency_key=payment.idempotency_key
+            )
+            return result
+        except NetworkTimeout:
+            # Unknown state -- check before retrying
+            status = await psp.query_payment(payment.idempotency_key)
+            if status == 'COMPLETED':
+                return status
+            elif status == 'NOT_FOUND':
+                await asyncio.sleep(2 ** attempt)  # exponential backoff
+                continue
+            else:
+                raise UnknownPaymentStateError(payment.id)
+        except HardDecline as e:
+            # Never retry hard declines
+            raise PaymentFailedError(e.reason)
+
+    # All retries exhausted
+    payment.status = 'UNKNOWN'
+    reconciliation_queue.enqueue(payment.id)
+    raise PaymentRetryExhaustedError(payment.id)</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. FAILURE SCENARIOS                                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Failure Scenarios</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Happens When Things Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Scenario 1: Payment Provider Down</h4>
+                    <div class="card">
+                        <p><strong>Situation:</strong> Your primary PSP (e.g., Visa network) is experiencing an outage.</p>
+                        <p><strong>Mitigation:</strong></p>
+                        <ul>
+                            <li><strong>Multi-PSP routing:</strong> Maintain connections to 2-3 PSPs. If one is down, route to another. This requires abstracting PSP communication behind an adapter interface.</li>
+                            <li><strong>Circuit breaker:</strong> After N consecutive failures, open the circuit. Stop sending traffic to the failing PSP. Periodically probe to detect recovery.</li>
+                            <li><strong>Graceful degradation:</strong> If all card processors are down, still accept wallet payments or bank transfers. Show the buyer available payment methods dynamically.</li>
+                        </ul>
+                    </div>
+
+                    <h4>Scenario 2: Double Charge</h4>
+                    <div class="card">
+                        <p><strong>Situation:</strong> A network glitch causes the client to retry, and idempotency protection fails (e.g., different idempotency keys used).</p>
+                        <p><strong>Prevention:</strong></p>
+                        <ul>
+                            <li>Server-generated idempotency keys tied to the order ID (not client-generated).</li>
+                            <li>Unique constraint on <code>(merchant_id, order_reference)</code> in the payments table.</li>
+                            <li>Reconciliation job detects duplicate charges within minutes.</li>
+                        </ul>
+                        <p><strong>Recovery:</strong> Automatic refund of the duplicate charge, alert to on-call engineer, incident review.</p>
+                    </div>
+
+                    <h4>Scenario 3: Partial Failure in Saga</h4>
+                    <div class="card">
+                        <p><strong>Situation:</strong> Payment is captured but inventory reservation fails (item sold out after payment).</p>
+                        <p><strong>Recovery:</strong></p>
+                        <ul>
+                            <li>Saga coordinator triggers compensating transaction: automatic refund.</li>
+                            <li>Order status updated to FAILED with reason "out of stock."</li>
+                            <li>Notification sent to buyer: "Payment refunded -- item unavailable."</li>
+                        </ul>
+                        <p><strong>Key principle:</strong> The system must never be in a state where money is taken but no product is delivered (or refund issued). Compensation must be guaranteed.</p>
+                    </div>
+
+                    <h4>Scenario 4: Ledger Database Failure</h4>
+                    <div class="card">
+                        <p><strong>Situation:</strong> The ledger DB is temporarily unavailable.</p>
+                        <p><strong>Impact:</strong> This is catastrophic -- you CANNOT process payments without recording them in the ledger. Unlike most services, you do NOT "proceed without logging."</p>
+                        <p><strong>Mitigation:</strong></p>
+                        <ul>
+                            <li>Synchronous replication with automatic failover (PostgreSQL streaming replication or Aurora Multi-AZ).</li>
+                            <li>If the ledger is truly down, <strong>stop accepting payments</strong>. Return 503 to clients. This is the correct behavior -- processing payments you cannot record is worse than downtime.</li>
+                            <li>Write-ahead log to durable queue (Kafka) as a last resort, with strict reconciliation on recovery.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="background: var(--info-bg, #1a2332);">
+                        <strong>Staff-Level Signal:</strong> The decision to <em>reject payments</em> when the ledger is down (rather than "queue and process later") demonstrates understanding that financial correctness trumps availability. This is the opposite of most distributed systems advice and shows mature judgment.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. API DESIGN                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. API Design</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Core Payment APIs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre class="code-block"><code>// Create a payment (authorize or capture)
+POST /v1/payments
+Headers:
+    Idempotency-Key: &lt;unique-key&gt;
+    Authorization: Bearer &lt;api-key&gt;
+Body:
+{
+    "amount": 10000,              // $100.00 in cents
+    "currency": "usd",
+    "payment_method": "tok_abc123",
+    "capture": true,              // false = auth-only
+    "merchant_reference": "order-789",
+    "metadata": { "order_id": "789" }
+}
+
+Response (201 Created):
+{
+    "id": "pay_xyz789",
+    "status": "CAPTURED",
+    "amount": 10000,
+    "currency": "usd",
+    "psp_reference": "ch_stripe_456",
+    "created_at": "2026-04-26T12:00:00Z"
+}
+
+// Capture an authorized payment
+POST /v1/payments/{id}/capture
+Body: { "amount": 10000 }  // can be less than auth (partial capture)
+
+// Refund a payment
+POST /v1/payments/{id}/refunds
+Headers:
+    Idempotency-Key: &lt;unique-key&gt;
+Body:
+{
+    "amount": 5000,               // partial refund: $50.00
+    "reason": "customer_request"
+}
+
+// Get payment details
+GET /v1/payments/{id}
+
+// List payments (with pagination)
+GET /v1/payments?merchant_id=m_123&amp;status=CAPTURED&amp;limit=50&amp;cursor=pay_abc</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. SCALING & PERFORMANCE                                     -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Scaling &amp; Performance Considerations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How to Scale a Payment System</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Payment systems scale differently from typical web applications. The bottleneck is rarely raw throughput -- it is <strong>consistency and correctness under concurrent access</strong>.</p>
+
+                    <h4>Database Scaling Strategy</h4>
+                    <ul>
+                        <li><strong>Vertical scaling first:</strong> A well-tuned PostgreSQL instance can handle 10K+ TPS. Payment systems often stay on a single primary longer than you might expect, because horizontal scaling introduces consistency challenges.</li>
+                        <li><strong>Read replicas:</strong> Reporting, analytics, and dashboard queries go to replicas. Payment processing always hits the primary.</li>
+                        <li><strong>Sharding (when necessary):</strong> Shard by <code>merchant_id</code>. All payments for a merchant live on the same shard, enabling efficient queries and maintaining per-merchant consistency.</li>
+                        <li><strong>Ledger partitioning:</strong> Partition ledger_entries by <code>created_at</code> (monthly). Old partitions become read-only and can be moved to cheaper storage.</li>
+                    </ul>
+
+                    <h4>Caching</h4>
+                    <ul>
+                        <li><strong>Idempotency keys:</strong> Redis with TTL (24-72 hours). Hot path for deduplication.</li>
+                        <li><strong>Merchant config:</strong> Cache merchant settings (fee rates, payout schedules) in local memory. Refresh every few minutes.</li>
+                        <li><strong>Do NOT cache:</strong> Payment status, ledger balances, or anything where stale reads cause financial errors.</li>
+                    </ul>
+
+                    <h4>Async Processing</h4>
+                    <ul>
+                        <li><strong>Settlement:</strong> Batch job, runs daily. No need for real-time processing.</li>
+                        <li><strong>Webhooks:</strong> Async via Kafka. Retry with exponential backoff. Separate webhook delivery from the payment hot path.</li>
+                        <li><strong>Reconciliation:</strong> Offline batch job, runs after PSP/bank reports are available (T+1).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. COMMON FOLLOW-UP QUESTIONS                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Common Follow-Up Questions</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Questions Interviewers Ask</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <h4>Q: How do you ensure exactly-once payment processing?</h4>
+                        <p><strong>A:</strong> Idempotency keys at every layer. The client sends a unique key, the gateway deduplicates against a persistent store, and the same key is forwarded to the PSP. Combined with a state machine that rejects invalid transitions, this ensures each payment is processed exactly once.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: Why not use a distributed database like Cassandra for the ledger?</h4>
+                        <p><strong>A:</strong> Financial ledgers require strong consistency (linearizable reads). Cassandra offers eventual consistency by default, which means you could read stale balances. PostgreSQL (or CockroachDB/Spanner for distributed strong consistency) is the right choice because they guarantee that a read after a write sees the write.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: How do you handle chargebacks?</h4>
+                        <p><strong>A:</strong> Chargebacks are initiated by the buyer's bank. The PSP notifies us via webhook. We create a chargeback record linked to the original payment, debit the merchant's account in the ledger, and provide a dispute management interface for merchants to submit evidence. The typical window is 120 days.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: How do you handle a payment that is stuck in PROCESSING?</h4>
+                        <p><strong>A:</strong> A background reaper job scans for payments in PROCESSING state older than a threshold (e.g., 15 minutes). It queries the PSP for the payment status. If the PSP confirms success or failure, the state is updated. If the PSP has no record, the payment is marked FAILED and the merchant is notified.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: What happens during a database failover?</h4>
+                        <p><strong>A:</strong> With synchronous replication, the replica is guaranteed to have all committed transactions. During failover (typically 15-30 seconds for managed databases like Aurora), in-flight payments will time out. Clients retry with idempotency keys. The new primary picks up from the last committed state. No data is lost, no payments are duplicated.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: How would you add support for subscriptions / recurring payments?</h4>
+                        <p><strong>A:</strong> Add a Subscription Service that stores billing schedules. A cron-based scheduler creates payment intents at the appropriate intervals. Each recurring charge uses a deterministic idempotency key (e.g., <code>sub_{id}_period_{date}</code>) to prevent double-billing. Handle card expiration by supporting card-on-file updates and retry logic for soft declines.</p>
+                    </div>
+
+                    <div class="card">
+                        <h4>Q: How do you test a payment system?</h4>
+                        <p><strong>A:</strong> PSPs provide sandbox environments with test card numbers that trigger specific responses (success, decline, timeout). Internally, use property-based testing to verify ledger invariants (sum of debits = sum of credits), chaos engineering to inject failures (kill PSP connections mid-transaction), and shadow traffic testing against production data.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. INTERVIEW DELIVERY FRAMEWORK                             -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">10. Interview Delivery Framework</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How to Present This in 45-60 Minutes</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead>
+                            <tr><th>Phase</th><th>Time</th><th>Focus</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Requirements</td><td>5 min</td><td>Clarify scope (payment types, scale, compliance). Ask about auth-only vs. auth+capture.</td></tr>
+                            <tr><td>Estimation</td><td>3 min</td><td>Quick TPS calc. Emphasize that the challenge is correctness, not throughput.</td></tr>
+                            <tr><td>High-Level Design</td><td>10 min</td><td>Draw the architecture. Name every component and its responsibility.</td></tr>
+                            <tr><td>Data Model</td><td>7 min</td><td>Payments table + ledger_entries. Explain double-entry bookkeeping.</td></tr>
+                            <tr><td>Deep Dive 1: Idempotency</td><td>8 min</td><td>Idempotency key flow, sequence diagram, edge cases.</td></tr>
+                            <tr><td>Deep Dive 2: State Machine</td><td>5 min</td><td>Draw the state diagram. Explain auth vs. capture vs. settle.</td></tr>
+                            <tr><td>Deep Dive 3: Failure Handling</td><td>7 min</td><td>Saga pattern, retry classification, reconciliation overview.</td></tr>
+                            <tr><td>Follow-up Questions</td><td>5-10 min</td><td>PCI compliance, multi-currency, chargebacks, subscriptions.</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Treating payments as a simple CRUD service -- "just store it in a database."</li>
+                        <li>Not mentioning idempotency or exactly-once semantics.</li>
+                        <li>Using eventual consistency for financial data without acknowledging the risks.</li>
+                        <li>Ignoring PCI compliance entirely.</li>
+                        <li>No mention of reconciliation or what happens when things go wrong.</li>
+                    </ul>
+
+                    <h4>Differentiators for Staff-Level</h4>
+                    <ul>
+                        <li>Drawing the payment state machine without being asked.</li>
+                        <li>Explaining double-entry bookkeeping and why a single balance field is insufficient.</li>
+                        <li>Discussing the tension between availability and consistency in financial systems.</li>
+                        <li>Mentioning three-way reconciliation (ledger vs. PSP vs. bank).</li>
+                        <li>Understanding when to STOP accepting payments (ledger down) rather than degrading gracefully.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4" style="display: flex; justify-content: space-between; margin-top: 2rem; padding-bottom: 2rem;">
+                <a href="../index.html" class="btn btn-secondary">&larr; Back to System Design</a>
+                <a href="url-shortener.html" class="btn btn-primary">URL Shortener &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+</body>
+</html>
