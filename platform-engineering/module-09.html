@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 9: E2E Testing, Chaos Engineering &amp; Testing in Production - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link active" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 9: E2E Testing, Chaos Engineering &amp; Testing in Production</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>E2E testing with Playwright/Cypress and the Page Object Model</li>
+                <li>Chaos engineering principles with Toxiproxy and Chaos Monkey</li>
+                <li>Canary deployments, feature flags, and shadow traffic</li>
+                <li>Performance testing with k6 and load testing patterns</li>
+                <li>CI/CD pipeline design and staff-level QA strategy</li>
+            </ul></div>
+
+            <h2>E2E Testing</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: When should you write E2E tests and what are their tradeoffs?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> E2E tests verify the complete user journey through the system. They're the most realistic but also the most expensive.</p>
+                    <table>
+                        <thead><tr><th>Pros</th><th>Cons</th></tr></thead>
+                        <tbody>
+                            <tr><td>Highest confidence (tests what users experience)</td><td>Slow (minutes per test)</td></tr>
+                            <tr><td>Catches integration issues across all layers</td><td>Flaky (network, timing, external deps)</td></tr>
+                            <tr><td>Tests real deployment configuration</td><td>Expensive to maintain</td></tr>
+                            <tr><td>Good for critical user journeys</td><td>Hard to debug when they fail</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Rule:</strong> Write E2E tests only for <strong>critical user journeys</strong> &mdash; the flows where a failure means lost revenue or broken trust. For a platform: "developer creates a service", "developer deploys to production", "developer views service health". Aim for 5-15 E2E tests, not 500.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you write maintainable E2E tests with the Page Object Model?</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-javascript">// Playwright with Page Object Model
+// pages/LoginPage.js
+class LoginPage {
+  constructor(page) {
+    this.page = page;
+    this.emailInput = page.locator('[data-testid="email"]');
+    this.passwordInput = page.locator('[data-testid="password"]');
+    this.submitButton = page.locator('[data-testid="login-submit"]');
+    this.errorMessage = page.locator('[data-testid="login-error"]');
+  }
+
+  async goto() {
+    await this.page.goto('/login');
+  }
+
+  async login(email, password) {
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+}
+
+// tests/login.spec.js
+test('user can log in with valid credentials', async ({ page }) =&gt; {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login('user@test.com', 'password123');
+  await expect(page).toHaveURL('/dashboard');
+});
+
+test('shows error for invalid credentials', async ({ page }) =&gt; {
+  const loginPage = new LoginPage(page);
+  await loginPage.goto();
+  await loginPage.login('user@test.com', 'wrong');
+  await expect(loginPage.errorMessage).toBeVisible();
+});</code></pre>
+                    <p><strong>Key principles:</strong> Use <code>data-testid</code> attributes (not CSS selectors). Encapsulate page interactions in page objects. Keep tests focused on user behavior, not implementation details.</p>
+                </div>
+            </div>
+
+            <h2>Chaos Engineering</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is chaos engineering and what are its core principles?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Chaos engineering is the discipline of experimenting on a system to build confidence in its ability to withstand turbulent conditions in production.</p>
+                    <p><strong>The chaos engineering cycle:</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    H[Define steady state] --> E[Form hypothesis]
+    E --> R[Run experiment]
+    R --> A[Analyze results]
+    A --> F[Fix weaknesses]
+    F --> H
+                        </div>
+                    </div>
+                    <p><strong>Principles (from Principles of Chaos Engineering):</strong></p>
+                    <ol>
+                        <li><strong>Build a hypothesis around steady-state behavior</strong> &mdash; Define what "normal" looks like (latency &lt; 200ms, error rate &lt; 0.1%)</li>
+                        <li><strong>Vary real-world events</strong> &mdash; Inject realistic failures (server crash, network partition, dependency latency)</li>
+                        <li><strong>Run experiments in production</strong> &mdash; Testing in staging misses production-specific behaviors</li>
+                        <li><strong>Automate experiments</strong> &mdash; Run continuously, not just once</li>
+                        <li><strong>Minimize blast radius</strong> &mdash; Start small (1% of traffic), have a kill switch</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you use Toxiproxy for chaos testing in integration tests?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Toxiproxy is a TCP proxy that simulates network conditions (latency, disconnects, bandwidth limits) between your service and its dependencies.</p>
+                    <pre><code class="language-python"># Toxiproxy setup for testing
+from toxiproxy import Toxiproxy
+
+toxiproxy = Toxiproxy()
+proxy = toxiproxy.create(name="postgres", upstream="postgres:5432", listen="0.0.0.0:15432")
+
+def test_service_handles_database_latency():
+    """Service should timeout gracefully when DB is slow."""
+    # Add 5 second latency to all DB traffic
+    proxy.add_toxic(type="latency", attributes={"latency": 5000})
+    try:
+        result = service.get_user("user-123")
+        # Should return cached result or graceful error, not hang
+        assert result.source == "cache" or result.error == "timeout"
+    finally:
+        proxy.remove_toxic("latency_downstream")
+
+def test_service_handles_database_disconnect():
+    """Service should handle sudden DB connection loss."""
+    proxy.add_toxic(type="reset_peer", attributes={"timeout": 0})
+    try:
+        result = service.create_order(order_data)
+        assert result.status == "error"
+        assert "database" in result.message.lower()
+    finally:
+        proxy.remove_toxic("reset_peer_downstream")
+
+def test_service_handles_slow_responses():
+    """Service circuit breaker should trip on slow downstream."""
+    proxy.add_toxic(type="latency", attributes={"latency": 10000})
+    # Make multiple calls to trip circuit breaker
+    results = [service.get_user(f"user-{i}") for i in range(10)]
+    # After threshold, circuit breaker should return fast failures
+    assert any(r.error == "circuit_open" for r in results[-3:])</code></pre>
+                </div>
+            </div>
+
+            <h2>Safe Deployment Patterns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do canary deployments work and what metrics should you watch?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Canary deployment routes a small percentage of traffic to the new version while monitoring for regressions.</p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    LB[Load Balancer] -->|95%| V1[v1.2.0 - 10 pods]
+    LB -->|5%| V2[v1.3.0 - 1 pod - CANARY]
+    V2 --> M[Monitor: latency, errors, business metrics]
+    M -->|healthy for 30min| PROMOTE[Promote to 100%]
+    M -->|regression detected| ROLLBACK[Rollback canary]
+                        </div>
+                    </div>
+                    <p><strong>Metrics to monitor during canary:</strong></p>
+                    <ul>
+                        <li><strong>Error rate</strong> &mdash; Compare canary vs baseline. Alert if canary error rate is 2x+ higher.</li>
+                        <li><strong>Latency</strong> &mdash; P50, P95, P99 comparison. Alert if P99 regresses &gt; 20%.</li>
+                        <li><strong>Business metrics</strong> &mdash; Conversion rate, checkout completions (if applicable)</li>
+                        <li><strong>Resource usage</strong> &mdash; CPU, memory. A memory leak won't show in error rates initially.</li>
+                    </ul>
+                    <p><strong>Automated canary analysis:</strong> Tools like Kayenta (Netflix/Spinnaker) and Flagger (Kubernetes) automate the comparison and promotion/rollback decision. Manual canary analysis doesn't scale.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do feature flags enable safe testing in production?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Feature flags decouple deployment from release. You deploy code to production but activate it gradually.</p>
+                    <pre><code class="language-python"># Feature flag patterns
+from featureflags import FeatureClient
+
+flags = FeatureClient(api_key="...")
+
+async def get_recommendations(user_id: str):
+    if flags.is_enabled("new-recommendation-engine", user_id=user_id):
+        return await new_recommendation_engine.get(user_id)
+    else:
+        return await legacy_recommendation_engine.get(user_id)
+
+# Rollout strategies:
+# 1. Percentage: 5% of users see new feature
+# 2. User targeting: specific user IDs (for internal testing)
+# 3. Group targeting: all beta users, all employees
+# 4. Geographic: enabled in US-West, not US-East</code></pre>
+                    <p><strong>Feature flag lifecycle:</strong></p>
+                    <ol>
+                        <li><strong>Deploy</strong> code with flag defaulting to OFF</li>
+                        <li><strong>Enable for internal users</strong> (dogfooding)</li>
+                        <li><strong>Enable for 1%</strong> of production users, monitor</li>
+                        <li><strong>Gradual rollout</strong> to 10%, 50%, 100%</li>
+                        <li><strong>Remove the flag</strong> and the old code path (critical! tech debt otherwise)</li>
+                    </ol>
+                    <p><strong>Tools:</strong> LaunchDarkly, Split, Unleash, Flagsmith, or custom (Redis-backed flag store)</p>
+                </div>
+            </div>
+
+            <h2>Performance Testing</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you design and run performance tests with k6?</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-javascript">// k6 load test script
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+
+export const options = {
+  stages: [
+    { duration: '2m', target: 100 },   // Ramp up to 100 users
+    { duration: '5m', target: 100 },   // Stay at 100 for 5 min
+    { duration: '2m', target: 200 },   // Ramp to 200
+    { duration: '5m', target: 200 },   // Stay at 200 for 5 min
+    { duration: '2m', target: 0 },     // Ramp down
+  ],
+  thresholds: {
+    http_req_duration: ['p(95)&lt;500', 'p(99)&lt;1000'],  // P95 &lt; 500ms
+    http_req_failed: ['rate&lt;0.01'],                    // &lt; 1% errors
+  },
+};
+
+export default function () {
+  const res = http.get('https://api.example.com/users/me');
+  check(res, {
+    'status is 200': (r) =&gt; r.status === 200,
+    'response time &lt; 500ms': (r) =&gt; r.timings.duration &lt; 500,
+  });
+  sleep(1);
+}</code></pre>
+                    <p><strong>Types of performance tests:</strong></p>
+                    <table>
+                        <thead><tr><th>Type</th><th>Purpose</th><th>Pattern</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Load test</strong></td><td>Verify expected load</td><td>Ramp to expected peak, hold, ramp down</td></tr>
+                            <tr><td><strong>Stress test</strong></td><td>Find breaking point</td><td>Ramp continuously until failures</td></tr>
+                            <tr><td><strong>Soak test</strong></td><td>Find memory leaks</td><td>Moderate load for hours</td></tr>
+                            <tr><td><strong>Spike test</strong></td><td>Verify autoscaling</td><td>Sudden traffic spike, then drop</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h2>CI/CD Pipeline Design</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How should you design a CI/CD pipeline that balances speed and safety?</span></div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    COMMIT[Code Commit] --> LINT[Lint + Format - 30s]
+    LINT --> UNIT[Unit Tests - 2min]
+    UNIT --> BUILD[Build + Security Scan - 3min]
+    BUILD --> INT[Integration Tests - 5min]
+    INT --> CONTRACT[Contract Tests - 2min]
+    CONTRACT --> DEPLOY_STG[Deploy Staging]
+    DEPLOY_STG --> E2E[E2E Tests - 10min]
+    E2E --> CANARY[Canary Deploy 5%]
+    CANARY --> |monitor 30min| PROMOTE[Full Deploy]
+                        </div>
+                    </div>
+                    <p><strong>Key principles:</strong></p>
+                    <ul>
+                        <li><strong>Fast feedback first:</strong> Lint and unit tests in &lt; 3 minutes. Developers shouldn't wait.</li>
+                        <li><strong>Fail fast:</strong> If lint fails, don't run the rest. Saves CI resources.</li>
+                        <li><strong>Parallelize where possible:</strong> Unit, build, and security scan can run in parallel.</li>
+                        <li><strong>Gate on confidence:</strong> Each stage increases confidence. Don't skip stages.</li>
+                        <li><strong>Automate everything:</strong> No manual approval gates except for production deployment (and even that can be automated with canary).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is shadow traffic (dark launching) and when should you use it?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Shadow traffic mirrors production requests to a new version without serving the new version's responses to users. You compare the new version's behavior against the current version.</p>
+                    <p><strong>Use when:</strong></p>
+                    <ul>
+                        <li>Replacing a critical service (payments, search) and need confidence before switching</li>
+                        <li>Testing performance under real production load patterns</li>
+                        <li>Validating a new ML model against production queries</li>
+                    </ul>
+                    <p><strong>Caution:</strong> Shadow traffic should be <strong>read-only</strong>. Never shadow-test write operations (you'd create duplicate orders, send duplicate emails). For write operations, use feature flags with careful rollback instead.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What does a staff-level QA strategy look like for a platform team?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A staff engineer's QA strategy covers the entire testing portfolio:</p>
+                    <table>
+                        <thead><tr><th>Layer</th><th>Responsibility</th><th>Frequency</th></tr></thead>
+                        <tbody>
+                            <tr><td>Unit tests</td><td>Individual teams</td><td>Every commit</td></tr>
+                            <tr><td>Integration tests</td><td>Individual teams (platform provides tooling)</td><td>Every commit</td></tr>
+                            <tr><td>Contract tests</td><td>Cross-team (platform enforces)</td><td>Every commit</td></tr>
+                            <tr><td>E2E tests</td><td>Platform team + critical path owners</td><td>Pre-deploy</td></tr>
+                            <tr><td>Performance tests</td><td>Platform team</td><td>Weekly + pre-release</td></tr>
+                            <tr><td>Chaos experiments</td><td>Platform team + SRE</td><td>Monthly (automated weekly)</td></tr>
+                            <tr><td>Security scanning</td><td>Platform team (automated)</td><td>Every commit + nightly</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>The platform team's role:</strong> Don't write all the tests &mdash; provide the tooling, templates, and CI infrastructure that makes it easy for every team to test well. Standardize on Testcontainers, provide Pact broker, maintain the E2E framework, and run performance/chaos tests centrally.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-08.html" class="btn btn-secondary">&larr; Integration Testing</a>
+                <a href="module-10.html" class="btn btn-primary">Next: Code Review &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

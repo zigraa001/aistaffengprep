@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 12: Observability &amp; Production Readiness - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link active" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 12: Observability &amp; Production Readiness</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>Three pillars of observability: logs, metrics, traces &mdash; and their limitations</li>
+                <li>Structured logging with correlation IDs</li>
+                <li>SLI/SLO/SLA definitions and error budget calculations</li>
+                <li>OpenTelemetry instrumentation and distributed tracing</li>
+                <li>Alerting philosophy, production readiness checklists, and incident management</li>
+            </ul></div>
+
+            <h2>Three Pillars of Observability</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the three pillars of observability and their limitations?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Pillar</th><th>What It Captures</th><th>Best For</th><th>Limitations</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Logs</strong></td><td>Discrete events with context</td><td>Debugging specific requests, audit trails</td><td>Expensive to store at scale, hard to correlate across services</td></tr>
+                            <tr><td><strong>Metrics</strong></td><td>Aggregated numerical measurements</td><td>Dashboards, alerting, trends</td><td>Loss of individual request detail, cardinality explosions</td></tr>
+                            <tr><td><strong>Traces</strong></td><td>Request flow across services</td><td>Latency analysis, dependency mapping</td><td>Sampling loses data, complex to set up</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>The limitation beyond three pillars:</strong> These pillars capture known-unknowns. For unknown-unknowns (novel failure modes you didn't instrument for), you need <strong>high-cardinality event data</strong> (wide events with many fields) that can be queried ad-hoc. Tools like Honeycomb focus on this approach &mdash; store rich events and query them after the fact, rather than pre-aggregating into metrics.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How should you implement structured logging?</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">import structlog
+import uuid
+
+# Configure structured logging (JSON output)
+structlog.configure(
+    processors=[
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.JSONRenderer(),
+    ]
+)
+logger = structlog.get_logger()
+
+# Middleware: inject correlation ID
+async def correlation_middleware(request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID", str(uuid.uuid4()))
+    # Bind to all log entries in this request
+    structlog.contextvars.bind_contextvars(
+        correlation_id=correlation_id,
+        method=request.method,
+        path=request.url.path,
+    )
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = correlation_id
+    logger.info("request_completed", status=response.status_code)
+    return response
+
+# Usage in handlers
+async def create_order(order_data):
+    logger.info("creating_order", customer_id=order_data.customer_id)
+    order = await db.create(order_data)
+    logger.info("order_created", order_id=order.id, total=order.total)</code></pre>
+
+                    <p><strong>Output:</strong></p>
+                    <pre><code class="language-json">{"event": "order_created", "correlation_id": "abc-123", "order_id": "ord-456", "total": 99.99, "method": "POST", "path": "/orders", "timestamp": "2024-01-15T10:30:00Z"}</code></pre>
+
+                    <p><strong>Key rules:</strong></p>
+                    <ul>
+                        <li>Always JSON format (not free-text) for machine parsing</li>
+                        <li>Always include correlation ID for tracing across services</li>
+                        <li>Log events, not sentences ("order_created" not "An order was created successfully")</li>
+                        <li>Include relevant context (IDs, amounts) but NEVER log secrets, PII, or credentials</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>SLIs, SLOs, and Error Budgets</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are SLIs, SLOs, SLAs, and error budgets?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Term</th><th>Definition</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>SLI</strong> (Service Level Indicator)</td><td>A metric that measures service quality</td><td>Request latency P99, error rate, availability</td></tr>
+                            <tr><td><strong>SLO</strong> (Service Level Objective)</td><td>Target value for an SLI</td><td>"P99 latency &lt; 500ms" or "99.9% availability"</td></tr>
+                            <tr><td><strong>SLA</strong> (Service Level Agreement)</td><td>Contractual commitment with consequences</td><td>"99.9% uptime or customer gets credits"</td></tr>
+                            <tr><td><strong>Error Budget</strong></td><td>Allowed amount of unreliability</td><td>99.9% SLO = 0.1% error budget = 43.8 min/month</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Error budget calculation:</strong></p>
+                    <pre><code>SLO: 99.9% availability
+Error budget per month: 30 days &times; 24 hours &times; 60 min &times; 0.1% = 43.2 minutes
+
+SLO: 99.95% availability
+Error budget per month: 30 &times; 24 &times; 60 &times; 0.05% = 21.6 minutes
+
+SLO: 99.99% availability
+Error budget per month: 30 &times; 24 &times; 60 &times; 0.01% = 4.32 minutes</code></pre>
+
+                    <p><strong>How error budgets drive decisions:</strong></p>
+                    <ul>
+                        <li>Budget remaining &gt; 50%: Ship features aggressively, take risks</li>
+                        <li>Budget remaining 20-50%: Normal development, be careful with risky changes</li>
+                        <li>Budget remaining &lt; 20%: Slow down feature work, focus on reliability</li>
+                        <li>Budget exhausted: Freeze deployments except reliability improvements</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Distributed Tracing &amp; OpenTelemetry</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How does OpenTelemetry work and how do you instrument a service?</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python"># OpenTelemetry setup (Python)
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+# Setup
+provider = TracerProvider()
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="http://otel-collector:4317"))
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("order-service")
+
+# Instrument a function
+@tracer.start_as_current_span("create_order")
+async def create_order(order_data):
+    span = trace.get_current_span()
+    span.set_attribute("order.customer_id", order_data.customer_id)
+    span.set_attribute("order.item_count", len(order_data.items))
+
+    # Child span for database operation
+    with tracer.start_as_current_span("db.insert_order"):
+        order = await db.insert(order_data)
+        span.set_attribute("order.id", order.id)
+
+    # Child span for event publishing
+    with tracer.start_as_current_span("kafka.publish_event"):
+        await kafka.publish("order-events", order.to_event())
+
+    return order</code></pre>
+
+                    <p><strong>Trace propagation:</strong> When Service A calls Service B, the trace context (trace ID, span ID) is propagated via HTTP headers (<code>traceparent</code> for W3C Trace Context). This links spans across services into a single trace.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    A[API Gateway - Span 1] --> B[Order Service - Span 2]
+    B --> C[Payment Service - Span 3]
+    B --> D[Inventory Service - Span 4]
+    C --> E[Stripe API - Span 5]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h2>Alerting Philosophy</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What makes a good alerting strategy vs a bad one?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Alert on symptoms, not causes:</strong></p>
+                    <table>
+                        <thead><tr><th>Bad Alert (cause)</th><th>Good Alert (symptom)</th></tr></thead>
+                        <tbody>
+                            <tr><td>CPU usage &gt; 80%</td><td>P99 latency &gt; 500ms for 5 minutes</td></tr>
+                            <tr><td>Disk usage &gt; 90%</td><td>Error rate &gt; 1% for 5 minutes</td></tr>
+                            <tr><td>Pod restarted</td><td>SLO burn rate &gt; 10x for 1 hour</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Alert fatigue is the #1 enemy:</strong> If on-call engineers get 50 alerts/day and 45 are noise, they'll ignore all of them. Every alert should require human action. If it doesn't, it's a log entry, not an alert.</p>
+
+                    <p><strong>Google's alerting principles (from SRE book):</strong></p>
+                    <ul>
+                        <li>Every alert should be <strong>actionable</strong></li>
+                        <li>Every alert should require <strong>intelligence</strong> (not automatable)</li>
+                        <li>Every alert should be about a <strong>novel problem</strong> (not a known ongoing issue)</li>
+                    </ul>
+
+                    <p><strong>Multi-window, multi-burn-rate alerts:</strong> Instead of a simple threshold, alert when the error budget burn rate is unsustainable. "At the current error rate, we'll exhaust the monthly error budget in 6 hours" is more actionable than "error rate is 0.5%".</p>
+                </div>
+            </div>
+
+            <h2>Production Readiness</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What should a production readiness checklist include?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A comprehensive production readiness review:</strong></p>
+                    <table>
+                        <thead><tr><th>Category</th><th>Checks</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Observability</strong></td><td>Structured logging, metrics dashboards, distributed tracing, health endpoints</td></tr>
+                            <tr><td><strong>Alerting</strong></td><td>SLO-based alerts, on-call rotation configured, escalation policy defined</td></tr>
+                            <tr><td><strong>Resilience</strong></td><td>Timeouts on all external calls, circuit breakers, graceful degradation, retry with backoff</td></tr>
+                            <tr><td><strong>Security</strong></td><td>Auth/authz, input validation, secrets in vault, dependency scan clean, TLS everywhere</td></tr>
+                            <tr><td><strong>Testing</strong></td><td>Unit + integration + E2E tests passing, load test completed, chaos experiment run</td></tr>
+                            <tr><td><strong>Deployment</strong></td><td>Canary deployment configured, rollback tested, feature flags for risky features</td></tr>
+                            <tr><td><strong>Documentation</strong></td><td>Runbook for common incidents, architecture diagram, API documentation, on-call guide</td></tr>
+                            <tr><td><strong>Capacity</strong></td><td>Load tested at 2x expected peak, autoscaling configured, resource limits set</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How should incident management work at a platform team?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Severity levels:</strong></p>
+                    <table>
+                        <thead><tr><th>Severity</th><th>Definition</th><th>Response Time</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>SEV1</strong></td><td>Complete service outage, data loss</td><td>15 minutes</td><td>Production database down</td></tr>
+                            <tr><td><strong>SEV2</strong></td><td>Major feature degraded, SLO breached</td><td>1 hour</td><td>Payments failing for 10% of users</td></tr>
+                            <tr><td><strong>SEV3</strong></td><td>Minor feature degraded, workaround exists</td><td>4 hours</td><td>Search results slightly stale</td></tr>
+                            <tr><td><strong>SEV4</strong></td><td>Cosmetic issue, no user impact</td><td>Next business day</td><td>Dashboard chart rendering incorrectly</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Postmortem template (blameless):</strong></p>
+                    <ol>
+                        <li><strong>Summary:</strong> What happened, impact, duration</li>
+                        <li><strong>Timeline:</strong> When detected, who responded, key actions taken</li>
+                        <li><strong>Root cause:</strong> Technical root cause (what broke)</li>
+                        <li><strong>Contributing factors:</strong> What made it worse or delayed recovery</li>
+                        <li><strong>Action items:</strong> Concrete steps to prevent recurrence (assigned, with deadlines)</li>
+                        <li><strong>Lessons learned:</strong> What worked well, what didn't</li>
+                    </ol>
+
+                    <p><strong>Staff-level incident role:</strong> During a SEV1, the staff engineer acts as the <strong>incident commander</strong> &mdash; coordinating response, making decisions about mitigations vs fixes, communicating to stakeholders, and ensuring the postmortem happens.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is the cost of observability at scale and how do you manage it?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Observability costs can exceed the infrastructure costs of the services being observed. At scale:</p>
+                    <ul>
+                        <li><strong>Logs:</strong> A service logging 1KB per request at 10K rps generates 864 GB/day. At $0.50/GB ingestion, that's $432/day per service.</li>
+                        <li><strong>Metrics:</strong> High-cardinality metrics (per-user, per-request-ID) can create millions of time series, overwhelming Prometheus.</li>
+                        <li><strong>Traces:</strong> Storing every trace at high-throughput services is prohibitively expensive.</li>
+                    </ul>
+
+                    <p><strong>Cost management strategies:</strong></p>
+                    <ul>
+                        <li><strong>Sampling:</strong> Trace 1-10% of requests. Always trace errors and slow requests (head-based + tail-based sampling).</li>
+                        <li><strong>Log levels:</strong> INFO in production, DEBUG only when investigating. Use dynamic log levels to turn up verbosity temporarily.</li>
+                        <li><strong>Aggregation:</strong> Pre-aggregate metrics instead of storing raw events. P50/P95/P99 summaries instead of individual latency values.</li>
+                        <li><strong>Retention policies:</strong> Keep detailed data for 7 days, aggregated data for 30 days, summaries for 1 year.</li>
+                        <li><strong>Cardinality management:</strong> Don't use unbounded values (user IDs, request IDs) as metric labels.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-11.html" class="btn btn-secondary">&larr; Security Review</a>
+                <a href="module-13.html" class="btn btn-primary">Next: Scenario Thinking &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 5: Message Brokers &amp; Pub/Sub Patterns - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link active" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 5: Message Brokers &amp; Pub/Sub Patterns</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Kafka deep dive: partitions, consumer groups, offsets, and exactly-once</li>
+                    <li>RabbitMQ, SQS/SNS, and Azure Service Bus patterns</li>
+                    <li>Delivery semantics and their real-world implications</li>
+                    <li>Event sourcing, CQRS, and topic design strategies</li>
+                    <li>Dead letter queues, message replay, and consumer lag monitoring</li>
+                </ul>
+            </div>
+
+            <h2>Broker Comparison</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do Kafka, RabbitMQ, SQS/SNS, and Azure Service Bus compare?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>Kafka</th><th>RabbitMQ</th><th>SQS/SNS</th><th>Azure Service Bus</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Model</strong></td><td>Distributed log</td><td>Message queue</td><td>Managed queue/pub-sub</td><td>Managed queue/pub-sub</td></tr>
+                            <tr><td><strong>Ordering</strong></td><td>Per-partition</td><td>Per-queue (with effort)</td><td>FIFO queues (limited)</td><td>Sessions for ordering</td></tr>
+                            <tr><td><strong>Retention</strong></td><td>Configurable (days/forever)</td><td>Until consumed</td><td>Up to 14 days</td><td>Up to 14 days</td></tr>
+                            <tr><td><strong>Throughput</strong></td><td>Millions/sec</td><td>Tens of thousands/sec</td><td>Nearly unlimited (managed)</td><td>High (managed)</td></tr>
+                            <tr><td><strong>Replay</strong></td><td>Yes (seek to offset)</td><td>No (consumed = gone)</td><td>No</td><td>No (without custom)</td></tr>
+                            <tr><td><strong>Consumer model</strong></td><td>Pull (consumer polls)</td><td>Push (broker delivers)</td><td>Pull</td><td>Pull or push</td></tr>
+                            <tr><td><strong>Complexity</strong></td><td>High (ops-heavy)</td><td>Medium</td><td>Low (fully managed)</td><td>Low-Medium</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Event streaming, high volume</td><td>Task queues, routing</td><td>Simple decoupling in AWS</td><td>Enterprise messaging in Azure</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h2>Kafka Deep Dive</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do Kafka partitions, consumer groups, and offsets work together?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Kafka's core model is a distributed append-only log partitioned across brokers.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    P[Producer] --> T[Topic: order-events]
+    T --> P0[Partition 0]
+    T --> P1[Partition 1]
+    T --> P2[Partition 2]
+
+    subgraph "Consumer Group A (Order Service)"
+        C1[Consumer 1] --> P0
+        C2[Consumer 2] --> P1
+        C2 --> P2
+    end
+
+    subgraph "Consumer Group B (Analytics)"
+        C3[Consumer 3] --> P0
+        C3 --> P1
+        C3 --> P2
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Key concepts:</strong></p>
+                    <ul>
+                        <li><strong>Partitions</strong> &mdash; A topic is split into partitions. Each partition is an ordered, immutable log. Messages within a partition have a sequential offset.</li>
+                        <li><strong>Consumer groups</strong> &mdash; Each group gets all messages, but partitions are distributed among consumers in the group. Two groups reading the same topic each get all messages independently.</li>
+                        <li><strong>Offsets</strong> &mdash; Each consumer tracks its position (offset) in each partition. Committing offsets is how Kafka knows what's been processed.</li>
+                        <li><strong>Partition key</strong> &mdash; Determines which partition a message goes to. Messages with the same key always go to the same partition, guaranteeing ordering within that key.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Kafka producer with partition key
+from confluent_kafka import Producer
+
+producer = Producer({'bootstrap.servers': 'kafka:9092'})
+
+def publish_order_event(order_id: str, event_type: str, data: dict):
+    event = {
+        "type": event_type,
+        "order_id": order_id,
+        "data": data,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    # Use order_id as key: all events for same order go to same partition
+    producer.produce(
+        topic='order-events',
+        key=order_id.encode(),
+        value=json.dumps(event).encode(),
+    )
+    producer.flush()</code></pre>
+
+                    <p><strong>Scaling rule:</strong> Max parallelism = number of partitions. If you have 6 partitions, at most 6 consumers in a group can work simultaneously. The seventh consumer would be idle. Start with more partitions than you need (but not too many &mdash; each partition has overhead).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the delivery semantics (at-most-once, at-least-once, exactly-once) and which should you use?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Semantic</th><th>How</th><th>Risk</th><th>Use Case</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>At-most-once</strong></td><td>Commit offset before processing</td><td>Message lost if processing fails</td><td>Metrics, logs (loss tolerable)</td></tr>
+                            <tr><td><strong>At-least-once</strong></td><td>Commit offset after processing</td><td>Duplicates if crash after process but before commit</td><td>Most production workloads</td></tr>
+                            <tr><td><strong>Exactly-once</strong></td><td>Kafka transactions or idempotent consumers</td><td>Higher latency, complexity</td><td>Financial, billing systems</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># At-least-once consumer pattern
+from confluent_kafka import Consumer
+
+consumer = Consumer({
+    'bootstrap.servers': 'kafka:9092',
+    'group.id': 'order-processor',
+    'enable.auto.commit': False,  # Manual commit for at-least-once
+})
+consumer.subscribe(['order-events'])
+
+while True:
+    msg = consumer.poll(1.0)
+    if msg is None:
+        continue
+
+    try:
+        process_message(msg)           # Process first
+        consumer.commit(message=msg)   # Then commit offset
+    except Exception as e:
+        log.error(f"Processing failed: {e}")
+        # Don't commit - message will be redelivered</code></pre>
+
+                    <p><strong>Staff-level recommendation:</strong> Use <strong>at-least-once</strong> for nearly everything, and make consumers idempotent. Exactly-once semantics in Kafka (via transactions) add significant complexity and latency. It's almost always simpler to handle duplicates in the consumer than to pay the cost of exactly-once in the broker.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How does Kafka achieve exactly-once semantics when needed?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Kafka's exactly-once has two layers:</p>
+
+                    <p><strong>1. Idempotent producer:</strong> Prevents duplicate messages from producer retries. Each producer gets a Producer ID, and each message gets a sequence number. The broker deduplicates.</p>
+
+                    <pre><code class="language-python">producer = Producer({
+    'bootstrap.servers': 'kafka:9092',
+    'enable.idempotence': True,  # Prevents duplicate produces
+})</code></pre>
+
+                    <p><strong>2. Transactions:</strong> For read-process-write patterns where you consume from one topic, process, and produce to another topic. The offset commit and the output write are atomic.</p>
+
+                    <pre><code class="language-java">// Java - Kafka transactional consumer-producer
+producer.initTransactions();
+
+while (true) {
+    ConsumerRecords records = consumer.poll(Duration.ofMillis(100));
+    producer.beginTransaction();
+    try {
+        for (ConsumerRecord record : records) {
+            ProducerRecord output = process(record);
+            producer.send(output);
+        }
+        // Atomically commit consumer offsets + produced messages
+        producer.sendOffsetsToTransaction(
+            currentOffsets, consumer.groupMetadata()
+        );
+        producer.commitTransaction();
+    } catch (Exception e) {
+        producer.abortTransaction();
+    }
+}</code></pre>
+
+                    <p><strong>Limitation:</strong> Exactly-once only works within Kafka. If your consumer writes to an external database, you still need application-level idempotency. Kafka can't make your database write atomic with a Kafka offset commit.</p>
+                </div>
+            </div>
+
+            <h2>Advanced Patterns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is event sourcing and when should you use it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Event sourcing stores every state change as an immutable event. Current state is derived by replaying all events from the beginning.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Traditional: Store Current State"
+        DB1[Orders Table: Order 123 - Status: Shipped, Total: $99]
+    end
+    subgraph "Event Sourcing: Store Events"
+        E1[OrderCreated total=$99] --> E2[PaymentReceived $99]
+        E2 --> E3[ItemPacked]
+        E3 --> E4[OrderShipped tracking=XYZ]
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Benefits:</strong></p>
+                    <ul>
+                        <li><strong>Complete audit trail</strong> &mdash; Every change is recorded and immutable</li>
+                        <li><strong>Time travel</strong> &mdash; Reconstruct state at any point in time</li>
+                        <li><strong>Event replay</strong> &mdash; Rebuild read models, fix bugs by replaying with corrected logic</li>
+                        <li><strong>Decoupling</strong> &mdash; Multiple consumers can build different views from the same events</li>
+                    </ul>
+
+                    <p><strong>Costs:</strong></p>
+                    <ul>
+                        <li><strong>Complexity</strong> &mdash; Much harder to implement than CRUD</li>
+                        <li><strong>Event schema evolution</strong> &mdash; Old events must remain parseable as schemas change</li>
+                        <li><strong>Eventual consistency</strong> &mdash; Read models are updated asynchronously</li>
+                        <li><strong>Storage growth</strong> &mdash; Events accumulate forever (snapshots mitigate this)</li>
+                    </ul>
+
+                    <p><strong>Use when:</strong> Financial/banking (audit requirements), collaborative editing (Git, Google Docs), compliance-heavy domains. <strong>Don't use for:</strong> Simple CRUD apps, small teams, domains without audit requirements.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is CQRS and how does it relate to event sourcing?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> CQRS (Command Query Responsibility Segregation) separates read and write models. Writes go to one model, reads come from a different, optimized model.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    Client --> |Commands: CreateOrder, CancelOrder| WS[Write Service]
+    Client --> |Queries: GetOrder, SearchOrders| RS[Read Service]
+    WS --> |Events| EB[Event Bus / Kafka]
+    WS --> WDB[(Write DB - normalized)]
+    EB --> PROJ[Projection Service]
+    PROJ --> RDB[(Read DB - denormalized)]
+    RS --> RDB
+                        </div>
+                    </div>
+
+                    <p><strong>CQRS without event sourcing:</strong> You can use CQRS with a traditional database. Write to a normalized DB, publish change events, and maintain a denormalized read DB (e.g., Elasticsearch for search, Redis for dashboards).</p>
+
+                    <p><strong>CQRS with event sourcing:</strong> Events ARE the write model. Projections consume events and build read models. This is the full pattern but adds significant complexity.</p>
+
+                    <p><strong>Staff-level take:</strong> CQRS is often over-applied. You don't need it for most services. It's valuable when read and write patterns are fundamentally different &mdash; e.g., writes are simple command processing but reads need complex aggregations, full-text search, or graph traversals. Start with a single model and split only when performance or complexity demands it.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you design Kafka topics and choose partition keys?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <p><strong>Topic design principles:</strong></p>
+                    <ul>
+                        <li><strong>One topic per event type</strong> vs <strong>one topic per entity</strong> &mdash; Generally prefer per-entity (e.g., <code>orders</code> topic with event types in the payload) for simpler consumer management</li>
+                        <li><strong>Naming convention:</strong> <code>&lt;domain&gt;.&lt;entity&gt;.&lt;version&gt;</code> e.g., <code>ecommerce.orders.v1</code></li>
+                        <li><strong>Avoid too many topics</strong> &mdash; Each topic has overhead (metadata, file handles). 1,000 topics is fine; 100,000 is problematic.</li>
+                    </ul>
+
+                    <p><strong>Partition key selection:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Scenario</th><th>Good Partition Key</th><th>Why</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Order events</td><td><code>order_id</code></td><td>All events for one order in sequence</td></tr>
+                            <tr><td>User activity</td><td><code>user_id</code></td><td>Per-user ordering for session replay</td></tr>
+                            <tr><td>IoT sensor data</td><td><code>device_id</code></td><td>Per-device ordering for time-series</td></tr>
+                            <tr><td>Multi-tenant SaaS</td><td><code>tenant_id</code></td><td>Per-tenant isolation and ordering</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Watch out for hot partitions:</strong> If one key has vastly more events than others (e.g., a single large tenant), that partition becomes a bottleneck. Solutions: composite keys (<code>tenant_id + shard_key</code>), or dedicated topics for high-volume tenants.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do dead letter queues (DLQ) work and what's the best practice for handling them?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A DLQ captures messages that can't be processed after exhausting retries. Without a DLQ, poison messages block the consumer forever.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    T[Main Topic] --> C[Consumer]
+    C --> |Success| COMMIT[Commit Offset]
+    C --> |Failure| RETRY[Retry up to 3x]
+    RETRY --> |Still failing| DLQ[Dead Letter Topic]
+    DLQ --> ALERT[Alert Team]
+    DLQ --> REVIEW[Manual Review Dashboard]
+    REVIEW --> |Fixed| REPLAY[Replay to Main Topic]
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python">async def consume_with_dlq(msg, max_retries=3):
+    retry_count = int(msg.headers().get('retry-count', 0))
+
+    try:
+        await process_message(msg)
+    except RetryableError as e:
+        if retry_count &lt; max_retries:
+            # Re-publish with incremented retry count
+            producer.produce(
+                topic=msg.topic(),
+                key=msg.key(),
+                value=msg.value(),
+                headers={'retry-count': str(retry_count + 1)},
+            )
+        else:
+            # Send to DLQ
+            producer.produce(
+                topic=f"{msg.topic()}.dlq",
+                key=msg.key(),
+                value=msg.value(),
+                headers={
+                    'original-topic': msg.topic(),
+                    'failure-reason': str(e),
+                    'failed-at': datetime.utcnow().isoformat(),
+                },
+            )
+            alert_team(f"Message sent to DLQ: {e}")
+    except NonRetryableError as e:
+        # Immediately DLQ (e.g., schema validation failure)
+        producer.produce(topic=f"{msg.topic()}.dlq", ...)</code></pre>
+
+                    <p><strong>DLQ best practices:</strong></p>
+                    <ul>
+                        <li>Include metadata: original topic, failure reason, timestamp, retry count</li>
+                        <li>Build a dashboard to view and replay DLQ messages</li>
+                        <li>Alert on DLQ depth &gt; 0 (every DLQ message deserves attention)</li>
+                        <li>Distinguish retryable vs non-retryable errors &mdash; don't retry schema validation failures</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is a schema registry and why do you need one?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A schema registry is a centralized store for message schemas (Avro, Protobuf, JSON Schema). It ensures producers and consumers agree on the message format.</p>
+
+                    <p><strong>Without schema registry:</strong></p>
+                    <ul>
+                        <li>Producer changes a field name &rarr; all consumers break at runtime</li>
+                        <li>No way to discover what events look like without reading code</li>
+                        <li>Breaking changes are only caught in production</li>
+                    </ul>
+
+                    <p><strong>With schema registry (e.g., Confluent Schema Registry):</strong></p>
+                    <ul>
+                        <li>Schemas are versioned and immutable</li>
+                        <li>Compatibility checks happen at publish time (backward, forward, full)</li>
+                        <li>Breaking changes are rejected before they reach production</li>
+                        <li>Consumers auto-discover schema from message metadata</li>
+                    </ul>
+
+                    <p><strong>Compatibility modes:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Mode</th><th>Rule</th><th>Allows</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Backward</strong></td><td>New schema can read old data</td><td>Add optional fields, remove fields</td></tr>
+                            <tr><td><strong>Forward</strong></td><td>Old schema can read new data</td><td>Add fields, remove optional fields</td></tr>
+                            <tr><td><strong>Full</strong></td><td>Both directions</td><td>Add/remove optional fields only</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Recommendation:</strong> Start with <strong>backward</strong> compatibility. This means consumers can be upgraded first (they can read both old and new messages), and producers upgraded after. This is the safest upgrade order.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you monitor consumer lag and why does it matter?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Consumer lag is the difference between the latest offset in a partition and the consumer's committed offset. It tells you how far behind a consumer is.</p>
+
+                    <p><strong>Why it matters:</strong></p>
+                    <ul>
+                        <li>Growing lag = consumer can't keep up with producers = data freshness degradation</li>
+                        <li>Sudden lag spike = consumer is stuck, crashed, or processing a poison message</li>
+                        <li>Lag during peak hours = capacity planning needed</li>
+                    </ul>
+
+                    <p><strong>Monitoring tools:</strong></p>
+                    <ul>
+                        <li><strong>Burrow</strong> (LinkedIn) &mdash; Dedicated consumer lag monitoring with automatic lag evaluation</li>
+                        <li><strong>Kafka Exporter + Prometheus</strong> &mdash; Export lag metrics to Prometheus/Grafana</li>
+                        <li><strong>Built-in:</strong> <code>kafka-consumer-groups.sh --describe --group my-group</code></li>
+                    </ul>
+
+                    <p><strong>Alerting thresholds:</strong></p>
+                    <ul>
+                        <li><strong>Warning:</strong> Lag &gt; 10,000 messages for &gt; 5 minutes</li>
+                        <li><strong>Critical:</strong> Lag increasing continuously for &gt; 15 minutes</li>
+                        <li><strong>Emergency:</strong> Lag &gt; 1 hour of messages (based on production rate)</li>
+                    </ul>
+
+                    <p><strong>Fixing lag:</strong> Add more consumers (up to partition count), optimize processing logic, increase partition count, or address the root cause (slow downstream dependency, poison messages).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you handle message replay and reprocessing?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Kafka's log retention means you can reprocess historical messages. This is one of Kafka's killer features vs traditional message queues.</p>
+
+                    <p><strong>Replay scenarios:</strong></p>
+                    <ul>
+                        <li><strong>Bug fix:</strong> Consumer had a bug, fix it, replay from before the bug was introduced</li>
+                        <li><strong>New consumer:</strong> A new service needs historical data, replay from the beginning</li>
+                        <li><strong>Rebuild read model:</strong> Your search index is corrupted, rebuild from events</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Reset consumer group to replay from a specific timestamp
+# CLI:
+# kafka-consumer-groups.sh --bootstrap-server kafka:9092 \
+#   --group order-processor \
+#   --topic order-events \
+#   --reset-offsets --to-datetime 2024-01-10T00:00:00.000 \
+#   --execute
+
+# Programmatic: seek to timestamp
+from confluent_kafka import Consumer, TopicPartition
+
+consumer = Consumer({...})
+consumer.subscribe(['order-events'])
+
+# Seek all partitions to a specific timestamp
+partitions = consumer.assignment()
+timestamps = {tp: 1705017600000 for tp in partitions}  # epoch ms
+offsets = consumer.offsets_for_times(timestamps)
+for tp_offset in offsets:
+    consumer.seek(tp_offset)</code></pre>
+
+                    <p><strong>Replay considerations:</strong></p>
+                    <ul>
+                        <li>Consumers MUST be idempotent for replay to work safely</li>
+                        <li>Consider rate limiting replay to avoid overwhelming downstream systems</li>
+                        <li>Use a separate consumer group for replay to not affect live processing</li>
+                        <li>Set retention long enough for your replay needs (7 days minimum, often 30+)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you choose the right message broker for your use case?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Decision framework:</p>
+
+                    <ul>
+                        <li><strong>Need event streaming with replay + high throughput?</strong> &rarr; Kafka</li>
+                        <li><strong>Need flexible routing (headers, patterns, priorities)?</strong> &rarr; RabbitMQ</li>
+                        <li><strong>Need simple decoupling in AWS with zero ops?</strong> &rarr; SQS/SNS</li>
+                        <li><strong>Need enterprise features in Azure (sessions, transactions)?</strong> &rarr; Azure Service Bus</li>
+                        <li><strong>Need managed Kafka without the ops burden?</strong> &rarr; Confluent Cloud, MSK, or Event Hubs (Kafka protocol)</li>
+                    </ul>
+
+                    <p><strong>Staff-level nuance:</strong> The broker choice is often less important than how you use it. A well-designed system on SQS will outperform a poorly designed system on Kafka. Focus on: idempotent consumers, proper error handling, DLQs, monitoring, and schema management. These patterns work regardless of the broker.</p>
+
+                    <p><strong>Multi-broker reality:</strong> Many organizations use multiple brokers. Kafka for event streaming, SQS for simple task queues, and RabbitMQ for legacy systems. This is fine &mdash; each has strengths. The platform team's job is to provide standardized client libraries and observability across all of them.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the outbox pattern and why is it essential for event-driven systems?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The outbox pattern solves the dual-write problem: when you need to update a database AND publish an event, and you can't do both atomically.</p>
+
+                    <p><strong>The problem:</strong></p>
+                    <pre><code class="language-python"># DANGEROUS: dual write - not atomic
+async def create_order(order):
+    await db.insert(order)          # Step 1: DB write succeeds
+    await kafka.publish(order_event) # Step 2: Kafka publish fails!
+    # Now DB has the order but no event was published</code></pre>
+
+                    <p><strong>The solution (outbox pattern):</strong></p>
+                    <pre><code class="language-python"># SAFE: write event to outbox table in same DB transaction
+async def create_order(order):
+    async with db.transaction():
+        await db.insert("orders", order)
+        await db.insert("outbox", {
+            "id": uuid4(),
+            "aggregate_type": "Order",
+            "aggregate_id": order.id,
+            "event_type": "OrderCreated",
+            "payload": json.dumps(order_event),
+        })
+
+# Separate process polls outbox and publishes to Kafka
+async def outbox_relay():
+    while True:
+        events = await db.fetch("SELECT * FROM outbox WHERE published = false LIMIT 100")
+        for event in events:
+            await kafka.publish(event.event_type, event.payload)
+            await db.execute("UPDATE outbox SET published = true WHERE id = $1", event.id)
+        await asyncio.sleep(1)</code></pre>
+
+                    <p><strong>Alternative: Change Data Capture (CDC)</strong> with Debezium reads the database transaction log and publishes changes to Kafka. This avoids the outbox table entirely but requires more infrastructure.</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-04.html" class="btn btn-secondary">&larr; Webhooks &amp; Events</a>
+                <a href="module-06.html" class="btn btn-primary">Next: Resilience Patterns &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

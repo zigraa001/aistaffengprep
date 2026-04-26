@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 6: Resilience Patterns - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link active" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 6: Resilience Patterns</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Retry strategies with exponential backoff and jitter</li>
+                    <li>Circuit breaker pattern with state machine and implementations</li>
+                    <li>Bulkhead, backpressure, and load shedding patterns</li>
+                    <li>Retry storms, thundering herd, and idempotency keys</li>
+                    <li>Health checks, graceful degradation, and timeout strategies</li>
+                </ul>
+            </div>
+
+            <h2>Retry Patterns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the different retry strategies and when should you use each?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>Delay Pattern</th><th>Pros</th><th>Cons</th><th>Use When</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Immediate</strong></td><td>0, 0, 0</td><td>Fastest recovery</td><td>Can overwhelm failing service</td><td>Transient network blips</td></tr>
+                            <tr><td><strong>Fixed interval</strong></td><td>5s, 5s, 5s</td><td>Predictable</td><td>No backoff pressure</td><td>Known recovery time</td></tr>
+                            <tr><td><strong>Exponential backoff</strong></td><td>1s, 2s, 4s, 8s</td><td>Gives service time to recover</td><td>Synchronized retries (thundering herd)</td><td>Most cases</td></tr>
+                            <tr><td><strong>Exponential + jitter</strong></td><td>~0.7s, ~2.3s, ~5.1s</td><td>Spreads load, prevents storms</td><td>Less predictable</td><td><strong>Default choice</strong></td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python">import random
+import time
+
+def retry_with_backoff(func, max_retries=5, base_delay=1.0, max_delay=60.0):
+    """Exponential backoff with full jitter - the standard approach."""
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except RetryableError as e:
+            if attempt == max_retries:
+                raise  # Exhausted retries
+
+            # Exponential backoff with full jitter
+            exp_delay = min(base_delay * (2 ** attempt), max_delay)
+            actual_delay = random.uniform(0, exp_delay)
+
+            log.warning(f"Attempt {attempt + 1} failed: {e}. "
+                        f"Retrying in {actual_delay:.1f}s")
+            time.sleep(actual_delay)</code></pre>
+
+                    <p><strong>AWS's three jitter algorithms:</strong></p>
+                    <ul>
+                        <li><strong>Full jitter:</strong> <code>random(0, min(cap, base * 2^attempt))</code> &mdash; Best for reducing contention</li>
+                        <li><strong>Equal jitter:</strong> <code>min(cap, base * 2^attempt) / 2 + random(0, half)</code> &mdash; Guarantees some minimum wait</li>
+                        <li><strong>Decorrelated jitter:</strong> <code>min(cap, random(base, prev_delay * 3))</code> &mdash; Each retry independent of attempt count</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are retry storms and thundering herd, and how do you prevent them?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <p><strong>Retry storm:</strong> When a service fails, all its clients retry simultaneously. Each retry wave adds load, preventing recovery. The failing service gets MORE traffic when it's least able to handle it.</p>
+
+                    <p><strong>Thundering herd:</strong> A specific case where many clients simultaneously wake up and hit the same resource (e.g., cache expiry causes all requests to hit the database).</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant C1 as Client 1
+    participant C2 as Client 2
+    participant C3 as Client 3
+    participant S as Service (overloaded)
+
+    Note over S: Service struggling
+    C1->>S: Request (fails)
+    C2->>S: Request (fails)
+    C3->>S: Request (fails)
+    Note over C1,C3: All retry at 1s
+    C1->>S: Retry 1 (fails)
+    C2->>S: Retry 1 (fails)
+    C3->>S: Retry 1 (fails)
+    Note over C1,C3: All retry at 2s
+    Note over S: Load INCREASES, can't recover!
+                        </div>
+                    </div>
+
+                    <p><strong>Mitigations:</strong></p>
+                    <ul>
+                        <li><strong>Jitter</strong> &mdash; Randomize retry timing so clients don't retry in sync</li>
+                        <li><strong>Circuit breaker</strong> &mdash; Stop retrying entirely when failure rate is high</li>
+                        <li><strong>Retry budgets</strong> &mdash; Limit retries to X% of total requests (e.g., "retry at most 10% of traffic")</li>
+                        <li><strong>Server-side rate limiting</strong> &mdash; Shed excess load with 429 + Retry-After header</li>
+                        <li><strong>Client-side rate limiting</strong> &mdash; Client tracks recent failures and reduces request rate</li>
+                    </ul>
+
+                    <pre><code class="language-python">class RetryBudget:
+    """Limit retries to a percentage of total requests."""
+    def __init__(self, budget_ratio=0.1, window_seconds=60):
+        self.budget_ratio = budget_ratio
+        self.window = window_seconds
+        self.requests = []
+        self.retries = []
+
+    def can_retry(self) -&gt; bool:
+        now = time.time()
+        cutoff = now - self.window
+        self.requests = [t for t in self.requests if t &gt; cutoff]
+        self.retries = [t for t in self.retries if t &gt; cutoff]
+
+        if len(self.requests) == 0:
+            return True
+        return len(self.retries) / len(self.requests) &lt; self.budget_ratio
+
+    def record_request(self):
+        self.requests.append(time.time())
+
+    def record_retry(self):
+        self.retries.append(time.time())</code></pre>
+                </div>
+            </div>
+
+            <h2>Circuit Breaker</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How does the circuit breaker pattern work?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A circuit breaker monitors failures and "trips" (opens) when the failure rate exceeds a threshold, preventing further requests to a failing service.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open: Failure threshold exceeded
+    Open --> HalfOpen: Timeout expires
+    HalfOpen --> Closed: Probe succeeds
+    HalfOpen --> Open: Probe fails
+    Closed --> Closed: Success / Failure below threshold
+                        </div>
+                    </div>
+
+                    <p><strong>States:</strong></p>
+                    <ul>
+                        <li><strong>Closed</strong> &mdash; Normal operation. Requests pass through. Failures are counted.</li>
+                        <li><strong>Open</strong> &mdash; Requests fail immediately without calling the downstream service. Returns fallback or error.</li>
+                        <li><strong>Half-Open</strong> &mdash; After a timeout, allow one probe request. If it succeeds, close the circuit. If it fails, reopen.</li>
+                    </ul>
+
+                    <pre><code class="language-python">import time
+from enum import Enum
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, recovery_timeout=30, half_open_max=1):
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.half_open_max = half_open_max
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0
+        self.half_open_calls = 0
+
+    def call(self, func, fallback=None):
+        if self.state == CircuitState.OPEN:
+            if time.time() - self.last_failure_time &gt; self.recovery_timeout:
+                self.state = CircuitState.HALF_OPEN
+                self.half_open_calls = 0
+            else:
+                if fallback:
+                    return fallback()
+                raise CircuitOpenError("Circuit is open")
+
+        if self.state == CircuitState.HALF_OPEN:
+            if self.half_open_calls &gt;= self.half_open_max:
+                raise CircuitOpenError("Circuit half-open, max probes reached")
+            self.half_open_calls += 1
+
+        try:
+            result = func()
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+
+    def _on_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count &gt;= self.failure_threshold:
+            self.state = CircuitState.OPEN</code></pre>
+
+                    <p><strong>Production libraries:</strong> Use resilience4j (Java), Polly (.NET), pybreaker (Python), or gobreaker (Go) instead of rolling your own. They handle edge cases like concurrent access, metrics, and configuration.</p>
+                </div>
+            </div>
+
+            <h2>Bulkhead &amp; Isolation</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the bulkhead pattern and how does it prevent cascading failures?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Named after ship compartments, the bulkhead pattern isolates resources so a failure in one area doesn't sink the whole system.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Without Bulkhead"
+        API1[All API calls] --> POOL[Shared Thread Pool - 100 threads]
+        POOL --> SvcA[Service A - slow]
+        POOL --> SvcB[Service B - healthy]
+        POOL --> SvcC[Service C - healthy]
+    end
+    subgraph "With Bulkhead"
+        API2[API calls] --> PA[Pool A - 30 threads]
+        API2 --> PB[Pool B - 30 threads]
+        API2 --> PC[Pool C - 30 threads]
+        PA --> SvcA2[Service A - slow]
+        PB --> SvcB2[Service B - healthy]
+        PC --> SvcC2[Service C - healthy]
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Without bulkhead:</strong> Service A becomes slow, exhausts all 100 threads in the shared pool. Services B and C (which are healthy) can't be reached because there are no threads left. One slow dependency takes down everything.</p>
+
+                    <p><strong>With bulkhead:</strong> Service A's pool (30 threads) fills up, but Services B and C still have their dedicated pools. The failure is contained.</p>
+
+                    <p><strong>Implementation approaches:</strong></p>
+                    <ul>
+                        <li><strong>Thread pool bulkhead</strong> &mdash; Separate thread pools per dependency (Java/C#)</li>
+                        <li><strong>Semaphore bulkhead</strong> &mdash; Limit concurrent calls per dependency with semaphores</li>
+                        <li><strong>Process bulkhead</strong> &mdash; Separate processes/containers per dependency</li>
+                        <li><strong>Connection pool bulkhead</strong> &mdash; Separate HTTP connection pools per downstream service</li>
+                    </ul>
+
+                    <pre><code class="language-python">import asyncio
+
+class SemaphoreBulkhead:
+    """Limit concurrent calls to a dependency."""
+    def __init__(self, name: str, max_concurrent: int):
+        self.name = name
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.rejected = 0
+
+    async def execute(self, func):
+        if self.semaphore.locked():
+            self.rejected += 1
+            raise BulkheadFullError(f"Bulkhead '{self.name}' is full")
+        async with self.semaphore:
+            return await func()
+
+# Usage
+payment_bulkhead = SemaphoreBulkhead("payment-service", max_concurrent=20)
+inventory_bulkhead = SemaphoreBulkhead("inventory-service", max_concurrent=50)
+
+result = await payment_bulkhead.execute(lambda: call_payment_service(order))</code></pre>
+                </div>
+            </div>
+
+            <h2>Backpressure &amp; Load Shedding</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is backpressure and how do you implement it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Backpressure is a mechanism for a consumer to signal to a producer that it can't keep up, causing the producer to slow down or buffer.</p>
+
+                    <p><strong>Without backpressure:</strong> Producer sends faster than consumer can process &rarr; memory grows unbounded &rarr; OOM crash or dropped messages.</p>
+
+                    <p><strong>Backpressure strategies:</strong></p>
+                    <ul>
+                        <li><strong>Drop</strong> &mdash; Discard new messages when buffer is full (good for metrics/logs where latest matters most)</li>
+                        <li><strong>Buffer and bound</strong> &mdash; Queue messages up to a limit, reject new ones when full (HTTP 503)</li>
+                        <li><strong>Slow the producer</strong> &mdash; TCP flow control, Kafka consumer lag triggering producer throttling</li>
+                        <li><strong>Sample</strong> &mdash; Process every Nth message (good for analytics at high volume)</li>
+                    </ul>
+
+                    <p><strong>Example: bounded queue with backpressure:</strong></p>
+                    <pre><code class="language-python">import asyncio
+
+class BoundedProcessor:
+    def __init__(self, max_queue_size=1000, workers=10):
+        self.queue = asyncio.Queue(maxsize=max_queue_size)
+        self.workers = workers
+
+    async def submit(self, item):
+        try:
+            self.queue.put_nowait(item)
+        except asyncio.QueueFull:
+            raise BackpressureError("Queue full, slow down")
+
+    async def worker(self):
+        while True:
+            item = await self.queue.get()
+            await self.process(item)
+            self.queue.task_done()</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is load shedding and how does it differ from rate limiting?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Aspect</th><th>Rate Limiting</th><th>Load Shedding</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Trigger</strong></td><td>Per-client request count</td><td>Server resource utilization</td></tr>
+                            <tr><td><strong>Goal</strong></td><td>Fair access across clients</td><td>Protect server from overload</td></tr>
+                            <tr><td><strong>When active</strong></td><td>Always (proactive)</td><td>Under stress (reactive)</td></tr>
+                            <tr><td><strong>Decision basis</strong></td><td>Client identity + request count</td><td>CPU, memory, queue depth, latency</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Load shedding implementation:</strong></p>
+                    <pre><code class="language-python">async def load_shedding_middleware(request, call_next):
+    # Check server health
+    cpu_usage = get_cpu_usage()
+    queue_depth = get_request_queue_depth()
+    p99_latency = get_p99_latency()
+
+    if cpu_usage &gt; 85 or queue_depth &gt; 1000 or p99_latency &gt; 5000:
+        # Shed load: prioritize by request importance
+        priority = get_request_priority(request)
+        if priority == "low":
+            return Response(status_code=503, headers={"Retry-After": "30"})
+        # High-priority requests still get through
+
+    return await call_next(request)</code></pre>
+
+                    <p><strong>Priority-based shedding:</strong> Not all requests are equal. During overload, shed analytics requests before payment requests. Categorize requests into priority tiers and shed low-priority first.</p>
+                </div>
+            </div>
+
+            <h2>Idempotency &amp; Timeouts</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you implement idempotency keys for distributed operations?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Idempotency keys ensure that retrying a request doesn't cause duplicate side effects.</p>
+
+                    <pre><code class="language-python">from fastapi import FastAPI, Request, HTTPException
+import redis
+import json
+
+app = FastAPI()
+redis_client = redis.Redis()
+
+@app.post("/transfers")
+async def create_transfer(request: Request, transfer: TransferRequest):
+    idempotency_key = request.headers.get("Idempotency-Key")
+    if not idempotency_key:
+        raise HTTPException(400, "Idempotency-Key header required")
+
+    cache_key = f"idempotency:{idempotency_key}"
+
+    # Check for existing result
+    cached = redis_client.get(cache_key)
+    if cached:
+        cached_data = json.loads(cached)
+        # Verify request body matches (prevent key reuse for different ops)
+        if cached_data["request_hash"] != hash_request(transfer):
+            raise HTTPException(422, "Idempotency key already used for different request")
+        return cached_data["response"]
+
+    # Acquire lock to prevent concurrent execution of same key
+    lock = redis_client.lock(f"lock:{cache_key}", timeout=30)
+    if not lock.acquire(blocking=False):
+        raise HTTPException(409, "Request with this idempotency key is in progress")
+
+    try:
+        result = await execute_transfer(transfer)
+        # Cache result for 24 hours
+        redis_client.setex(cache_key, 86400, json.dumps({
+            "request_hash": hash_request(transfer),
+            "response": result,
+        }))
+        return result
+    finally:
+        lock.release()</code></pre>
+
+                    <p><strong>Key design decisions:</strong></p>
+                    <ul>
+                        <li><strong>TTL:</strong> Cache results for 24-48 hours. Long enough for clients to retry, short enough to not bloat storage.</li>
+                        <li><strong>Locking:</strong> Prevent concurrent execution of the same idempotency key (race condition where two retries run simultaneously).</li>
+                        <li><strong>Request matching:</strong> Verify the request body matches the original. Reject reuse of keys for different operations.</li>
+                        <li><strong>Key generation:</strong> Client generates UUIDs. Don't use deterministic keys (like user_id + amount) &mdash; a user may legitimately make two identical transfers.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How should you configure timeouts in a microservices architecture?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Timeouts have three layers, and they must be configured in the right order:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Timeout Type</th><th>What It Controls</th><th>Typical Value</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Connect timeout</strong></td><td>Time to establish TCP connection</td><td>1-5 seconds</td></tr>
+                            <tr><td><strong>Read timeout</strong></td><td>Time waiting for response after request sent</td><td>5-30 seconds</td></tr>
+                            <tr><td><strong>Total timeout</strong></td><td>Entire operation including retries</td><td>30-120 seconds</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>The golden rule:</strong> Upstream timeouts must be LONGER than downstream timeouts. If Service A calls B calls C:</p>
+                    <pre><code>A's timeout (10s) &gt; B's timeout (5s) &gt; C's processing time (2s)</code></pre>
+
+                    <p>If A's timeout is shorter than B's, A may give up and retry while B is still waiting for C. Now B has two in-flight requests consuming resources for a response nobody wants.</p>
+
+                    <p><strong>Deadline propagation:</strong> Pass a deadline (absolute time) through the call chain rather than independent timeouts:</p>
+                    <pre><code class="language-python"># Deadline propagation pattern
+async def service_a_handler(request):
+    deadline = time.time() + 10  # 10s from now
+    result = await call_service_b(request, deadline=deadline)
+    return result
+
+async def service_b_handler(request, deadline):
+    remaining = deadline - time.time()
+    if remaining &lt;= 0:
+        raise TimeoutError("Deadline already passed")
+    result = await call_service_c(request, timeout=remaining - 0.5)  # Reserve buffer
+    return result</code></pre>
+
+                    <p>gRPC has built-in deadline propagation. For REST, pass it as a header (e.g., <code>X-Request-Deadline</code>).</p>
+                </div>
+            </div>
+
+            <h2>Health Checks &amp; Graceful Degradation</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the difference between liveness and readiness probes?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Probe</th><th>Question It Answers</th><th>Failure Action</th><th>Checks</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Liveness</strong></td><td>"Is the process running correctly?"</td><td>Kill and restart the container</td><td>Process is alive, not deadlocked</td></tr>
+                            <tr><td><strong>Readiness</strong></td><td>"Can this instance serve traffic?"</td><td>Remove from load balancer</td><td>Dependencies connected, warmed up</td></tr>
+                            <tr><td><strong>Startup</strong></td><td>"Has the app finished starting?"</td><td>Don't check liveness yet</td><td>Initialization complete</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Critical mistake:</strong> Making liveness probes check database connectivity. If the database goes down, ALL pods restart, making things worse. Liveness should check if the <em>process</em> is healthy (not deadlocked, not OOM). Readiness should check if the instance can serve traffic (database connected, cache warmed).</p>
+
+                    <pre><code class="language-python"># Correct health check implementation
+@app.get("/healthz")  # Liveness
+async def liveness():
+    return {"status": "alive"}  # Simple - just proves the process responds
+
+@app.get("/readyz")  # Readiness
+async def readiness():
+    checks = {
+        "database": await check_db_connection(),
+        "cache": await check_redis_connection(),
+    }
+    all_healthy = all(checks.values())
+    return JSONResponse(
+        status_code=200 if all_healthy else 503,
+        content={"ready": all_healthy, "checks": checks}
+    )</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What does graceful degradation look like in practice?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Graceful degradation means providing reduced functionality rather than a complete failure when dependencies are unhealthy.</p>
+
+                    <p><strong>Examples:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Dependency Down</th><th>Hard Failure</th><th>Graceful Degradation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Recommendation service</td><td>Product page fails to load</td><td>Show products without recommendations</td></tr>
+                            <tr><td>User profile service</td><td>Dashboard blank</td><td>Show cached profile, mark as "may be stale"</td></tr>
+                            <tr><td>Search service</td><td>Search broken</td><td>Fall back to browsing by category</td></tr>
+                            <tr><td>Payment processor</td><td>Checkout fails</td><td>Queue the payment, confirm asynchronously</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Implementation pattern:</strong></p>
+                    <pre><code class="language-python">async def get_product_page(product_id: str):
+    product = await product_service.get(product_id)  # Required - fail if unavailable
+
+    # Optional enrichments - degrade gracefully
+    try:
+        recommendations = await recommendation_service.get(product_id)
+    except (TimeoutError, ServiceUnavailableError):
+        recommendations = []  # Degrade: no recommendations
+
+    try:
+        reviews = await review_service.get(product_id)
+    except (TimeoutError, ServiceUnavailableError):
+        reviews = {"summary": "Reviews temporarily unavailable", "items": []}
+
+    return ProductPage(
+        product=product,
+        recommendations=recommendations,
+        reviews=reviews,
+    )</code></pre>
+
+                    <p><strong>Staff-level principle:</strong> Classify every dependency as <strong>critical</strong> (page can't render without it) or <strong>optional</strong> (page degrades without it). Design fallbacks for optional dependencies from the start, not as an afterthought.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do all these resilience patterns work together?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> In a production system, you layer multiple patterns:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    REQ[Request] --> TIMEOUT[Timeout 5s]
+    TIMEOUT --> BULKHEAD[Bulkhead max=20]
+    BULKHEAD --> CB[Circuit Breaker]
+    CB --> RETRY[Retry 3x with jitter]
+    RETRY --> SVC[Downstream Service]
+    CB --> |Circuit Open| FALLBACK[Fallback Response]
+                        </div>
+                    </div>
+
+                    <p><strong>Order matters:</strong></p>
+                    <ol>
+                        <li><strong>Timeout</strong> &mdash; Outermost: limits total time spent</li>
+                        <li><strong>Bulkhead</strong> &mdash; Limits concurrent calls (prevents resource exhaustion)</li>
+                        <li><strong>Circuit Breaker</strong> &mdash; Stops calling when failure rate is high</li>
+                        <li><strong>Retry</strong> &mdash; Innermost: retries individual failed calls</li>
+                    </ol>
+
+                    <pre><code class="language-python"># Composed resilience in Python
+async def call_payment_service(request):
+    async with timeout(5.0):                              # 1. Timeout
+        async with payment_bulkhead.acquire():            # 2. Bulkhead
+            if payment_circuit.is_open():                 # 3. Circuit breaker
+                return fallback_response()
+            return await retry(                           # 4. Retry
+                lambda: http_client.post("/payments", request),
+                max_retries=3,
+                on_failure=payment_circuit.record_failure,
+                on_success=payment_circuit.record_success,
+            )</code></pre>
+
+                    <p><strong>Platform team's role:</strong> Provide these as a composable middleware library so individual service teams don't reinvent them. Standardize defaults (3 retries, 5s timeout, 50% failure threshold for circuit breaker) and let teams override for their specific needs.</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-05.html" class="btn btn-secondary">&larr; Message Brokers</a>
+                <a href="module-07.html" class="btn btn-primary">Next: Testing Strategy &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 7: Testing Strategy &amp; Unit Testing - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link active" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+                <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+            </nav>
+        </aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 7: Testing Strategy &amp; Unit Testing</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Testing pyramid vs trophy vs diamond &mdash; which shape fits your system</li>
+                    <li>Test doubles: mocks, stubs, fakes, spies &mdash; when to use each</li>
+                    <li>Property-based testing, mutation testing, and TDD vs BDD</li>
+                    <li>Flaky test diagnosis, coverage metrics, and test naming conventions</li>
+                    <li>Staff-level testing strategy decisions</li>
+                </ul>
+            </div>
+
+            <h2>Testing Shapes</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the testing pyramid, trophy, and diamond, and which should you use?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead><tr><th>Shape</th><th>Emphasis</th><th>Best For</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Pyramid</strong> (Fowler)</td><td>Many unit tests, fewer integration, fewest E2E</td><td>Libraries, pure logic, microservices with clear boundaries</td></tr>
+                            <tr><td><strong>Trophy</strong> (Kent C. Dodds)</td><td>Heavy integration tests, moderate unit, few E2E</td><td>Frontend apps, services with many integrations</td></tr>
+                            <tr><td><strong>Diamond</strong></td><td>Heavy integration, moderate E2E, fewer unit</td><td>Platform services where integration correctness is paramount</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Staff-level insight:</strong> The "right" shape depends on where your bugs live. If most production bugs are integration issues (API contract mismatches, database query bugs), invest more in integration tests. If bugs are logic errors in complex algorithms, invest in unit tests. Don't dogmatically follow any shape &mdash; measure where your defects come from and allocate testing effort there.</p>
+                    <p><strong>Platform engineering context:</strong> Platform services typically benefit from the <strong>diamond/trophy shape</strong> because their value is in correctly integrating with infrastructure (databases, message brokers, external APIs). A platform service with 100% unit test coverage but no integration tests is dangerously undertested.</p>
+                </div>
+            </div>
+
+            <h2>Test Doubles</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the different types of test doubles and when should you use each?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead><tr><th>Type</th><th>Definition</th><th>Verifies</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Stub</strong></td><td>Returns predefined data</td><td>State (what was returned)</td><td>Return fake user data from a user service</td></tr>
+                            <tr><td><strong>Mock</strong></td><td>Records interactions, has expectations</td><td>Behavior (was method called?)</td><td>Verify email service was called with correct args</td></tr>
+                            <tr><td><strong>Fake</strong></td><td>Working implementation (simplified)</td><td>Both</td><td>In-memory database instead of PostgreSQL</td></tr>
+                            <tr><td><strong>Spy</strong></td><td>Real implementation that records calls</td><td>Behavior + real output</td><td>Real HTTP client that logs all requests</td></tr>
+                            <tr><td><strong>Dummy</strong></td><td>Passed but never used</td><td>Nothing</td><td>Placeholder parameter to satisfy a signature</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># Stub - returns canned data
+class StubUserRepo:
+    def get_user(self, user_id):
+        return User(id=user_id, name="Test User", email="test@example.com")
+
+# Fake - working in-memory implementation
+class FakeUserRepo:
+    def __init__(self):
+        self.users = {}
+    def save(self, user):
+        self.users[user.id] = user
+    def get_user(self, user_id):
+        return self.users.get(user_id)
+
+# Mock with pytest-mock
+def test_sends_welcome_email(mocker):
+    mock_email = mocker.patch("services.email.send_welcome")
+    user_service.create_user({"name": "Alice", "email": "a@test.com"})
+    mock_email.assert_called_once_with("a@test.com", "Alice")</code></pre>
+
+                    <p><strong>Guideline:</strong> Prefer <strong>fakes</strong> over mocks for dependencies you own (repositories, caches). Use <strong>mocks</strong> for dependencies you don't own (external APIs, third-party services). Overuse of mocks leads to tests that pass but don't catch real integration bugs.</p>
+                </div>
+            </div>
+
+            <h2>Advanced Testing Techniques</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is property-based testing and when is it more effective than example-based testing?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Property-based testing generates random inputs and verifies that properties (invariants) always hold, rather than checking specific input/output pairs.</p>
+
+                    <pre><code class="language-python"># Example-based: tests specific cases
+def test_sort():
+    assert sort([3, 1, 2]) == [1, 2, 3]
+    assert sort([]) == []
+    assert sort([1]) == [1]
+
+# Property-based: tests invariants with random inputs
+from hypothesis import given
+import hypothesis.strategies as st
+
+@given(st.lists(st.integers()))
+def test_sort_properties(lst):
+    result = sort(lst)
+    assert len(result) == len(lst)           # Length preserved
+    assert all(result[i] &lt;= result[i+1]     # Actually sorted
+               for i in range(len(result)-1))
+    assert set(result) == set(lst)           # Same elements</code></pre>
+
+                    <p><strong>Property-based testing excels at finding:</strong></p>
+                    <ul>
+                        <li>Edge cases you didn't think of (empty inputs, very large numbers, unicode)</li>
+                        <li>Boundary conditions in parsers and serializers</li>
+                        <li>Roundtrip properties (serialize then deserialize = original)</li>
+                        <li>Invariants in state machines</li>
+                    </ul>
+
+                    <p><strong>Tools:</strong> Hypothesis (Python), jqwik (Java), fast-check (JavaScript), gopter (Go)</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is mutation testing and what does it reveal about test quality?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Mutation testing introduces small changes (mutations) to your code and checks if your tests catch them. If a mutation survives (tests still pass), your tests have a blind spot.</p>
+
+                    <p><strong>Common mutations:</strong></p>
+                    <ul>
+                        <li>Change <code>&gt;</code> to <code>&gt;=</code> or <code>&lt;</code></li>
+                        <li>Replace <code>true</code> with <code>false</code></li>
+                        <li>Remove method calls</li>
+                        <li>Change arithmetic operators (+, -, *, /)</li>
+                        <li>Replace return values with defaults (0, null, empty)</li>
+                    </ul>
+
+                    <p><strong>Mutation score</strong> = killed mutations / total mutations. A score of 85% means 15% of mutations survived &mdash; your tests wouldn't catch those bugs.</p>
+
+                    <p><strong>Why it's better than code coverage:</strong> 100% line coverage doesn't mean your tests actually verify anything. You can cover every line without asserting results. Mutation testing verifies that your assertions are meaningful.</p>
+
+                    <p><strong>Tools:</strong> PITest (Java), mutmut (Python), Stryker (JavaScript/.NET)</p>
+
+                    <p><strong>Staff-level take:</strong> Mutation testing is too slow for every CI run. Run it weekly or on critical modules. Target 80%+ mutation score on business logic. Don't bother with mutation testing on glue code or configuration.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: TDD vs BDD &mdash; what's the real difference and when do you use each?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead><tr><th>Aspect</th><th>TDD</th><th>BDD</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Focus</strong></td><td>Developer-facing, implementation</td><td>Business-facing, behavior</td></tr>
+                            <tr><td><strong>Language</strong></td><td>Code (test frameworks)</td><td>Natural language (Given/When/Then)</td></tr>
+                            <tr><td><strong>Audience</strong></td><td>Developers</td><td>Developers + product/QA</td></tr>
+                            <tr><td><strong>Cycle</strong></td><td>Red &rarr; Green &rarr; Refactor</td><td>Define scenario &rarr; Implement &rarr; Verify</td></tr>
+                            <tr><td><strong>Tools</strong></td><td>pytest, JUnit, Jest</td><td>Cucumber, Behave, SpecFlow</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Staff-level view:</strong> TDD is a design tool, not a testing tool. Its value is in forcing you to think about interfaces before implementation. BDD is a communication tool &mdash; valuable when product managers and engineers need a shared specification language. Most teams benefit from TDD for core logic and BDD-style descriptions for acceptance criteria, without the overhead of a full BDD framework.</p>
+                </div>
+            </div>
+
+            <h2>Practical Concerns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you diagnose and fix flaky tests?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Flaky tests pass sometimes and fail sometimes without code changes. They erode confidence in the test suite.</p>
+
+                    <p><strong>Common causes and fixes:</strong></p>
+                    <table>
+                        <thead><tr><th>Cause</th><th>Symptom</th><th>Fix</th></tr></thead>
+                        <tbody>
+                            <tr><td>Shared state</td><td>Test order matters</td><td>Isolate test data, reset state between tests</td></tr>
+                            <tr><td>Timing/async</td><td>Passes locally, fails in CI</td><td>Use proper async waiting (not sleep), increase timeouts</td></tr>
+                            <tr><td>External dependency</td><td>Fails when network is slow</td><td>Mock external calls in unit tests</td></tr>
+                            <tr><td>Date/time</td><td>Fails at midnight or month boundaries</td><td>Inject a clock, use fixed timestamps</td></tr>
+                            <tr><td>Resource contention</td><td>Fails under parallel execution</td><td>Use unique resources per test (random DB names, ports)</td></tr>
+                            <tr><td>Non-deterministic data</td><td>Intermittent assertion failures</td><td>Use deterministic test data, seed random generators</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Quarantine strategy:</strong> When you identify a flaky test, move it to a quarantine suite that runs separately. This unblocks the main pipeline while giving you time to fix the root cause. Track quarantine age &mdash; if a test is quarantined for &gt;7 days, either fix or delete it.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the limits of code coverage as a metric?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Code coverage measures which lines/branches are executed by tests, not whether the tests actually verify correct behavior.</p>
+
+                    <pre><code class="language-python"># 100% coverage, 0% verification
+def test_calculate_price():
+    calculate_price(100, 0.1)  # Runs the function but doesn't assert anything!
+
+# Better: actually verify
+def test_calculate_price():
+    assert calculate_price(100, 0.1) == 90.0  # 10% discount</code></pre>
+
+                    <p><strong>What coverage IS good for:</strong></p>
+                    <ul>
+                        <li>Finding untested code paths (coverage &lt; 50% is a red flag)</li>
+                        <li>Preventing regressions in coverage over time (ratchet: never decrease)</li>
+                        <li>Identifying dead code (code that's never executed even in production)</li>
+                    </ul>
+
+                    <p><strong>What coverage is NOT good for:</strong></p>
+                    <ul>
+                        <li>Measuring test quality (high coverage != good tests)</li>
+                        <li>Setting as a gate (mandating 90% coverage leads to low-value tests)</li>
+                        <li>Comparing across teams (a 70% coverage API might be better tested than a 95% coverage UI)</li>
+                    </ul>
+
+                    <p><strong>Staff-level recommendation:</strong> Track coverage trends, not absolute numbers. Set a floor (e.g., 60% for new services) and use a coverage ratchet (coverage can't decrease). Combine with mutation testing for a more accurate quality signal.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What test naming conventions lead to maintainable test suites?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Test names should describe the scenario and expected outcome, acting as documentation:</p>
+
+                    <pre><code class="language-python"># BAD: vague names
+def test_create_user():
+def test_error():
+def test_1():
+
+# GOOD: describes scenario and expectation
+def test_create_user_with_valid_email_returns_201():
+def test_create_user_with_duplicate_email_returns_409():
+def test_create_user_without_name_returns_validation_error():
+
+# BDD-style with describe/it (JavaScript)
+describe('UserService.createUser', () =&gt; {
+  it('should return 201 when email is valid', () =&gt; { ... });
+  it('should return 409 when email already exists', () =&gt; { ... });
+  it('should hash the password before storing', () =&gt; { ... });
+});</code></pre>
+
+                    <p><strong>Pattern:</strong> <code>test_[unit]_[scenario]_[expected_result]</code></p>
+                    <p>When tests fail in CI, the test name should tell you exactly what broke without reading the test code.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: When should you NOT write unit tests?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Unit tests have diminishing returns in some areas:</p>
+                    <ul>
+                        <li><strong>Thin wrappers/glue code</strong> &mdash; If a function just calls another function and returns the result, test the underlying function instead</li>
+                        <li><strong>Framework-generated code</strong> &mdash; ORM models, auto-generated API clients, serializers from schemas</li>
+                        <li><strong>UI layout</strong> &mdash; Visual regression testing (screenshots) is more effective than asserting CSS values</li>
+                        <li><strong>Code about to be deleted</strong> &mdash; If you're migrating to a new system, don't retroactively add tests to the old one</li>
+                        <li><strong>Integration-heavy code</strong> &mdash; If the function's value is in how it coordinates database queries and API calls, an integration test is more valuable</li>
+                    </ul>
+
+                    <p><strong>Staff-level principle:</strong> Every test has a maintenance cost. Write tests where the cost of a bug exceeds the cost of the test. For critical business logic, that threshold is very low (test everything). For configuration glue code, the threshold is higher.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How should a staff engineer define a testing strategy for a new platform service?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A testing strategy document should cover:</p>
+                    <ol>
+                        <li><strong>Risk analysis</strong> &mdash; What are the highest-risk areas? (e.g., payment processing, data integrity)</li>
+                        <li><strong>Test distribution</strong> &mdash; What shape? How many of each type? Justified by risk analysis.</li>
+                        <li><strong>Test boundaries</strong> &mdash; What's in-scope for unit vs integration vs E2E?</li>
+                        <li><strong>External dependencies</strong> &mdash; Which are mocked? Which use testcontainers? Which use sandbox environments?</li>
+                        <li><strong>CI pipeline</strong> &mdash; Which tests run on every commit? Which run nightly? Which run pre-deploy?</li>
+                        <li><strong>Quality gates</strong> &mdash; Coverage floor, mutation score target, E2E pass rate requirements</li>
+                        <li><strong>Ownership</strong> &mdash; Who owns each test suite? Who triages failures?</li>
+                    </ol>
+
+                    <p><strong>Example for a platform service (API Gateway):</strong></p>
+                    <ul>
+                        <li>Unit tests (30%): Routing logic, rate limiting algorithms, request transformation</li>
+                        <li>Integration tests (50%): Upstream service connectivity, auth token validation, database queries</li>
+                        <li>E2E tests (15%): Full request flow through gateway to upstream service and back</li>
+                        <li>Performance tests (5%): Latency regression benchmarks at P99</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-06.html" class="btn btn-secondary">&larr; Resilience Patterns</a>
+                <a href="module-08.html" class="btn btn-primary">Next: Integration Testing &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

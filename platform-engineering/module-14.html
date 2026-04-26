@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 14: Scenario-Based System Thinking Part 2 - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link active" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 14: Scenario-Based System Thinking &mdash; Part 2</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>PR review with 10+ issues (code review scenario)</li>
+                <li>Production incident diagnosis (cascading failure walkthrough)</li>
+                <li>Black Friday capacity planning with calculations</li>
+                <li>Monolith to microservices migration planning</li>
+                <li>Security vulnerability disclosure handling</li>
+            </ul></div>
+
+            <h2>Advanced Scenarios</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 5: Review this PR &mdash; find all the issues</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Context:</strong> A junior engineer submitted this PR for a payment webhook handler. Find all the issues.</p>
+                    <pre><code class="language-python">import json
+import hashlib
+from flask import Flask, request
+
+app = Flask(__name__)
+DB_PASSWORD = "prod_p@ssw0rd_2024"
+
+@app.route("/webhooks/payment", methods=["GET", "POST"])
+def handle_payment_webhook():
+    data = json.loads(request.data)
+    event_type = data["type"]
+
+    if event_type == "payment.completed":
+        order_id = data["data"]["order_id"]
+        amount = data["data"]["amount"]
+
+        # Update order status
+        db.execute(f"UPDATE orders SET status='paid', amount={amount} WHERE id='{order_id}'")
+
+        # Send confirmation email
+        email = db.query(f"SELECT email FROM users WHERE id=(SELECT user_id FROM orders WHERE id='{order_id}')")
+        send_email(email, "Payment confirmed", f"Your payment of ${amount} was received")
+
+        # Log for debugging
+        print(f"Payment received: order={order_id}, amount={amount}, email={email}")
+
+    return "OK", 200</code></pre>
+
+                    <p><strong>Issues found (12+):</strong></p>
+                    <ol>
+                        <li><strong>Hardcoded credentials</strong> &mdash; <code>DB_PASSWORD</code> in source code. Use environment variable or secrets manager.</li>
+                        <li><strong>No signature verification</strong> &mdash; No HMAC check. Anyone can send fake webhooks.</li>
+                        <li><strong>Accepts GET</strong> &mdash; Webhooks should be POST only. GET allows CSRF-style attacks.</li>
+                        <li><strong>SQL injection (x3)</strong> &mdash; String interpolation in all three SQL queries. Use parameterized queries.</li>
+                        <li><strong>No idempotency</strong> &mdash; Processing the same webhook twice will send duplicate emails. Check event ID.</li>
+                        <li><strong>No error handling</strong> &mdash; Any exception returns 500, triggering retries that hit all the same bugs.</li>
+                        <li><strong>N+1 query</strong> &mdash; Subquery to get user email. Could be a JOIN.</li>
+                        <li><strong>PII in logs</strong> &mdash; Logging email address. Violates privacy regulations.</li>
+                        <li><strong>print() for logging</strong> &mdash; Use structured logging with proper levels.</li>
+                        <li><strong>No transaction</strong> &mdash; If email send fails after DB update, state is inconsistent.</li>
+                        <li><strong>Always returns 200</strong> &mdash; Even for unknown event types or errors. Webhook sender thinks delivery succeeded.</li>
+                        <li><strong>No rate limiting</strong> &mdash; Endpoint could be DDoS'd.</li>
+                        <li><strong>No input validation</strong> &mdash; No check that required fields exist in the payload.</li>
+                    </ol>
+
+                    <p><strong>How to deliver this feedback:</strong> Prioritize the issues. Start with security (SQL injection, no auth), then correctness (idempotency, error handling), then operational concerns (logging, monitoring). Don't dump all 12 issues at once &mdash; group them by severity.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 6: Diagnose a production incident &mdash; cascading failure</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Situation:</strong> At 2:15 PM, your monitoring shows P99 latency spiked from 200ms to 15 seconds across all API endpoints. Error rate jumped from 0.1% to 35%. Walk through your diagnosis.</p>
+
+                    <p><strong>Step 1: Triage (first 5 minutes)</strong></p>
+                    <ul>
+                        <li>Check: Is this affecting all services or specific ones? &rarr; All services through the API gateway</li>
+                        <li>Check: Did a deployment happen recently? &rarr; Payment service deployed at 2:10 PM</li>
+                        <li>Check: Any infrastructure changes? &rarr; No</li>
+                    </ul>
+
+                    <p><strong>Step 2: Identify the source (next 10 minutes)</strong></p>
+                    <ul>
+                        <li>Dashboard shows: Payment service response times went from 50ms to 30 seconds</li>
+                        <li>API gateway thread pool is exhausted waiting for payment service responses</li>
+                        <li>All other services are healthy but unreachable through the gateway (connection pool exhaustion)</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    GW[API Gateway - thread pool exhausted] --> PS[Payment Service - 30s response time]
+    GW --> US[User Service - healthy but blocked]
+    GW --> OS[Order Service - healthy but blocked]
+    PS --> DB[(Database - missing index on new column)]
+                        </div>
+                    </div>
+
+                    <p><strong>Step 3: Root cause</strong></p>
+                    <p>The payment service deployment added a new query that scans a table without an index. Under load, this query takes 30 seconds. The API gateway's shared connection pool fills up waiting for payment service, blocking all other services (no bulkhead).</p>
+
+                    <p><strong>Step 4: Mitigation</strong></p>
+                    <ol>
+                        <li><strong>Immediate:</strong> Roll back the payment service deployment (2 minutes)</li>
+                        <li><strong>Short-term:</strong> Add the missing index, redeploy with the fix</li>
+                        <li><strong>Long-term:</strong> Add bulkhead pattern to API gateway (separate connection pools per service), add query performance CI checks, add deployment canary that monitors latency</li>
+                    </ol>
+
+                    <p><strong>Key lesson:</strong> A single slow service took down the entire platform due to missing bulkheads. This is the #1 reason for cascading failures in microservices.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 7: Black Friday capacity planning</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Problem:</strong> Your e-commerce platform handles 5,000 orders/minute on a normal day. Black Friday is expected to be 10x. Plan the capacity.</p>
+
+                    <p><strong>Capacity calculations:</strong></p>
+                    <pre><code>Normal load:
+  - Orders: 5,000/min = 83/sec
+  - API requests: ~500/sec (10 API calls per order flow)
+  - Database writes: ~250/sec
+  - Message broker throughput: ~500 events/sec
+
+Black Friday (10x):
+  - Orders: 50,000/min = 833/sec
+  - API requests: ~5,000/sec
+  - Database writes: ~2,500/sec
+  - Message broker throughput: ~5,000 events/sec
+
+Current infrastructure:
+  - API servers: 10 pods (can handle ~1,000 req/sec total)
+  - Database: Single primary, 2 read replicas
+  - Kafka: 3 brokers, 12 partitions on order topic</code></pre>
+
+                    <p><strong>Scaling plan:</strong></p>
+                    <table>
+                        <thead><tr><th>Component</th><th>Current</th><th>Required</th><th>Action</th></tr></thead>
+                        <tbody>
+                            <tr><td>API servers</td><td>10 pods</td><td>50 pods</td><td>Configure autoscaler: min=20, max=60, target CPU=60%</td></tr>
+                            <tr><td>Database writes</td><td>1 primary</td><td>Read/write split + connection pooling</td><td>Add PgBouncer, optimize hot queries, add read replicas to 5</td></tr>
+                            <tr><td>Kafka</td><td>12 partitions</td><td>24+ partitions</td><td>Increase partitions, add broker, increase consumer instances</td></tr>
+                            <tr><td>Cache</td><td>Redis 1 node</td><td>Redis cluster</td><td>Move to 3-node Redis cluster, pre-warm cache for popular products</td></tr>
+                            <tr><td>CDN</td><td>Standard</td><td>Aggressive caching</td><td>Cache product pages for 5 min (accept slight staleness)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Testing plan:</strong></p>
+                    <ol>
+                        <li>Load test at 12x expected peak (headroom) in staging</li>
+                        <li>Identify bottleneck: database connection limits hit at 8x &rarr; add PgBouncer</li>
+                        <li>Re-test: Kafka consumer lag at 10x &rarr; increase partitions and consumers</li>
+                        <li>Re-test: passes at 15x &mdash; ready</li>
+                        <li>Game day: simulate Black Friday on staging with full team on call</li>
+                    </ol>
+
+                    <p><strong>Graceful degradation plan:</strong> If load exceeds capacity despite scaling, prioritize checkout over browsing. Return cached product pages, disable recommendations, queue non-critical operations (email confirmations, analytics).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 8: Monolith to microservices migration</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Problem:</strong> Your 5-year-old monolith has 500K lines of code. 8 teams work in it. Deployments take 2 hours and happen twice a week. Design the migration strategy.</p>
+
+                    <p><strong>Step 1: Don't migrate everything</strong></p>
+                    <p>Identify the 2-3 bounded contexts that cause the most friction. Common candidates:</p>
+                    <ul>
+                        <li>The part with the highest change frequency (e.g., checkout flow)</li>
+                        <li>The part with different scaling needs (e.g., notification sending)</li>
+                        <li>The part owned by a different team (Conway's Law alignment)</li>
+                    </ul>
+
+                    <p><strong>Step 2: Strangler Fig pattern</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+                        subgraph "Phase 1"
+                            C1[Client] --> GW1[API Gateway]
+                            GW1 --> |/notifications/*| NS1[New: Notification Service]
+                            GW1 --> |Everything else| M1[Monolith]
+                        end
+                        subgraph "Phase 3"
+                            C3[Client] --> GW3[API Gateway]
+                            GW3 --> |/notifications/*| NS3[Notification Service]
+                            GW3 --> |/payments/*| PS3[Payment Service]
+                            GW3 --> |/search/*| SS3[Search Service]
+                            GW3 --> |Core| M3[Smaller Monolith]
+                        end
+                        </div>
+                    </div>
+
+                    <p><strong>Migration order (risk-based):</strong></p>
+                    <ol>
+                        <li><strong>Notifications</strong> (low risk, stateless, easy to verify)</li>
+                        <li><strong>Search</strong> (read-only, different scaling needs, can dual-run)</li>
+                        <li><strong>Payments</strong> (higher risk, but highest value for independent deployment)</li>
+                        <li><strong>Keep the rest as a well-modularized monolith</strong> (don't extract everything)</li>
+                    </ol>
+
+                    <p><strong>Anti-patterns to avoid:</strong></p>
+                    <ul>
+                        <li><strong>Big bang rewrite</strong> &mdash; Never. Always strangler fig.</li>
+                        <li><strong>Distributed monolith</strong> &mdash; If all services must deploy together, you've made things worse.</li>
+                        <li><strong>Shared database</strong> &mdash; Each service must own its data. Use events for cross-service data needs.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 9: Handling a security vulnerability disclosure</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Situation:</strong> A security researcher reports that your API has an IDOR vulnerability &mdash; any authenticated user can access any other user's data by changing the user ID in the URL. Walk through your response.</p>
+
+                    <p><strong>Immediate response (first 4 hours):</strong></p>
+                    <ol>
+                        <li><strong>Acknowledge the report</strong> &mdash; Thank the researcher, confirm you're investigating. Don't disclose details.</li>
+                        <li><strong>Verify the vulnerability</strong> &mdash; Reproduce it. Confirm scope: which endpoints are affected?</li>
+                        <li><strong>Assess impact</strong> &mdash; Was it exploited? Check access logs for suspicious patterns (single user accessing many other users' data).</li>
+                        <li><strong>Classify severity</strong> &mdash; IDOR on user data is HIGH. If it includes payment info, it's CRITICAL.</li>
+                    </ol>
+
+                    <p><strong>Fix and deploy (24-48 hours):</strong></p>
+                    <ol>
+                        <li><strong>Write the fix</strong> &mdash; Add authorization checks: verify <code>current_user.id == requested_user_id</code> or <code>current_user.is_admin</code></li>
+                        <li><strong>Audit all endpoints</strong> &mdash; IDOR in one place likely means IDOR in others. Grep for all endpoints that take user IDs.</li>
+                        <li><strong>Add regression tests</strong> &mdash; Test that user A cannot access user B's data for every affected endpoint</li>
+                        <li><strong>Deploy with fast rollout</strong> &mdash; Skip canary, deploy immediately (security fix)</li>
+                    </ol>
+
+                    <p><strong>Post-fix (1-2 weeks):</strong></p>
+                    <ul>
+                        <li>Add automated IDOR checking to CI pipeline (DAST tool targeting auth-required endpoints)</li>
+                        <li>Add authorization middleware that's applied by default to all endpoints</li>
+                        <li>Conduct a broader security review</li>
+                        <li>If data was accessed: notify affected users per privacy regulations (GDPR, CCPA)</li>
+                        <li>Reward the researcher (bug bounty or acknowledgment)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 10: Design an internal developer platform from scratch</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Context:</strong> Your company has 80 engineers across 10 teams. Each team manages their own CI/CD, infrastructure, and monitoring. You've been asked to build an IDP. How do you approach it?</p>
+
+                    <p><strong>Phase 0: Discovery (weeks 1-4)</strong></p>
+                    <ul>
+                        <li>Interview all 10 teams: What takes the most time? What's duplicated?</li>
+                        <li>Survey results show: CI/CD (#1 pain), environment provisioning (#2), observability setup (#3)</li>
+                        <li>Calculate ROI: 10 teams x 15% time on infra x $180K avg salary = $270K/year in waste</li>
+                    </ul>
+
+                    <p><strong>Phase 1: Thinnest viable platform (months 1-3)</strong></p>
+                    <ul>
+                        <li>Standardized CI/CD templates (GitHub Actions reusable workflows)</li>
+                        <li>Terraform modules for common infrastructure (databases, queues, caches)</li>
+                        <li>Documentation hub (Notion/Confluence with golden path guides)</li>
+                        <li><strong>Measure:</strong> 3 early-adopter teams onboarded, deployment time reduced 60%</li>
+                    </ul>
+
+                    <p><strong>Phase 2: Self-service (months 4-8)</strong></p>
+                    <ul>
+                        <li>Deploy Backstage with service catalog</li>
+                        <li>Self-service environment creation via Backstage templates</li>
+                        <li>Automated observability setup (OTel auto-instrumentation)</li>
+                        <li><strong>Measure:</strong> 7/10 teams onboarded, new service creation time from 2 weeks to 2 hours</li>
+                    </ul>
+
+                    <p><strong>Phase 3: Maturity (months 9-12)</strong></p>
+                    <ul>
+                        <li>Service scorecards (production readiness tracking)</li>
+                        <li>Cost attribution per service</li>
+                        <li>Security baseline enforcement via policy-as-code</li>
+                        <li><strong>Measure:</strong> 10/10 teams, 90%+ developer satisfaction, 3x deployment frequency</li>
+                    </ul>
+
+                    <p><strong>Team composition:</strong> Start with 3 engineers (1 senior frontend for Backstage, 1 senior backend for CI/CD and infra, 1 staff engineer for architecture and stakeholder management). Grow to 5 by Phase 2.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-13.html" class="btn btn-secondary">&larr; Scenarios Part 1</a>
+                <a href="module-15.html" class="btn btn-primary">Next: Mock Interviews &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

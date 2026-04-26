@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 4: Webhooks, Polling &amp; Event-Driven Connectivity - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link active" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 4: Webhooks, Polling &amp; Event-Driven Connectivity</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Polling vs webhooks vs SSE vs WebSockets &mdash; tradeoff matrix</li>
+                    <li>Webhook design with HMAC verification and delivery guarantees</li>
+                    <li>Event-driven architecture patterns and CloudEvents spec</li>
+                    <li>Real-world webhook patterns from Stripe, GitHub, and Slack</li>
+                    <li>Webhook security, testing, and monitoring strategies</li>
+                </ul>
+            </div>
+
+            <h2>Communication Pattern Tradeoffs</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do polling, webhooks, SSE, and WebSockets compare?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>Polling</th><th>Webhooks</th><th>SSE</th><th>WebSockets</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Direction</strong></td><td>Client &rarr; Server</td><td>Server &rarr; Client</td><td>Server &rarr; Client</td><td>Bidirectional</td></tr>
+                            <tr><td><strong>Latency</strong></td><td>Polling interval</td><td>Near real-time</td><td>Real-time</td><td>Real-time</td></tr>
+                            <tr><td><strong>Connection</strong></td><td>Short-lived</td><td>Short-lived (HTTP POST)</td><td>Long-lived</td><td>Long-lived</td></tr>
+                            <tr><td><strong>Protocol</strong></td><td>HTTP</td><td>HTTP</td><td>HTTP</td><td>WS (upgrade from HTTP)</td></tr>
+                            <tr><td><strong>Scalability</strong></td><td>Poor (wasted requests)</td><td>Good (event-driven)</td><td>Moderate</td><td>Complex at scale</td></tr>
+                            <tr><td><strong>Firewall-friendly</strong></td><td>Yes</td><td>Requires public endpoint</td><td>Yes</td><td>Sometimes blocked</td></tr>
+                            <tr><td><strong>Reliability</strong></td><td>Simple (retry on failure)</td><td>Needs retry &amp; DLQ</td><td>Auto-reconnect</td><td>Must handle reconnects</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Simple integrations</td><td>Event notifications</td><td>Live feeds, dashboards</td><td>Chat, gaming, collab</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Decision framework:</strong></p>
+                    <ul>
+                        <li>Need real-time bidirectional? &rarr; <strong>WebSockets</strong></li>
+                        <li>Need real-time server push, read-only? &rarr; <strong>SSE</strong></li>
+                        <li>Need to notify external systems of events? &rarr; <strong>Webhooks</strong></li>
+                        <li>Simple, infrequent checks with no infra requirements? &rarr; <strong>Polling</strong></li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Webhook Design</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What makes a well-designed webhook system?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A production-grade webhook system needs these components:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    E[Event Occurs] --> Q[Event Queue]
+    Q --> D[Delivery Worker]
+    D --> |POST| EP[Consumer Endpoint]
+    EP --> |2xx| S[Mark Delivered]
+    EP --> |non-2xx/timeout| R[Retry Queue]
+    R --> |exponential backoff| D
+    R --> |max retries exceeded| DLQ[Dead Letter Queue]
+    DLQ --> ALERT[Alert + Manual Review]
+                        </div>
+                    </div>
+
+                    <p><strong>Essential features:</strong></p>
+                    <ol>
+                        <li><strong>Signature verification</strong> &mdash; HMAC-SHA256 so consumers can verify the payload is authentic</li>
+                        <li><strong>Idempotency</strong> &mdash; Include a unique event ID so consumers can deduplicate</li>
+                        <li><strong>Retry with backoff</strong> &mdash; Exponential backoff (e.g., 1m, 5m, 30m, 2h, 24h)</li>
+                        <li><strong>Dead letter queue</strong> &mdash; Store failed deliveries for manual investigation</li>
+                        <li><strong>Event types</strong> &mdash; Consumers subscribe to specific event types, not everything</li>
+                        <li><strong>Delivery log</strong> &mdash; Searchable history of all delivery attempts with request/response details</li>
+                        <li><strong>Replay capability</strong> &mdash; Allow consumers to re-request missed events</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you implement HMAC signature verification for webhooks?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The sender computes an HMAC of the payload using a shared secret. The receiver recomputes it and compares.</p>
+
+                    <p><strong>Sender (Python):</strong></p>
+                    <pre><code class="language-python">import hmac
+import hashlib
+import json
+import time
+
+def send_webhook(url: str, payload: dict, secret: str):
+    body = json.dumps(payload, separators=(',', ':'))
+    timestamp = str(int(time.time()))
+    # Sign: timestamp + '.' + body
+    signature_payload = f"{timestamp}.{body}"
+    signature = hmac.new(
+        secret.encode(),
+        signature_payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-Webhook-Signature": f"t={timestamp},v1={signature}",
+        "X-Webhook-Id": str(uuid.uuid4()),
+    }
+    response = requests.post(url, data=body, headers=headers, timeout=30)
+    return response</code></pre>
+
+                    <p><strong>Receiver (Node.js):</strong></p>
+                    <pre><code class="language-javascript">const crypto = require('crypto');
+
+function verifyWebhookSignature(req, secret) {
+  const sigHeader = req.headers['x-webhook-signature'];
+  const parts = Object.fromEntries(
+    sigHeader.split(',').map(p =&gt; p.split('='))
+  );
+
+  const timestamp = parts.t;
+  const expectedSig = parts.v1;
+
+  // Prevent replay attacks: reject if timestamp is too old
+  const age = Math.floor(Date.now() / 1000) - parseInt(timestamp);
+  if (age &gt; 300) { // 5 minutes
+    throw new Error('Webhook timestamp too old - possible replay attack');
+  }
+
+  const signaturePayload = `${timestamp}.${req.rawBody}`;
+  const computedSig = crypto
+    .createHmac('sha256', secret)
+    .update(signaturePayload)
+    .digest('hex');
+
+  // Constant-time comparison to prevent timing attacks
+  if (!crypto.timingSafeEqual(
+    Buffer.from(expectedSig),
+    Buffer.from(computedSig)
+  )) {
+    throw new Error('Invalid webhook signature');
+  }
+
+  return true;
+}</code></pre>
+
+                    <p><strong>Critical details:</strong></p>
+                    <ul>
+                        <li>Use <strong>constant-time comparison</strong> (<code>timingSafeEqual</code>) to prevent timing attacks</li>
+                        <li>Include <strong>timestamp in the signature</strong> to prevent replay attacks</li>
+                        <li>Use the <strong>raw body</strong> for verification, not a re-serialized version (JSON key ordering may differ)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do Stripe, GitHub, and Slack implement webhooks differently?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Feature</th><th>Stripe</th><th>GitHub</th><th>Slack</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Signature</strong></td><td>HMAC-SHA256 with timestamp</td><td>HMAC-SHA256</td><td>HMAC-SHA256 with timestamp</td></tr>
+                            <tr><td><strong>Header</strong></td><td><code>Stripe-Signature</code></td><td><code>X-Hub-Signature-256</code></td><td><code>X-Slack-Signature</code></td></tr>
+                            <tr><td><strong>Retry policy</strong></td><td>Up to 3 days, exponential backoff</td><td>Redeliver manually via UI</td><td>3 retries within 30 minutes</td></tr>
+                            <tr><td><strong>Event types</strong></td><td>200+ typed events</td><td>~50 event types</td><td>Event subscriptions API</td></tr>
+                            <tr><td><strong>Delivery log</strong></td><td>Dashboard + API</td><td>Recent deliveries in UI</td><td>Limited</td></tr>
+                            <tr><td><strong>Unique feature</strong></td><td>Idempotency keys, event versioning</td><td>Ping event for setup verification</td><td>URL verification challenge</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Stripe's best practices worth adopting:</strong></p>
+                    <ul>
+                        <li>Timestamp in signature to prevent replay attacks</li>
+                        <li>Event objects include the full resource state (not just an ID to look up)</li>
+                        <li>Test mode webhooks for development</li>
+                        <li>Webhook endpoints dashboard showing delivery history and failure rates</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What delivery guarantees can webhooks provide?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Webhooks inherently provide <strong>at-least-once</strong> delivery. Here's why:</p>
+
+                    <ul>
+                        <li><strong>At-most-once:</strong> Send once, never retry. Simple but you'll lose events when the consumer is temporarily down.</li>
+                        <li><strong>At-least-once:</strong> Retry on failure. The consumer may receive duplicates (e.g., if the 200 response was lost in transit). This is the standard for production webhooks.</li>
+                        <li><strong>Exactly-once:</strong> Impossible at the network level. Achieved through at-least-once delivery + consumer-side idempotency.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Consumer-side idempotency handler
+async def handle_webhook(request):
+    event = await request.json()
+    event_id = event["id"]
+
+    # Check if we've already processed this event
+    if await redis.sismember("processed_events", event_id):
+        return Response(status_code=200)  # Acknowledge but don't reprocess
+
+    # Process the event (inside a transaction)
+    async with db.transaction():
+        await process_event(event)
+        await redis.sadd("processed_events", event_id)
+        await redis.expire(f"processed_events", 86400 * 7)  # 7-day TTL
+
+    return Response(status_code=200)</code></pre>
+
+                    <p><strong>Key rule:</strong> Always design webhook consumers to be idempotent. You <em>will</em> receive duplicates &mdash; retries, replays, and network issues make it inevitable.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you design webhook retry strategies?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Retries should use exponential backoff with jitter to avoid thundering herd:</p>
+
+                    <pre><code class="language-python">import random
+
+def calculate_retry_delay(attempt: int, base_delay: float = 60) -&gt; float:
+    """Exponential backoff with full jitter."""
+    max_delay = base_delay * (2 ** attempt)  # 1m, 2m, 4m, 8m, 16m...
+    max_delay = min(max_delay, 86400)        # Cap at 24 hours
+    return random.uniform(0, max_delay)       # Full jitter
+
+# Typical retry schedule:
+# Attempt 1: ~0-1 minute after failure
+# Attempt 2: ~0-2 minutes
+# Attempt 3: ~0-4 minutes
+# Attempt 4: ~0-8 minutes
+# Attempt 5: ~0-16 minutes
+# ... up to max retries (e.g., 8 attempts over ~24 hours)</code></pre>
+
+                    <p><strong>Disable policy:</strong> After consecutive failures (e.g., 3 days of failures), automatically disable the webhook endpoint and notify the consumer via email. This prevents wasting resources on a permanently broken endpoint.</p>
+
+                    <p><strong>What counts as success:</strong> A <code>2xx</code> response within the timeout (typically 30 seconds). A <code>3xx</code> redirect should be followed (once). Any <code>4xx</code> or <code>5xx</code> or timeout triggers a retry.</p>
+                </div>
+            </div>
+
+            <h2>Event-Driven Architecture</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the CloudEvents specification and why should platform teams care?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> CloudEvents is a CNCF specification for describing event data in a common way. It standardizes event metadata across systems.</p>
+
+                    <pre><code class="language-json">{
+  "specversion": "1.0",
+  "type": "com.example.order.created",
+  "source": "/orders/service",
+  "id": "A234-1234-1234",
+  "time": "2024-01-15T10:30:00Z",
+  "datacontenttype": "application/json",
+  "subject": "order-12345",
+  "data": {
+    "orderId": "order-12345",
+    "customerId": "cust-789",
+    "total": 99.99
+  }
+}</code></pre>
+
+                    <p><strong>Why platform teams should adopt it:</strong></p>
+                    <ul>
+                        <li><strong>Interoperability</strong> &mdash; Events from different services have a common envelope format</li>
+                        <li><strong>Tooling</strong> &mdash; SDKs, middleware, and routing tools understand CloudEvents natively</li>
+                        <li><strong>Governance</strong> &mdash; Standard fields (<code>type</code>, <code>source</code>, <code>id</code>) enable consistent filtering, routing, and auditing</li>
+                        <li><strong>Event catalog</strong> &mdash; Standard type naming (<code>com.company.domain.action</code>) enables a searchable event registry</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the difference between event notification, event-carried state transfer, and event sourcing?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> These are three distinct patterns that use events differently:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Pattern</th><th>Event Contains</th><th>Consumer Action</th><th>Coupling</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Event Notification</strong></td><td>Minimal: "Order 123 was created"</td><td>Calls back to source for details</td><td>Higher (needs API call)</td></tr>
+                            <tr><td><strong>Event-Carried State Transfer</strong></td><td>Full state: "Order 123 with all details"</td><td>Uses event data directly, no callback</td><td>Lower (self-contained)</td></tr>
+                            <tr><td><strong>Event Sourcing</strong></td><td>State change: "Item X added to order 123"</td><td>Rebuilds state by replaying events</td><td>Lowest (append-only log)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level decision:</strong> Most teams should start with <strong>event-carried state transfer</strong>. It's simpler than event sourcing and avoids the back-and-forth of event notification. Include enough data in the event that consumers don't need to make additional API calls. Reserve event sourcing for domains where auditability and state reconstruction are requirements (financial systems, compliance).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the fan-out pattern for webhooks?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Fan-out delivers a single event to multiple consumer endpoints. This is critical for platforms where multiple teams subscribe to the same events.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    E[Order Created Event] --> FO[Fan-Out Service]
+    FO --> C1[Billing Webhook]
+    FO --> C2[Shipping Webhook]
+    FO --> C3[Analytics Webhook]
+    FO --> C4[Notification Webhook]
+                        </div>
+                    </div>
+
+                    <p><strong>Implementation considerations:</strong></p>
+                    <ul>
+                        <li><strong>Independent delivery</strong> &mdash; Each consumer's delivery is independent. If billing's endpoint is down, shipping still receives the event.</li>
+                        <li><strong>Independent retry</strong> &mdash; Each consumer has its own retry queue. Don't delay all consumers because one is slow.</li>
+                        <li><strong>Subscription management</strong> &mdash; Self-service API for consumers to register endpoints and select event types.</li>
+                        <li><strong>Ordering</strong> &mdash; Fan-out typically does NOT guarantee ordering across consumers. If order matters, use a message broker with partitioned topics instead.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Webhook Security &amp; Operations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main security threats to webhook systems?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Threat</th><th>Description</th><th>Mitigation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Replay attacks</strong></td><td>Attacker captures and re-sends a valid webhook</td><td>Include timestamp in signature, reject events older than 5 minutes</td></tr>
+                            <tr><td><strong>Spoofing</strong></td><td>Attacker sends fake webhooks to your endpoint</td><td>HMAC signature verification with shared secret</td></tr>
+                            <tr><td><strong>SSRF via webhooks</strong></td><td>Attacker registers internal URL as webhook endpoint</td><td>Validate URLs against allowlist, block private IP ranges</td></tr>
+                            <tr><td><strong>Secret leakage</strong></td><td>Webhook secret exposed in logs or code</td><td>Use secret management (Vault), rotate secrets regularly</td></tr>
+                            <tr><td><strong>DDoS via webhooks</strong></td><td>Consumer endpoint overwhelmed by event volume</td><td>Rate limiting on delivery, consumer-side rate limiting</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># SSRF prevention: validate webhook URLs
+import ipaddress
+from urllib.parse import urlparse
+
+BLOCKED_RANGES = [
+    ipaddress.ip_network('10.0.0.0/8'),
+    ipaddress.ip_network('172.16.0.0/12'),
+    ipaddress.ip_network('192.168.0.0/16'),
+    ipaddress.ip_network('127.0.0.0/8'),
+    ipaddress.ip_network('169.254.0.0/16'),  # link-local
+]
+
+def validate_webhook_url(url: str) -&gt; bool:
+    parsed = urlparse(url)
+    if parsed.scheme not in ('https',):  # Require HTTPS
+        return False
+    try:
+        ip = ipaddress.ip_address(parsed.hostname)
+        for blocked in BLOCKED_RANGES:
+            if ip in blocked:
+                return False  # Block internal IPs
+    except ValueError:
+        pass  # Hostname, not IP - resolve and check
+    return True</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you test webhooks during development?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Webhook testing is uniquely challenging because the sender pushes to your endpoint. Strategies:</p>
+
+                    <ol>
+                        <li><strong>Local tunnel</strong> &mdash; Tools like ngrok or Cloudflare Tunnel expose your localhost to the internet for receiving webhooks during development</li>
+                        <li><strong>Webhook test mode</strong> &mdash; Send test events from the provider's dashboard (Stripe, GitHub support this)</li>
+                        <li><strong>Request bin</strong> &mdash; Use services like webhook.site to capture and inspect webhook payloads</li>
+                        <li><strong>Mock webhook sender</strong> &mdash; Build a test harness that sends signed webhook payloads to your endpoint</li>
+                        <li><strong>Record and replay</strong> &mdash; Capture production webhooks, anonymize data, replay in test environments</li>
+                    </ol>
+
+                    <pre><code class="language-python"># Test helper: send a signed test webhook
+def send_test_webhook(endpoint: str, event_type: str, data: dict, secret: str):
+    """Send a properly signed test webhook for integration testing."""
+    event = {
+        "id": f"evt_test_{uuid.uuid4().hex[:8]}",
+        "type": event_type,
+        "created": int(time.time()),
+        "data": data
+    }
+    body = json.dumps(event)
+    timestamp = str(int(time.time()))
+    sig = hmac.new(secret.encode(), f"{timestamp}.{body}".encode(), hashlib.sha256).hexdigest()
+
+    response = requests.post(
+        endpoint,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Signature": f"t={timestamp},v1={sig}",
+            "X-Webhook-Id": event["id"],
+        },
+        timeout=30
+    )
+    return response</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you monitor webhook health in production?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Key metrics to track:</p>
+
+                    <ul>
+                        <li><strong>Delivery success rate</strong> &mdash; Per endpoint and overall. Alert if below 95%.</li>
+                        <li><strong>Delivery latency</strong> &mdash; P50, P95, P99 time from event to successful delivery.</li>
+                        <li><strong>Retry rate</strong> &mdash; High retry rate indicates consumer health issues.</li>
+                        <li><strong>DLQ depth</strong> &mdash; Growing DLQ means events are permanently failing.</li>
+                        <li><strong>Endpoint response times</strong> &mdash; Slow consumers can back up delivery queues.</li>
+                        <li><strong>Event volume by type</strong> &mdash; Unexpected spikes may indicate system issues.</li>
+                    </ul>
+
+                    <p><strong>Alerting rules:</strong></p>
+                    <ul>
+                        <li>Alert: Delivery success rate &lt; 95% for 15 minutes</li>
+                        <li>Alert: DLQ depth &gt; 100 events</li>
+                        <li>Alert: Specific endpoint failing for &gt; 1 hour</li>
+                        <li>Alert: Delivery latency P95 &gt; 5 minutes</li>
+                    </ul>
+
+                    <p><strong>Dashboard:</strong> Build a webhook health dashboard showing per-endpoint delivery status, recent failures with response codes, and event volume trends. This is invaluable for debugging integration issues with partners.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How should webhook consumers handle ordering and consistency?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Webhooks do <strong>not</strong> guarantee ordering. Events may arrive out of order due to retries, parallel delivery, and network variability.</p>
+
+                    <p><strong>Strategies:</strong></p>
+                    <ul>
+                        <li><strong>Include a sequence number or timestamp</strong> &mdash; Let consumers detect out-of-order events</li>
+                        <li><strong>Include full state, not deltas</strong> &mdash; If the event carries the full current state, out-of-order delivery is less problematic (last-write-wins)</li>
+                        <li><strong>Version field</strong> &mdash; Include a monotonically increasing version on the resource. Consumer ignores events with a version older than what they've already seen.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Consumer: handle out-of-order with version checking
+async def handle_order_updated(event):
+    order_data = event["data"]
+    order_id = order_data["id"]
+    event_version = order_data["version"]
+
+    # Only process if this is a newer version
+    current_version = await db.fetchval(
+        "SELECT version FROM orders WHERE id = $1", order_id
+    )
+    if current_version and current_version &gt;= event_version:
+        return  # Skip stale event
+
+    await db.execute(
+        "UPDATE orders SET status = $1, version = $2 WHERE id = $3 AND version &lt; $2",
+        order_data["status"], event_version, order_id
+    )</code></pre>
+
+                    <p><strong>If strict ordering is required:</strong> Use a message broker with partitioned topics (Kafka) instead of webhooks. Webhooks are best for event notification where eventual consistency is acceptable.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is Server-Sent Events (SSE) and when should you use it over WebSockets?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> SSE is a standard for server-to-client streaming over HTTP. The client opens a long-lived GET connection and the server sends events as they occur.</p>
+
+                    <pre><code class="language-python"># Server (Python/FastAPI)
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import asyncio
+
+app = FastAPI()
+
+async def event_stream(user_id: str):
+    while True:
+        event = await get_next_event(user_id)
+        if event:
+            yield f"id: {event.id}\n"
+            yield f"event: {event.type}\n"
+            yield f"data: {json.dumps(event.data)}\n\n"
+        await asyncio.sleep(1)
+
+@app.get("/events/stream")
+async def stream_events(user_id: str):
+    return StreamingResponse(
+        event_stream(user_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )</code></pre>
+
+                    <pre><code class="language-javascript">// Client (JavaScript)
+const source = new EventSource('/events/stream?user_id=123');
+
+source.addEventListener('order.updated', (e) =&gt; {
+  const data = JSON.parse(e.data);
+  console.log('Order updated:', data);
+});
+
+source.onerror = () =&gt; {
+  // EventSource auto-reconnects with Last-Event-ID header
+  console.log('Connection lost, reconnecting...');
+};</code></pre>
+
+                    <p><strong>SSE vs WebSockets:</strong></p>
+                    <ul>
+                        <li><strong>SSE</strong>: Server-to-client only, auto-reconnect built-in, works with HTTP/2 multiplexing, simpler infrastructure</li>
+                        <li><strong>WebSockets</strong>: Bidirectional, more complex, better for chat/gaming, requires sticky sessions or a pub/sub layer</li>
+                    </ul>
+
+                    <p><strong>Rule of thumb:</strong> If you only need server &rarr; client push (dashboards, notifications, live feeds), use SSE. It's simpler and plays better with HTTP infrastructure (load balancers, proxies, CDNs).</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-03.html" class="btn btn-secondary">&larr; Pagination &amp; Gateways</a>
+                <a href="module-05.html" class="btn btn-primary">Next: Message Brokers &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>
