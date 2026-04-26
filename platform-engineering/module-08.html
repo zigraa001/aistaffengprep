@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 8: Integration &amp; Contract Testing - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link active" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 8: Integration &amp; Contract Testing</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>Integration testing with Testcontainers for real dependencies</li>
+                <li>Consumer-driven contract testing with Pact</li>
+                <li>Testing async workflows, databases, and external services</li>
+                <li>WireMock/MockServer for HTTP dependency simulation</li>
+                <li>Contract testing vs integration testing tradeoffs</li>
+            </ul></div>
+
+            <h2>Integration Testing Fundamentals</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is integration testing and how do you define its scope?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Integration tests verify that components work correctly <em>together</em>. The scope defines which boundaries you're testing across.</p>
+                    <table>
+                        <thead><tr><th>Scope</th><th>What's Real</th><th>What's Mocked</th><th>Speed</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Narrow</strong></td><td>Your code + one dependency</td><td>Everything else</td><td>Fast (seconds)</td></tr>
+                            <tr><td><strong>Broad</strong></td><td>Your code + all local deps (DB, cache, queue)</td><td>External services</td><td>Medium (10-60s)</td></tr>
+                            <tr><td><strong>Full</strong></td><td>Your code + all deps including external</td><td>Nothing</td><td>Slow (minutes)</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Recommendation:</strong> Most value comes from <strong>broad integration tests</strong> using Testcontainers for databases, caches, and message brokers, with external HTTP services mocked via WireMock. This catches real integration bugs (SQL syntax, serialization, connection handling) without depending on external service availability.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How does Testcontainers work and why is it a game-changer for integration testing?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Testcontainers spins up real Docker containers for your dependencies during tests. Instead of mocking PostgreSQL, you test against a real PostgreSQL instance.</p>
+
+                    <pre><code class="language-python"># Python with testcontainers
+from testcontainers.postgres import PostgresContainer
+from testcontainers.redis import RedisContainer
+import pytest
+
+@pytest.fixture(scope="session")
+def postgres():
+    with PostgresContainer("postgres:15") as pg:
+        yield pg
+
+@pytest.fixture(scope="session")
+def redis():
+    with RedisContainer("redis:7") as r:
+        yield r
+
+@pytest.fixture
+def db(postgres):
+    engine = create_engine(postgres.get_connection_url())
+    Base.metadata.create_all(engine)
+    yield Session(engine)
+    Base.metadata.drop_all(engine)
+
+def test_create_user_persists_to_database(db):
+    repo = UserRepository(db)
+    user = repo.create(name="Alice", email="alice@test.com")
+    found = repo.get_by_email("alice@test.com")
+    assert found.name == "Alice"
+    assert found.id == user.id</code></pre>
+
+                    <pre><code class="language-java">// Java with Testcontainers + JUnit 5
+@Testcontainers
+class OrderRepositoryTest {
+    @Container
+    static PostgreSQLContainer&lt;?&gt; postgres =
+        new PostgreSQLContainer&lt;&gt;("postgres:15")
+            .withDatabaseName("testdb");
+
+    @Container
+    static KafkaContainer kafka =
+        new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.4.0"));
+
+    @Test
+    void shouldPersistOrderAndPublishEvent() {
+        var repo = new OrderRepository(postgres.getJdbcUrl());
+        var publisher = new KafkaPublisher(kafka.getBootstrapServers());
+        var service = new OrderService(repo, publisher);
+
+        Order order = service.createOrder(new CreateOrderRequest("item-1", 2));
+
+        assertThat(repo.findById(order.getId())).isPresent();
+        // Verify Kafka message was published
+        var records = KafkaTestUtils.getRecords(consumer);
+        assertThat(records).hasSize(1);
+    }
+}</code></pre>
+
+                    <p><strong>Why it's a game-changer:</strong> Before Testcontainers, teams chose between slow shared test databases (flaky, contention) or mocking (misses real bugs). Testcontainers gives you real database behavior with test isolation and parallelism.</p>
+                </div>
+            </div>
+
+            <h2>Contract Testing</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is consumer-driven contract testing and how does Pact work?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Consumer-driven contract testing verifies that a provider's API meets the expectations of its consumers, without running both services together.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Consumer as Consumer Team
+    participant Broker as Pact Broker
+    participant Provider as Provider Team
+
+    Consumer->>Consumer: Write consumer test (generates pact)
+    Consumer->>Broker: Publish pact contract
+    Provider->>Broker: Fetch pact contracts
+    Provider->>Provider: Verify pact against real API
+    Provider->>Broker: Publish verification result
+    Note over Broker: Both sides verified - safe to deploy
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python"># Consumer side (Python Pact)
+from pact import Consumer, Provider
+
+pact = Consumer('OrderService').has_pact_with(Provider('UserService'))
+
+def test_get_user():
+    expected = {"id": "user-123", "name": "Alice", "email": "alice@test.com"}
+
+    (pact
+     .given("user 123 exists")
+     .upon_receiving("a request for user 123")
+     .with_request("GET", "/users/user-123")
+     .will_respond_with(200, body=expected))
+
+    with pact:
+        # This calls the Pact mock server
+        result = user_client.get_user("user-123")
+        assert result.name == "Alice"
+    # Pact file is generated: orderservice-userservice.json</code></pre>
+
+                    <pre><code class="language-python"># Provider side: verify against the pact
+def test_provider_honors_pact():
+    verifier = Verifier(provider="UserService", provider_base_url="http://localhost:8080")
+    output, _ = verifier.verify_pacts(
+        "./pacts/orderservice-userservice.json",
+        provider_states_setup_url="http://localhost:8080/_pact/setup"
+    )
+    assert output == 0</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: Contract testing vs integration testing &mdash; when do you use each?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Aspect</th><th>Contract Testing</th><th>Integration Testing</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>What it verifies</strong></td><td>API shape and expectations</td><td>Actual runtime behavior</td></tr>
+                            <tr><td><strong>Runs against</strong></td><td>Mock/pact file</td><td>Real (or containerized) services</td></tr>
+                            <tr><td><strong>Speed</strong></td><td>Fast (no real services)</td><td>Slower (real dependencies)</td></tr>
+                            <tr><td><strong>Catches</strong></td><td>Breaking API changes</td><td>Runtime bugs, performance issues</td></tr>
+                            <tr><td><strong>Misses</strong></td><td>Bugs in business logic</td><td>Nothing (if comprehensive)</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Cross-team API compatibility</td><td>Single service correctness</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Staff-level answer:</strong> They're complementary, not competing. Contract tests are cheap guards against API breakage across team boundaries. Integration tests verify that your service actually works correctly. Use both: contract tests in every CI pipeline, integration tests for your own service's correctness.</p>
+                </div>
+            </div>
+
+            <h2>Testing Specific Concerns</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you test async workflows (message brokers, event handlers)?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Async testing requires waiting for side effects and verifying eventual state.</p>
+
+                    <pre><code class="language-python"># Testing Kafka consumer with Testcontainers
+async def test_order_event_updates_inventory():
+    # Arrange: publish event to Kafka
+    await kafka_producer.send("order-events", value=json.dumps({
+        "type": "OrderCreated",
+        "data": {"product_id": "prod-1", "quantity": 5}
+    }).encode())
+
+    # Act: wait for consumer to process (with timeout)
+    async def inventory_updated():
+        inventory = await db.fetch_one(
+            "SELECT quantity FROM inventory WHERE product_id = 'prod-1'"
+        )
+        return inventory and inventory["quantity"] == 95  # was 100
+
+    result = await wait_for(inventory_updated, timeout=10, poll_interval=0.5)
+    assert result, "Inventory was not updated within timeout"
+
+async def wait_for(condition, timeout=10, poll_interval=0.5):
+    """Poll until condition is true or timeout."""
+    start = time.time()
+    while time.time() - start &lt; timeout:
+        if await condition():
+            return True
+        await asyncio.sleep(poll_interval)
+    return False</code></pre>
+
+                    <p><strong>Key patterns:</strong></p>
+                    <ul>
+                        <li><strong>Polling assertion:</strong> Check eventual state with timeout (as above)</li>
+                        <li><strong>Test consumer directly:</strong> Call the handler function with a crafted message, bypassing the broker</li>
+                        <li><strong>Capture published events:</strong> Use an in-memory event store in tests to verify what was published</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you test database interactions properly?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <ul>
+                        <li><strong>Use Testcontainers</strong> for real database behavior (never mock your database layer)</li>
+                        <li><strong>Run migrations in tests</strong> to verify migration scripts work</li>
+                        <li><strong>Transaction rollback</strong> per test for fast cleanup: start a transaction before each test, roll it back after</li>
+                        <li><strong>Factory pattern</strong> for test data: don't use fixtures that create complex interdependent data</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Test data factory pattern
+class UserFactory:
+    @staticmethod
+    def create(db, **overrides):
+        defaults = {
+            "name": f"User {uuid4().hex[:6]}",
+            "email": f"{uuid4().hex[:6]}@test.com",
+            "status": "active",
+        }
+        data = {**defaults, **overrides}
+        return db.execute(
+            "INSERT INTO users (name, email, status) VALUES (:name, :email, :status) RETURNING *",
+            data
+        )
+
+def test_deactivate_user(db):
+    user = UserFactory.create(db, status="active")
+    service = UserService(db)
+    service.deactivate(user.id)
+    assert db.fetch_one("SELECT status FROM users WHERE id = :id", {"id": user.id})["status"] == "inactive"</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you use WireMock or MockServer for HTTP dependency testing?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> WireMock/MockServer simulate external HTTP services with configurable responses, delays, and failures.</p>
+
+                    <pre><code class="language-python"># Python with responses library (simple HTTP mocking)
+import responses
+
+@responses.activate
+def test_payment_service_handles_timeout():
+    responses.add(
+        responses.POST,
+        "https://payment-api.example.com/charges",
+        body=requests.exceptions.Timeout()
+    )
+    result = payment_service.charge(amount=100, card_token="tok_123")
+    assert result.status == "failed"
+    assert result.error == "Payment gateway timeout"
+
+@responses.activate
+def test_payment_service_handles_partial_response():
+    responses.add(
+        responses.POST,
+        "https://payment-api.example.com/charges",
+        json={"id": "ch_123", "status": "pending"},
+        status=202,
+    )
+    result = payment_service.charge(amount=100, card_token="tok_123")
+    assert result.status == "pending"</code></pre>
+
+                    <pre><code class="language-java">// Java WireMock
+@WireMockTest(httpPort = 8089)
+class PaymentClientTest {
+    @Test
+    void shouldRetryOnServerError() {
+        stubFor(post("/charges")
+            .inScenario("retry")
+            .whenScenarioStateIs(STARTED)
+            .willReturn(serverError())
+            .willSetStateTo("second-attempt"));
+
+        stubFor(post("/charges")
+            .inScenario("retry")
+            .whenScenarioStateIs("second-attempt")
+            .willReturn(okJson("{\"id\": \"ch_123\", \"status\": \"success\"}")));
+
+        var result = paymentClient.charge(100, "tok_123");
+        assertThat(result.getStatus()).isEqualTo("success");
+        verify(2, postRequestedFor(urlEqualTo("/charges")));
+    }
+}</code></pre>
+
+                    <p><strong>Test scenarios to cover:</strong> Success, 4xx errors, 5xx errors, timeouts, slow responses, malformed JSON, empty responses, network errors.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you test webhooks in an integration test?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> For testing webhook <em>consumers</em>: send HTTP requests to your endpoint with signed payloads. For testing webhook <em>producers</em>: spin up a mock server that captures deliveries.</p>
+
+                    <pre><code class="language-python"># Testing your webhook consumer endpoint
+import hmac, hashlib, json
+
+def test_webhook_processes_payment_completed():
+    payload = {"event": "payment.completed", "data": {"order_id": "ord-123", "amount": 99.99}}
+    body = json.dumps(payload)
+    timestamp = str(int(time.time()))
+    signature = hmac.new(WEBHOOK_SECRET.encode(), f"{timestamp}.{body}".encode(), hashlib.sha256).hexdigest()
+
+    response = client.post("/webhooks/stripe",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-Webhook-Signature": f"t={timestamp},v1={signature}",
+        })
+    assert response.status_code == 200
+    # Verify side effect
+    order = db.fetch_one("SELECT * FROM orders WHERE id = 'ord-123'")
+    assert order["payment_status"] == "completed"
+
+def test_webhook_rejects_invalid_signature():
+    response = client.post("/webhooks/stripe",
+        json={"event": "test"},
+        headers={"X-Webhook-Signature": "t=123,v1=invalid"})
+    assert response.status_code == 401</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the key CI/CD considerations for integration tests?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead><tr><th>Concern</th><th>Strategy</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Speed</strong></td><td>Run unit tests first (fast feedback), integration tests second. Parallelize integration tests.</td></tr>
+                            <tr><td><strong>Docker in CI</strong></td><td>Use Docker-in-Docker or mount the host Docker socket. Pre-pull common images to speed startup.</td></tr>
+                            <tr><td><strong>Flakiness</strong></td><td>Retry failed tests once (catches transient container startup issues). Track flake rate.</td></tr>
+                            <tr><td><strong>Cost</strong></td><td>Integration tests use more CI resources. Run full suite on main branch; run subset on PRs.</td></tr>
+                            <tr><td><strong>Parallelism</strong></td><td>Each test gets its own containers. No shared state between test classes.</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-yaml"># GitHub Actions example
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pytest tests/unit/ -x --timeout=30
+
+  integration-tests:
+    needs: unit-tests  # Only run if unit tests pass
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: test
+    steps:
+      - run: pytest tests/integration/ --timeout=120 -n 4  # parallel</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you build a staff-level integration testing strategy?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A staff engineer's integration testing strategy considers the organizational context, not just the technical.</p>
+                    <ol>
+                        <li><strong>Map service boundaries</strong> &mdash; Which services talk to each other? Where are the riskiest integrations?</li>
+                        <li><strong>Standardize tooling</strong> &mdash; Pick one approach (Testcontainers + WireMock) and provide team-ready templates</li>
+                        <li><strong>Contract tests at boundaries</strong> &mdash; Every cross-team API boundary should have Pact contracts</li>
+                        <li><strong>Shared test infrastructure</strong> &mdash; Platform team provides Docker images, CI templates, and test utilities</li>
+                        <li><strong>Test environment strategy</strong> &mdash; Define when teams use local containers vs shared staging vs production</li>
+                    </ol>
+                    <p><strong>The key insight:</strong> Integration tests are more valuable per test than unit tests for platform services, but they're also more expensive. Invest in making them fast and reliable (Testcontainers, good cleanup, parallelism) so teams actually write them.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-07.html" class="btn btn-secondary">&larr; Testing Strategy</a>
+                <a href="module-09.html" class="btn btn-primary">Next: E2E &amp; Chaos &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

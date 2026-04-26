@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design a Notification System - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Notification System</h1>
+            <p class="text-muted">Examples: Facebook Notifications, Uber Alerts, Amazon Order Updates, Slack Messages</p>
+
+            <div class="card mt-3" style="background: var(--danger-bg);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. REQUIREMENTS CLARIFICATION                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Multi-channel delivery:</strong> Push notifications (iOS/Android), Email, SMS, In-app notifications</li>
+                        <li><strong>Template engine:</strong> Support parameterized templates for each channel (e.g., "Hi {{name}}, your order {{order_id}} has shipped")</li>
+                        <li><strong>Scheduling:</strong> Send immediately or schedule for a future time (e.g., "send at 9 AM user local time")</li>
+                        <li><strong>User preferences:</strong> Users can opt in/out per channel and per notification type (marketing, transactional, social)</li>
+                        <li><strong>Notification history:</strong> Users can view past notifications in an in-app feed</li>
+                        <li><strong>Read/unread tracking:</strong> Mark notifications as read; show unread count badge</li>
+                        <li><strong>Batch/bulk send:</strong> Send a notification to millions of users (e.g., product announcement)</li>
+                        <li><strong>Priority levels:</strong> Urgent (OTP, security alerts), High (order updates), Normal (social), Low (marketing)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Scale:</strong> 100M users, 1B notifications/day across all channels</li>
+                        <li><strong>Low latency:</strong> Real-time notifications delivered within seconds for urgent messages</li>
+                        <li><strong>At-least-once delivery:</strong> Every notification must be delivered at least once (prefer exactly-once for SMS/email to avoid user annoyance)</li>
+                        <li><strong>Deduplication:</strong> Prevent sending the same notification twice to the same user</li>
+                        <li><strong>High availability:</strong> 99.99% uptime -- notifications are critical for user engagement and transactional flows</li>
+                        <li><strong>Observability:</strong> Track delivery rates, open rates, click-through rates per channel</li>
+                        <li><strong>Extensibility:</strong> Easy to add new channels (WhatsApp, Slack, browser push) without changing core logic</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scope for Interview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--info-bg);">
+                        <strong>In Scope:</strong>
+                        <ul>
+                            <li>Core notification pipeline (ingest, route, deliver)</li>
+                            <li>Push, Email, SMS, and In-app channels</li>
+                            <li>User preferences and opt-out</li>
+                            <li>Retry, deduplication, and rate limiting</li>
+                            <li>Template rendering</li>
+                        </ul>
+                        <strong>Out of Scope:</strong>
+                        <ul>
+                            <li>Content moderation / spam filtering (mention briefly)</li>
+                            <li>A/B testing of notification copy</li>
+                            <li>Rich media rendering in push payloads</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. CAPACITY ESTIMATION                                       -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Assumptions:</strong><br>
+                        - 100M registered users<br>
+                        - 10 notifications per user per day on average<br>
+                        - 1B total notifications/day across all channels<br>
+                        - Channel breakdown: 40% push, 30% in-app, 20% email, 10% SMS<br>
+                        - Notification record size: ~1 KB (metadata + rendered content)<br>
+                        - Retain notification history for 90 days<br><br>
+
+                        <strong>Write QPS:</strong><br>
+                        1B / 86,400 &asymp; 11,600 notifications/sec (average)<br>
+                        Peak (2-3x): ~30,000 notifications/sec<br><br>
+
+                        <strong>Read QPS (notification feed):</strong><br>
+                        Assume 20% of users check feed daily = 20M reads/day<br>
+                        20M / 86,400 &asymp; 230 reads/sec (bursty, peak ~2,000/sec)<br><br>
+
+                        <strong>Storage (90-day retention):</strong><br>
+                        1B/day &times; 1 KB &times; 90 days = 90 TB<br>
+                        With compression (~3x): ~30 TB<br><br>
+
+                        <strong>Bandwidth:</strong><br>
+                        11,600 notifications/sec &times; 1 KB = ~11.6 MB/sec outbound<br>
+                        Peak: ~30 MB/sec<br><br>
+
+                        <strong>Message Queue Throughput:</strong><br>
+                        ~30K messages/sec peak across all queues<br>
+                        Partitioned by channel: Push ~12K, In-app ~9K, Email ~6K, SMS ~3K
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. HIGH-LEVEL DESIGN                                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. High-Level Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Architecture Overview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The notification system follows an <strong>event-driven, queue-based architecture</strong>. Internal services publish notification requests to the Notification Service, which validates, renders templates, checks user preferences, and fans out messages to per-channel queues. Channel-specific workers consume from these queues and deliver via third-party providers (APNs, FCM, Twilio, SendGrid).</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph Producers
+        SVC1[Order Service]
+        SVC2[Auth Service]
+        SVC3[Social Service]
+        SVC4[Marketing Service]
+    end
+
+    SVC1 -->|send notification| NS[Notification Service]
+    SVC2 -->|send notification| NS
+    SVC3 -->|send notification| NS
+    SVC4 -->|send notification| NS
+
+    NS -->|validate &amp; enrich| TE[Template Engine]
+    NS -->|check prefs| PS[(Preference Store)]
+    NS -->|dedup check| DEDUP[(Dedup Cache<br/>Redis)]
+
+    NS -->|fan-out| PQ[Push Queue]
+    NS -->|fan-out| EQ[Email Queue]
+    NS -->|fan-out| SQ[SMS Queue]
+    NS -->|fan-out| IQ[In-App Queue]
+
+    subgraph Channel Workers
+        PW[Push Worker]
+        EW[Email Worker]
+        SW[SMS Worker]
+        IW[In-App Worker]
+    end
+
+    PQ --> PW
+    EQ --> EW
+    SQ --> SW
+    IQ --> IW
+
+    PW -->|APNs / FCM| MOBILE((Mobile Devices))
+    EW -->|SendGrid / SES| EMAIL((Email Inboxes))
+    SW -->|Twilio / SNS| PHONE((Phone / SMS))
+    IW -->|Write to DB| FEED[(Notification Feed DB)]
+
+    PW --> AN[Analytics Service]
+    EW --> AN
+    SW --> AN
+    IW --> AN
+
+    AN --> METRICS[(Metrics Store<br/>ClickHouse)]
+                        </div>
+                    </div>
+
+                    <h4>Key Design Decisions</h4>
+                    <ul>
+                        <li><strong>Queue per channel:</strong> Each delivery channel has its own message queue. This isolates failures -- if the SMS provider is down, push notifications keep flowing.</li>
+                        <li><strong>Preference check before enqueue:</strong> We filter out opted-out channels early to avoid wasted work in downstream workers.</li>
+                        <li><strong>Template rendering in the service:</strong> The Notification Service renders the template once and passes the final content to channel queues, avoiding duplicate rendering.</li>
+                        <li><strong>Dedup cache:</strong> A Redis-based idempotency check using a hash of (user_id, notification_type, dedup_key) with a short TTL prevents duplicate sends.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. DATA MODEL                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Data Model</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Database Schema</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+-- Core notification record
+CREATE TABLE notifications (
+    id              BIGINT PRIMARY KEY,          -- Snowflake ID
+    user_id         BIGINT NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,       -- 'order_update', 'otp', 'social_like', 'marketing'
+    title           VARCHAR(255),
+    body            TEXT NOT NULL,
+    image_url       VARCHAR(512),
+    action_url      VARCHAR(512),                -- Deep link or URL
+    priority        SMALLINT DEFAULT 2,          -- 1=urgent, 2=high, 3=normal, 4=low
+    dedup_key       VARCHAR(128),                -- Client-provided idempotency key
+    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+    scheduled_at    TIMESTAMP,                   -- NULL = send immediately
+    INDEX idx_user_created (user_id, created_at DESC)
+) PARTITION BY RANGE (created_at);               -- Partition by month for easy cleanup
+
+-- Delivery status per channel
+CREATE TABLE delivery_status (
+    id              BIGINT PRIMARY KEY,
+    notification_id BIGINT NOT NULL REFERENCES notifications(id),
+    channel         VARCHAR(20) NOT NULL,        -- 'push', 'email', 'sms', 'in_app'
+    status          VARCHAR(20) NOT NULL,        -- 'pending', 'sent', 'delivered', 'failed', 'bounced'
+    provider        VARCHAR(50),                 -- 'apns', 'fcm', 'sendgrid', 'twilio'
+    provider_msg_id VARCHAR(128),                -- ID from third-party provider
+    attempts        SMALLINT DEFAULT 0,
+    last_attempt_at TIMESTAMP,
+    delivered_at    TIMESTAMP,
+    error_message   TEXT,
+    INDEX idx_notif_channel (notification_id, channel)
+);
+
+-- User notification preferences
+CREATE TABLE user_preferences (
+    user_id         BIGINT NOT NULL,
+    notification_type VARCHAR(50) NOT NULL,       -- 'order_update', 'marketing', etc.
+    channel         VARCHAR(20) NOT NULL,         -- 'push', 'email', 'sms', 'in_app'
+    enabled         BOOLEAN DEFAULT TRUE,
+    quiet_hours_start TIME,                       -- e.g., 22:00
+    quiet_hours_end   TIME,                       -- e.g., 08:00
+    timezone        VARCHAR(50) DEFAULT 'UTC',
+    PRIMARY KEY (user_id, notification_type, channel)
+);
+
+-- Notification templates
+CREATE TABLE templates (
+    id              SERIAL PRIMARY KEY,
+    name            VARCHAR(100) UNIQUE NOT NULL, -- 'order_shipped_push', 'otp_sms'
+    channel         VARCHAR(20) NOT NULL,
+    subject         VARCHAR(255),                 -- For email
+    body_template   TEXT NOT NULL,                -- "Hi {{name}}, your order {{order_id}} has shipped"
+    variables       JSONB,                        -- ["name", "order_id"] for validation
+    version         INT DEFAULT 1,
+    is_active       BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- Device tokens for push notifications
+CREATE TABLE device_tokens (
+    id              SERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL,
+    platform        VARCHAR(10) NOT NULL,         -- 'ios', 'android', 'web'
+    token           VARCHAR(512) NOT NULL UNIQUE,
+    is_active       BOOLEAN DEFAULT TRUE,
+    last_used_at    TIMESTAMP,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    INDEX idx_user_platform (user_id, platform)
+);
+
+-- In-app notification feed (read/unread tracking)
+CREATE TABLE notification_feed (
+    id              BIGINT PRIMARY KEY,
+    user_id         BIGINT NOT NULL,
+    notification_id BIGINT NOT NULL,
+    is_read         BOOLEAN DEFAULT FALSE,
+    read_at         TIMESTAMP,
+    created_at      TIMESTAMP NOT NULL,
+    INDEX idx_user_feed (user_id, is_read, created_at DESC)
+);
+                        </code>
+                    </div>
+
+                    <h4>Storage Strategy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Table</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Store</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Rationale</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">notifications</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL (partitioned) or Cassandra</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Write-heavy, time-partitioned, TTL for cleanup</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">delivery_status</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cassandra or DynamoDB</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extremely write-heavy, append-only status updates</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">user_preferences</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL + Redis cache</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Read-heavy, small dataset, cache-friendly</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">templates</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL + in-memory cache</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Small, rarely changes, read on every request</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">device_tokens</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Moderate write (on app install/update), read on every push</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">notification_feed</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Redis Sorted Set + Cassandra</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hot data in Redis (last 100 per user), cold in Cassandra</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. API DESIGN                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. API Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>REST APIs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <code>
+# ---- Send Notification (Internal API, called by other services) ----
+POST /api/v1/notifications/send
+Authorization: Bearer &lt;service-token&gt;
+Content-Type: application/json
+
+{
+    "user_id": 123456,
+    "notification_type": "order_shipped",
+    "template_name": "order_shipped",
+    "template_params": {
+        "name": "Alice",
+        "order_id": "ORD-98765",
+        "tracking_url": "https://track.example.com/ORD-98765"
+    },
+    "channels": ["push", "email", "in_app"],   // optional override; defaults to user prefs
+    "priority": 2,                               // 1=urgent, 2=high, 3=normal, 4=low
+    "dedup_key": "order_shipped_ORD-98765",      // prevents duplicate sends
+    "scheduled_at": null                          // null = immediate
+}
+
+Response 202 Accepted:
+{
+    "notification_id": "ntf_7a8b9c0d1e2f",
+    "status": "queued",
+    "channels_targeted": ["push", "email", "in_app"]
+}
+
+
+# ---- Bulk Send (e.g., marketing campaign) ----
+POST /api/v1/notifications/bulk
+Authorization: Bearer &lt;service-token&gt;
+
+{
+    "segment": "active_users_30d",       // pre-defined user segment
+    "notification_type": "marketing",
+    "template_name": "summer_sale_push",
+    "template_params": { "discount": "20%" },
+    "channels": ["push", "email"],
+    "priority": 4,
+    "scheduled_at": "2024-07-01T09:00:00Z"
+}
+
+Response 202 Accepted:
+{
+    "batch_id": "batch_abc123",
+    "estimated_recipients": 45000000,
+    "status": "scheduled"
+}
+
+
+# ---- Get Notification History (User-facing) ----
+GET /api/v1/notifications?limit=20&amp;cursor=ntf_abc123&amp;unread_only=true
+Authorization: Bearer &lt;user-token&gt;
+
+Response 200:
+{
+    "notifications": [
+        {
+            "id": "ntf_7a8b9c0d1e2f",
+            "type": "order_shipped",
+            "title": "Order Shipped!",
+            "body": "Hi Alice, your order ORD-98765 has shipped.",
+            "action_url": "https://track.example.com/ORD-98765",
+            "is_read": false,
+            "created_at": "2024-06-15T14:30:00Z"
+        }
+    ],
+    "next_cursor": "ntf_xyz789",
+    "unread_count": 5
+}
+
+
+# ---- Mark as Read ----
+PATCH /api/v1/notifications/read
+Authorization: Bearer &lt;user-token&gt;
+
+{
+    "notification_ids": ["ntf_7a8b9c0d1e2f", "ntf_abc123"]
+}
+
+Response 200:
+{ "updated": 2, "unread_count": 3 }
+
+
+# ---- Update User Preferences ----
+PUT /api/v1/notifications/preferences
+Authorization: Bearer &lt;user-token&gt;
+
+{
+    "preferences": [
+        { "notification_type": "marketing", "channel": "email", "enabled": false },
+        { "notification_type": "marketing", "channel": "push", "enabled": false },
+        { "notification_type": "order_update", "channel": "sms", "enabled": true }
+    ],
+    "quiet_hours": {
+        "enabled": true,
+        "start": "22:00",
+        "end": "08:00",
+        "timezone": "America/Los_Angeles"
+    }
+}
+
+Response 200:
+{ "status": "updated" }
+
+
+# ---- Get Delivery Status (Internal/Admin) ----
+GET /api/v1/notifications/ntf_7a8b9c0d1e2f/status
+Authorization: Bearer &lt;admin-token&gt;
+
+Response 200:
+{
+    "notification_id": "ntf_7a8b9c0d1e2f",
+    "channels": {
+        "push":  { "status": "delivered", "provider": "fcm", "delivered_at": "..." },
+        "email": { "status": "sent", "provider": "sendgrid", "attempts": 1 },
+        "in_app": { "status": "delivered" }
+    }
+}
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. DEEP DIVE: NOTIFICATION PIPELINE FLOW                     -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Notification Pipeline Flow</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When a service sends a notification request, it passes through several stages before reaching the user. This sequence diagram shows the end-to-end flow:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant P as Producer Service
+    participant NS as Notification Service
+    participant DD as Dedup Cache (Redis)
+    participant PS as Preference Store
+    participant TE as Template Engine
+    participant MQ as Message Queues
+    participant W as Channel Worker
+    participant PR as Provider (FCM/Twilio/SES)
+    participant AN as Analytics
+
+    P->>NS: POST /notifications/send
+    NS->>DD: Check dedup_key exists?
+    alt Duplicate
+        DD-->>NS: Key exists
+        NS-->>P: 200 Already sent
+    else New
+        DD-->>NS: Key not found
+        NS->>DD: SET dedup_key (TTL 24h)
+        NS->>PS: Get user preferences
+        PS-->>NS: Enabled channels + quiet hours
+        NS->>NS: Filter channels by prefs
+        NS->>TE: Render template per channel
+        TE-->>NS: Rendered content
+        NS->>NS: Persist notification record
+        loop For each enabled channel
+            NS->>MQ: Enqueue to channel queue
+        end
+        NS-->>P: 202 Accepted
+    end
+
+    MQ->>W: Dequeue message
+    W->>PR: Send via provider API
+    alt Success
+        PR-->>W: 200 OK (message_id)
+        W->>AN: Log delivery event
+    else Failure
+        PR-->>W: Error (429/500)
+        W->>MQ: Re-enqueue with backoff
+    end
+                        </div>
+                    </div>
+
+                    <h4>Pipeline Stages Explained</h4>
+                    <ol>
+                        <li><strong>Validation:</strong> Check required fields, validate notification_type, verify the calling service has permission to send this type.</li>
+                        <li><strong>Deduplication:</strong> Hash of (user_id + dedup_key) checked against Redis. Prevents double-sends from retried upstream calls.</li>
+                        <li><strong>Preference Lookup:</strong> Load user's channel preferences from cache (Redis) or DB. Apply quiet hours check based on user's timezone.</li>
+                        <li><strong>Template Rendering:</strong> Load the template for the notification_type + channel combination. Substitute variables. Produce channel-specific output (HTML for email, short text for SMS, JSON for push).</li>
+                        <li><strong>Persistence:</strong> Write the notification record to the database. This enables the notification history feed and audit trail.</li>
+                        <li><strong>Fan-out to Queues:</strong> For each enabled channel, enqueue a message containing the rendered content, user_id, device tokens (for push), etc.</li>
+                        <li><strong>Channel Workers:</strong> Consume from channel-specific queues. Call the third-party provider API. Handle retries on failure.</li>
+                        <li><strong>Analytics:</strong> Log delivery events (sent, delivered, opened, clicked) to the analytics pipeline for tracking.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6b. PRIORITY QUEUE AND RATE LIMITING                         -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Priority Queue and Rate Limiting</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Not all notifications are equal. An OTP code must arrive in seconds; a marketing email can wait hours. We use <strong>priority queues</strong> and <strong>per-user rate limiting</strong> to balance urgency with user experience.</p>
+
+                    <h4>Priority Queue Design</h4>
+                    <p>Each channel has multiple priority queues (or a single queue with priority lanes in Kafka). Workers always drain higher-priority queues first:</p>
+
+                    <div class="code-block">
+                        <code>
+# Kafka topic partitioning by priority
+# Each channel has 4 priority topics:
+#   push-notifications-p1  (urgent: OTP, security)
+#   push-notifications-p2  (high: order updates)
+#   push-notifications-p3  (normal: social)
+#   push-notifications-p4  (low: marketing)
+
+# Worker consumer logic (Python pseudocode)
+class PriorityConsumer:
+    def __init__(self, channel: str):
+        self.consumers = {
+            1: KafkaConsumer(f'{channel}-notifications-p1'),
+            2: KafkaConsumer(f'{channel}-notifications-p2'),
+            3: KafkaConsumer(f'{channel}-notifications-p3'),
+            4: KafkaConsumer(f'{channel}-notifications-p4'),
+        }
+
+    async def consume(self):
+        while True:
+            # Always check higher priority first
+            for priority in [1, 2, 3, 4]:
+                messages = self.consumers[priority].poll(timeout_ms=100)
+                if messages:
+                    for msg in messages:
+                        await self.process(msg)
+                    break  # Go back to P1 after processing a batch
+            else:
+                await asyncio.sleep(0.1)  # No messages in any queue
+
+    async def process(self, message):
+        # Rate limit check before sending
+        user_id = message.value['user_id']
+        if await self.is_rate_limited(user_id):
+            # Re-enqueue with delay or drop if low priority
+            if message.value['priority'] &gt;= 3:
+                return  # Drop low-priority if rate limited
+            await self.delay_and_requeue(message)
+            return
+        await self.send(message)
+                        </code>
+                    </div>
+
+                    <h4>Per-User Rate Limiting</h4>
+                    <p>Users should not receive more than N notifications per hour to prevent notification fatigue. We use a sliding window counter in Redis:</p>
+
+                    <div class="code-block">
+                        <code>
+# Redis sliding window rate limiter
+import time
+import redis
+
+class NotificationRateLimiter:
+    def __init__(self, redis_client: redis.Redis):
+        self.redis = redis_client
+        # Limits per channel per hour
+        self.limits = {
+            'push': 10,     # Max 10 push per hour
+            'email': 5,     # Max 5 emails per hour
+            'sms': 3,       # Max 3 SMS per hour
+            'in_app': 50,   # More lenient for in-app
+        }
+
+    def is_allowed(self, user_id: int, channel: str) -&gt; bool:
+        key = f"rate:{user_id}:{channel}"
+        now = time.time()
+        window = 3600  # 1 hour
+
+        pipe = self.redis.pipeline()
+        pipe.zremrangebyscore(key, 0, now - window)  # Remove old entries
+        pipe.zcard(key)                                # Count recent
+        pipe.zadd(key, {str(now): now})               # Add current
+        pipe.expire(key, window)                       # Set TTL
+        results = pipe.execute()
+
+        current_count = results[1]
+        limit = self.limits.get(channel, 10)
+        return current_count &lt; limit
+
+    def get_remaining(self, user_id: int, channel: str) -&gt; int:
+        key = f"rate:{user_id}:{channel}"
+        now = time.time()
+        self.redis.zremrangebyscore(key, 0, now - 3600)
+        count = self.redis.zcard(key)
+        limit = self.limits.get(channel, 10)
+        return max(0, limit - count)
+                        </code>
+                    </div>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>Interview Tip:</strong> Mention that urgent notifications (priority 1) bypass rate limits. An OTP or security alert must always go through regardless of the user's recent notification volume.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6c. RETRY AND FAILURE HANDLING                               -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Retry and Failure Handling</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Third-party providers (APNs, FCM, Twilio, SendGrid) can fail transiently. We need robust retry logic with exponential backoff and a dead-letter queue (DLQ) for messages that exhaust all retries.</p>
+
+                    <div class="code-block">
+                        <code>
+# Retry strategy with exponential backoff and jitter
+import random
+import asyncio
+from dataclasses import dataclass
+from enum import Enum
+
+class DeliveryStatus(Enum):
+    SUCCESS = "success"
+    RETRYABLE = "retryable"      # 429, 500, 502, 503, timeout
+    PERMANENT_FAIL = "permanent"  # 400, 401, invalid token
+
+@dataclass
+class RetryPolicy:
+    max_attempts: int = 5
+    base_delay_sec: float = 1.0
+    max_delay_sec: float = 300.0   # 5 minutes cap
+    jitter: bool = True
+
+    def get_delay(self, attempt: int) -&gt; float:
+        delay = min(self.base_delay_sec * (2 ** attempt), self.max_delay_sec)
+        if self.jitter:
+            delay *= (0.5 + random.random())  # 50-150% of computed delay
+        return delay
+
+class ChannelWorker:
+    def __init__(self, provider, queue, dlq, retry_policy=None):
+        self.provider = provider
+        self.queue = queue
+        self.dlq = dlq
+        self.retry_policy = retry_policy or RetryPolicy()
+
+    async def process_message(self, message):
+        attempt = message.get('attempt', 0)
+
+        try:
+            result = await self.provider.send(message)
+
+            if result.status == DeliveryStatus.SUCCESS:
+                await self.record_delivery(message, 'delivered')
+                return
+
+            if result.status == DeliveryStatus.PERMANENT_FAIL:
+                await self.record_delivery(message, 'failed', result.error)
+                await self.dlq.publish(message)  # Move to DLQ for investigation
+                return
+
+            # Retryable failure
+            if attempt &lt; self.retry_policy.max_attempts:
+                delay = self.retry_policy.get_delay(attempt)
+                message['attempt'] = attempt + 1
+                await asyncio.sleep(delay)
+                await self.queue.publish(message)  # Re-enqueue
+            else:
+                await self.record_delivery(message, 'failed', 'max_retries_exceeded')
+                await self.dlq.publish(message)
+
+        except Exception as e:
+            # Unexpected error - treat as retryable
+            if attempt &lt; self.retry_policy.max_attempts:
+                message['attempt'] = attempt + 1
+                await self.queue.publish(message)
+            else:
+                await self.dlq.publish(message)
+
+    async def record_delivery(self, message, status, error=None):
+        # Update delivery_status table
+        ...
+                        </code>
+                    </div>
+
+                    <h4>Dead Letter Queue (DLQ) Strategy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure Type</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Action</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Example</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Invalid device token</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Mark token inactive, no retry</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">APNs returns 410 (unregistered)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider rate limit (429)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retry with backoff, respect Retry-After header</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Twilio rate limit exceeded</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider outage (503)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retry with exponential backoff, circuit breaker</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SendGrid downtime</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Max retries exhausted</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Move to DLQ, alert ops team, try fallback channel</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5 failed attempts on push &rarr; try email</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Malformed payload</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DLQ immediately, alert dev team</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Template rendered invalid JSON</td>
+                        </tr>
+                    </table>
+
+                    <div class="card" style="background: var(--info-bg);">
+                        <strong>Circuit Breaker Pattern:</strong> If a provider fails N consecutive times within a window, open the circuit breaker. Stop sending to that provider and either queue messages for later or fall back to an alternative provider (e.g., FCM &rarr; Huawei Push, SendGrid &rarr; AWS SES). Check provider health periodically and close the circuit when it recovers.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6d. PUSH NOTIFICATION DELIVERY                               -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Push Notification Delivery (APNs and FCM)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Push notifications require integration with Apple Push Notification Service (APNs) for iOS and Firebase Cloud Messaging (FCM) for Android. Both use persistent HTTP/2 connections for high throughput.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Push Worker
+        PW[Push Worker]
+        TC[(Token Cache<br/>Redis)]
+    end
+
+    PW -->|1. Lookup tokens| TC
+    PW -->|2a. iOS tokens| APNS[APNs<br/>HTTP/2]
+    PW -->|2b. Android tokens| FCM[FCM<br/>HTTP/2]
+    PW -->|2c. Web tokens| WEBP[Web Push<br/>VAPID]
+
+    APNS -->|3. Delivered| IOS((iOS Device))
+    FCM -->|3. Delivered| AND((Android Device))
+    WEBP -->|3. Delivered| BRW((Browser))
+
+    APNS -->|Feedback| PW
+    FCM -->|Feedback| PW
+                        </div>
+                    </div>
+
+                    <h4>Key Implementation Details</h4>
+                    <div class="code-block">
+                        <code>
+# Push notification sender with connection pooling
+import httpx
+import jwt
+import time
+
+class APNsSender:
+    """Apple Push Notification Service sender using HTTP/2."""
+
+    def __init__(self, key_id, team_id, private_key, bundle_id, sandbox=False):
+        self.key_id = key_id
+        self.team_id = team_id
+        self.private_key = private_key
+        self.bundle_id = bundle_id
+        self.base_url = (
+            "https://api.sandbox.push.apple.com"
+            if sandbox else "https://api.push.apple.com"
+        )
+        # Reuse HTTP/2 connection pool
+        self.client = httpx.AsyncClient(http2=True, timeout=10.0)
+        self._token = None
+        self._token_expiry = 0
+
+    def _get_auth_token(self) -&gt; str:
+        now = int(time.time())
+        if self._token and now &lt; self._token_expiry:
+            return self._token
+        payload = {"iss": self.team_id, "iat": now}
+        self._token = jwt.encode(payload, self.private_key, algorithm="ES256",
+                                  headers={"kid": self.key_id})
+        self._token_expiry = now + 3500  # Refresh before 1hr expiry
+        return self._token
+
+    async def send(self, device_token: str, title: str, body: str,
+                   data: dict = None, priority: int = 10) -&gt; dict:
+        url = f"{self.base_url}/3/device/{device_token}"
+        headers = {
+            "authorization": f"bearer {self._get_auth_token()}",
+            "apns-topic": self.bundle_id,
+            "apns-priority": str(priority),     # 10=immediate, 5=power-saving
+            "apns-push-type": "alert",
+        }
+        payload = {
+            "aps": {
+                "alert": {"title": title, "body": body},
+                "sound": "default",
+                "badge": 1,
+            }
+        }
+        if data:
+            payload["custom"] = data
+
+        response = await self.client.post(url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            return {"status": "success", "apns_id": response.headers.get("apns-id")}
+        elif response.status_code == 410:
+            return {"status": "invalid_token"}  # Remove this token
+        else:
+            return {"status": "error", "code": response.status_code,
+                    "reason": response.json().get("reason")}
+                        </code>
+                    </div>
+
+                    <h4>Multi-Device Handling</h4>
+                    <ul>
+                        <li>A user may have multiple devices (phone, tablet, watch). We send to <strong>all active device tokens</strong> for that user.</li>
+                        <li>Store device tokens in a cache (Redis hash: user_id &rarr; {platform: [tokens]}) for fast lookups.</li>
+                        <li>On APNs 410 (unregistered) or FCM "NotRegistered" response, immediately mark the token as inactive.</li>
+                        <li>Periodic cleanup job removes tokens not seen in 90+ days.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6e. TEMPLATE ENGINE AND PERSONALIZATION                      -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Template Engine and Personalization</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Templates decouple notification content from code. Product teams can update copy without deploying code changes. Each template is stored per channel because push notifications have strict character limits while emails can be rich HTML.</p>
+
+                    <h4>Template Structure</h4>
+                    <div class="code-block">
+                        <code>
+# Template examples per channel for "order_shipped"
+
+# Push (max ~178 chars iOS, ~240 Android)
+{
+    "name": "order_shipped_push",
+    "channel": "push",
+    "body_template": "Your order {{order_id}} has shipped! Track: {{tracking_url}}",
+    "variables": ["order_id", "tracking_url"]
+}
+
+# Email (HTML)
+{
+    "name": "order_shipped_email",
+    "channel": "email",
+    "subject": "Your order {{order_id}} is on its way!",
+    "body_template": "&lt;html&gt;&lt;body&gt;&lt;h1&gt;Hi {{name}},&lt;/h1&gt;&lt;p&gt;Great news! ...&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;",
+    "variables": ["name", "order_id", "tracking_url", "estimated_delivery"]
+}
+
+# SMS (max 160 chars for single segment)
+{
+    "name": "order_shipped_sms",
+    "channel": "sms",
+    "body_template": "{{brand}}: Order {{order_id}} shipped. Track at {{short_url}}",
+    "variables": ["brand", "order_id", "short_url"]
+}
+                        </code>
+                    </div>
+
+                    <h4>Rendering Engine</h4>
+                    <div class="code-block">
+                        <code>
+# Template rendering with variable substitution and validation
+import re
+from typing import Dict, Optional
+
+class TemplateRenderer:
+    VARIABLE_PATTERN = re.compile(r'\{\{(\w+)\}\}')
+
+    def __init__(self, template_cache):
+        self.cache = template_cache  # Redis or in-memory cache of templates
+
+    async def render(self, template_name: str, params: Dict[str, str]) -&gt; Dict:
+        template = await self.cache.get(template_name)
+        if not template:
+            raise ValueError(f"Template '{template_name}' not found")
+
+        # Validate all required variables are provided
+        required = set(template.get('variables', []))
+        provided = set(params.keys())
+        missing = required - provided
+        if missing:
+            raise ValueError(f"Missing template variables: {missing}")
+
+        # Render subject (for email)
+        subject = None
+        if template.get('subject'):
+            subject = self._substitute(template['subject'], params)
+
+        # Render body
+        body = self._substitute(template['body_template'], params)
+
+        return {
+            'subject': subject,
+            'body': body,
+            'channel': template['channel'],
+        }
+
+    def _substitute(self, text: str, params: Dict[str, str]) -&gt; str:
+        def replace(match):
+            key = match.group(1)
+            value = params.get(key, '')
+            return self._sanitize(value, key)
+        return self.VARIABLE_PATTERN.sub(replace, text)
+
+    def _sanitize(self, value: str, key: str) -&gt; str:
+        """Prevent injection attacks in rendered templates."""
+        # For URLs, validate format
+        if 'url' in key.lower():
+            if not value.startswith(('http://', 'https://')):
+                return ''
+        # For HTML templates, escape HTML entities
+        return value.replace('&amp;', '&amp;amp;').replace('&lt;', '&amp;lt;').replace('&gt;', '&amp;gt;')
+                        </code>
+                    </div>
+
+                    <h4>Personalization Layers</h4>
+                    <ul>
+                        <li><strong>User attributes:</strong> Name, language, timezone for localized content</li>
+                        <li><strong>i18n:</strong> Templates versioned per locale (en_US, es_MX, ja_JP). Locale stored in user profile.</li>
+                        <li><strong>Dynamic content:</strong> Product images, recommendation carousels in email (fetched at render time)</li>
+                        <li><strong>Channel adaptation:</strong> Same notification renders differently: rich HTML for email, short text for SMS, structured JSON for push</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6f. USER PREFERENCE MANAGEMENT                               -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>User Preference Management</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>User preferences are critical for compliance (CAN-SPAM, GDPR) and user experience. The preference system must handle:</p>
+
+                    <ul>
+                        <li><strong>Global opt-out:</strong> User unsubscribes from all non-transactional notifications</li>
+                        <li><strong>Per-type opt-out:</strong> "I want order updates but not marketing emails"</li>
+                        <li><strong>Per-channel opt-out:</strong> "Send me push but not SMS for social notifications"</li>
+                        <li><strong>Quiet hours:</strong> "Don't notify me between 10 PM and 8 AM in my timezone"</li>
+                        <li><strong>Frequency caps:</strong> "Max 3 marketing notifications per week"</li>
+                    </ul>
+
+                    <h4>Preference Resolution Logic</h4>
+                    <div class="code-block">
+                        <code>
+# Preference resolution: most specific setting wins
+
+class PreferenceResolver:
+    # Notification categories
+    TRANSACTIONAL = {'otp', 'security_alert', 'password_reset', 'order_update'}
+
+    async def get_allowed_channels(self, user_id: int, notification_type: str,
+                                     priority: int) -&gt; list:
+        """Return list of channels this notification can be sent through."""
+
+        # Priority 1 (urgent/transactional) bypasses all preferences
+        if priority == 1 and notification_type in self.TRANSACTIONAL:
+            return ['push', 'sms', 'email', 'in_app']
+
+        prefs = await self.load_preferences(user_id)
+
+        # Check global opt-out
+        if prefs.get('global_optout', False):
+            if notification_type not in self.TRANSACTIONAL:
+                return []
+
+        allowed = []
+        for channel in ['push', 'email', 'sms', 'in_app']:
+            # Check type+channel specific preference
+            key = f"{notification_type}:{channel}"
+            if key in prefs:
+                if prefs[key]['enabled']:
+                    allowed.append(channel)
+                continue
+
+            # Fall back to channel-level default
+            channel_key = f"default:{channel}"
+            if channel_key in prefs:
+                if prefs[channel_key]['enabled']:
+                    allowed.append(channel)
+                continue
+
+            # Default: enabled
+            allowed.append(channel)
+
+        # Apply quiet hours filter
+        allowed = await self.filter_quiet_hours(user_id, allowed, prefs)
+
+        return allowed
+
+    async def filter_quiet_hours(self, user_id, channels, prefs):
+        """Remove channels blocked by quiet hours. Queue for later instead."""
+        quiet = prefs.get('quiet_hours')
+        if not quiet or not quiet.get('enabled'):
+            return channels
+
+        user_tz = quiet.get('timezone', 'UTC')
+        user_now = get_user_local_time(user_tz)
+
+        start = quiet['start']  # e.g., "22:00"
+        end = quiet['end']      # e.g., "08:00"
+
+        if is_in_quiet_hours(user_now, start, end):
+            # During quiet hours, only allow in_app (silent)
+            return [c for c in channels if c == 'in_app']
+
+        return channels
+                        </code>
+                    </div>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>Compliance Note:</strong> Transactional notifications (OTP, order confirmations, security alerts) are legally required to be sent regardless of marketing opt-out preferences. Always separate transactional from promotional in your design. For SMS, you must honor TCPA stop-word requests ("STOP" replies).
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6g. NOTIFICATION DEDUPLICATION                               -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Notification Deduplication</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Duplicate notifications annoy users and erode trust. Dedup must happen at multiple layers:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Layer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mechanism</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">TTL</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">What It Catches</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">API layer</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Client-provided dedup_key in Redis</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">24 hours</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retried API calls from upstream services</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Content hash</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SHA256(user_id + type + body) in Redis</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 hour</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Different callers sending same notification</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Queue consumer</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Idempotency check before provider call</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Until delivered</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Message replays from queue (at-least-once)</td>
+                        </tr>
+                    </table>
+
+                    <div class="code-block">
+                        <code>
+# Multi-layer deduplication
+import hashlib
+
+class DeduplicationService:
+    def __init__(self, redis_client):
+        self.redis = redis_client
+
+    async def is_duplicate(self, user_id: int, dedup_key: str = None,
+                            notification_type: str = None, body: str = None) -&gt; bool:
+        """Check if this notification is a duplicate."""
+
+        # Layer 1: Explicit dedup key (strongest signal)
+        if dedup_key:
+            key = f"dedup:explicit:{user_id}:{dedup_key}"
+            if await self.redis.exists(key):
+                return True
+            await self.redis.set(key, "1", ex=86400)  # 24h TTL
+
+        # Layer 2: Content hash (catch same content from different sources)
+        if notification_type and body:
+            content = f"{user_id}:{notification_type}:{body}"
+            content_hash = hashlib.sha256(content.encode()).hexdigest()[:16]
+            key = f"dedup:content:{content_hash}"
+            if await self.redis.exists(key):
+                return True
+            await self.redis.set(key, "1", ex=3600)  # 1h TTL
+
+        return False
+
+    async def mark_sent(self, notification_id: str, channel: str):
+        """Mark that this notification was sent on this channel (consumer-level dedup)."""
+        key = f"dedup:sent:{notification_id}:{channel}"
+        # SETNX: only set if not exists (atomic)
+        return await self.redis.set(key, "1", nx=True, ex=86400)
+                        </code>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6h. ANALYTICS AND TRACKING                                   -->
+            <!-- ============================================================ -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Analytics and Tracking</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Notification analytics drive product decisions. We track the full funnel: sent &rarr; delivered &rarr; opened &rarr; clicked &rarr; converted.</p>
+
+                    <h4>Tracking Architecture</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph Events
+        E1[Sent Event]
+        E2[Delivered Event]
+        E3[Opened Event]
+        E4[Clicked Event]
+    end
+
+    E1 --> KF[Kafka<br/>notification-events]
+    E2 --> KF
+    E3 --> KF
+    E4 --> KF
+
+    KF --> FL[Flink / Spark<br/>Stream Processor]
+    FL --> RT[(Real-time Dashboard<br/>Redis Counters)]
+    FL --> CH[(ClickHouse<br/>Historical Analytics)]
+    FL --> AL[Alerting<br/>PagerDuty]
+
+    CH --> DASH[Analytics Dashboard]
+    RT --> DASH
+                        </div>
+                    </div>
+
+                    <h4>How Tracking Works Per Channel</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Event</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Push</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Email</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">SMS</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">In-App</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Sent</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider accepted</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider accepted</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider accepted</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Written to feed DB</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Delivered</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">FCM/APNs delivery receipt</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Not reliably trackable</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Twilio delivery callback</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Feed loaded by client</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Opened</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">App open from notification</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tracking pixel (1x1 image)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">N/A</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notification viewed in feed</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Clicked</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deep link opened</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Link redirect tracking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Short URL redirect</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Action URL clicked</td>
+                        </tr>
+                    </table>
+
+                    <h4>Key Metrics</h4>
+                    <ul>
+                        <li><strong>Delivery rate:</strong> delivered / sent (target: &gt;99% for push, &gt;95% for email)</li>
+                        <li><strong>Open rate:</strong> opened / delivered (push: 40-60%, email: 15-25%)</li>
+                        <li><strong>Click-through rate (CTR):</strong> clicked / opened (push: 10-20%, email: 2-5%)</li>
+                        <li><strong>Opt-out rate:</strong> unsubscribes / delivered (alarm if &gt;1% per campaign)</li>
+                        <li><strong>Latency p50/p99:</strong> Time from send request to provider acceptance</li>
+                        <li><strong>Failure rate:</strong> Failed sends per channel, broken down by error type</li>
+                    </ul>
+
+                    <div class="card" style="background: var(--warning-bg);">
+                        <strong>Interview Tip:</strong> Mention that email open tracking via pixel is increasingly unreliable due to Apple Mail Privacy Protection (pre-fetches images). Modern systems should focus on click-through rates as the primary engagement metric for email.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. SCALING CONSIDERATIONS                                    -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. Scaling Considerations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scaling the Notification System</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Horizontal Scaling</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Component</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scaling Strategy</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Details</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notification Service</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stateless, auto-scale on QPS</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Behind a load balancer; scale up during campaigns</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Message Queues (Kafka)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Partition by user_id hash</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ensures per-user ordering; add partitions for throughput</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Channel Workers</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Scale independently per channel</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Push may need 100 workers, SMS only 20</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notification DB</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Shard by user_id, partition by time</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Easy cleanup: drop old time partitions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Preference Cache (Redis)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Redis Cluster, shard by user_id</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100M users &times; 200 bytes = ~20 GB</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dedup Cache (Redis)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Separate Redis cluster with aggressive TTL</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Short-lived keys, high write throughput</td>
+                        </tr>
+                    </table>
+
+                    <h4>Handling Bulk Sends (Campaigns)</h4>
+                    <p>A marketing campaign targeting 50M users cannot be sent all at once. This would overwhelm providers and violate rate limits. Instead:</p>
+                    <ol>
+                        <li><strong>Segment expansion:</strong> A background job expands the user segment into a list of user IDs.</li>
+                        <li><strong>Batched enqueue:</strong> Enqueue in batches of 10,000, with throttling between batches.</li>
+                        <li><strong>Time-zone aware scheduling:</strong> Group users by timezone and send at 9 AM local time.</li>
+                        <li><strong>Provider rate limiting:</strong> Workers respect per-provider rate limits (e.g., SendGrid 100K emails/sec, Twilio 10K SMS/sec).</li>
+                        <li><strong>Progress tracking:</strong> Store batch progress in Redis for real-time monitoring of the campaign.</li>
+                    </ol>
+
+                    <h4>Email-Specific: Batching and Warm-up</h4>
+                    <ul>
+                        <li><strong>IP warm-up:</strong> New sending IPs must be gradually ramped (start at 1K/day, double each day over 2 weeks) to build sender reputation.</li>
+                        <li><strong>Dedicated IPs:</strong> Separate IPs for transactional vs. marketing email to protect transactional deliverability.</li>
+                        <li><strong>Bounce handling:</strong> Hard bounces (invalid address) must immediately suppress the address. Soft bounces retry 3 times then suppress.</li>
+                        <li><strong>Unsubscribe handling:</strong> One-click unsubscribe header (List-Unsubscribe) required by Gmail/Yahoo since Feb 2024.</li>
+                    </ul>
+
+                    <h4>In-App Feed: Read Path Optimization</h4>
+                    <ul>
+                        <li><strong>Redis Sorted Set:</strong> Per-user sorted set with notification_id as member and timestamp as score. Fast retrieval of latest N notifications.</li>
+                        <li><strong>Fan-out on write:</strong> When a notification is created, add to the user's sorted set. Trim to keep only the latest 200.</li>
+                        <li><strong>Unread count:</strong> Maintain a separate Redis counter for unread count, decremented on read. Avoids scanning the entire feed.</li>
+                        <li><strong>Pagination:</strong> Use cursor-based pagination (ZRANGEBYSCORE) for smooth infinite scroll.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. COMMON FOLLOW-UP QUESTIONS                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Common Follow-up Questions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How would you handle notification ordering?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Partition Kafka topics by user_id to ensure per-user ordering within a partition. This guarantees that a "payment received" notification arrives before a "order shipped" notification for the same user. Across different users, ordering is not required.</p>
+                    <p>For the in-app feed, use the notification's created_at timestamp as the sort key rather than delivery time, so the feed always appears chronologically correct even if delivery was delayed.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How do you handle provider failover?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Maintain multiple providers per channel (e.g., SendGrid + AWS SES for email, Twilio + Vonage for SMS). Use a circuit breaker pattern:</p>
+                    <ul>
+                        <li>If provider A fails 5 consecutive requests within 30 seconds, open the circuit.</li>
+                        <li>Route all traffic to provider B.</li>
+                        <li>After 60 seconds, send a probe request to provider A (half-open state).</li>
+                        <li>If the probe succeeds, close the circuit and resume using A.</li>
+                    </ul>
+                    <p>For push, APNs and FCM are mandatory (no alternatives for their respective platforms), so retry with backoff is the only option. For web push, you can fall back to in-app notifications if push delivery fails.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How do you send a notification to 100M users?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A broadcast to all users is essentially a large fan-out problem:</p>
+                    <ol>
+                        <li><strong>Segment query:</strong> Run a query against the user table (or a pre-materialized segment) to get all eligible user IDs. Paginate through results using cursor.</li>
+                        <li><strong>Batch producer:</strong> A dedicated "campaign worker" reads user IDs in batches of 10K and publishes individual notification messages to Kafka.</li>
+                        <li><strong>Throttling:</strong> Insert artificial delays between batches to control the publishing rate (e.g., 500K/minute to complete 100M in ~3.3 hours).</li>
+                        <li><strong>Timezone bucketing:</strong> Group users by timezone. Send to each timezone bucket at the optimal local time.</li>
+                        <li><strong>Progress:</strong> Track completion (users_processed / total_users) in Redis and expose via admin dashboard.</li>
+                    </ol>
+                    <p>At 30K notifications/sec peak capacity, sending to 100M users takes approximately 55 minutes if throughput is fully utilized, or can be spread over hours for lower priority campaigns.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How would you implement scheduled notifications?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Two approaches depending on precision requirements:</p>
+                    <ul>
+                        <li><strong>Database polling (simple):</strong> Store scheduled_at in the notifications table. A cron job runs every minute, queries for notifications where scheduled_at &lt;= NOW() and status = 'pending', and enqueues them. Works for minute-level precision.</li>
+                        <li><strong>Delayed queue (precise):</strong> Use Redis sorted sets with scheduled_at as the score. A worker continuously polls ZRANGEBYSCORE for entries whose score &lt;= current_time. Achieves second-level precision.</li>
+                    </ul>
+                    <p>For time-zone-aware scheduling ("send at 9 AM local time"), pre-compute the UTC send time for each user based on their timezone setting and insert into the delayed queue. Handle DST transitions by recomputing times for affected users during DST change windows.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How do you prevent notification fatigue?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Notification fatigue leads to users disabling notifications or uninstalling the app. Prevention strategies:</p>
+                    <ul>
+                        <li><strong>Per-user rate limits:</strong> Max N notifications per channel per hour (as implemented in the rate limiter above).</li>
+                        <li><strong>Intelligent batching:</strong> Instead of 10 separate "new like" notifications, batch them: "Alice, Bob, and 8 others liked your post."</li>
+                        <li><strong>Smart suppression:</strong> If the user is currently active in the app, suppress push/email and only show in-app. Detected via a "last_active" heartbeat in Redis.</li>
+                        <li><strong>ML-based send time optimization:</strong> Learn the best time to send each user notifications based on historical engagement patterns.</li>
+                        <li><strong>Notification grouping:</strong> On iOS/Android, use thread_id / notification channels to group related notifications rather than flooding the notification shade.</li>
+                        <li><strong>Frequency caps per category:</strong> Max 1 marketing push per day, max 3 social notifications per hour.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What about multi-region deployment?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>For a global user base:</p>
+                    <ul>
+                        <li><strong>Regional notification services:</strong> Deploy the Notification Service in each region (US, EU, APAC). Route users to their closest region.</li>
+                        <li><strong>Shared Kafka clusters:</strong> Use MirrorMaker 2 or Confluent Cluster Linking to replicate across regions for disaster recovery.</li>
+                        <li><strong>Global preference store:</strong> User preferences replicated across regions with eventual consistency (CRDTs or last-write-wins).</li>
+                        <li><strong>Provider proximity:</strong> Use regional provider endpoints (e.g., SES in eu-west-1 for EU users) to reduce latency and comply with data residency requirements.</li>
+                        <li><strong>GDPR compliance:</strong> EU user data must be processed in EU region. Route EU user notifications through EU infrastructure only.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. SUMMARY                                                   -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Summary</h2>
+
+            <div class="card">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Scale</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">100M users, 1B notifications/day</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Peak QPS</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~30,000 notifications/sec</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Storage</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~30 TB (90-day retention, compressed)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Channels</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Push (APNs/FCM), Email (SES/SendGrid), SMS (Twilio), In-App</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Delivery</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">At-least-once with deduplication</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Key Tech</strong></td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">Kafka, Redis, PostgreSQL/Cassandra, ClickHouse</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="card mt-3" style="background: var(--info-bg);">
+                <h3 style="margin-top: 0;">Key Talking Points for the Interview</h3>
+                <ol>
+                    <li><strong>Queue-per-channel isolation</strong> prevents one channel's failure from affecting others.</li>
+                    <li><strong>Deduplication at multiple layers</strong> (API, content hash, consumer) ensures exactly-once delivery semantics on top of at-least-once infrastructure.</li>
+                    <li><strong>Priority queues</strong> guarantee urgent notifications (OTP, security) are never starved by bulk campaigns.</li>
+                    <li><strong>User preferences and rate limiting</strong> are not just features -- they're compliance requirements (CAN-SPAM, GDPR, TCPA).</li>
+                    <li><strong>Provider abstraction</strong> with circuit breakers enables failover and prevents vendor lock-in.</li>
+                    <li><strong>Analytics pipeline</strong> is essential for measuring notification effectiveness and detecting delivery issues.</li>
+                </ol>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="video-streaming.html" class="btn btn-secondary">&larr; Previous: Video Streaming</a>
+                <a href="../index.html" class="btn btn-primary">Back to System Design &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+</body>
+</html>

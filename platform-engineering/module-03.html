@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 3: Pagination, Rate Limiting &amp; API Gateways - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link active" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 3: Pagination, Rate Limiting &amp; API Gateways</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Cursor vs offset vs keyset pagination &mdash; deep tradeoffs and implementation</li>
+                    <li>Rate limiting algorithms: token bucket, sliding window, leaky bucket</li>
+                    <li>API gateway patterns, BFF, and service mesh considerations</li>
+                    <li>Request routing, traffic shaping, and API composition</li>
+                    <li>GraphQL-specific pagination with Relay connections</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Pagination Patterns</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main pagination strategies and their tradeoffs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>How It Works</th><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Offset</strong></td>
+                                <td><code>?offset=20&amp;limit=10</code></td>
+                                <td>Simple, jump to any page</td>
+                                <td>Slow on large datasets (OFFSET scans rows), inconsistent with concurrent writes</td>
+                                <td>Small datasets, admin UIs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cursor</strong></td>
+                                <td><code>?cursor=eyJpZCI6MTIzfQ&amp;limit=10</code></td>
+                                <td>Consistent results, efficient (index seek)</td>
+                                <td>Can't jump to arbitrary page, opaque cursor</td>
+                                <td>Infinite scroll, feeds, large datasets</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Keyset</strong></td>
+                                <td><code>?after_id=123&amp;limit=10</code></td>
+                                <td>Transparent, efficient, stable</td>
+                                <td>Requires sortable unique column, can't jump pages</td>
+                                <td>API consumers who need transparency</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Page number</strong></td>
+                                <td><code>?page=3&amp;per_page=10</code></td>
+                                <td>Intuitive for users</td>
+                                <td>Same problems as offset (it IS offset)</td>
+                                <td>Simple web UIs with page navigation</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Why offset pagination breaks at scale:</strong></p>
+                    <pre><code class="language-sql">-- Offset pagination: database must scan and discard 1,000,000 rows
+SELECT * FROM events ORDER BY created_at DESC OFFSET 1000000 LIMIT 10;
+
+-- Keyset pagination: database seeks directly via index
+SELECT * FROM events
+WHERE created_at &lt; '2024-01-15T10:30:00Z'
+ORDER BY created_at DESC
+LIMIT 10;</code></pre>
+
+                    <p>The offset query gets linearly slower as the offset grows. At 1M offset, PostgreSQL must scan 1,000,010 rows to return 10. The keyset query always scans ~10 rows regardless of position.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you implement cursor-based pagination?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A cursor encodes the position in the result set, typically as a base64-encoded combination of sort fields:</p>
+
+                    <pre><code class="language-python">import base64
+import json
+from datetime import datetime
+
+def encode_cursor(created_at: datetime, id: str) -&gt; str:
+    """Encode pagination position as opaque cursor."""
+    payload = {"created_at": created_at.isoformat(), "id": id}
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+def decode_cursor(cursor: str) -&gt; dict:
+    """Decode cursor back to pagination position."""
+    return json.loads(base64.urlsafe_b64decode(cursor.encode()))
+
+async def list_events(cursor: str = None, limit: int = 20):
+    query = "SELECT * FROM events"
+    params = []
+
+    if cursor:
+        pos = decode_cursor(cursor)
+        # Use compound condition for stable sorting
+        query += """
+            WHERE (created_at, id) &lt; (%(created_at)s, %(id)s)
+        """
+        params = {"created_at": pos["created_at"], "id": pos["id"]}
+
+    query += " ORDER BY created_at DESC, id DESC LIMIT %(limit)s"
+    params["limit"] = limit + 1  # Fetch one extra to check if more exist
+
+    rows = await db.fetch(query, params)
+    has_next = len(rows) &gt; limit
+    items = rows[:limit]
+
+    return {
+        "items": items,
+        "pagination": {
+            "next_cursor": encode_cursor(items[-1].created_at, items[-1].id) if has_next else None,
+            "has_next": has_next
+        }
+    }</code></pre>
+
+                    <p><strong>Key implementation details:</strong></p>
+                    <ul>
+                        <li>Always include a unique column (like <code>id</code>) in the cursor to handle ties in the sort field</li>
+                        <li>Fetch <code>limit + 1</code> rows to determine if there's a next page without a separate COUNT query</li>
+                        <li>Make cursors opaque (base64) so clients don't try to construct them manually</li>
+                        <li>Include a composite index on <code>(created_at, id)</code> for efficient seeks</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is Relay-style pagination for GraphQL?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The Relay Connection specification is the standard pagination pattern for GraphQL. It uses edges, nodes, cursors, and pageInfo:</p>
+
+                    <pre><code class="language-graphql">type Query {
+  users(first: Int, after: String, last: Int, before: String): UserConnection!
+}
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int
+}
+
+type UserEdge {
+  node: User!
+  cursor: String!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+# Query example
+query {
+  users(first: 10, after: "cursor123") {
+    edges {
+      node {
+        id
+        name
+        email
+      }
+      cursor
+    }
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    totalCount
+  }
+}</code></pre>
+
+                    <p><strong>Why this structure:</strong></p>
+                    <ul>
+                        <li><strong>Edges</strong> wrap nodes so you can attach edge-specific metadata (e.g., relationship properties in a graph)</li>
+                        <li><strong>Cursors on each edge</strong> let you start from any item, not just the page boundary</li>
+                        <li><strong>pageInfo</strong> provides navigation without separate queries</li>
+                        <li><strong>first/after</strong> for forward pagination, <strong>last/before</strong> for backward</li>
+                    </ul>
+
+                    <p><strong>When to use Relay vs simple pagination:</strong> Use Relay-style for production GraphQL APIs that multiple clients consume. For internal tools or simple APIs, a simpler <code>{items, nextCursor}</code> pattern is fine.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Rate Limiting</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main rate limiting algorithms and when should you use each?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Algorithm</th><th>How It Works</th><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Token Bucket</strong></td>
+                                <td>Tokens added at fixed rate, each request consumes a token</td>
+                                <td>Allows bursts, smooth average rate</td>
+                                <td>Burst size needs tuning</td>
+                                <td>Most APIs (default choice)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Leaky Bucket</strong></td>
+                                <td>Requests queue and drain at fixed rate</td>
+                                <td>Perfectly smooth output rate</td>
+                                <td>No burst tolerance, adds latency</td>
+                                <td>Systems needing constant throughput</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Fixed Window</strong></td>
+                                <td>Count requests in fixed time windows</td>
+                                <td>Simple, low memory</td>
+                                <td>Burst at window boundaries (2x rate)</td>
+                                <td>Simple rate limiting needs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sliding Window Log</strong></td>
+                                <td>Track timestamp of each request, count in rolling window</td>
+                                <td>Accurate, no boundary issues</td>
+                                <td>Memory-intensive (stores all timestamps)</td>
+                                <td>Low-volume, high-accuracy needs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sliding Window Counter</strong></td>
+                                <td>Weighted average of current and previous window</td>
+                                <td>Memory-efficient, smooth</td>
+                                <td>Approximate (but close enough)</td>
+                                <td>High-volume production use</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How does the token bucket algorithm work? Show an implementation.</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Token bucket maintains a bucket of tokens that refills at a constant rate. Each request consumes one token. If the bucket is empty, the request is rejected.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    R[Refill: tokens added at rate R] --> B[Token Bucket - capacity C]
+    B --> |token available| A[Request Allowed]
+    B --> |bucket empty| D[Request Rejected - 429]
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python">import time
+import redis
+
+class TokenBucketRateLimiter:
+    def __init__(self, redis_client: redis.Redis, capacity: int, refill_rate: float):
+        """
+        capacity: max tokens in bucket
+        refill_rate: tokens added per second
+        """
+        self.redis = redis_client
+        self.capacity = capacity
+        self.refill_rate = refill_rate
+
+    def allow_request(self, key: str) -&gt; tuple[bool, dict]:
+        """Check if request is allowed. Returns (allowed, metadata)."""
+        now = time.time()
+        bucket_key = f"ratelimit:{key}"
+
+        # Atomic operation via Lua script
+        lua_script = """
+        local key = KEYS[1]
+        local capacity = tonumber(ARGV[1])
+        local refill_rate = tonumber(ARGV[2])
+        local now = tonumber(ARGV[3])
+
+        local bucket = redis.call('HMGET', key, 'tokens', 'last_refill')
+        local tokens = tonumber(bucket[1]) or capacity
+        local last_refill = tonumber(bucket[2]) or now
+
+        -- Refill tokens based on elapsed time
+        local elapsed = now - last_refill
+        tokens = math.min(capacity, tokens + elapsed * refill_rate)
+
+        local allowed = 0
+        if tokens &gt;= 1 then
+            tokens = tokens - 1
+            allowed = 1
+        end
+
+        redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+        redis.call('EXPIRE', key, math.ceil(capacity / refill_rate) * 2)
+
+        return {allowed, math.floor(tokens)}
+        """
+        allowed, remaining = self.redis.eval(
+            lua_script, 1, bucket_key,
+            self.capacity, self.refill_rate, now
+        )
+
+        return bool(allowed), {
+            "X-RateLimit-Limit": self.capacity,
+            "X-RateLimit-Remaining": remaining,
+            "X-RateLimit-Reset": int(now + (self.capacity - remaining) / self.refill_rate)
+        }</code></pre>
+
+                    <p><strong>Why Lua script?</strong> The read-compute-write must be atomic. Without the Lua script, a race condition between two concurrent requests could both read the same token count and both succeed, exceeding the limit.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the sliding window counter algorithm and why is it preferred in production?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The sliding window counter combines the simplicity of fixed windows with the accuracy of sliding window logs. It uses a weighted average of the current and previous window counts.</p>
+
+                    <pre><code class="language-python">def sliding_window_counter(key: str, limit: int, window_seconds: int) -&gt; bool:
+    """
+    Approximate sliding window using weighted average.
+    Example: limit=100, window=60s
+    """
+    now = time.time()
+    current_window = int(now // window_seconds)
+    previous_window = current_window - 1
+    elapsed_in_current = now % window_seconds
+    weight_previous = 1 - (elapsed_in_current / window_seconds)
+
+    prev_count = redis.get(f"rate:{key}:{previous_window}") or 0
+    curr_count = redis.get(f"rate:{key}:{current_window}") or 0
+
+    # Weighted estimate of requests in the sliding window
+    estimated_count = int(prev_count) * weight_previous + int(curr_count)
+
+    if estimated_count &gt;= limit:
+        return False  # Rate limited
+
+    # Increment current window counter
+    pipe = redis.pipeline()
+    pipe.incr(f"rate:{key}:{current_window}")
+    pipe.expire(f"rate:{key}:{current_window}", window_seconds * 2)
+    pipe.execute()
+    return True</code></pre>
+
+                    <p><strong>Example:</strong> If the previous window (0:00-1:00) had 80 requests and the current window (1:00-2:00) has 30 requests at time 1:15 (25% into the window):</p>
+                    <ul>
+                        <li>Weight of previous window: 75% (0.75)</li>
+                        <li>Estimated count: 80 &times; 0.75 + 30 = 90</li>
+                        <li>If limit is 100, this request is allowed (90 &lt; 100)</li>
+                    </ul>
+
+                    <p><strong>Why production prefers this:</strong> Only two counters in memory per client (current + previous window), O(1) time and space, and 99.9% accurate compared to exact sliding window. Cloudflare uses this algorithm for their rate limiting.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How should rate limit information be communicated to clients?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Use standard headers (draft RFC 6585 / RateLimit header fields):</p>
+
+                    <pre><code class="language-http">HTTP/1.1 200 OK
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 742
+X-RateLimit-Reset: 1705312800
+RateLimit-Policy: 1000;w=3600
+
+---
+
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1705312800
+Retry-After: 45
+Content-Type: application/problem+json
+
+{
+  "type": "https://api.example.com/errors/rate-limited",
+  "title": "Rate Limit Exceeded",
+  "status": 429,
+  "detail": "You have exceeded the rate limit of 1000 requests per hour",
+  "retryAfter": 45
+}</code></pre>
+
+                    <p><strong>Client-side best practices:</strong></p>
+                    <ul>
+                        <li>Always check <code>X-RateLimit-Remaining</code> and proactively slow down before hitting 0</li>
+                        <li>On 429, respect <code>Retry-After</code> header &mdash; don't retry immediately</li>
+                        <li>Implement exponential backoff with jitter for retries</li>
+                        <li>Consider a client-side rate limiter that mirrors the server's limits</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you design rate limiting for a multi-tenant platform?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Multi-tenant rate limiting requires multiple layers:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Layer</th><th>Scope</th><th>Purpose</th><th>Example</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Global</strong></td><td>Entire API</td><td>Protect infrastructure</td><td>50,000 req/s total</td></tr>
+                            <tr><td><strong>Per-tenant</strong></td><td>Organization/account</td><td>Fair share, prevent noisy neighbor</td><td>1,000 req/min per org</td></tr>
+                            <tr><td><strong>Per-user</strong></td><td>Individual user</td><td>Prevent abuse</td><td>100 req/min per user</td></tr>
+                            <tr><td><strong>Per-endpoint</strong></td><td>Specific routes</td><td>Protect expensive operations</td><td>10 req/min for /reports/generate</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Tiered limits:</strong> Different plans get different limits. Store limit configurations in a fast lookup (Redis hash or in-memory cache):</p>
+
+                    <pre><code class="language-python"># Rate limit configuration per plan
+PLAN_LIMITS = {
+    "free":       {"requests_per_minute": 60,   "requests_per_day": 1000},
+    "pro":        {"requests_per_minute": 600,  "requests_per_day": 50000},
+    "enterprise": {"requests_per_minute": 6000, "requests_per_day": 500000},
+}
+
+async def rate_limit_middleware(request, call_next):
+    tenant = get_tenant(request)
+    plan = await get_tenant_plan(tenant.id)
+    limits = PLAN_LIMITS[plan]
+
+    # Check per-minute limit
+    if not rate_limiter.allow(f"tenant:{tenant.id}:rpm", limits["requests_per_minute"], 60):
+        return JSONResponse(status_code=429, content={"error": "Rate limit exceeded"})
+
+    # Check per-day limit
+    if not rate_limiter.allow(f"tenant:{tenant.id}:rpd", limits["requests_per_day"], 86400):
+        return JSONResponse(status_code=429, content={"error": "Daily quota exceeded"})
+
+    return await call_next(request)</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>API Gateways</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is an API gateway and what responsibilities should it own?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> An API gateway is a reverse proxy that sits between clients and backend services, handling cross-cutting concerns:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    C[Clients] --> GW[API Gateway]
+    GW --> |/users/*| US[User Service]
+    GW --> |/orders/*| OS[Order Service]
+    GW --> |/products/*| PS[Product Service]
+
+    subgraph "Gateway Responsibilities"
+        AUTH[Authentication]
+        RL[Rate Limiting]
+        LOG[Logging/Metrics]
+        TLS[TLS Termination]
+        ROUTE[Routing]
+        TRANS[Request Transform]
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Should own:</strong></p>
+                    <ul>
+                        <li>TLS termination</li>
+                        <li>Authentication (token validation, not issuance)</li>
+                        <li>Rate limiting</li>
+                        <li>Request/response logging</li>
+                        <li>Request routing</li>
+                        <li>CORS handling</li>
+                        <li>Request ID injection</li>
+                    </ul>
+
+                    <p><strong>Should NOT own:</strong></p>
+                    <ul>
+                        <li>Business logic</li>
+                        <li>Data transformation beyond simple header mapping</li>
+                        <li>Complex orchestration (use a BFF or API composition layer instead)</li>
+                        <li>Authorization beyond coarse-grained checks (fine-grained authz belongs in services)</li>
+                    </ul>
+
+                    <p><strong>Popular options:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Gateway</th><th>Type</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Kong</td><td>Open-source / Enterprise</td><td>Plugin ecosystem, Lua extensibility</td></tr>
+                            <tr><td>Envoy</td><td>Open-source</td><td>Service mesh integration, gRPC, high performance</td></tr>
+                            <tr><td>AWS API Gateway</td><td>Managed</td><td>AWS-native, serverless integration</td></tr>
+                            <tr><td>Azure API Management</td><td>Managed</td><td>Azure-native, developer portal</td></tr>
+                            <tr><td>Traefik</td><td>Open-source</td><td>Docker/Kubernetes, auto-discovery</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the Backend-for-Frontend (BFF) pattern and when should you use it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> BFF creates a dedicated backend service for each frontend client type (web, mobile, smart TV), tailoring the API to each client's needs.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    Web[Web App] --> BFF_W[Web BFF]
+    Mobile[Mobile App] --> BFF_M[Mobile BFF]
+    TV[Smart TV] --> BFF_T[TV BFF]
+    BFF_W --> US[User Service]
+    BFF_W --> OS[Order Service]
+    BFF_M --> US
+    BFF_M --> OS
+    BFF_T --> US
+                        </div>
+                    </div>
+
+                    <p><strong>When to use BFF:</strong></p>
+                    <ul>
+                        <li>Different clients need different data shapes (mobile needs less data than web)</li>
+                        <li>Clients need aggregated data from multiple services</li>
+                        <li>Different auth flows per client (OAuth for web, API key for mobile)</li>
+                        <li>Different performance requirements (mobile needs optimized payloads)</li>
+                    </ul>
+
+                    <p><strong>When NOT to use BFF:</strong></p>
+                    <ul>
+                        <li>Single client type &mdash; just build a good API</li>
+                        <li>GraphQL already solves the over/under-fetching problem</li>
+                        <li>Small team that can't maintain multiple BFFs</li>
+                    </ul>
+
+                    <p><strong>BFF vs GraphQL:</strong> GraphQL is often proposed as an alternative to BFF because it lets clients request exactly the data they need. In practice, many organizations use <strong>both</strong> &mdash; a BFF that exposes a GraphQL endpoint, handling service orchestration and data aggregation behind the scenes.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How does a service mesh differ from an API gateway?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>API Gateway</th><th>Service Mesh</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Position</strong></td><td>Edge (north-south traffic)</td><td>Between services (east-west traffic)</td></tr>
+                            <tr><td><strong>Scope</strong></td><td>External client to internal services</td><td>Service-to-service communication</td></tr>
+                            <tr><td><strong>Deployment</strong></td><td>Centralized proxy</td><td>Sidecar proxy per service</td></tr>
+                            <tr><td><strong>Features</strong></td><td>Auth, rate limiting, routing, TLS</td><td>mTLS, retries, circuit breaking, observability</td></tr>
+                            <tr><td><strong>Examples</strong></td><td>Kong, AWS API Gateway</td><td>Istio, Linkerd, Consul Connect</td></tr>
+                            <tr><td><strong>Who configures</strong></td><td>Platform team</td><td>Platform team + service teams</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "External Traffic (API Gateway)"
+        Client --> GW[API Gateway]
+    end
+    subgraph "Internal Traffic (Service Mesh)"
+        GW --> SA[Service A + Sidecar]
+        SA --> SB[Service B + Sidecar]
+        SA --> SC[Service C + Sidecar]
+        SB --> SC
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Staff-level take:</strong> Most organizations need an API gateway. Not all need a service mesh. A service mesh adds significant operational complexity (sidecar resource overhead, debugging through proxies, configuration management). Consider it only when you have 20+ services and need consistent mTLS, traffic policies, or observability across all service-to-service communication.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are API composition patterns and when are they needed?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> API composition aggregates data from multiple backend services into a single response. This is needed when a client request spans multiple service boundaries.</p>
+
+                    <p><strong>Patterns:</strong></p>
+                    <ol>
+                        <li><strong>Gateway aggregation</strong> &mdash; The API gateway calls multiple services and merges responses. Simple but puts logic in the gateway.</li>
+                        <li><strong>BFF orchestration</strong> &mdash; A dedicated BFF service orchestrates calls. Better separation of concerns.</li>
+                        <li><strong>GraphQL resolution</strong> &mdash; GraphQL resolver calls multiple services per query. Client-driven composition.</li>
+                        <li><strong>Async composition</strong> &mdash; For non-real-time needs, pre-compute aggregated views via event processing.</li>
+                    </ol>
+
+                    <pre><code class="language-python"># BFF orchestration example - parallel service calls
+import asyncio
+import httpx
+
+async def get_user_dashboard(user_id: str):
+    async with httpx.AsyncClient() as client:
+        # Parallel calls to multiple services
+        profile_task = client.get(f"http://user-service/users/{user_id}")
+        orders_task = client.get(f"http://order-service/users/{user_id}/orders?limit=5")
+        notifications_task = client.get(f"http://notification-service/users/{user_id}/unread")
+
+        profile, orders, notifications = await asyncio.gather(
+            profile_task, orders_task, notifications_task,
+            return_exceptions=True  # Don't fail if one service is down
+        )
+
+        return {
+            "profile": profile.json() if not isinstance(profile, Exception) else None,
+            "recent_orders": orders.json() if not isinstance(orders, Exception) else None,
+            "unread_notifications": notifications.json() if not isinstance(notifications, Exception) else {"count": 0},
+        }</code></pre>
+
+                    <p><strong>Key consideration:</strong> Always use <code>return_exceptions=True</code> and handle partial failures gracefully. A dashboard should still render if the notifications service is down &mdash; just show "0 notifications" as a degraded fallback.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you handle traffic shaping and canary routing at the gateway level?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Traffic shaping at the gateway enables safe deployments and A/B testing:</p>
+
+                    <p><strong>Canary routing:</strong> Route a percentage of traffic to the new version:</p>
+                    <pre><code class="language-yaml"># Envoy route configuration for canary
+routes:
+  - match:
+      prefix: "/api/users"
+    route:
+      weighted_clusters:
+        clusters:
+          - name: user-service-v1
+            weight: 90
+          - name: user-service-v2
+            weight: 10</code></pre>
+
+                    <p><strong>Header-based routing:</strong> Route specific users to new versions:</p>
+                    <pre><code class="language-yaml"># Route beta users to v2
+routes:
+  - match:
+      prefix: "/api/users"
+      headers:
+        - name: "X-Beta-User"
+          exact_match: "true"
+    route:
+      cluster: user-service-v2
+  - match:
+      prefix: "/api/users"
+    route:
+      cluster: user-service-v1</code></pre>
+
+                    <p><strong>Traffic shaping strategies:</strong></p>
+                    <ul>
+                        <li><strong>Percentage-based</strong> &mdash; 1% &rarr; 5% &rarr; 25% &rarr; 100% progressive rollout</li>
+                        <li><strong>Header-based</strong> &mdash; Beta users, internal employees first</li>
+                        <li><strong>Region-based</strong> &mdash; Roll out to one region before global</li>
+                        <li><strong>Shadow traffic</strong> &mdash; Mirror traffic to new version without serving responses (for testing)</li>
+                    </ul>
+
+                    <p><strong>Staff-level insight:</strong> Traffic shaping at the gateway is a platform capability that enables safe deployments for all teams. Build it once, and every service can do canary deployments without implementing their own routing logic.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the key anti-patterns in API gateway design?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <ol>
+                        <li><strong>God Gateway</strong> &mdash; Putting business logic, data transformation, and orchestration in the gateway. It becomes a monolith that's hard to test and deploy.</li>
+                        <li><strong>Single point of failure</strong> &mdash; Not making the gateway highly available. Always deploy at least 2 instances with health checks.</li>
+                        <li><strong>Gateway per team</strong> &mdash; Each team deploying their own gateway, defeating the purpose of centralized cross-cutting concerns.</li>
+                        <li><strong>Tight coupling</strong> &mdash; Gateway configuration that hardcodes service locations instead of using service discovery.</li>
+                        <li><strong>No circuit breaking</strong> &mdash; A slow backend service causes the gateway to hold connections, eventually exhausting resources and affecting all services.</li>
+                        <li><strong>Over-transformation</strong> &mdash; Transforming requests/responses extensively in the gateway. Keep transformations minimal; if complex, use a BFF.</li>
+                    </ol>
+
+                    <p><strong>Rule of thumb:</strong> If you can't explain what the gateway does in one sentence ("It handles auth, rate limiting, and routing"), it's doing too much.</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-02.html" class="btn btn-secondary">&larr; API Design</a>
+                <a href="module-04.html" class="btn btn-primary">Next: Webhooks &amp; Events &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

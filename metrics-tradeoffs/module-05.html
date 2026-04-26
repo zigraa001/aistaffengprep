@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 5: Distributed Systems Tradeoffs - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Metrics</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Foundations &amp; Mindset</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>The Metrics Mindset</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>Technical Health &amp; Reliability</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Business &amp; Product Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">System-Specific Metrics</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Cost Efficiency &amp; FinOps</a>
+                    <a href="module-05.html" class="sidebar-link active" data-module="5"><span class="sidebar-link-number">5</span>Distributed Systems Tradeoffs</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>AI &amp; ML System Metrics</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Impact &amp; Thinking</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>User Experience &amp; Feedback</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Second-Order Effects</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>Tradeoff Frameworks</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Applied &amp; Interview</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Case Studies</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Metrics Culture</a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Interview Mastery</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Abstract Thinking</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Mental Models</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Systems Thinking</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Applied Abstract Thinking</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 5: Distributed Systems Tradeoffs &mdash; Quantified</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>CAP and PACELC theorems with real-world numbers, not just theory</li>
+                    <li>How to quantify replication lag, tail latency, and coordination cost</li>
+                    <li>The throughput-latency tradeoff with concrete batching examples</li>
+                    <li>Capacity planning formulas from QPS to compute to cost</li>
+                    <li>Sharding strategies compared with quantified tradeoffs</li>
+                    <li>Consensus protocol performance: Raft vs Paxos vs Zab</li>
+                    <li>Amdahl's Law and its limits on distributed scaling</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Consistency &amp; Availability Tradeoffs</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What does CAP theorem actually mean with real numbers?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> CAP theorem states that during a network partition, a distributed system must choose between Consistency (every read gets the most recent write) and Availability (every request gets a non-error response). The key insight that most discussions miss: <em>partitions are rare but they do happen</em>, and what you choose during normal operation matters more.</p>
+
+                    <p><strong>Quantifying partition frequency:</strong></p>
+                    <table>
+                        <thead><tr><th>Environment</th><th>Partition Frequency</th><th>Typical Duration</th><th>Source</th></tr></thead>
+                        <tbody>
+                            <tr><td>Within single datacenter</td><td>~1-2 per year</td><td>Seconds to minutes</td><td>Google/Microsoft studies</td></tr>
+                            <tr><td>Cross-AZ (same region)</td><td>~4-8 per year</td><td>Minutes to hours</td><td>AWS post-mortems</td></tr>
+                            <tr><td>Cross-region</td><td>~12-24 per year</td><td>Minutes to hours</td><td>Bailis & Kingsbury 2014</td></tr>
+                            <tr><td>Cross-cloud provider</td><td>~20-50 per year</td><td>Seconds to hours</td><td>Industry estimates</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Real system choices and their measured impact:</strong></p>
+                    <table>
+                        <thead><tr><th>System</th><th>CAP Choice</th><th>What Happens During Partition</th><th>Measured Impact</th></tr></thead>
+                        <tbody>
+                            <tr><td>Google Spanner</td><td>CP (chooses consistency)</td><td>Writes block until partition heals</td><td>Write latency spikes to seconds-minutes; reads from stale replicas still work</td></tr>
+                            <tr><td>Amazon DynamoDB</td><td>AP (chooses availability)</td><td>Both sides accept writes, conflict resolution later</td><td>0 downtime but conflict rate spikes to 0.01-0.1% of writes</td></tr>
+                            <tr><td>Cassandra (QUORUM)</td><td>Tunable (CP at QUORUM)</td><td>Operations fail if quorum unreachable</td><td>Availability drops from 99.99% to ~66% during AZ loss</td></tr>
+                            <tr><td>MongoDB (primary reads)</td><td>CP</td><td>Election takes 10-30 seconds, writes fail</td><td>10-30s write unavailability on primary failure</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level insight:</strong> In practice, most systems operate in a non-partitioned state 99.9%+ of the time. The more important question is: what consistency and latency tradeoffs do you make during normal operation? This is where PACELC comes in.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is PACELC and why is it more useful than CAP?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> PACELC extends CAP by addressing what happens when there is no partition (the common case). It states: if there is a <strong>P</strong>artition, choose <strong>A</strong>vailability or <strong>C</strong>onsistency; <strong>E</strong>lse (normal operation), choose <strong>L</strong>atency or <strong>C</strong>onsistency.</p>
+
+                    <p><strong>PACELC decision matrix:</strong></p>
+                    <table>
+                        <thead><tr><th>System</th><th>During Partition (PA/PC)</th><th>Normal Operation (EL/EC)</th><th>Classification</th><th>Write Latency (normal)</th></tr></thead>
+                        <tbody>
+                            <tr><td>DynamoDB</td><td>PA (available)</td><td>EL (low latency)</td><td>PA/EL</td><td>~5ms single-region</td></tr>
+                            <tr><td>Cassandra (ONE)</td><td>PA</td><td>EL</td><td>PA/EL</td><td>~2ms local</td></tr>
+                            <tr><td>Spanner</td><td>PC (consistent)</td><td>EC (consistent)</td><td>PC/EC</td><td>~7ms single-region, ~100ms+ cross-region</td></tr>
+                            <tr><td>MongoDB</td><td>PC</td><td>EC</td><td>PC/EC</td><td>~2-5ms local</td></tr>
+                            <tr><td>CockroachDB</td><td>PC</td><td>EC</td><td>PC/EC</td><td>~10-20ms cross-AZ</td></tr>
+                            <tr><td>Cassandra (QUORUM)</td><td>PC</td><td>EC</td><td>PC/EC</td><td>~5-10ms (waits for majority)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Why PACELC is more useful:</strong> CAP only matters during partitions (rare). PACELC tells you the cost you pay every single request. Spanner's choice of EC means every write pays a cross-replica synchronization cost (~7ms minimum for TrueTime). DynamoDB's EL choice means writes are fast but you may read stale data. This latency-consistency tradeoff affects your system's performance profile 100% of the time, not just during rare partition events.</p>
+
+                    <p><strong>Decision guide for staff engineers:</strong></p>
+                    <ul>
+                        <li><strong>Financial transactions, inventory:</strong> PC/EC (Spanner, CockroachDB) -- correctness is worth the latency cost</li>
+                        <li><strong>Social feeds, product catalogs:</strong> PA/EL (DynamoDB, Cassandra ONE) -- stale data is acceptable, speed matters</li>
+                        <li><strong>User sessions, shopping carts:</strong> PA/EL with conflict resolution -- availability matters, last-write-wins is fine</li>
+                        <li><strong>Leaderboards, analytics:</strong> PA/EL -- eventual consistency is the natural model</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the consistency-latency-cost triangle?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Every distributed system navigates a three-way tradeoff between consistency, latency, and cost. You can optimize two at the expense of the third.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Consistency<br/>(strong, linearizable)"] --- B["Latency<br/>(low, sub-10ms)"]
+    B --- C["Cost<br/>(low infrastructure spend)"]
+    C --- A
+    D["Choose any two.<br/>The third suffers."]
+    style A fill:#3b82f6,stroke:#1d4ed8,color:#fff
+    style B fill:#22c55e,stroke:#16a34a,color:#fff
+    style C fill:#f59e0b,stroke:#d97706,color:#fff
+    style D fill:#f1f5f9,stroke:#94a3b8,color:#334155
+                        </div>
+                    </div>
+
+                    <p><strong>Concrete examples of each pair:</strong></p>
+                    <table>
+                        <thead><tr><th>You Get</th><th>You Sacrifice</th><th>Example</th><th>How</th></tr></thead>
+                        <tbody>
+                            <tr><td>Consistency + Low Latency</td><td>Cost</td><td>Spanner (global strong consistency at low latency)</td><td>Atomic clocks, massive global infrastructure, expensive per-node</td></tr>
+                            <tr><td>Consistency + Low Cost</td><td>Latency</td><td>Single-region PostgreSQL with sync replication</td><td>One primary, sync replicas; writes wait for ack; cross-region reads are slow</td></tr>
+                            <tr><td>Low Latency + Low Cost</td><td>Consistency</td><td>Cassandra with ONE consistency level</td><td>Local writes, async replication; stale reads possible</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Quantified cost comparison:</strong></p>
+                    <pre><code class="language-text">Serving 100K writes/sec globally (3 regions):
+
+Option A: Strong consistency + low latency (Spanner-like)
+  Infra: ~$50,000/month (TrueTime-equivalent, global replication)
+  Write latency: ~14ms cross-region
+  Read latency: ~5ms (stale reads) to ~14ms (strong reads)
+
+Option B: Strong consistency + low cost (single-primary Postgres)
+  Infra: ~$8,000/month
+  Write latency: ~2ms (local) to ~150ms (cross-region if forwarded to primary)
+  Read latency: ~2ms (local, stale) to ~150ms (cross-region, strong)
+
+Option C: Low latency + low cost (Cassandra ONE)
+  Infra: ~$12,000/month
+  Write latency: ~2ms (local)
+  Read latency: ~2ms (local, potentially stale by 50-200ms)
+  Staleness: 50-200ms replication lag during normal operation</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Latency Deep Dive</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you quantify replication lag? (sync vs async with real latency numbers)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Replication lag is the time between a write being committed on the primary and being visible on a replica. This is the fundamental measure of data freshness in distributed systems.</p>
+
+                    <table>
+                        <thead><tr><th>Replication Mode</th><th>Within AZ</th><th>Cross-AZ (same region)</th><th>Cross-Region</th><th>Write Latency Impact</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Synchronous</strong></td><td>&lt;1ms lag, 0 data loss</td><td>1-3ms lag, 0 data loss</td><td>50-200ms lag, 0 data loss</td><td>Write blocked until replica ACKs</td></tr>
+                            <tr><td><strong>Semi-synchronous</strong></td><td>&lt;1ms lag</td><td>1-3ms lag</td><td>50-200ms lag</td><td>Write blocked until 1 replica ACKs</td></tr>
+                            <tr><td><strong>Asynchronous</strong></td><td>0-10ms lag typical</td><td>1-50ms lag typical</td><td>100ms-2s lag typical</td><td>No write impact</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Measuring replication lag in PostgreSQL:</strong></p>
+                    <pre><code class="language-sql">-- On primary: check replication lag for each replica
+SELECT
+    client_addr,
+    state,
+    sent_lsn,
+    write_lsn,
+    flush_lsn,
+    replay_lsn,
+    pg_wal_lsn_diff(sent_lsn, replay_lsn) AS replay_lag_bytes,
+    write_lag,
+    flush_lag,
+    replay_lag
+FROM pg_stat_replication;
+
+-- Example output:
+-- client_addr | replay_lag_bytes | replay_lag
+-- 10.0.1.5   | 1048576          | 00:00:00.023   (23ms, same region)
+-- 10.0.2.5   | 8388608          | 00:00:00.847   (847ms, cross-region)</code></pre>
+
+                    <p><strong>The staleness budget:</strong> Different features tolerate different staleness. Define a staleness budget per feature:</p>
+                    <ul>
+                        <li><strong>Account balance after deposit:</strong> 0ms (must read-your-writes) -- route to primary</li>
+                        <li><strong>Product inventory count:</strong> &lt;5s (approximate is fine) -- replica is fine</li>
+                        <li><strong>User profile display:</strong> &lt;30s (eventual is acceptable) -- any replica</li>
+                        <li><strong>Analytics dashboard:</strong> &lt;5min (batch lag acceptable) -- read from analytics replica</li>
+                    </ul>
+
+                    <p><strong>Staff-level pattern:</strong> Implement read-your-writes consistency by routing the writing user's subsequent reads to the primary (or a synchronous replica) for a brief window (e.g., 5 seconds), while routing all other users' reads to async replicas. This gives the consistency guarantee where it matters without paying the latency cost globally.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is tail latency amplification and how do you calculate it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Tail latency amplification occurs when a single user request fans out to multiple backend services, and the overall latency is determined by the slowest response. This is one of the most important phenomena in microservice architectures.</p>
+
+                    <p><strong>The math:</strong></p>
+                    <pre><code class="language-text">If a single service has p99 latency of 10ms,
+and a user request fans out to N services in parallel:
+
+P(all N services respond within 10ms) = 0.99^N
+
+N=1:  99.0% within 10ms   (p99 = 10ms)
+N=5:  95.1% within 10ms   (effective p95 = 10ms, p99 ~ 15ms)
+N=10: 90.4% within 10ms   (effective p90 = 10ms, p99 ~ 25ms)
+N=20: 81.8% within 10ms   (effective p82 = 10ms, p99 ~ 50ms)
+N=50: 60.5% within 10ms   (effective p60 = 10ms, p99 ~ 100ms+)
+N=100: 36.6% within 10ms  (p99 becomes unusable)</code></pre>
+
+                    <p><strong>Google's real-world data (from Jeff Dean's "Tail at Scale" paper):</strong> A Google web search fans out to thousands of leaf servers. Even if each server's p99 is 10ms, the overall p99 of the search would be terrible without mitigation. Google measured that a request touching 100 servers has a 63% chance of experiencing at least one server's p99 latency.</p>
+
+                    <p><strong>Mitigation strategies with measured impact:</strong></p>
+                    <table>
+                        <thead><tr><th>Strategy</th><th>How It Works</th><th>Measured Improvement</th><th>Cost</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Hedged requests</strong></td><td>Send same request to 2 replicas, use first response</td><td>p99 reduced by 30-50%</td><td>~5% extra load (cancel second after first returns)</td></tr>
+                            <tr><td><strong>Tied requests</strong></td><td>Send to 2 replicas, first to start processing cancels the other</td><td>p99 reduced by 40-60%</td><td>~2% extra load</td></tr>
+                            <tr><td><strong>Backup requests with delay</strong></td><td>Send backup only if primary does not respond within p95 time</td><td>p99 reduced by 20-40%</td><td>~2% extra load</td></tr>
+                            <tr><td><strong>Reducing fan-out</strong></td><td>Restructure to call fewer services</td><td>Proportional to fan-out reduction</td><td>Architectural change</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Python implementation of hedged requests:</strong></p>
+                    <pre><code class="language-python">import asyncio
+from typing import Any
+
+async def hedged_request(
+    func,
+    *args,
+    replicas: list[str] = None,
+    hedge_delay_ms: float = 10.0,  # p95 of the service
+    **kwargs
+) -&gt; Any:
+    """Send request to primary; if no response within hedge_delay,
+    send to a second replica and return whichever responds first."""
+
+    async def call_replica(replica: str):
+        return await func(replica, *args, **kwargs)
+
+    primary = replicas[0]
+    backup = replicas[1]
+
+    # Start primary request
+    primary_task = asyncio.create_task(call_replica(primary))
+
+    # Wait for hedge delay
+    done, pending = await asyncio.wait(
+        {primary_task},
+        timeout=hedge_delay_ms / 1000.0
+    )
+
+    if done:
+        return primary_task.result()
+
+    # Primary is slow; send hedged request
+    backup_task = asyncio.create_task(call_replica(backup))
+
+    done, pending = await asyncio.wait(
+        {primary_task, backup_task},
+        return_when=asyncio.FIRST_COMPLETED
+    )
+
+    # Cancel the slower one
+    for task in pending:
+        task.cancel()
+
+    return done.pop().result()</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure and reduce tail latency?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Measuring tail latency requires high-resolution histograms, not averages. Averages hide the worst cases that affect real users.</p>
+
+                    <p><strong>What to measure:</strong></p>
+                    <pre><code class="language-text">Essential latency percentiles:
+  p50  (median): The "typical" experience
+  p90:  10% of users see this or worse
+  p95:  Your SLO target for most services
+  p99:  The "tail" -- affects 1 in 100 requests
+  p99.9: The "far tail" -- matters at high traffic (10K rps = 10 req/sec at p99.9)
+
+Latency budget example:
+  User-facing API SLO: p99 &lt; 200ms
+
+  Breakdown:
+    Load balancer:    ~1ms
+    Auth middleware:   ~5ms
+    Business logic:   ~10ms
+    Database query:   ~20ms p50, ~100ms p99  &lt;-- main contributor
+    External API:     ~50ms p50, ~500ms p99  &lt;-- tail latency source
+    Serialization:    ~2ms
+
+  Total p50: ~88ms (fine)
+  Total p99: ~618ms (SLO violation!)</code></pre>
+
+                    <p><strong>Common tail latency causes and fixes:</strong></p>
+                    <table>
+                        <thead><tr><th>Cause</th><th>Symptom</th><th>Fix</th><th>Expected Improvement</th></tr></thead>
+                        <tbody>
+                            <tr><td>GC pauses (Java/Go)</td><td>Periodic p99 spikes of 50-200ms</td><td>Tune GC, reduce allocation rate, use off-heap</td><td>50-80% p99 reduction</td></tr>
+                            <tr><td>Lock contention</td><td>p99 grows with concurrency</td><td>Shard locks, use lock-free structures</td><td>40-70% p99 reduction</td></tr>
+                            <tr><td>Noisy neighbors (shared infra)</td><td>Random spikes not correlated with load</td><td>Dedicated instances, CPU pinning</td><td>30-60% p99 reduction</td></tr>
+                            <tr><td>Cold cache on deploys</td><td>p99 spikes after each deployment</td><td>Cache warming, canary deploys</td><td>Eliminates deploy-related spikes</td></tr>
+                            <tr><td>Connection pool exhaustion</td><td>p99 spikes under moderate load</td><td>Right-size pools, add connection timeout</td><td>60-90% p99 reduction</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key principle:</strong> Optimize the p99, not the p50. Reducing p50 from 10ms to 5ms has minimal user impact. Reducing p99 from 500ms to 100ms dramatically improves user experience for the users who are most likely to churn.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the real costs of strong consistency vs eventual consistency?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The costs are measurable across four dimensions: latency, throughput, availability, and operational complexity.</p>
+
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Strong Consistency</th><th>Eventual Consistency</th><th>Quantified Difference</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Write latency</strong></td><td>Must wait for quorum ACK</td><td>ACK after local write</td><td>2-10x higher for strong (5ms vs 1ms local, 150ms vs 5ms cross-region)</td></tr>
+                            <tr><td><strong>Write throughput</strong></td><td>Limited by slowest quorum member</td><td>Limited only by local node</td><td>3-10x lower for strong</td></tr>
+                            <tr><td><strong>Read latency</strong></td><td>May need to check leader or read quorum</td><td>Any replica, local</td><td>1-5x higher for strong reads</td></tr>
+                            <tr><td><strong>Availability during AZ loss</strong></td><td>Unavailable if quorum lost</td><td>Reduced capacity but available</td><td>99.95% vs 99.99% typical</td></tr>
+                            <tr><td><strong>Conflict resolution</strong></td><td>Not needed (no conflicts by design)</td><td>Required (LWW, vector clocks, CRDTs)</td><td>0 engineering cost vs significant</td></tr>
+                            <tr><td><strong>Bug surface area</strong></td><td>Lower (serial execution model)</td><td>Higher (concurrent updates, stale reads)</td><td>~3x more consistency-related bugs with eventual</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>The hidden cost of eventual consistency:</strong> Engineering time spent debugging "impossible" bugs caused by stale reads, race conditions, and conflict resolution. At Amazon, the DynamoDB team estimates that 30% of customer support tickets for DynamoDB are related to eventual consistency confusion. The operational cost of training engineers and debugging consistency-related issues is substantial.</p>
+
+                    <p><strong>Hybrid approach (most common in practice):</strong> Use strong consistency for the critical path (payments, inventory decrement, user auth) and eventual consistency for everything else (product reviews, recommendations, activity feeds). This gives you the correctness guarantees where they matter while keeping costs low for the majority of operations.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you quantify the "cost of coordination"? (Raft/Paxos latency overhead)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Coordination (consensus) requires network round trips between nodes to agree on the order of operations. This adds a fixed latency floor to every write operation.</p>
+
+                    <p><strong>Consensus protocol latency breakdown:</strong></p>
+                    <pre><code class="language-text">Raft/Paxos single write:
+  1. Client sends write to leader          ~0.5ms (network)
+  2. Leader appends to local log            ~0.1ms (disk fsync)
+  3. Leader sends AppendEntries to followers ~0.5ms (network)
+  4. Followers append + ACK                 ~0.6ms (disk + network)
+  5. Leader commits after majority ACK      ~0.1ms
+  6. Leader responds to client              ~0.5ms
+
+  Minimum: ~2.3ms within same AZ (dominated by fsync + RTT)
+  Cross-AZ: ~5-10ms (RTT is 1-3ms per hop)
+  Cross-region: ~100-300ms (RTT is 50-150ms per hop)</code></pre>
+
+                    <p><strong>Throughput impact of coordination:</strong></p>
+                    <table>
+                        <thead><tr><th>Configuration</th><th>Max Write Throughput</th><th>Latency (p50)</th><th>Why</th></tr></thead>
+                        <tbody>
+                            <tr><td>Single node (no coordination)</td><td>100K+ writes/sec</td><td>&lt;1ms</td><td>Only local disk latency</td></tr>
+                            <tr><td>3-node Raft (same AZ)</td><td>20-50K writes/sec</td><td>~2-3ms</td><td>2 network RTTs + fsync</td></tr>
+                            <tr><td>5-node Raft (cross-AZ)</td><td>5-15K writes/sec</td><td>~5-10ms</td><td>Cross-AZ RTT dominates</td></tr>
+                            <tr><td>5-node Raft (cross-region)</td><td>500-2K writes/sec</td><td>~100-300ms</td><td>Cross-region RTT dominates</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Batching to amortize coordination cost:</strong> Instead of one consensus round per write, batch multiple writes into a single consensus round. etcd uses this approach -- batching 100 writes into one Raft round reduces per-write latency overhead from 2.3ms to ~0.023ms. The tradeoff: individual write latency increases slightly (waiting for the batch to fill) but throughput increases dramatically.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Throughput, Capacity &amp; Scaling</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the throughput-latency tradeoff? (batching example with numbers)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Batching increases throughput by amortizing per-operation overhead, but it increases individual request latency because each request must wait for the batch to fill or a timeout to fire.</p>
+
+                    <p><strong>Concrete Kafka producer example:</strong></p>
+                    <pre><code class="language-text">Kafka producer configuration impact:
+
+batch.size=1 (no batching):
+  Throughput: ~10,000 messages/sec
+  Latency per message: ~2ms
+  Network utilization: High (1 TCP packet per message)
+
+batch.size=16384, linger.ms=5:
+  Throughput: ~200,000 messages/sec (20x improvement)
+  Latency per message: ~7ms (2ms network + 5ms batch wait)
+  Network utilization: Low (hundreds of messages per TCP packet)
+
+batch.size=65536, linger.ms=50:
+  Throughput: ~500,000 messages/sec (50x improvement)
+  Latency per message: ~52ms (2ms network + 50ms batch wait)
+  Network utilization: Very low</code></pre>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    A["No Batching<br/>10K msg/s<br/>2ms latency"] -->|"batch=16KB<br/>linger=5ms"| B["Moderate Batching<br/>200K msg/s<br/>7ms latency"]
+    B -->|"batch=64KB<br/>linger=50ms"| C["Heavy Batching<br/>500K msg/s<br/>52ms latency"]
+    style A fill:#fca5a5,stroke:#dc2626,color:#000
+    style B fill:#86efac,stroke:#22c55e,color:#000
+    style C fill:#fcd34d,stroke:#f59e0b,color:#000
+                        </div>
+                    </div>
+
+                    <p><strong>Database batching (INSERT):</strong></p>
+                    <pre><code class="language-text">PostgreSQL INSERT performance:
+
+Single row INSERTs (1 at a time):
+  Throughput: ~5,000 rows/sec
+  Each INSERT: parse + plan + execute + fsync ack = ~0.2ms
+
+Batched INSERT (100 rows per statement):
+  Throughput: ~200,000 rows/sec (40x improvement)
+  Each batch: parse + plan + execute + fsync ack = ~0.5ms
+  Per-row amortized: ~0.005ms
+
+COPY (bulk load):
+  Throughput: ~500,000 rows/sec
+  Bypasses query planner entirely</code></pre>
+
+                    <p><strong>The sweet spot:</strong> For most systems, batching with a 5-20ms linger/timeout provides 10-20x throughput improvement with minimal latency impact. Beyond 50ms, user-perceivable latency becomes a concern for interactive workloads. For batch processing, linger in the hundreds of milliseconds is acceptable.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you model capacity planning? (formulas for QPS to compute to cost)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Capacity planning translates business growth projections into infrastructure requirements and cost. It is one of the most impactful exercises a staff engineer performs.</p>
+
+                    <p><strong>The capacity planning pipeline:</strong></p>
+                    <pre><code class="language-text">Step 1: Business metrics --&gt; QPS
+  Users (MAU): 10M
+  DAU/MAU ratio: 30% --&gt; 3M DAU
+  Actions per user per day: 20
+  Peak-to-average ratio: 3x
+
+  Avg QPS = (3M * 20) / 86,400 = 694 req/sec
+  Peak QPS = 694 * 3 = 2,083 req/sec
+  Design capacity (1.5x headroom) = 3,125 req/sec
+
+Step 2: QPS --&gt; Compute
+  Load test result: 1 c6i.xlarge handles 500 req/sec at p99 &lt; 100ms
+  Instances needed: ceil(3,125 / 500) = 7 instances
+  With N+2 redundancy: 9 instances (survives 2 failures)
+
+Step 3: Compute --&gt; Cost
+  9 * c6i.xlarge on-demand: 9 * $0.17/hr * 730 = $1,117/mo
+  With 1yr Savings Plan: 9 * $0.107/hr * 730 = $703/mo
+  Plus ALB, RDS, ElastiCache, etc.: ~$2,500/mo total
+
+Step 4: Growth projection
+  Expected growth: 50% YoY
+  Year 2: 15M MAU --&gt; ~$3,750/mo
+  Year 3: 22.5M MAU --&gt; ~$5,625/mo (if linear scaling)
+  Year 3 with optimization: ~$4,200/mo (sub-linear due to caching improvements)</code></pre>
+
+                    <p><strong>Key formulas:</strong></p>
+                    <pre><code class="language-text">QPS = (DAU * actions_per_user) / seconds_per_day
+Peak QPS = avg_QPS * peak_multiplier  (typically 2-5x)
+Instances = ceil(peak_QPS / throughput_per_instance) + redundancy
+Monthly cost = instances * hourly_rate * 730
+
+Storage growth:
+  Monthly data = new_records_per_day * avg_record_size * 30
+  Cumulative after N months = sum(monthly_data_i for i in 1..N) * (1 - compression_ratio)</code></pre>
+
+                    <p><strong>Common mistakes:</strong></p>
+                    <ul>
+                        <li>Using p50 throughput from load tests instead of p99. Size for the throughput at which p99 latency meets your SLO, not the maximum throughput the instance can handle.</li>
+                        <li>Forgetting connection overhead. A 4-vCPU instance handling 2000 WebSocket connections may have only 50% CPU headroom for actual request processing.</li>
+                        <li>Not accounting for data growth. Storage costs are cumulative; compute costs are concurrent. A service that grows 50% YoY in users may grow 100% YoY in storage (more data per user over time).</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is Amdahl's Law and how does it limit distributed system scaling?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Amdahl's Law states that the maximum speedup from parallelization is limited by the sequential portion of the workload. In distributed systems, this translates to: no matter how many nodes you add, the serial bottleneck limits overall throughput.</p>
+
+                    <p><strong>The formula:</strong></p>
+                    <pre><code class="language-text">Speedup(N) = 1 / (S + (1 - S) / N)
+
+Where:
+  S = fraction of work that is sequential (cannot be parallelized)
+  N = number of parallel workers/nodes
+
+Examples:
+  S = 5% sequential (e.g., lock contention, consensus):
+    N=10:  Speedup = 6.9x   (69% efficiency)
+    N=100: Speedup = 16.8x  (17% efficiency)
+    N=1000: Speedup = 19.6x (2% efficiency)  &lt;-- diminishing returns
+    Maximum possible: 20x (1/0.05)
+
+  S = 1% sequential:
+    N=10:  Speedup = 9.2x   (92% efficiency)
+    N=100: Speedup = 50.3x  (50% efficiency)
+    N=1000: Speedup = 90.9x (9% efficiency)
+    Maximum possible: 100x</code></pre>
+
+                    <p><strong>Real distributed system bottlenecks that create "S":</strong></p>
+                    <table>
+                        <thead><tr><th>Bottleneck</th><th>Effective S (%)</th><th>Max Theoretical Speedup</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td>Global lock / single leader</td><td>10-50%</td><td>2-10x</td><td>Single-primary database writes</td></tr>
+                            <tr><td>Consensus per write</td><td>2-10%</td><td>10-50x</td><td>Raft-based state machines</td></tr>
+                            <tr><td>Shared counter / sequence</td><td>5-20%</td><td>5-20x</td><td>Auto-increment IDs</td></tr>
+                            <tr><td>Cross-shard transactions</td><td>1-5% of transactions</td><td>20-100x</td><td>Distributed 2PC</td></tr>
+                            <tr><td>Aggregation step (MapReduce)</td><td>1-10%</td><td>10-100x</td><td>Reduce phase in large jobs</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level takeaway:</strong> Before adding more nodes, identify and measure your sequential fraction. If 10% of your processing is sequential, adding more than 20 nodes gives nearly zero additional throughput. Invest in reducing S (sharding the bottleneck, removing coordination, using CRDTs) before investing in adding N (more nodes).</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Sharding, Storage &amp; Architecture Tradeoffs</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the tradeoffs of different sharding strategies?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Sharding strategy determines how data is distributed across nodes. The choice affects query patterns, hot spots, rebalancing cost, and operational complexity.</p>
+
+                    <table>
+                        <thead><tr><th>Strategy</th><th>Distribution</th><th>Range Queries</th><th>Hot Spots</th><th>Rebalancing</th><th>Best For</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Hash-based</strong></td><td>Uniform (hash(key) mod N)</td><td>Not supported (scatter-gather)</td><td>Rare (if hash is good)</td><td>Hard (all data moves when N changes)</td><td>Key-value lookups, user data by ID</td></tr>
+                            <tr><td><strong>Range-based</strong></td><td>Non-uniform (ranges of keys)</td><td>Efficient within shard</td><td>Common (e.g., recent dates on one shard)</td><td>Split/merge individual ranges</td><td>Time-series, alphabetical lookups</td></tr>
+                            <tr><td><strong>Consistent hashing</strong></td><td>Uniform with virtual nodes</td><td>Not supported</td><td>Rare</td><td>Only ~1/N data moves</td><td>Caches, distributed storage (Dynamo)</td></tr>
+                            <tr><td><strong>Directory-based</strong></td><td>Explicit lookup table</td><td>Depends on mapping</td><td>Controllable</td><td>Flexible but adds lookup latency</td><td>Multi-tenant, geographic sharding</td></tr>
+                            <tr><td><strong>Geographic</strong></td><td>By region/country</td><td>Within region</td><td>Varies (US shard is biggest)</td><td>Move users between shards</td><td>Data residency, latency optimization</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Quantified impact of shard key choice:</strong></p>
+                    <pre><code class="language-text">E-commerce platform, 100M orders/year:
+
+Shard by order_id (hash):
+  Distribution: Even (~20M orders per shard with 5 shards)
+  "Get order by ID": 1 shard hit, ~2ms
+  "Get all orders for user X": scatter to all 5 shards, ~15ms
+
+Shard by user_id (hash):
+  Distribution: Skewed (power users have 10,000x more orders)
+  "Get order by ID": need user_id lookup first, ~4ms
+  "Get all orders for user X": 1 shard hit, ~2ms
+  Hot shard risk: top 1% of users on same shard
+
+Shard by user_id with virtual sharding:
+  Use consistent hashing with 1000 virtual nodes
+  "Get all orders for user X": 1 virtual node lookup, ~3ms
+  Rebalancing: add node, move ~1/N of data</code></pre>
+
+                    <p><strong>The cross-shard query tax:</strong> Any query that spans multiple shards incurs a scatter-gather cost. If your most common query pattern does not align with your shard key, you will pay this tax on every request. Measure the percentage of queries that are cross-shard before choosing your strategy. Target &lt;10% cross-shard queries for production workloads.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the read-write tradeoff? (read replicas, write amplification, CQRS metrics)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Most systems are read-heavy (90-99% reads). Optimizing reads often means making writes more expensive (write amplification) and vice versa. CQRS (Command Query Responsibility Segregation) formalizes this tradeoff.</p>
+
+                    <p><strong>Read-write ratio benchmarks:</strong></p>
+                    <table>
+                        <thead><tr><th>System</th><th>Read:Write Ratio</th><th>Optimization Strategy</th></tr></thead>
+                        <tbody>
+                            <tr><td>Twitter feed</td><td>1000:1</td><td>Fan-out on write (precompute feeds)</td></tr>
+                            <tr><td>E-commerce catalog</td><td>100:1</td><td>Read replicas + heavy caching</td></tr>
+                            <tr><td>IoT telemetry</td><td>1:100</td><td>Write-optimized (LSM trees, time-series DBs)</td></tr>
+                            <tr><td>Chat messages</td><td>10:1</td><td>Balanced (write-behind cache)</td></tr>
+                            <tr><td>Financial ledger</td><td>5:1</td><td>Write-optimized with materialized read views</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Write amplification in practice:</strong></p>
+                    <pre><code class="language-text">Twitter's fan-out-on-write approach:
+  When a user with 10M followers tweets:
+  1 logical write --&gt; 10M timeline inserts (physical writes)
+  Write amplification factor: 10,000,000x
+
+  This is why Twitter uses a hybrid:
+  - Users with &lt;500K followers: fan-out on write (fast reads)
+  - Users with 500K+ followers: fan-out on read (merge at read time)
+  - This reduces write amplification by 99% for celebrity tweets</code></pre>
+
+                    <p><strong>CQRS metrics to track:</strong></p>
+                    <ul>
+                        <li><strong>Write path latency:</strong> Time from command to committed state change</li>
+                        <li><strong>Projection lag:</strong> Time from write commit to read model update (typically 10-500ms)</li>
+                        <li><strong>Read path latency:</strong> Time from query to response (should be &lt;10ms with denormalized views)</li>
+                        <li><strong>Write amplification ratio:</strong> Physical writes / logical writes (target &lt;10x for most systems)</li>
+                        <li><strong>Storage amplification:</strong> Total storage / unique data (CQRS typically 2-5x due to multiple views)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the cost-latency curve for different storage tiers?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Storage exists on a spectrum from fast-and-expensive to slow-and-cheap. Intelligent tiering is one of the most effective cost optimization strategies.</p>
+
+                    <table>
+                        <thead><tr><th>Tier</th><th>Latency</th><th>Cost (per GB/month)</th><th>Throughput</th><th>Use Case</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>In-memory (Redis/Memcached)</strong></td><td>&lt;1ms</td><td>$6-$12</td><td>100K+ ops/sec per node</td><td>Hot data, session cache, leaderboards</td></tr>
+                            <tr><td><strong>NVMe SSD (io2)</strong></td><td>~0.5ms</td><td>$0.125 + $0.065/IOPS</td><td>64K IOPS per volume</td><td>Primary databases, OLTP</td></tr>
+                            <tr><td><strong>GP SSD (gp3)</strong></td><td>~1-2ms</td><td>$0.08</td><td>16K IOPS baseline</td><td>General workloads, secondary DBs</td></tr>
+                            <tr><td><strong>HDD (st1)</strong></td><td>~5-10ms</td><td>$0.045</td><td>500 MB/s throughput</td><td>Large sequential reads, logs</td></tr>
+                            <tr><td><strong>S3 Standard</strong></td><td>~50-100ms</td><td>$0.023</td><td>5,500 GET/sec per prefix</td><td>Object storage, data lake</td></tr>
+                            <tr><td><strong>S3 Infrequent Access</strong></td><td>~50-100ms</td><td>$0.0125</td><td>Same as Standard</td><td>Backups, infrequent analytics</td></tr>
+                            <tr><td><strong>S3 Glacier Instant</strong></td><td>~milliseconds</td><td>$0.004</td><td>Same as Standard</td><td>Archive with instant retrieval</td></tr>
+                            <tr><td><strong>S3 Glacier Deep</strong></td><td>12-48 hours</td><td>$0.00099</td><td>Batch retrieval</td><td>Compliance archives, cold backup</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Cost optimization through tiering:</strong></p>
+                    <pre><code class="language-text">Example: 100 TB total data
+
+Without tiering (all on gp3 EBS):
+  100 TB * $0.08 = $8,000/month
+
+With intelligent tiering:
+  Hot (5%):   5 TB in-memory    = 5,000 * $8     = $40,000
+  Warm (15%): 15 TB gp3 SSD     = 15,000 * $0.08 = $1,200
+  Cool (30%): 30 TB S3 Standard  = 30,000 * $0.023 = $690
+  Cold (50%): 50 TB S3 Glacier   = 50,000 * $0.004 = $200
+  Total: $42,090/month
+
+Wait -- that is more expensive? The in-memory tier is 100x the cost!
+Remove in-memory tier, use Redis for only 100 GB of truly hot keys:
+  Hot (0.1%): 100 GB Redis      = 100 * $8       = $800
+  Warm (15%): 15 TB gp3 SSD     = 15,000 * $0.08 = $1,200
+  Cool (35%): 35 TB S3 Standard  = 35,000 * $0.023 = $805
+  Cold (50%): 50 TB S3 Glacier   = 50,000 * $0.004 = $200
+  Total: $3,005/month (62% savings vs all-gp3)</code></pre>
+
+                    <p><strong>Key insight:</strong> The in-memory tier should cache the hottest 0.1-1% of data, not entire datasets. Use Pareto-based analysis: typically 1% of data accounts for 80% of reads.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you quantify the blast radius of a failure?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Blast radius measures the scope of impact when a component fails. Quantifying it helps prioritize reliability investments and design isolation boundaries.</p>
+
+                    <p><strong>Blast radius formula:</strong></p>
+                    <pre><code class="language-text">Blast Radius = Affected Users * Impact Severity * Duration
+
+Where:
+  Affected Users = % of total users who experience degradation
+  Impact Severity = 0 (no impact) to 1 (complete outage)
+  Duration = minutes of impact
+
+Blast Radius Score = Affected_Users% * Severity * Duration_minutes
+
+Example failures:
+  Single pod crash (Kubernetes):
+    Affected: ~0.1% (1 of 1000 pods), Severity: 1.0, Duration: 0.5 min
+    Score: 0.001 * 1.0 * 0.5 = 0.0005 (negligible)
+
+  AZ outage (one of three):
+    Affected: ~33%, Severity: 0.5 (degraded, not down), Duration: 30 min
+    Score: 0.33 * 0.5 * 30 = 4.95 (moderate)
+
+  DNS failure (global):
+    Affected: 100%, Severity: 1.0, Duration: 60 min
+    Score: 1.0 * 1.0 * 60 = 60 (critical)
+
+  Database primary failure:
+    Affected: 100%, Severity: 0.8 (reads may work), Duration: 5 min (failover)
+    Score: 1.0 * 0.8 * 5 = 4.0 (moderate)</code></pre>
+
+                    <p><strong>Reducing blast radius -- architectural patterns:</strong></p>
+                    <table>
+                        <thead><tr><th>Pattern</th><th>Blast Radius Reduction</th><th>Cost Increase</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td>Cell-based architecture</td><td>Limit to 1 cell (~5-10% of users)</td><td>20-50% (duplicate infra per cell)</td><td>Slack, AWS (per-region cells)</td></tr>
+                            <tr><td>Bulkhead isolation</td><td>Limit to 1 service</td><td>10-20% (dedicated resources)</td><td>Netflix: separate thread pools per dependency</td></tr>
+                            <tr><td>Circuit breakers</td><td>Prevent cascading failures</td><td>Minimal (~5%)</td><td>Hystrix, Resilience4j</td></tr>
+                            <tr><td>Multi-region active-active</td><td>Limit to 1 region</td><td>80-100% (full duplication)</td><td>CockroachDB, Spanner</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level practice:</strong> Create a blast radius map of your architecture. For each component, document: what percentage of users are affected if it fails, what is the expected severity, and what is the expected recovery time. Use this to prioritize reliability investments on the highest blast-radius components first.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure consensus protocol performance? (Raft vs Paxos vs Zab)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Consensus protocols have different performance characteristics that matter for system design choices.</p>
+
+                    <table>
+                        <thead><tr><th>Metric</th><th>Raft (etcd)</th><th>Multi-Paxos (Chubby)</th><th>Zab (ZooKeeper)</th><th>EPaxos</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Normal write latency</strong></td><td>2-5ms</td><td>2-5ms</td><td>2-5ms</td><td>1-3ms (no leader)</td></tr>
+                            <tr><td><strong>Leader election time</strong></td><td>1-3 seconds</td><td>5-15 seconds</td><td>1-5 seconds</td><td>N/A (leaderless)</td></tr>
+                            <tr><td><strong>Throughput (3 nodes)</strong></td><td>~15K writes/sec</td><td>~15K writes/sec</td><td>~10K writes/sec</td><td>~20K writes/sec</td></tr>
+                            <tr><td><strong>Message complexity</strong></td><td>O(N) per write</td><td>O(N) per write</td><td>O(N) per write</td><td>O(N) per write</td></tr>
+                            <tr><td><strong>Understandability</strong></td><td>High (designed for it)</td><td>Low (notoriously complex)</td><td>Medium</td><td>Low</td></tr>
+                            <tr><td><strong>Used by</strong></td><td>etcd, CockroachDB, TiKV</td><td>Chubby, Spanner</td><td>ZooKeeper, Kafka (KRaft)</td><td>Research, some new DBs</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key performance factor:</strong> In practice, the protocol itself rarely determines performance. Network RTT, disk fsync latency, and batching strategy dominate. A well-tuned Raft implementation and a well-tuned Multi-Paxos implementation will have nearly identical performance. The real difference is operational: Raft is easier to debug, reason about, and implement correctly.</p>
+
+                    <p><strong>Kafka's evolution (ZAB to KRaft):</strong> Kafka moved from ZooKeeper (ZAB) to KRaft (Raft-based) for metadata management. The measured improvements: metadata propagation latency dropped from 10-100ms to 1-10ms, partition count scalability increased from ~200K to millions, and operational complexity decreased significantly (no separate ZooKeeper cluster to manage).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure the overhead of service mesh / sidecar proxies?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Service meshes (Istio, Linkerd, Consul Connect) add a sidecar proxy to every pod, intercepting all network traffic. This adds measurable latency, CPU, and memory overhead.</p>
+
+                    <p><strong>Measured overhead (Istio with Envoy sidecar):</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Without Mesh</th><th>With Istio</th><th>Overhead</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>p50 latency (per hop)</strong></td><td>1ms</td><td>2.5ms</td><td>+1.5ms (+150%)</td></tr>
+                            <tr><td><strong>p99 latency (per hop)</strong></td><td>5ms</td><td>12ms</td><td>+7ms (+140%)</td></tr>
+                            <tr><td><strong>CPU per sidecar</strong></td><td>0</td><td>50-100m (millicores)</td><td>+50-100m per pod</td></tr>
+                            <tr><td><strong>Memory per sidecar</strong></td><td>0</td><td>50-100 MB</td><td>+50-100 MB per pod</td></tr>
+                            <tr><td><strong>Throughput impact</strong></td><td>100%</td><td>85-95%</td><td>-5 to -15%</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>At scale, these numbers compound:</strong></p>
+                    <pre><code class="language-text">Fleet: 1,000 pods across 50 services
+  CPU overhead: 1,000 * 75m = 75 vCPU = ~19 c6i.xlarge instances
+  Memory overhead: 1,000 * 75 MB = 75 GB
+  Cost: 19 * $0.17/hr * 730 = $2,359/mo just for sidecar overhead
+
+Latency: Request path touching 5 services
+  Without mesh: 5 hops * 1ms = 5ms
+  With mesh: 5 hops * 2.5ms = 12.5ms (2.5x increase)
+
+  At p99: 5 hops * 12ms = 60ms (vs 25ms without mesh)</code></pre>
+
+                    <p><strong>When the overhead is worth it:</strong> The service mesh provides mTLS, observability, traffic management, and circuit breaking. Without a mesh, you would implement these in application code, which has its own (higher) development cost. The mesh overhead is justified when you have 20+ services and need consistent security and observability. For smaller architectures (&lt;10 services), the overhead is rarely worth it.</p>
+
+                    <p><strong>Lighter alternatives:</strong> Linkerd adds only 0.5-1ms latency per hop (vs Istio's 1.5ms) and uses ~20MB per sidecar (vs Istio's 50-100MB). Cilium uses eBPF at the kernel level, adding &lt;0.5ms with near-zero memory overhead. Choose based on your feature needs and latency budget.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <h2>Staff+ Scenarios</h2>
+            <!-- ============================================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Your service needs 99.99% availability across 3 regions. Design the metrics.</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> 99.99% (four nines) means at most 52.6 minutes of downtime per year, or ~4.38 minutes per month. Across 3 regions, this requires active-active architecture with robust failover.</p>
+
+                    <p><strong>Metric design:</strong></p>
+                    <pre><code class="language-text">SLI (Service Level Indicator):
+  Success rate: % of requests returning 2xx within 500ms
+  Measured at: Load balancer (closest to user)
+  Window: 5-minute rolling
+
+SLO (Service Level Objective):
+  99.99% of requests succeed within 500ms over a 30-day window
+  Error budget: 0.01% = ~4,320 failed requests per 43.2M total
+  (assuming 1000 rps: 1000 * 86400 * 30 = 2.592B requests/month
+   Error budget: 259,200 failed requests)
+
+Regional SLOs:
+  Each region independently: 99.95% (allows for brief regional degradation)
+  Combined (with failover): 99.99%
+  Math: P(all 3 regions down) = (1 - 0.9995)^3 = 1.25e-10 (essentially zero)
+  P(at least 1 region up) = 1 - (0.0005)^3 = 99.9999999875%</code></pre>
+
+                    <p><strong>Metrics to instrument:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Granularity</th><th>Alert Threshold</th><th>Why</th></tr></thead>
+                        <tbody>
+                            <tr><td>Request success rate</td><td>Per region, per minute</td><td>&lt;99.95% for 5 min</td><td>Detect regional degradation before users notice</td></tr>
+                            <tr><td>Cross-region replication lag</td><td>Per second</td><td>&gt;5 seconds</td><td>Stale failover data = data loss risk</td></tr>
+                            <tr><td>Failover time</td><td>Per event</td><td>&gt;30 seconds</td><td>Must failover within error budget</td></tr>
+                            <tr><td>DNS propagation time</td><td>Per change</td><td>&gt;60 seconds</td><td>DNS-based failover has inherent delay</td></tr>
+                            <tr><td>Data consistency check</td><td>Hourly</td><td>Any divergence</td><td>Detect split-brain or replication bugs</td></tr>
+                            <tr><td>Error budget burn rate</td><td>Daily</td><td>&gt;3x normal burn</td><td>Early warning before SLO breach</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Architecture requirements for 99.99%:</strong></p>
+                    <ul>
+                        <li><strong>Active-active in all 3 regions</strong> (not active-passive; passive failover is too slow)</li>
+                        <li><strong>Health-check-based global load balancing</strong> (Route 53 health checks, or better: Anycast DNS)</li>
+                        <li><strong>Data replication with RPO &lt; 5 seconds</strong> (Recovery Point Objective: maximum data loss on failover)</li>
+                        <li><strong>RTO &lt; 30 seconds</strong> (Recovery Time Objective: time to complete failover)</li>
+                        <li><strong>Chaos engineering:</strong> Monthly region failover drills to verify the failover path works</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Two architectures -- event-driven vs synchronous. How do you compare them quantitatively?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> This is a common staff-level decision. You need a quantitative framework, not just qualitative "event-driven is more decoupled."</p>
+
+                    <p><strong>Comparison framework:</strong></p>
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Synchronous (REST/gRPC)</th><th>Event-Driven (Kafka/SQS)</th><th>Winner</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>End-to-end latency</strong></td><td>Sum of all hops: 5 services * 10ms = 50ms</td><td>Async: 5ms (just enqueue) + eventual processing</td><td>Sync for user-facing; Async for background</td></tr>
+                            <tr><td><strong>Throughput</strong></td><td>Limited by slowest service in chain</td><td>Each service scales independently</td><td>Event-driven (decoupled scaling)</td></tr>
+                            <tr><td><strong>Failure coupling</strong></td><td>Any service down = entire chain fails</td><td>Messages buffer; consumers process when ready</td><td>Event-driven (resilient)</td></tr>
+                            <tr><td><strong>Debugging complexity</strong></td><td>Stack traces, request tracing is straightforward</td><td>Distributed tracing across async boundaries is hard</td><td>Synchronous (simpler debugging)</td></tr>
+                            <tr><td><strong>Data consistency</strong></td><td>Transactions possible within request</td><td>Eventual consistency, saga patterns needed</td><td>Synchronous (simpler consistency)</td></tr>
+                            <tr><td><strong>Infrastructure cost</strong></td><td>Compute only</td><td>Compute + message broker ($500-$5K/mo for Kafka)</td><td>Synchronous (lower base cost)</td></tr>
+                            <tr><td><strong>Operational overhead</strong></td><td>Standard monitoring</td><td>Queue depth monitoring, DLQ management, offset tracking</td><td>Synchronous (less ops burden)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Quantified scenario -- order processing:</strong></p>
+                    <pre><code class="language-text">Synchronous: Order API --&gt; Payment --&gt; Inventory --&gt; Shipping --&gt; Email
+  Latency: 50 + 200 + 30 + 20 + 50 = 350ms per order
+  Failure rate: 1 - (0.999 * 0.998 * 0.999 * 0.999 * 0.997) = 0.8% failure rate
+  Cost: 5 services compute only = $3,000/mo
+
+  Problem: 0.8% of orders fail and need retry logic in every service
+
+Event-driven: Order API --&gt; Kafka --&gt; [Payment, Inventory, Shipping, Email consume independently]
+  Order API latency: 5ms (just write to Kafka)
+  End-to-end processing: ~500ms (async, user does not wait)
+  Failure rate: Each consumer retries independently, overall &lt;0.01%
+  Cost: $3,000 compute + $1,500 Kafka = $4,500/mo
+
+  Problem: More complex to debug, eventual consistency
+
+Verdict for this case: Event-driven wins on reliability and user experience
+(fast order confirmation), costs $1,500/mo more but eliminates 0.8% order failures
+which at 100K orders/month with $50 AOV = $40K/mo in recovered revenue.</code></pre>
+
+                    <p><strong>Decision framework:</strong> Use synchronous for operations where the user needs an immediate, consistent response (e.g., checking inventory before confirming order). Use event-driven for operations where the user does not need to wait (e.g., sending confirmation email, updating analytics). Most production systems use a hybrid: synchronous for the critical path, event-driven for side effects.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you measure data freshness vs consistency?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Data freshness measures how recent the data is, while consistency measures whether all readers see the same version. These are related but distinct concepts.</p>
+
+                    <p><strong>Freshness metrics:</strong></p>
+                    <pre><code class="language-text">Staleness = current_time - timestamp_of_data_read
+Freshness SLO = % of reads where staleness &lt; threshold
+
+Example: Product price in an e-commerce search index
+  Source of truth: PostgreSQL (updated via admin panel)
+  Search index: Elasticsearch (updated via CDC pipeline)
+
+  Measured pipeline:
+    Postgres --&gt; Debezium CDC --&gt; Kafka --&gt; Consumer --&gt; Elasticsearch
+    Typical latency: 500ms - 2s end-to-end
+    p99 latency: 10s (during Kafka rebalances or ES backpressure)
+
+  Freshness SLO: 99% of reads have staleness &lt; 5s
+  Current performance: 99.7% (meeting SLO)
+
+  Monitoring query (in ES):
+    stale_reads = count(reads where doc._last_updated &lt; now() - 5s)
+    freshness_percent = 1 - (stale_reads / total_reads)</code></pre>
+
+                    <p><strong>When freshness matters more than consistency:</strong> For a product catalog, showing a price that is 2 seconds stale to all users is fine. Showing different prices to different users simultaneously (inconsistency) causes customer complaints. Freshness and consistency are often conflated but require different solutions: freshness requires fast replication pipelines; consistency requires coordination protocols.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What autoscaling metrics matter beyond CPU?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> CPU-based autoscaling is the default but often the worst choice. The best scaling metric depends on your workload's bottleneck.</p>
+
+                    <table>
+                        <thead><tr><th>Metric</th><th>Best For</th><th>Why CPU Fails Here</th><th>Target Value</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Queue depth</strong></td><td>Async workers, batch jobs</td><td>CPU may be low while queue grows</td><td>&lt;1000 messages (job-dependent)</td></tr>
+                            <tr><td><strong>Request latency (p99)</strong></td><td>User-facing APIs</td><td>CPU at 50% but latency spiking due to contention</td><td>&lt; SLO target (e.g., &lt;100ms)</td></tr>
+                            <tr><td><strong>Concurrent connections</strong></td><td>WebSocket servers, long-poll</td><td>10K idle connections = low CPU but high memory</td><td>&lt;80% of max connections</td></tr>
+                            <tr><td><strong>Memory utilization</strong></td><td>In-memory caches, JVM apps</td><td>Memory pressure causes GC, not CPU spike</td><td>&lt;75% to avoid OOM</td></tr>
+                            <tr><td><strong>Custom business metric</strong></td><td>Domain-specific workloads</td><td>CPU does not correlate with business load</td><td>Varies (e.g., orders/min)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Multi-signal scaling:</strong> The best production setups use composite metrics. For example, scale up when ANY of: CPU &gt; 70%, p99 latency &gt; 100ms, or queue depth &gt; 5000. Scale down only when ALL metrics are below their thresholds. This asymmetric approach (aggressive scale-up, conservative scale-down) prevents oscillation.</p>
+
+                    <p><strong>Kubernetes HPA with custom metrics:</strong></p>
+                    <pre><code class="language-yaml">apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-server
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-server
+  minReplicas: 3
+  maxReplicas: 50
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: http_request_duration_seconds_p99
+      target:
+        type: AverageValue
+        averageValue: "100m"  # 100ms
+  - type: External
+    external:
+      metric:
+        name: sqs_queue_depth
+        selector:
+          matchLabels:
+            queue: api-tasks
+      target:
+        type: Value
+        value: "5000"</code></pre>
+                </div>
+            </div>
+
+            <!-- Bottom navigation -->
+            <div style="display: flex; justify-content: space-between; margin-top: 2rem;">
+                <a href="module-04.html" class="btn btn-secondary">&larr; Previous</a>
+                <a href="module-06.html" class="btn btn-primary">Next &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

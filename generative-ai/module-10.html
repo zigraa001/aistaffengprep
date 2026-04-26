@@ -192,9 +192,10 @@
                 <ul>
                     <li>Understand what makes an AI agent different from a simple chatbot</li>
                     <li>Implement the ReAct (Reasoning + Acting) pattern from scratch</li>
-                    <li>Build and use tools with OpenAI's function calling API</li>
-                    <li>Create agents using LangChain's agent framework</li>
+                    <li>Build and use tools with OpenAI and Anthropic tool calling APIs</li>
+                    <li>Create agents using LangChain, OpenAI Agents SDK, and direct API calls</li>
                     <li>Orchestrate complex agent workflows with LangGraph's state machines</li>
+                    <li>Understand the Model Context Protocol (MCP) and the modern agent ecosystem</li>
                     <li>Handle agent loops, errors, and memory in production systems</li>
                 </ul>
             </div>
@@ -809,7 +810,7 @@ WEB_SEARCH_TOOL_DEFINITION = {
                     <span class="collapsible-icon">&#9660;</span>
                 </div>
                 <div class="collapsible-content">
-                    <p>LangChain is a framework for building applications with LLMs. It provides abstractions for common patterns like chains (sequences of operations), agents (LLMs that decide which tools to use), and tools (functions the LLM can call).</p>
+                    <p>LangChain is a framework for building applications with LLMs. It provides abstractions for common patterns like chains (sequences of operations), agents (LLMs that decide which tools to use), and tools (functions the LLM can call). Note: LangChain's API has evolved rapidly -- the examples below use LCEL (LangChain Expression Language) and <code>create_tool_calling_agent</code>, which replaced the older <code>create_openai_functions_agent</code> API.</p>
 
                     <h4>LangChain Architecture</h4>
                     <div class="diagram-container">
@@ -910,7 +911,7 @@ tools = [get_word_count, db_search_tool, calculator_tool]</code></pre>
                     <h4>Building a LangChain Agent</h4>
                     <div class="code-block">
                         <pre><code class="language-python">from langchain_openai import ChatOpenAI
-from langchain.agents import create_openai_functions_agent, AgentExecutor
+from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import tool
 
@@ -949,8 +950,8 @@ If you don't need a tool, just respond directly."""),
 # Initialize LLM
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-# Create the agent
-agent = create_openai_functions_agent(llm, tools, prompt)
+# Create the agent (create_tool_calling_agent replaced the deprecated create_openai_functions_agent)
+agent = create_tool_calling_agent(llm, tools, prompt)
 
 # Create the executor (handles the agent loop)
 agent_executor = AgentExecutor(
@@ -969,7 +970,7 @@ print(result["output"])</code></pre>
                     </div>
 
                     <div class="insight-box">
-                        <strong>When to Use LangChain:</strong> LangChain excels at rapid prototyping and when you need many integrations (vector stores, document loaders, etc.). For production systems with specific requirements, you might prefer direct API calls for more control and fewer dependencies.
+                        <strong>When to Use LangChain:</strong> LangChain excels at rapid prototyping and when you need many integrations (vector stores, document loaders, etc.). For production systems with specific requirements, you might prefer direct API calls (OpenAI or Anthropic) for more control and fewer dependencies. As of 2025-2026, alternatives like the OpenAI Agents SDK and direct MCP integrations have reduced LangChain's dominance for simpler agent use cases.
                     </div>
                 </div>
             </div>
@@ -1170,6 +1171,83 @@ print(result["final_output"])</code></pre>
 
                     <div class="warning-box">
                         <strong>LangGraph vs LangChain Agents:</strong> Use LangGraph when you need explicit control over the execution flow, multiple agents collaborating, or complex conditional logic. Use simple LangChain agents for straightforward tool-use scenarios.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Modern Agent Ecosystem (2024-2026): MCP, Anthropic Tool Use, OpenAI Agents SDK</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The agent landscape has evolved rapidly since the early LangChain-only days. Staff engineers must know the current ecosystem and when to use each approach.</p>
+
+                    <h4>Model Context Protocol (MCP)</h4>
+                    <p>MCP, introduced by Anthropic in late 2024, is an open standard for connecting LLMs to external tools and data sources. Think of it as "USB-C for AI" -- a universal protocol so tools written once work with any MCP-compatible model host (Claude Desktop, VS Code Copilot, Cursor, etc.).</p>
+                    <ul>
+                        <li><strong>Architecture:</strong> MCP follows a client-server model. The <em>host</em> (e.g., Claude Desktop) contains an MCP <em>client</em> that connects to MCP <em>servers</em>, each exposing tools, resources, or prompts.</li>
+                        <li><strong>Transport:</strong> Supports stdio (local processes) and HTTP+SSE (remote servers). The protocol uses JSON-RPC 2.0.</li>
+                        <li><strong>Why it matters:</strong> Before MCP, every agent framework reinvented tool integration. MCP lets you write a tool server once and reuse it across Claude, GPT-based agents, open-source models, and IDEs.</li>
+                    </ul>
+
+                    <h4>Anthropic Claude Tool Use</h4>
+                    <p>Claude (Sonnet, Opus, Haiku) supports native tool use via the Messages API. Tools are defined in the API request and Claude returns structured <code>tool_use</code> content blocks with JSON arguments -- similar to OpenAI function calling but with some differences:</p>
+                    <ul>
+                        <li><strong>Explicit thinking:</strong> Claude models (especially Claude 4 Opus) produce extended thinking traces before tool calls, giving better transparency.</li>
+                        <li><strong>Parallel tool calls:</strong> Claude can request multiple tool calls in a single response.</li>
+                        <li><strong>Computer use:</strong> Claude supports a special <code>computer</code> tool type for desktop automation (screenshots, clicks, typing) -- useful for browser-based agents.</li>
+                    </ul>
+
+                    <h4>OpenAI Agents SDK (2025)</h4>
+                    <p>OpenAI released the open-source Agents SDK in early 2025, providing a lightweight Python framework for building agents with handoffs, guardrails, and tracing. Key concepts:</p>
+                    <ul>
+                        <li><strong>Agent:</strong> An LLM with instructions, tools, and optional handoff targets.</li>
+                        <li><strong>Handoffs:</strong> Agents can delegate to specialized sub-agents (e.g., a "triage agent" routes to "billing agent" or "tech support agent").</li>
+                        <li><strong>Guardrails:</strong> Input/output validators that run in parallel with the agent to enforce safety constraints.</li>
+                        <li><strong>Tracing:</strong> Built-in OpenTelemetry-compatible tracing for debugging agent trajectories.</li>
+                    </ul>
+
+                    <h4>When to Use What (2026 Landscape)</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trade-offs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Direct API tool calling</strong> (OpenAI / Anthropic)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Maximum control, production systems with specific requirements</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">More boilerplate, you own the loop</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>MCP servers</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reusable tool integrations across multiple hosts, IDE/desktop agents</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adds protocol layer; best when you need portability</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>OpenAI Agents SDK</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-agent handoffs, guardrails, OpenAI model users</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OpenAI-centric; lighter than LangGraph</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>LangGraph</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex stateful workflows, model-agnostic, human-in-the-loop</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heavier dependency; more abstraction layers</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>LangChain agents</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rapid prototyping, many built-in integrations</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Abstraction can hide important details; fast-moving API</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Staff-Level Insight:</strong> In interviews, avoid being dogmatic about frameworks. The right answer is almost always: "start with direct API calls for simple cases, reach for a framework when the orchestration complexity justifies it, and prefer open standards like MCP for tool portability." Show you understand the trade-offs, not just the APIs.
                     </div>
                 </div>
             </div>
@@ -1716,7 +1794,7 @@ Use the available tools when needed."""
                     </table>
 
                     <div class="code-block">
-<code>class AgentMetricsTracker:
+<pre><code class="language-python">class AgentMetricsTracker:
     """Track key agent evaluation metrics in production."""
 
     def __init__(self):
@@ -1760,7 +1838,7 @@ Use the available tools when needed."""
             "avg_steps_to_completion": avg_steps,
             "cost_per_successful_task_tokens": avg_cost_per_success,
             "loop_rate": loop_count / n,                   # target < 0.02
-        }</code>
+        }</code></pre>
                     </div>
 
                     <div class="interview-tip">
@@ -1785,10 +1863,10 @@ Use the available tools when needed."""
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>SWE-bench Verified</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Resolve real GitHub issues in Python repos</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~49% (Claude 3.5 Sonnet)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~87%</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>GAIA</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Real-world tasks requiring tools + reasoning</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~75% (GPT-4 + plugins)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">92%</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>WebArena</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Web navigation tasks (shopping, email, etc.)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~36%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~78%</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>HotPotQA (agent)</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Multi-hop question answering with retrieval</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~68% F1 (ReAct)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~90% F1</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>SWE-bench Verified</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Resolve real GitHub issues in Python repos</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~72% (Claude 4 + scaffolding, 2025)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~87%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>GAIA</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Real-world tasks requiring tools + reasoning</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~85% (best agent systems, 2025)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">92%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>WebArena</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Web navigation tasks (shopping, email, etc.)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~55% (best agent systems, 2025)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~78%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>HotPotQA (agent)</strong></td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Multi-hop question answering with retrieval</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~78% F1 (ReAct + modern models)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~90% F1</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2456,8 +2534,8 @@ Question: {question}
                     <li><strong>Understand Agents:</strong> Explain what makes an AI agent different from a chatbot - tool use, iteration, and planning</li>
                     <li><strong>Implement ReAct:</strong> Build an agent using the Thought/Action/Observation pattern for grounded reasoning</li>
                     <li><strong>Design Tools:</strong> Create well-documented, robust tools that LLMs can use effectively</li>
-                    <li><strong>Use OpenAI Functions:</strong> Implement function calling with proper schemas and response handling</li>
-                    <li><strong>Build with LangChain:</strong> Create agents using LangChain's tools, chains, and agent executors</li>
+                    <li><strong>Use Tool Calling APIs:</strong> Implement function calling with OpenAI and Anthropic APIs using proper schemas</li>
+                    <li><strong>Navigate the Ecosystem:</strong> Choose between direct API calls, LangChain, LangGraph, OpenAI Agents SDK, and MCP based on requirements</li>
                     <li><strong>Orchestrate with LangGraph:</strong> Design stateful multi-step workflows with explicit control flow</li>
                     <li><strong>Handle Edge Cases:</strong> Implement loop prevention, error handling, and memory management</li>
                 </ul>
@@ -2473,9 +2551,10 @@ Question: {question}
                 <h4>When to Use What:</h4>
                 <ul>
                     <li><strong>Simple chat:</strong> Direct LLM call with good prompting</li>
-                    <li><strong>Single tool use:</strong> OpenAI function calling</li>
-                    <li><strong>Multiple tools, simple flow:</strong> LangChain agent</li>
-                    <li><strong>Complex workflows, multi-agent:</strong> LangGraph</li>
+                    <li><strong>Single tool use:</strong> Direct API tool calling (OpenAI or Anthropic)</li>
+                    <li><strong>Reusable tools across hosts:</strong> MCP servers</li>
+                    <li><strong>Multiple tools, simple flow:</strong> LangChain agent or OpenAI Agents SDK</li>
+                    <li><strong>Complex workflows, multi-agent:</strong> LangGraph or OpenAI Agents SDK with handoffs</li>
                 </ul>
             </div>
 

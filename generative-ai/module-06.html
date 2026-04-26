@@ -891,7 +891,69 @@ gantt
                         <li><strong>Cons:</strong> Requires architectural changes, high communication</li>
                     </ul>
 
-                    <h4>Comparison</h4>
+                    <h4>3. Expert Parallelism (EP) &mdash; For Mixture-of-Experts Models</h4>
+                    <p>With the rise of MoE architectures (Mixtral, DeepSeek-V2, GPT-4), a fourth parallelism dimension has become critical:</p>
+
+                    <div class="callout callout-info">
+                        <div class="callout-title">Baseten Inference Book: TP vs EP for Multi-GPU</div>
+                        <p><strong>Tensor Parallelism (TP)</strong> is the default multi-GPU strategy &mdash; it splits tensor ops across GPUs for lower per-user latency but needs high-bandwidth NVLink. <strong>Expert Parallelism (EP)</strong> assigns MoE experts to specific GPUs, reducing networking overhead and scaling better across nodes. Many production deployments combine both.</p>
+                    </div>
+
+                    <div class="code-block">
+                        <code><pre># Expert Parallelism: each GPU hosts a subset of experts
+# In a MoE layer with 64 experts across 8 GPUs:
+# GPU 0: experts 0-7
+# GPU 1: experts 8-15
+# ...
+# GPU 7: experts 56-63
+
+# Router sends each token to its assigned expert's GPU
+# Only 2 of 64 experts activate per token (top-k routing)
+# → Communication: token routing (small), NOT full tensor AllReduce
+
+# TP Communication per layer: 4 AllReduces of d_model vectors
+# EP Communication per layer: Route tokens to expert GPUs (sparse, smaller)
+# → EP wins when experts outnumber GPUs and activation is sparse</pre></code>
+                    </div>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Tensor Parallelism (TP)</th>
+                                <th>Expert Parallelism (EP)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>What's split?</td>
+                                <td>Weight matrices (within each layer)</td>
+                                <td>Experts (each expert on a different GPU)</td>
+                            </tr>
+                            <tr>
+                                <td>Communication pattern</td>
+                                <td>AllReduce every layer (dense, bandwidth-heavy)</td>
+                                <td>All-to-All token routing (sparse, smaller payloads)</td>
+                            </tr>
+                            <tr>
+                                <td>Latency impact</td>
+                                <td>Lower per-request latency (parallel compute)</td>
+                                <td>Higher throughput (less communication overhead)</td>
+                            </tr>
+                            <tr>
+                                <td>Network requirement</td>
+                                <td>Requires NVLink (intra-node)</td>
+                                <td>Works across nodes (lower bandwidth OK)</td>
+                            </tr>
+                            <tr>
+                                <td>Best for</td>
+                                <td>Dense models, latency-critical serving</td>
+                                <td>MoE models at scale, throughput-oriented serving</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Comparison: All Parallelism Strategies</h4>
                     <table class="comparison-table">
                         <thead>
                             <tr>

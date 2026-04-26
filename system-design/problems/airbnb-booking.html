@@ -8,40 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Problem Breakdowns</div>
-                    <a href="url-shortener.html" class="sidebar-link">URL Shortener</a>
-                    <a href="news-feed.html" class="sidebar-link">News Feed</a>
-                    <a href="chat-system.html" class="sidebar-link">Chat System</a>
-                    <a href="video-streaming.html" class="sidebar-link">Video Streaming</a>
-                    <a href="vector-storage.html" class="sidebar-link">Vector Storage</a>
-                    <a href="airbnb-booking.html" class="sidebar-link active">Airbnb Booking</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                    <a href="../module-06.html" class="sidebar-link">Common Problems</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -137,7 +107,7 @@
                     </div>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Staff Insight:</strong> The read/write asymmetry is extreme: search is 50,000&times; more frequent than booking. This drives a fundamental architectural split &mdash; optimize search for throughput and cache-friendliness (Elasticsearch + CDN), optimize booking for correctness and consistency (PostgreSQL + row-level locks). Don't try to use a single data store for both.
+                        <strong>Staff Insight:</strong> The read/write asymmetry is extreme: search is ~200&times; more frequent than booking (5K QPS vs ~23 TPS). This drives a fundamental architectural split &mdash; optimize search for throughput and cache-friendliness (Elasticsearch + CDN), optimize booking for correctness and consistency (PostgreSQL + row-level locks). Don't try to use a single data store for both.
                     </div>
                 </div>
             </div>
@@ -157,7 +127,7 @@
                         <code>
 // Search
 GET /v1/search?lat=37.77&amp;lng=-122.42&amp;radius=15km
-    &amp;check_in=2025-08-01&amp;check_out=2025-08-05
+    &amp;check_in=2026-08-01&amp;check_out=2026-08-05
     &amp;guests=4&amp;min_price=100&amp;max_price=300
     &amp;amenities=wifi,pool&amp;property_type=entire_home
     &amp;sort=relevance&amp;page=1&amp;page_size=20
@@ -169,21 +139,21 @@ Resp: { "id": "...", "title": "...", "host": {...},
         "photos": [...], "amenities": [...], "reviews_summary": {...} }
 
 // Calendar / Availability
-GET /v1/listings/{listing_id}/calendar?start=2025-08-01&amp;end=2025-08-31
+GET /v1/listings/{listing_id}/calendar?start=2026-08-01&amp;end=2026-08-31
 Resp: { "days": [
-    { "date": "2025-08-01", "available": true, "price": 180, "min_stay": 2 },
-    { "date": "2025-08-02", "available": false, "booking_id": "..." },
+    { "date": "2026-08-01", "available": true, "price": 180, "min_stay": 2 },
+    { "date": "2026-08-02", "available": false, "booking_id": "..." },
     ...
 ]}
 
 PUT /v1/listings/{listing_id}/calendar
-Body: { "dates": [{"date": "2025-08-10", "price": 200, "available": true}] }
+Body: { "dates": [{"date": "2026-08-10", "price": 200, "available": true}] }
 
 // Booking
 POST /v1/bookings
 Headers: Idempotency-Key: "uuid-v4-here"
-Body: { "listing_id": "...", "check_in": "2025-08-01",
-        "check_out": "2025-08-05", "guests": 4,
+Body: { "listing_id": "...", "check_in": "2026-08-01",
+        "check_out": "2026-08-05", "guests": 4,
         "payment_method_id": "pm_xxx", "currency": "USD",
         "special_requests": "Late check-in around 10pm" }
 Resp: { "booking_id": "bk_abc123", "status": "CONFIRMED" | "PENDING_HOST",
@@ -276,10 +246,11 @@ CREATE TABLE calendar (
     available   BOOLEAN DEFAULT true,
     min_stay    SMALLINT DEFAULT 1,
     booking_id  UUID REFERENCES bookings(id),  -- NULL if available
-    PRIMARY KEY (listing_id, date),
-    -- THIS CONSTRAINT PREVENTS DOUBLE-BOOKING AT THE DB LEVEL
-    CONSTRAINT unique_booking_per_date
-        UNIQUE (listing_id, date, booking_id)
+    PRIMARY KEY (listing_id, date)
+    -- The PRIMARY KEY (listing_id, date) itself prevents double-booking:
+    -- only one row can exist per listing per date, so only one booking_id
+    -- can be assigned. Combined with SELECT FOR UPDATE in the booking
+    -- transaction, this provides the database-level safety net.
 );
 
 CREATE TABLE bookings (
@@ -364,7 +335,7 @@ CREATE TABLE reviews (
                     </table>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Staff Insight:</strong> The <code>calendar</code> table with <code>(listing_id, date)</code> as the composite primary key is the heart of the entire system. Every booking operation is ultimately a transactional update to calendar rows. The <code>booking_id</code> column being NOT NULL for booked dates (plus the uniqueness constraint) is the database-level guard against double-booking. This is simpler and more reliable than application-level locks.
+                        <strong>Staff Insight:</strong> The <code>calendar</code> table with <code>(listing_id, date)</code> as the composite primary key is the heart of the entire system. Every booking operation is ultimately a transactional update to calendar rows. Since each <code>(listing_id, date)</code> row is unique by the primary key, only one booking can claim any given night. The <code>SELECT FOR UPDATE</code> transaction serializes concurrent attempts, and the primary key constraint is the ultimate database-level guard. This is simpler and more reliable than application-level locks.
                     </div>
                 </div>
             </div>
@@ -767,7 +738,7 @@ async def create_booking(
                     </div>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Staff Insight:</strong> At Airbnb's scale (~100 booking TPS peak across 7M listings), the average contention per listing is ~0.01 bookings/sec/listing. This is extremely low &mdash; database-level row locking (SELECT FOR UPDATE) is more than sufficient. You don't need Redis distributed locks or complex conflict resolution. Always add the unique constraint on <code>(listing_id, date, booking_id)</code> as a safety net &mdash; even if the application logic has a bug, the DB won't allow double-booking.
+                        <strong>Staff Insight:</strong> At Airbnb's scale (~100 booking TPS peak across 7M listings), the average contention per listing is ~0.01 bookings/sec/listing. This is extremely low &mdash; database-level row locking (SELECT FOR UPDATE) is more than sufficient. You don't need Redis distributed locks or complex conflict resolution. The <code>PRIMARY KEY (listing_id, date)</code> is itself the safety net &mdash; only one row per listing per date can exist, so only one booking can claim each night. Even if the application logic has a bug, the DB schema prevents double-booking.
                     </div>
                 </div>
             </div>
@@ -945,7 +916,7 @@ class BookingSaga:
                     <h4 class="mt-3">Edge Cases</h4>
                     <ul>
                         <li><strong>Host timeout (24h):</strong> A scheduled job checks PENDING_HOST bookings older than 24h. Auto-declines and runs compensation (void payment hold, unlock dates). This penalizes the host's response rate.</li>
-                        <li><strong>Payment hold expiry:</strong> Stripe auth holds expire after 7 days. For Request-to-Book, if the host takes close to 24h, re-authorize if needed. Track hold expiry timestamps.</li>
+                        <li><strong>Payment hold expiry:</strong> Auth holds expire depending on the card network (Visa: 7 days, Mastercard: up to 30 days, Amex: 7 days). Stripe surfaces this as the <code>capture_before</code> timestamp. For Request-to-Book, if the host takes close to 24h, the hold is generally still valid, but track the expiry and re-authorize if approaching the deadline.</li>
                         <li><strong>Saga orchestrator crash:</strong> Persist saga state to database. On restart, load incomplete sagas and resume from last completed step. This is why idempotent steps are critical &mdash; replaying a completed step must be safe.</li>
                         <li><strong>Partial date lock:</strong> If only 3 of 5 dates can be locked (race condition), the transaction rolls back atomically since it's a single PG transaction.</li>
                     </ul>
@@ -1016,10 +987,10 @@ flowchart LR
 # With Redis hash packing: ~20 GB (hash key = listing_id, field = date)
 
 # Hash structure (more memory efficient):
-# HSET price:lst_abc123 2025-08-01 18000 2025-08-02 18500 ...
+# HSET price:lst_abc123 2026-08-01 18000 2026-08-02 18500 ...
 
 # Search flow: when returning results, batch-fetch prices
-# HMGET price:lst_abc123 2025-08-01 2025-08-02 2025-08-03 2025-08-04
+# HMGET price:lst_abc123 2026-08-01 2026-08-02 2026-08-03 2026-08-04
 # Returns: [18000, 18500, 19000, 18000] (cents per night)
 # Total for 4 nights: $735.00
                         </code>
@@ -1078,7 +1049,7 @@ sequenceDiagram
 
                     <h4 class="mt-3">Key Payment Design Decisions</h4>
                     <ul>
-                        <li><strong>Auth hold at booking, capture at check-in:</strong> Gives a cancellation window without immediately charging. Holds typically expire after 7 days, so for bookings far in advance, charge a deposit and hold the remainder closer to check-in.</li>
+                        <li><strong>Auth hold at booking, capture at check-in:</strong> Gives a cancellation window without immediately charging. Holds expire in 7-30 days depending on card network, so for bookings far in advance (weeks or months out), charge a non-refundable deposit immediately and authorize the remainder closer to check-in using a <a href="https://docs.stripe.com/payments/setup-intents" target="_blank">SetupIntent</a> to save the payment method for later charging.</li>
                         <li><strong>24h payout delay:</strong> If the guest reports issues on check-in day, the platform has time to intervene before the host is paid.</li>
                         <li><strong>Idempotency keys on every payment call:</strong> Network retries must never cause double charges. Map booking_id to Stripe PaymentIntent ID.</li>
                         <li><strong>Multi-currency:</strong> Guest is charged in their local currency. Host receives payout in their preferred currency. Platform records the exchange rate at booking time and absorbs FX risk (or passes it to the host).</li>
@@ -1239,22 +1210,26 @@ flowchart TB
                         <code>
 # booking_api.py - FastAPI booking service
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from datetime import date
 import asyncpg
 import uuid
 
-app = FastAPI()
 pool: asyncpg.Pool = None
 
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app):
     global pool
     pool = await asyncpg.create_pool(
         "postgresql://booking_user:pass@pg-primary:5432/airbnb",
         min_size=10, max_size=50
     )
+    yield
+    await pool.close()
+
+app = FastAPI(lifespan=lifespan)
 
 class BookingRequest(BaseModel):
     listing_id: str
@@ -1373,7 +1348,8 @@ async def search_listings(
         "size": page_size
     }
 
-    result = await es.search(index="listings", body=body)
+    # Note: elasticsearch-py v8+ passes query params directly (body= is deprecated)
+    result = await es.search(index="listings", **body)
     return {
         "results": [hit["_source"] for hit in result["hits"]["hits"]],
         "total": result["hits"]["total"]["value"]
@@ -1523,12 +1499,12 @@ async def search_listings(
                 </div>
                 <div class="collapsible-content">
                     <ul>
-                        <li><strong>"How do you prevent double-booking?"</strong> &rarr; Calendar table with (listing_id, date) PK; SELECT FOR UPDATE in a transaction; unique constraint as safety net. At 0.01 bookings/sec/listing, DB locking is sufficient.</li>
+                        <li><strong>"How do you prevent double-booking?"</strong> &rarr; Calendar table with (listing_id, date) PK; SELECT FOR UPDATE in a transaction; the PK itself is the safety net (only one row per listing per date). At 0.01 bookings/sec/listing, DB row locking is sufficient.</li>
                         <li><strong>"How does search handle availability checking efficiently?"</strong> &rarr; Precomputed 365-day availability bitmap in ES, updated via CDC pipeline. Check bitmap at query time; re-verify in PG only at booking time.</li>
                         <li><strong>"What happens if the payment provider is down?"</strong> &rarr; Circuit breaker pattern; dates stay locked with a 15-min TTL; retry with idempotency key; saga compensates if payment ultimately fails.</li>
                         <li><strong>"How do you handle a celebrity listing with thousands of concurrent booking attempts?"</strong> &rarr; Serialize booking attempts per-listing with a Redis queue; return "pending" immediately; process sequentially. First successful booking wins.</li>
                         <li><strong>"How would you add Experiences (tours, cooking classes)?"</strong> &rarr; Same calendar model but with capacity (10 spots vs 1 for a house). Change calendar check from "available = true" to "booked_count &lt; capacity". Decrement atomically.</li>
-                        <li><strong>"How do you handle timezone issues for check-in/check-out?"</strong> &rarr; All dates stored as listing-local dates (DATE type, not TIMESTAMP). A listing in Tokyo has its check-in at "2025-08-01" in JST. The guest in NYC sees "Aug 1" regardless of their timezone.</li>
+                        <li><strong>"How do you handle timezone issues for check-in/check-out?"</strong> &rarr; All dates stored as listing-local dates (DATE type, not TIMESTAMP). A listing in Tokyo has its check-in at "2026-08-01" in JST. The guest in NYC sees "Aug 1" regardless of their timezone.</li>
                     </ul>
                 </div>
             </div>
@@ -1584,7 +1560,7 @@ async def search_listings(
     <script src="../../assets/js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sd-sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -1599,5 +1575,7 @@ async def search_listings(
             });
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>

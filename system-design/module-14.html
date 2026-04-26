@@ -1,0 +1,2101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 7: Data Consistency Patterns - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .consistency-spectrum {
+            display: flex;
+            align-items: stretch;
+            margin: 1.5rem 0;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            min-height: 90px;
+        }
+        .spectrum-level {
+            flex: 1;
+            padding: 1rem 0.75rem;
+            text-align: center;
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .spectrum-level:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+        .spectrum-level span {
+            display: block;
+            font-size: 0.72rem;
+            font-weight: 400;
+            margin-top: 0.3rem;
+            opacity: 0.85;
+        }
+        .spectrum-strong { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .spectrum-sequential { background: linear-gradient(135deg, #764ba2, #b44ddb); }
+        .spectrum-causal { background: linear-gradient(135deg, #b44ddb, #e06060); }
+        .spectrum-session { background: linear-gradient(135deg, #e06060, #e89b3e); }
+        .spectrum-eventual { background: linear-gradient(135deg, #e89b3e, #11998e); }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        .comparison-table th, .comparison-table td {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-color, #333);
+            text-align: left;
+        }
+        .comparison-table th {
+            background: var(--card-bg, #1e1e2e);
+            color: var(--primary-color, #667eea);
+            font-weight: 600;
+        }
+        .comparison-table tr:nth-child(even) {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .tip-box {
+            border-left: 4px solid #667eea;
+            background: rgba(102, 126, 234, 0.08);
+            padding: 1rem 1.25rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+            margin: 1rem 0;
+        }
+        .tip-box h4 {
+            margin: 0 0 0.5rem 0;
+            color: #667eea;
+        }
+
+        .warning-box {
+            border-left: 4px solid #e06060;
+            background: rgba(224, 96, 96, 0.08);
+            padding: 1rem 1.25rem;
+            border-radius: 0 0.5rem 0.5rem 0;
+            margin: 1rem 0;
+        }
+        .warning-box h4 {
+            margin: 0 0 0.5rem 0;
+            color: #e06060;
+        }
+
+        .quiz-container {
+            background: var(--card-bg, #1e1e2e);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .quiz-question {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color, #333);
+        }
+        .quiz-question:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .quiz-question p {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .quiz-options label {
+            display: block;
+            padding: 0.4rem 0;
+            cursor: pointer;
+        }
+        .quiz-answer {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .reveal-btn {
+            background: var(--primary-color, #667eea);
+            color: #fff;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        .reveal-btn:hover { opacity: 0.85; }
+
+        .node-example {
+            font-family: 'Courier New', monospace;
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 0.75rem 0;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        @media (max-width: 700px) {
+            .consistency-spectrum { flex-direction: column; }
+            .spectrum-level { padding: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+
+            <!-- ============================================================ -->
+            <!-- HEADER                                                        -->
+            <!-- ============================================================ -->
+            <h1>Module 7: Data Consistency Patterns</h1>
+            <p class="subtitle" style="font-size:1.1rem; color: var(--text-muted, #aaa); margin-bottom: 2rem;">
+                Understanding consistency models, consensus protocols, and conflict resolution strategies
+                that underpin every distributed system &mdash; and how to reason about them in a staff-level interview.
+            </p>
+
+            <!-- Learning Objectives -->
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>The full spectrum of consistency models, from linearizability to eventual consistency</li>
+                    <li>How consensus protocols (Paxos, Raft) achieve agreement across replicas</li>
+                    <li>Vector clocks, Lamport timestamps, and logical time for ordering events</li>
+                    <li>CRDTs: data structures that converge without coordination</li>
+                    <li>Quorum systems, sloppy quorums, and tunable consistency</li>
+                    <li>Gossip protocols and anti-entropy mechanisms</li>
+                    <li>How Google Spanner, CockroachDB, and DynamoDB implement consistency in production</li>
+                    <li>A decision framework for choosing the right consistency level in interviews</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. WHY CONSISTENCY MATTERS                                    -->
+            <!-- ============================================================ -->
+            <h2 id="why-consistency">1. Why Consistency Matters</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Fundamental Problem</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        The moment you replicate data &mdash; for durability, availability, or latency &mdash;
+                        you face a question: <strong>what does a reader see while a write is in flight?</strong>
+                        The answer defines your <em>consistency model</em>, and every design decision you make
+                        in a distributed system flows from that choice.
+                    </p>
+                    <p>
+                        Consistency is not a binary "strong vs. weak" toggle. It is a <strong>spectrum</strong>,
+                        and different parts of the same system can live at different points on that spectrum.
+                        A banking ledger demands linearizability; a social media "like" counter can tolerate
+                        seconds-old staleness without any user noticing. Understanding <em>where</em> on the
+                        spectrum each data path belongs &mdash; and articulating why &mdash; is one of the
+                        clearest staff-level signals an interviewer can observe.
+                    </p>
+
+                    <h3>Real-World Impact</h3>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Scenario</th>
+                                <th>Required Consistency</th>
+                                <th>Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Bank account transfer</td>
+                                <td>Linearizable / Serializable</td>
+                                <td>Overdraft = real money lost. Double-spend = regulatory violation.</td>
+                            </tr>
+                            <tr>
+                                <td>Flight seat reservation</td>
+                                <td>Serializable</td>
+                                <td>Double-booking a seat is unacceptable; but millisecond staleness on the seat map UI is fine.</td>
+                            </tr>
+                            <tr>
+                                <td>Shopping cart (Amazon style)</td>
+                                <td>Eventual + CRDTs</td>
+                                <td>Must always be writable (availability first); conflicts merged on read.</td>
+                            </tr>
+                            <tr>
+                                <td>Social media "like" count</td>
+                                <td>Eventual</td>
+                                <td>Showing 4,201 vs. 4,203 for a few seconds is invisible to users.</td>
+                            </tr>
+                            <tr>
+                                <td>Collaborative document editing</td>
+                                <td>Causal + CRDTs / OT</td>
+                                <td>Users must see their own edits immediately, and see co-authors' edits in causal order.</td>
+                            </tr>
+                            <tr>
+                                <td>DNS propagation</td>
+                                <td>Eventual (minutes/hours)</td>
+                                <td>TTL-based caching; staleness tolerable for hours.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="tip-box">
+                        <h4>Staff-Level Signal</h4>
+                        <p>
+                            When you discuss consistency in an interview, always anchor it to a <em>user-visible consequence</em>.
+                            "We need strong consistency here because a user who just transferred money must never see the old balance"
+                            is far stronger than "we pick CP because CAP theorem says so."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Consistency Spectrum</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Think of consistency as a spectrum from strongest (most expensive) to weakest (most available):</p>
+
+                    <div class="consistency-spectrum">
+                        <div class="spectrum-level spectrum-strong">
+                            Linearizable
+                            <span>Single-copy illusion</span>
+                        </div>
+                        <div class="spectrum-level spectrum-sequential">
+                            Sequential
+                            <span>Global total order</span>
+                        </div>
+                        <div class="spectrum-level spectrum-causal">
+                            Causal
+                            <span>Respects causality</span>
+                        </div>
+                        <div class="spectrum-level spectrum-session">
+                            Session / RYW
+                            <span>Per-client guarantees</span>
+                        </div>
+                        <div class="spectrum-level spectrum-eventual">
+                            Eventual
+                            <span>Converges... eventually</span>
+                        </div>
+                    </div>
+
+                    <p>
+                        Moving left increases <strong>coordination cost</strong> (more round trips, higher tail latency,
+                        lower availability during partitions). Moving right increases <strong>application complexity</strong>
+                        (developers must handle stale reads, conflicts, and anomalies). The art of system design is finding
+                        the sweet spot for each data path.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. CONSISTENCY MODELS                                         -->
+            <!-- ============================================================ -->
+            <h2 id="consistency-models">2. Consistency Models</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Linearizability (Strongest)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Linearizability</strong> is the gold standard. It provides the illusion that there is
+                        only a single copy of the data and that every operation takes effect atomically at some point
+                        between its invocation and response. In other words, once a write completes, every subsequent
+                        read (by any client, on any replica) will see that write or something newer.
+                    </p>
+
+                    <h4>Formal Definition</h4>
+                    <p>
+                        A history of operations is linearizable if we can assign each operation a single point in real time
+                        (its <em>linearization point</em>) such that the result of every operation is the same as if
+                        they were executed sequentially in linearization-point order.
+                    </p>
+
+                    <h4>Why It's Expensive</h4>
+                    <ul>
+                        <li><strong>Coordination required:</strong> Every write must be acknowledged by a majority of replicas before returning.</li>
+                        <li><strong>Read cost:</strong> Reads must either go to the leader or use a quorum read to avoid stale data.</li>
+                        <li><strong>Availability trade-off:</strong> During a network partition, a linearizable system must choose to reject some operations (CP in CAP terms).</li>
+                        <li><strong>Latency:</strong> Cross-datacenter linearizability means round trips measured in tens of milliseconds.</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant C1 as Client 1
+    participant L as Leader
+    participant F1 as Follower 1
+    participant F2 as Follower 2
+    participant C2 as Client 2
+
+    C1->>L: write(x = 42)
+    L->>F1: replicate(x = 42)
+    L->>F2: replicate(x = 42)
+    F1-->>L: ack
+    F2-->>L: ack
+    L-->>C1: ok (committed)
+    Note over C1,C2: After this point, ALL reads see x = 42
+    C2->>L: read(x)
+    L-->>C2: x = 42
+                        </div>
+                    </div>
+
+                    <h4>When You Need It</h4>
+                    <ul>
+                        <li>Leader election and distributed locks (e.g., ZooKeeper, etcd)</li>
+                        <li>Unique constraint enforcement (username uniqueness)</li>
+                        <li>Financial transactions where double-spend is unacceptable</li>
+                        <li>Compare-and-swap operations</li>
+                    </ul>
+
+                    <h4>Systems That Provide It</h4>
+                    <p>
+                        <strong>Google Spanner</strong> (via TrueTime), <strong>etcd</strong> (Raft-based),
+                        <strong>ZooKeeper</strong> (ZAB protocol), <strong>CockroachDB</strong> (serializable with
+                        linearizable reads), <strong>FoundationDB</strong>.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Sequential Consistency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Sequential consistency</strong> relaxes linearizability slightly. It guarantees that
+                        all operations appear to execute in <em>some</em> total order, and that each client's
+                        operations appear in the order they were issued &mdash; but this total order need not
+                        correspond to real-time ordering.
+                    </p>
+
+                    <h4>Key Difference from Linearizability</h4>
+                    <p>
+                        With linearizability, if Client A's write completes before Client B's read begins (in real time),
+                        Client B must see that write. With sequential consistency, Client B <em>might</em> see
+                        an older value, as long as all clients agree on the same total order of operations.
+                    </p>
+
+                    <p>
+                        Think of it like this: linearizability = real-time ordering respected. Sequential consistency
+                        = some total order exists that is consistent with each client's program order.
+                    </p>
+
+                    <h4>Where It Appears</h4>
+                    <ul>
+                        <li><strong>ZooKeeper reads:</strong> By default, reads can be served from any replica (not linearizable) but all clients see the same order of updates.</li>
+                        <li><strong>Multi-core CPUs:</strong> Many CPU memory models provide sequential consistency (or weaker) rather than linearizability, for performance.</li>
+                    </ul>
+
+                    <div class="warning-box">
+                        <h4>Interview Pitfall</h4>
+                        <p>
+                            Many candidates conflate linearizability and sequential consistency. If an interviewer asks
+                            "Is ZooKeeper linearizable?" the precise answer is: "Writes are linearizable (all go through the leader),
+                            but reads are sequentially consistent by default &mdash; you need a <code>sync()</code> call for a linearizable read."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Causal Consistency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Causal consistency</strong> guarantees that operations that are <em>causally related</em>
+                        are seen by all nodes in the same order. Operations that are <em>concurrent</em> (not causally
+                        related) may be seen in different orders on different nodes.
+                    </p>
+
+                    <h4>Happens-Before Relationship</h4>
+                    <p>
+                        Event A <em>happens before</em> event B (written A &rarr; B) if:
+                    </p>
+                    <ol>
+                        <li>A and B are on the same process and A occurred before B in program order.</li>
+                        <li>A is a send and B is the corresponding receive of a message.</li>
+                        <li>There exists C such that A &rarr; C and C &rarr; B (transitivity).</li>
+                    </ol>
+
+                    <p>
+                        If neither A &rarr; B nor B &rarr; A, then A and B are <strong>concurrent</strong>.
+                        Causal consistency says: if A &rarr; B, then every node sees A before B.
+                        But two concurrent events may be seen in different orders by different nodes.
+                    </p>
+
+                    <h4>Example: Social Media Comment Thread</h4>
+                    <p>
+                        Alice posts a photo. Bob comments on the photo. Carol replies to Bob's comment.
+                        Causal consistency ensures every user sees: Photo &rarr; Bob's comment &rarr; Carol's reply,
+                        in that order. But if Dave and Eve both "like" the photo independently (concurrent events),
+                        some users might see Dave's like first and others might see Eve's first.
+                    </p>
+
+                    <h4>Why It's Attractive</h4>
+                    <ul>
+                        <li>Does <strong>not</strong> require a single leader &mdash; can be implemented in multi-leader or leaderless systems.</li>
+                        <li>Available during partitions (unlike linearizability).</li>
+                        <li>Captures the ordering guarantees that humans intuitively expect.</li>
+                    </ul>
+
+                    <h4>Systems</h4>
+                    <p>
+                        <strong>MongoDB</strong> (causal sessions since 3.6), <strong>COPS</strong> (research system),
+                        <strong>Eiger</strong>. Many collaborative editing systems rely on causal ordering.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Eventual Consistency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Eventual consistency</strong> provides the weakest useful guarantee: if no new writes
+                        occur, all replicas will <em>eventually</em> converge to the same value. The "eventually"
+                        might be milliseconds or minutes &mdash; there is no upper bound unless the system specifies one.
+                    </p>
+
+                    <h4>The Convergence Contract</h4>
+                    <p>
+                        Eventual consistency alone says nothing about <em>what</em> value replicas converge to when
+                        there are conflicting writes. Systems must layer a <strong>conflict resolution strategy</strong>
+                        on top:
+                    </p>
+                    <ul>
+                        <li><strong>Last-writer-wins (LWW):</strong> Highest timestamp wins. Simple but can lose updates.</li>
+                        <li><strong>Application-level merge:</strong> The application resolves conflicts (Amazon's shopping cart).</li>
+                        <li><strong>CRDTs:</strong> Data structures that merge automatically without conflicts (covered in section 5).</li>
+                    </ul>
+
+                    <h4>When It's Appropriate</h4>
+                    <ul>
+                        <li>Caches (stale data eventually refreshed)</li>
+                        <li>DNS (TTL-based convergence)</li>
+                        <li>Social media feeds, like counts, view counts</li>
+                        <li>Product catalog (brief staleness rarely matters)</li>
+                        <li>Session stores (user is typically sticky to one replica)</li>
+                    </ul>
+
+                    <h4>Systems</h4>
+                    <p>
+                        <strong>Amazon DynamoDB</strong> (default), <strong>Apache Cassandra</strong> (default),
+                        <strong>Riak</strong>, <strong>CouchDB</strong>, <strong>Amazon S3</strong> (now strong consistency
+                        as of Dec 2020, but historically eventual).
+                    </p>
+
+                    <div class="tip-box">
+                        <h4>Staff-Level Insight</h4>
+                        <p>
+                            "Eventual consistency" without specifying a conflict resolution strategy is incomplete.
+                            Always state <em>how</em> conflicts are resolved. In an interview, saying "we'll use eventual
+                            consistency with LWW based on Lamport timestamps" shows depth, whereas "we'll use eventual
+                            consistency" sounds hand-wavy.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Session Guarantees (Read-Your-Writes, Monotonic Reads, Monotonic Writes)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Between causal and eventual, there are <strong>per-session guarantees</strong> that are
+                        often sufficient for good user experience without the cost of full causal consistency:
+                    </p>
+
+                    <h4>Read-Your-Writes (RYW)</h4>
+                    <p>
+                        After a client writes a value, subsequent reads by <em>that same client</em> will see the
+                        written value or something newer. Other clients may still see stale data.
+                    </p>
+                    <p>
+                        <strong>Example:</strong> You update your profile picture. RYW guarantees <em>you</em> see
+                        the new picture immediately, even if other users see the old one for a few seconds.
+                    </p>
+                    <p>
+                        <strong>Implementation:</strong> Track the client's latest write timestamp. On read, ensure
+                        the replica has caught up to at least that timestamp (or route reads to the same replica that
+                        handled the write).
+                    </p>
+
+                    <h4>Monotonic Reads</h4>
+                    <p>
+                        If a client reads value v at time t, it will never subsequently read a value older than v.
+                        Time doesn't "go backwards." Without this guarantee, a user could refresh a page and see
+                        an older version of data &mdash; a confusing experience.
+                    </p>
+                    <p>
+                        <strong>Implementation:</strong> Pin the client to a replica, or track the client's last-read
+                        timestamp and ensure subsequent reads come from a replica that is at least as up-to-date.
+                    </p>
+
+                    <h4>Monotonic Writes</h4>
+                    <p>
+                        Writes by the same client are applied in the order they were issued. Without this, a sequence
+                        of incremental updates could be applied out of order, producing an inconsistent state.
+                    </p>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Guarantee</th>
+                                <th>What It Prevents</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Read-Your-Writes</td>
+                                <td>User writes data, then reads stale version of own data</td>
+                                <td>Low: sticky sessions or version tracking</td>
+                            </tr>
+                            <tr>
+                                <td>Monotonic Reads</td>
+                                <td>User sees newer data, then refreshes and sees older data</td>
+                                <td>Low: sticky sessions or monotonic version check</td>
+                            </tr>
+                            <tr>
+                                <td>Monotonic Writes</td>
+                                <td>Writes from same client applied out of order</td>
+                                <td>Low: serialize per-client writes at single node or via causal metadata</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Consistency Models Comparison</span>
+                </div>
+                <div class="collapsible-content">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Model</th>
+                                <th>Ordering Guarantee</th>
+                                <th>Availability</th>
+                                <th>Latency</th>
+                                <th>Real-World System</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Linearizable</strong></td>
+                                <td>Real-time + total order</td>
+                                <td>Low (CP)</td>
+                                <td>High</td>
+                                <td>Spanner, etcd, ZooKeeper (writes)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sequential</strong></td>
+                                <td>Total order (no real-time)</td>
+                                <td>Low-Med</td>
+                                <td>Medium</td>
+                                <td>ZooKeeper (reads), CPU memory</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Causal</strong></td>
+                                <td>Partial order (causality)</td>
+                                <td>High</td>
+                                <td>Low-Med</td>
+                                <td>MongoDB (causal sessions), COPS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Read-Your-Writes</strong></td>
+                                <td>Per-client ordering</td>
+                                <td>High</td>
+                                <td>Low</td>
+                                <td>DynamoDB (session), many web apps</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Eventual</strong></td>
+                                <td>Convergence only</td>
+                                <td>Highest</td>
+                                <td>Lowest</td>
+                                <td>Cassandra, Riak, DNS, CDNs</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. CONSENSUS PROTOCOLS                                        -->
+            <!-- ============================================================ -->
+            <h2 id="consensus">3. Consensus Protocols</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Consensus Is Hard</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Consensus is the problem of getting N nodes to agree on a single value, despite
+                        crash failures and network delays. It is the backbone of linearizable replicated
+                        state machines, leader election, and distributed locks.
+                    </p>
+                    <p>
+                        The <strong>FLP impossibility result</strong> (1985) proves that no deterministic algorithm
+                        can guarantee consensus in an asynchronous system with even one crash failure. In practice,
+                        we circumvent this by using timeouts, randomization, or partial synchrony assumptions.
+                    </p>
+
+                    <h4>Cost of Consensus</h4>
+                    <ul>
+                        <li><strong>Latency:</strong> At minimum, 1 round trip to a majority (Raft/Paxos). In Spanner, cross-continent consensus adds 50-150ms.</li>
+                        <li><strong>Availability:</strong> Requires a majority of nodes to be reachable. 3 nodes tolerates 1 failure; 5 nodes tolerates 2.</li>
+                        <li><strong>Throughput:</strong> Single-leader consensus serializes writes through one node, limiting throughput.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Paxos (Simplified)</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Paxos</strong>, invented by Leslie Lamport, is the foundational consensus algorithm.
+                        It is notoriously difficult to understand and implement, which is why Raft was created as
+                        an equivalent but more understandable alternative.
+                    </p>
+
+                    <h4>Basic Paxos (Single-Decree)</h4>
+                    <p>Three roles: <strong>Proposers</strong>, <strong>Acceptors</strong>, <strong>Learners</strong>.</p>
+                    <ol>
+                        <li><strong>Prepare phase:</strong> Proposer picks a unique proposal number n and sends <code>Prepare(n)</code> to a majority of acceptors.</li>
+                        <li><strong>Promise:</strong> Each acceptor, if n is the highest it has seen, responds with <code>Promise(n)</code> and any value it has already accepted.</li>
+                        <li><strong>Accept phase:</strong> If the proposer gets promises from a majority, it sends <code>Accept(n, v)</code> where v is either the highest-numbered previously accepted value, or the proposer's own value.</li>
+                        <li><strong>Accepted:</strong> Acceptors accept if they haven't promised a higher number. Once a majority accepts, the value is <strong>chosen</strong>.</li>
+                    </ol>
+
+                    <h4>Multi-Paxos</h4>
+                    <p>
+                        Single-decree Paxos decides one value. To build a replicated log, you run Paxos for each
+                        log entry &mdash; this is Multi-Paxos. In practice, you elect a stable leader to skip the
+                        Prepare phase for subsequent entries, reducing it to a single round trip. This is essentially
+                        what Google's Chubby and Spanner use internally.
+                    </p>
+
+                    <div class="warning-box">
+                        <h4>Interview Tip</h4>
+                        <p>
+                            You rarely need to explain Paxos in detail during an interview. It's more important to know
+                            <em>what it achieves</em> (consensus despite failures), its <em>limitations</em> (liveness issues
+                            with competing proposers), and that Raft solves the same problem more understandably. If asked,
+                            saying "I'm more familiar with Raft, which is equivalent to Multi-Paxos" is perfectly fine.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Raft: Understandable Consensus</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Raft</strong> (2014, Ongaro &amp; Ousterhout) decomposes consensus into three
+                        sub-problems: <strong>leader election</strong>, <strong>log replication</strong>, and
+                        <strong>safety</strong>. It is used by etcd, CockroachDB, TiKV, Consul, and many other
+                        production systems.
+                    </p>
+
+                    <h4>Raft Roles</h4>
+                    <ul>
+                        <li><strong>Leader:</strong> Handles all client requests. Replicates log entries to followers.</li>
+                        <li><strong>Follower:</strong> Passively replicates the leader's log. Redirects client requests to the leader.</li>
+                        <li><strong>Candidate:</strong> A follower that has timed out waiting for heartbeats and starts an election.</li>
+                    </ul>
+
+                    <h4>Leader Election</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Follower
+    Follower --> Candidate: Election timeout\n(no heartbeat received)
+    Candidate --> Candidate: Split vote\n(restart election)
+    Candidate --> Leader: Receives majority votes
+    Candidate --> Follower: Discovers higher term
+    Leader --> Follower: Discovers higher term
+    Leader --> Leader: Sends heartbeats\nReplicates log entries
+                        </div>
+                    </div>
+
+                    <p><strong>Election process step by step:</strong></p>
+                    <ol>
+                        <li>A follower's election timer expires (randomized 150-300ms to prevent split votes).</li>
+                        <li>It increments its <code>currentTerm</code>, transitions to Candidate, votes for itself, and sends <code>RequestVote</code> RPCs to all other nodes.</li>
+                        <li>A node grants its vote if: (a) it hasn't voted in this term yet, and (b) the candidate's log is at least as up-to-date as its own.</li>
+                        <li>If the candidate receives votes from a majority, it becomes Leader and immediately sends heartbeats to suppress new elections.</li>
+                        <li>If two candidates split the vote, both time out with new random delays and try again.</li>
+                    </ol>
+
+                    <h4>Log Replication</h4>
+                    <ol>
+                        <li>Client sends a command to the leader.</li>
+                        <li>Leader appends the command to its log as a new entry with the current term.</li>
+                        <li>Leader sends <code>AppendEntries</code> RPCs to all followers in parallel.</li>
+                        <li>Once a majority of followers acknowledge, the entry is <strong>committed</strong>.</li>
+                        <li>Leader applies the command to its state machine and responds to the client.</li>
+                        <li>Followers learn about commits via the leader's next heartbeat and apply committed entries.</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Client
+    participant Leader
+    participant F1 as Follower 1
+    participant F2 as Follower 2
+    participant F3 as Follower 3
+    participant F4 as Follower 4
+
+    Client->>Leader: write(x = 7)
+    Leader->>Leader: Append to log [term=3, x=7]
+    par Replicate to followers
+        Leader->>F1: AppendEntries(term=3, x=7)
+        Leader->>F2: AppendEntries(term=3, x=7)
+        Leader->>F3: AppendEntries(term=3, x=7)
+        Leader->>F4: AppendEntries(term=3, x=7)
+    end
+    F1-->>Leader: ack
+    F2-->>Leader: ack
+    Note over Leader: Majority (3/5) reached - COMMITTED
+    Leader->>Leader: Apply to state machine
+    Leader-->>Client: success
+    F3-->>Leader: ack (late)
+    F4-->>Leader: ack (late)
+                        </div>
+                    </div>
+
+                    <h4>Safety Guarantee</h4>
+                    <p>
+                        Raft's key safety property: <strong>if a log entry is committed in a given term, that entry
+                        will be present in the logs of all leaders for all higher terms.</strong> This is enforced by
+                        the election restriction &mdash; a candidate cannot win an election unless its log contains
+                        all committed entries.
+                    </p>
+
+                    <h4>Raft in Code (Simplified State)</h4>
+                    <pre class="code-block"><code class="language-python"># Simplified Raft node state
+class RaftNode:
+    def __init__(self, node_id, peers):
+        self.node_id = node_id
+        self.peers = peers
+        self.state = "follower"      # follower | candidate | leader
+        self.current_term = 0
+        self.voted_for = None
+        self.log = []                # List of (term, command)
+        self.commit_index = 0
+        self.last_applied = 0
+
+    def start_election(self):
+        self.current_term += 1
+        self.state = "candidate"
+        self.voted_for = self.node_id
+        votes_received = 1  # vote for self
+
+        for peer in self.peers:
+            # Send RequestVote RPC
+            vote_granted = self.send_request_vote(
+                peer,
+                term=self.current_term,
+                last_log_index=len(self.log) - 1,
+                last_log_term=self.log[-1][0] if self.log else 0
+            )
+            if vote_granted:
+                votes_received += 1
+
+        if votes_received &gt; (len(self.peers) + 1) // 2:
+            self.become_leader()
+
+    def on_append_entries(self, leader_term, entries, leader_commit):
+        if leader_term &lt; self.current_term:
+            return False  # Reject stale leader
+        self.state = "follower"
+        self.current_term = leader_term
+        # Append new entries, update commit_index
+        self.log.extend(entries)
+        self.commit_index = min(leader_commit, len(self.log) - 1)
+        return True</code></pre>
+
+                    <div class="tip-box">
+                        <h4>Staff-Level Insight</h4>
+                        <p>
+                            In interviews, knowing how Raft handles leader failure is a strong signal: the new leader
+                            might have uncommitted entries from the old leader. Raft's "election restriction" ensures
+                            the new leader has all committed entries, and uncommitted entries from old terms are never
+                            directly committed &mdash; they are committed only as a side effect of committing a new entry
+                            in the current term.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. VECTOR CLOCKS & LOGICAL TIME                               -->
+            <!-- ============================================================ -->
+            <h2 id="vector-clocks">4. Vector Clocks &amp; Logical Time</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Lamport Timestamps</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Physical clocks in distributed systems are unreliable &mdash; clock skew, NTP drift,
+                        and leap seconds all introduce ordering errors. <strong>Lamport timestamps</strong> (1978)
+                        provide a <em>logical clock</em> that captures the happens-before relationship.
+                    </p>
+
+                    <h4>Rules</h4>
+                    <ol>
+                        <li>Each process maintains a counter C.</li>
+                        <li>Before each event, increment C: <code>C = C + 1</code></li>
+                        <li>When sending a message, attach the current C value.</li>
+                        <li>On receiving a message with timestamp T: <code>C = max(C, T) + 1</code></li>
+                    </ol>
+
+                    <h4>Property</h4>
+                    <p>
+                        If event A happens-before event B, then <code>L(A) &lt; L(B)</code>.
+                        But the <strong>converse is not true</strong>: <code>L(A) &lt; L(B)</code> does NOT imply
+                        A happened before B. Two concurrent events may have any ordering of Lamport timestamps.
+                    </p>
+
+                    <h4>Limitation</h4>
+                    <p>
+                        Lamport timestamps cannot detect concurrency. If <code>L(A) &lt; L(B)</code>,
+                        you cannot tell whether A &rarr; B or they are concurrent. This is why we need vector clocks.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Vector Clocks: Detecting Concurrency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        A <strong>vector clock</strong> is an array of N counters, one per node. It captures the
+                        full happens-before relationship and can determine whether two events are causally related
+                        or concurrent.
+                    </p>
+
+                    <h4>Rules</h4>
+                    <ol>
+                        <li>Each node i maintains a vector V of size N, initialized to all zeros.</li>
+                        <li>Before each event on node i: <code>V[i] = V[i] + 1</code></li>
+                        <li>When node i sends a message, attach V.</li>
+                        <li>On receiving a message with vector W on node j: <code>V[k] = max(V[k], W[k])</code> for all k, then <code>V[j] = V[j] + 1</code></li>
+                    </ol>
+
+                    <h4>Comparison Rules</h4>
+                    <ul>
+                        <li><code>V1 = V2</code> iff <code>V1[k] = V2[k]</code> for all k</li>
+                        <li><code>V1 &le; V2</code> iff <code>V1[k] &le; V2[k]</code> for all k</li>
+                        <li><code>V1 &lt; V2</code> (V1 happens-before V2) iff <code>V1 &le; V2</code> and <code>V1 &ne; V2</code></li>
+                        <li><strong>Concurrent:</strong> if neither <code>V1 &lt; V2</code> nor <code>V2 &lt; V1</code></li>
+                    </ul>
+
+                    <h4>Worked Example: 3 Nodes</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant A as Node A
+    participant B as Node B
+    participant C as Node C
+
+    Note over A: e1: [1,0,0]
+    A->>B: msg1 with [1,0,0]
+    Note over B: e2: [1,1,0]
+    Note over C: e3: [0,0,1]
+    B->>C: msg2 with [1,1,0]
+    Note over C: e4: [1,1,2]
+    Note over A: e5: [2,0,0]
+    C->>A: msg3 with [1,1,2]
+    Note over A: e6: [3,1,2]
+                        </div>
+                    </div>
+
+                    <div class="node-example">
+<strong>Step-by-step vector clock progression:</strong>
+
+Node A: e1 &rarr; V_A = [1, 0, 0]
+  A sends msg1 to B with [1, 0, 0]
+
+Node B: receives msg1 &rarr; merge max([0,0,0], [1,0,0]) = [1,0,0], then B++ &rarr; V_B = [1, 1, 0]
+  B sends msg2 to C with [1, 1, 0]
+
+Node C: e3 (local event) &rarr; V_C = [0, 0, 1]
+  C receives msg2 &rarr; merge max([0,0,1], [1,1,0]) = [1,1,1], then C++ &rarr; V_C = [1, 1, 2]
+
+Node A: e5 (local event) &rarr; V_A = [2, 0, 0]
+  A receives msg3 from C with [1,1,2] &rarr; merge max([2,0,0], [1,1,2]) = [2,1,2], then A++ &rarr; V_A = [3, 1, 2]
+
+<strong>Concurrency check:</strong>
+  e3 = [0,0,1] vs e1 = [1,0,0]
+  Neither [0,0,1] &le; [1,0,0] nor [1,0,0] &le; [0,0,1]
+  &rarr; e1 and e3 are CONCURRENT
+
+  e5 = [2,0,0] vs e4 = [1,1,2]
+  Neither dominates the other
+  &rarr; e5 and e4 are CONCURRENT
+
+  e1 = [1,0,0] vs e4 = [1,1,2]
+  [1,0,0] &le; [1,1,2] &rarr; e1 HAPPENS-BEFORE e4 ✓
+                    </div>
+
+                    <h4>Amazon Dynamo and Vector Clocks</h4>
+                    <p>
+                        Amazon Dynamo (the internal system, not DynamoDB) uses vector clocks to detect conflicting
+                        writes. When a client reads a key, it may receive multiple versions with incomparable vector
+                        clocks. The client or application must <strong>merge</strong> these siblings.
+                    </p>
+                    <p>
+                        In practice, Dynamo found that vector clocks grew too large (proportional to number of
+                        client nodes), so they truncated old entries &mdash; at the cost of sometimes failing to
+                        detect causality and producing unnecessary conflicts. DynamoDB (the AWS service) moved away
+                        from vector clocks to simpler LWW for most use cases.
+                    </p>
+
+                    <div class="tip-box">
+                        <h4>Interview Application</h4>
+                        <p>
+                            If designing a leaderless replicated system, mention vector clocks as the mechanism for
+                            conflict detection. A strong answer explains: "We detect concurrent writes using vector
+                            clocks, and resolve conflicts via [LWW / application merge / CRDTs] depending on the
+                            data semantics."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. CRDTs                                                      -->
+            <!-- ============================================================ -->
+            <h2 id="crdts">5. CRDTs (Conflict-free Replicated Data Types)</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Are CRDTs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>CRDTs</strong> are data structures designed so that concurrent updates on
+                        different replicas can always be merged without conflicts. They guarantee
+                        <strong>strong eventual consistency</strong>: any two replicas that have received
+                        the same set of updates (in any order) have the same state.
+                    </p>
+                    <p>
+                        This is achieved by making the merge operation <strong>commutative</strong>,
+                        <strong>associative</strong>, and <strong>idempotent</strong>, forming a mathematical
+                        join-semilattice.
+                    </p>
+
+                    <h4>Two Flavors</h4>
+                    <ul>
+                        <li><strong>State-based (CvRDTs):</strong> Replicas ship their full state; merge via a join function. Simpler but more bandwidth.</li>
+                        <li><strong>Operation-based (CmRDTs):</strong> Replicas ship operations; must be delivered exactly once. Less bandwidth but requires reliable delivery.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Common CRDT Types</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>G-Counter (Grow-only Counter)</h4>
+                    <p>
+                        Each of N nodes maintains its own counter. The total value is the sum of all node counters.
+                        Merge is element-wise max.
+                    </p>
+                    <pre class="code-block"><code class="language-python">class GCounter:
+    """Grow-only counter CRDT"""
+    def __init__(self, node_id, n_nodes):
+        self.node_id = node_id
+        self.counts = [0] * n_nodes  # One slot per node
+
+    def increment(self):
+        self.counts[self.node_id] += 1
+
+    def value(self):
+        return sum(self.counts)
+
+    def merge(self, other):
+        """Merge is element-wise max - commutative, associative, idempotent"""
+        for i in range(len(self.counts)):
+            self.counts[i] = max(self.counts[i], other.counts[i])
+
+# Example: 3-node cluster
+a = GCounter(0, 3)  # [0, 0, 0]
+b = GCounter(1, 3)  # [0, 0, 0]
+a.increment()        # a: [1, 0, 0]
+a.increment()        # a: [2, 0, 0]
+b.increment()        # b: [0, 1, 0]
+# Merge: a.merge(b) =&gt; [2, 1, 0], value = 3  ✓
+# Merge: b.merge(a) =&gt; [2, 1, 0], value = 3  ✓ (commutative)</code></pre>
+
+                    <h4>PN-Counter (Positive-Negative Counter)</h4>
+                    <p>
+                        Two G-Counters: one for increments (P), one for decrements (N).
+                        Value = P.value() - N.value(). Supports both increment and decrement.
+                    </p>
+                    <pre class="code-block"><code class="language-python">class PNCounter:
+    def __init__(self, node_id, n_nodes):
+        self.p = GCounter(node_id, n_nodes)  # positive
+        self.n = GCounter(node_id, n_nodes)  # negative
+
+    def increment(self):
+        self.p.increment()
+
+    def decrement(self):
+        self.n.increment()
+
+    def value(self):
+        return self.p.value() - self.n.value()
+
+    def merge(self, other):
+        self.p.merge(other.p)
+        self.n.merge(other.n)</code></pre>
+
+                    <h4>G-Set (Grow-only Set)</h4>
+                    <p>
+                        Elements can only be added, never removed. Merge is set union.
+                        Simple and useful for append-only collections (e.g., set of users who liked a post).
+                    </p>
+
+                    <h4>OR-Set (Observed-Remove Set)</h4>
+                    <p>
+                        Allows both add and remove operations. Each add creates a unique tag. Remove deletes
+                        all currently observed tags for that element. Concurrent add+remove: the add wins
+                        (add-wins semantics).
+                    </p>
+                    <pre class="code-block"><code class="language-python">import uuid
+
+class ORSet:
+    """Observed-Remove Set CRDT (add-wins semantics)"""
+    def __init__(self):
+        self.elements = {}  # element -&gt; set of unique tags
+
+    def add(self, element):
+        tag = str(uuid.uuid4())
+        if element not in self.elements:
+            self.elements[element] = set()
+        self.elements[element].add(tag)
+
+    def remove(self, element):
+        """Remove all currently observed tags for this element"""
+        if element in self.elements:
+            self.elements[element] = set()
+
+    def lookup(self, element):
+        return element in self.elements and len(self.elements[element]) &gt; 0
+
+    def value(self):
+        return {e for e, tags in self.elements.items() if len(tags) &gt; 0}
+
+    def merge(self, other):
+        all_elements = set(self.elements.keys()) | set(other.elements.keys())
+        for e in all_elements:
+            mine = self.elements.get(e, set())
+            theirs = other.elements.get(e, set())
+            self.elements[e] = mine | theirs  # Union of tags</code></pre>
+
+                    <h4>LWW-Register (Last-Writer-Wins Register)</h4>
+                    <p>
+                        Each write carries a timestamp. Merge picks the value with the highest timestamp.
+                        Simple but can silently lose concurrent writes.
+                    </p>
+                    <pre class="code-block"><code class="language-python">class LWWRegister:
+    def __init__(self):
+        self.value = None
+        self.timestamp = 0
+
+    def write(self, value, timestamp):
+        if timestamp &gt; self.timestamp:
+            self.value = value
+            self.timestamp = timestamp
+
+    def merge(self, other):
+        if other.timestamp &gt; self.timestamp:
+            self.value = other.value
+            self.timestamp = other.timestamp</code></pre>
+
+                    <h4>When to Use CRDTs vs. Consensus</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>CRDTs</th>
+                                <th>Consensus (Raft/Paxos)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Coordination</td>
+                                <td>None (no leader needed)</td>
+                                <td>Requires leader + majority</td>
+                            </tr>
+                            <tr>
+                                <td>Availability</td>
+                                <td>Always writable</td>
+                                <td>Unavailable if majority lost</td>
+                            </tr>
+                            <tr>
+                                <td>Consistency</td>
+                                <td>Strong eventual</td>
+                                <td>Linearizable</td>
+                            </tr>
+                            <tr>
+                                <td>Data types</td>
+                                <td>Limited (counters, sets, registers)</td>
+                                <td>Arbitrary (replicated state machine)</td>
+                            </tr>
+                            <tr>
+                                <td>Use cases</td>
+                                <td>Counters, collaborative editing, offline-first</td>
+                                <td>Locks, config, leader election, transactions</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Real-World CRDT Usage</h4>
+                    <ul>
+                        <li><strong>Riak:</strong> Supports CRDT maps, sets, counters, and flags natively.</li>
+                        <li><strong>Redis (CRDTs):</strong> Redis Enterprise supports CRDT-based active-active geo-replication for counters, sets, and strings.</li>
+                        <li><strong>Figma:</strong> Uses CRDTs for real-time collaborative design editing.</li>
+                        <li><strong>Apple Notes / iCloud:</strong> Uses CRDTs for offline-first sync across devices.</li>
+                        <li><strong>Automerge / Yjs:</strong> Open-source CRDT libraries for collaborative applications.</li>
+                    </ul>
+
+                    <div class="tip-box">
+                        <h4>Staff-Level Signal</h4>
+                        <p>
+                            CRDTs are a powerful tool to mention when the interviewer pushes on availability during
+                            partitions. "For the shopping cart, we could use an OR-Set CRDT so that items can be added
+                            and removed on any replica, even during partitions, and all replicas converge automatically
+                            without conflict resolution logic." This shows you know a concrete mechanism, not just
+                            "eventual consistency."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. QUORUM SYSTEMS                                             -->
+            <!-- ============================================================ -->
+            <h2 id="quorums">6. Quorum Systems</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Read/Write Quorums</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        In a system with <strong>N replicas</strong>, a quorum system defines how many replicas
+                        must participate in reads (R) and writes (W) to guarantee consistency:
+                    </p>
+
+                    <div style="text-align:center; font-size:1.3rem; font-weight:600; margin: 1.5rem 0; color: var(--primary-color, #667eea);">
+                        R + W &gt; N &rArr; Reads always see the latest write
+                    </div>
+
+                    <p>
+                        This works because any read quorum and write quorum must overlap by at least one node,
+                        and that overlapping node has the latest value.
+                    </p>
+
+                    <h4>Common Configurations (N=3)</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Config</th>
+                                <th>W</th>
+                                <th>R</th>
+                                <th>Behavior</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Strong consistency</td>
+                                <td>2</td>
+                                <td>2</td>
+                                <td>Both reads and writes go to majority. Balanced latency.</td>
+                            </tr>
+                            <tr>
+                                <td>Fast reads</td>
+                                <td>3</td>
+                                <td>1</td>
+                                <td>Write to all replicas. Read from any one. Read-heavy workloads.</td>
+                            </tr>
+                            <tr>
+                                <td>Fast writes</td>
+                                <td>1</td>
+                                <td>3</td>
+                                <td>Write to one. Read from all. Write-heavy workloads.</td>
+                            </tr>
+                            <tr>
+                                <td>Eventual (no quorum)</td>
+                                <td>1</td>
+                                <td>1</td>
+                                <td>R + W = 2 &le; N. No consistency guarantee. Maximum availability.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Write Quorum (W=2)"
+        Client1[Client Write] --> N1[Node 1 ✓]
+        Client1 --> N2[Node 2 ✓]
+        Client1 -.-> N3[Node 3]
+    end
+
+    subgraph "Read Quorum (R=2)"
+        Client2[Client Read] --> N4[Node 1]
+        Client2 --> N5[Node 2 ✓]
+        Client2 -.-> N6[Node 3 ✓]
+    end
+
+    style N1 fill:#38ef7d,color:#000
+    style N2 fill:#38ef7d,color:#000
+    style N5 fill:#667eea,color:#fff
+    style N6 fill:#667eea,color:#fff
+    style N3 fill:#555,color:#aaa
+    style N4 fill:#555,color:#aaa
+                        </div>
+                    </div>
+                    <p style="text-align:center; font-size:0.85rem; color:var(--text-muted,#aaa);">
+                        With N=3, W=2, R=2: write and read quorums always overlap at least one node (highlighted),
+                        guaranteeing the read sees the latest write.
+                    </p>
+
+                    <h4>Read Repair</h4>
+                    <p>
+                        When a quorum read discovers that some replicas have stale data, it can perform
+                        <strong>read repair</strong>: send the latest value back to the stale replicas.
+                        This is an opportunistic anti-entropy mechanism used by Cassandra and Riak.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Sloppy Quorums and Hinted Handoff</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        A <strong>strict quorum</strong> requires responses from W (or R) of the N
+                        <em>designated</em> replicas for a given key. But what if some designated replicas
+                        are unreachable?
+                    </p>
+                    <p>
+                        A <strong>sloppy quorum</strong> allows writes to go to <em>any</em> W reachable nodes,
+                        even if they are not the designated replicas. This preserves write availability
+                        during partitions.
+                    </p>
+
+                    <h4>Hinted Handoff</h4>
+                    <p>
+                        When a non-designated node accepts a write on behalf of a down replica, it stores a
+                        <em>hint</em>. Once the designated replica comes back, the hint is forwarded and the
+                        data is transferred to its correct home. This is used by DynamoDB and Cassandra.
+                    </p>
+
+                    <div class="warning-box">
+                        <h4>Critical Trade-off</h4>
+                        <p>
+                            Sloppy quorums <strong>do not guarantee</strong> R + W &gt; N consistency, because
+                            reads and writes might go to non-overlapping sets of nodes. They trade consistency
+                            for availability. Dynamo's original paper (2007) calls this out explicitly:
+                            sloppy quorums ensure durability, but reads may return stale data until hints are replayed.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Tunable Consistency: Cassandra Example</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Apache Cassandra lets you specify consistency level <em>per query</em>:
+                    </p>
+
+                    <pre class="code-block"><code class="language-sql">-- Write with quorum consistency
+INSERT INTO users (id, name) VALUES (42, 'Alice')
+USING CONSISTENCY QUORUM;
+
+-- Read with ONE (fast, possibly stale)
+SELECT * FROM users WHERE id = 42
+USING CONSISTENCY ONE;
+
+-- Read with ALL (slowest, strongest)
+SELECT * FROM users WHERE id = 42
+USING CONSISTENCY ALL;
+
+-- Read with LOCAL_QUORUM (quorum within local datacenter)
+SELECT * FROM users WHERE id = 42
+USING CONSISTENCY LOCAL_QUORUM;</code></pre>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Level</th>
+                                <th>Meaning</th>
+                                <th>Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>ONE</td>
+                                <td>1 replica responds</td>
+                                <td>Time-series, logs, analytics (stale OK)</td>
+                            </tr>
+                            <tr>
+                                <td>QUORUM</td>
+                                <td>&#8970;N/2&#8971; + 1 replicas respond</td>
+                                <td>Most read/write paths</td>
+                            </tr>
+                            <tr>
+                                <td>LOCAL_QUORUM</td>
+                                <td>Quorum in local DC only</td>
+                                <td>Multi-DC with low-latency reads</td>
+                            </tr>
+                            <tr>
+                                <td>ALL</td>
+                                <td>All N replicas respond</td>
+                                <td>Critical reads (rare, low availability)</td>
+                            </tr>
+                            <tr>
+                                <td>SERIAL</td>
+                                <td>Linearizable (Paxos-based LWT)</td>
+                                <td>Compare-and-set, unique constraints</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="tip-box">
+                        <h4>Interview Tip</h4>
+                        <p>
+                            When discussing Cassandra in an interview, don't just say "eventual consistency."
+                            Say "Cassandra supports tunable consistency &mdash; we'd use QUORUM for writes and reads
+                            on our critical path (W + R = N+1 &gt; N, giving us strong consistency), but ONE for
+                            analytics reads where staleness is acceptable." This shows you understand the knobs.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. GOSSIP PROTOCOLS                                           -->
+            <!-- ============================================================ -->
+            <h2 id="gossip">7. Gossip Protocols</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How Gossip Works</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Gossip protocols</strong> (also called epidemic protocols) spread information
+                        through a cluster the same way a rumor spreads in a social network: each node periodically
+                        picks a random peer and exchanges state. Information propagates exponentially,
+                        reaching all N nodes in O(log N) rounds.
+                    </p>
+
+                    <h4>Basic Gossip Algorithm</h4>
+                    <pre class="code-block"><code class="language-python">import random, time
+
+class GossipNode:
+    def __init__(self, node_id, peers, state):
+        self.node_id = node_id
+        self.peers = peers
+        self.state = state       # Key-value state with version info
+        self.heartbeat = 0
+
+    def gossip_round(self):
+        """Execute one gossip round - called periodically (e.g., every 1 second)"""
+        self.heartbeat += 1
+        self.state[self.node_id] = {
+            'heartbeat': self.heartbeat,
+            'timestamp': time.time(),
+            'status': 'alive'
+        }
+        # Pick a random peer
+        target = random.choice(self.peers)
+        # Exchange state (push-pull)
+        remote_state = target.receive_gossip(self.state)
+        self.merge_state(remote_state)
+
+    def receive_gossip(self, incoming_state):
+        """Receive gossip from a peer, merge, and return our state"""
+        self.merge_state(incoming_state)
+        return self.state
+
+    def merge_state(self, remote_state):
+        """Keep the entry with the higher heartbeat for each node"""
+        for node_id, info in remote_state.items():
+            if node_id not in self.state:
+                self.state[node_id] = info
+            elif info['heartbeat'] &gt; self.state[node_id]['heartbeat']:
+                self.state[node_id] = info</code></pre>
+
+                    <h4>Gossip for Failure Detection</h4>
+                    <p>
+                        Each node tracks the last heartbeat it received (via gossip) for every other node.
+                        If a node's heartbeat hasn't increased for a threshold period (e.g., 10 seconds),
+                        it is suspected to be down. After a longer period, it is marked as permanently failed.
+                    </p>
+                    <p>
+                        This is how <strong>Cassandra</strong> detects node failures. The Phi accrual failure
+                        detector uses the distribution of heartbeat arrival times to compute a suspicion level
+                        rather than a hard threshold.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Gossip Round 1"
+        A1[Node A] -->|gossip| B1[Node B]
+        C1[Node C] -->|gossip| D1[Node D]
+    end
+
+    subgraph "Gossip Round 2"
+        B2[Node B] -->|gossip| D2[Node D]
+        A2[Node A] -->|gossip| C2[Node C]
+    end
+
+    subgraph "Gossip Round 3"
+        D3[Node D] -->|gossip| A3[Node A]
+        C3[Node C] -->|gossip| B3[Node B]
+    end
+
+    style A1 fill:#667eea,color:#fff
+    style B1 fill:#38ef7d,color:#000
+    style C1 fill:#e89b3e,color:#000
+    style D1 fill:#e06060,color:#fff
+    style A2 fill:#667eea,color:#fff
+    style B2 fill:#38ef7d,color:#000
+    style C2 fill:#e89b3e,color:#000
+    style D2 fill:#e06060,color:#fff
+    style A3 fill:#667eea,color:#fff
+    style B3 fill:#38ef7d,color:#000
+    style C3 fill:#e89b3e,color:#000
+    style D3 fill:#e06060,color:#fff
+                        </div>
+                    </div>
+                    <p style="text-align:center; font-size:0.85rem; color:var(--text-muted,#aaa);">
+                        In each round, every node gossips with one random peer. After O(log N) rounds,
+                        information from any single node has reached all others with high probability.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>SWIM Protocol</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>SWIM (Scalable Weakly-consistent Infection-style process group Membership)</strong>
+                        is a membership protocol that separates failure detection from dissemination:
+                    </p>
+                    <ol>
+                        <li><strong>Failure detection:</strong> Each round, node i picks a random target j and sends a <code>ping</code>. If j doesn't respond, i asks k random other nodes to <code>ping</code> j on its behalf (indirect ping). If still no response, j is marked suspect.</li>
+                        <li><strong>Dissemination:</strong> Membership changes (join, leave, suspect, confirm) are piggybacked on ping/ack messages, propagating via gossip.</li>
+                    </ol>
+
+                    <p>
+                        SWIM detects failures in O(1) expected time per node and disseminates membership changes
+                        in O(log N) rounds. It is used by <strong>HashiCorp's Serf and Consul</strong> (via the
+                        memberlist library).
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Anti-Entropy and Merkle Trees</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Anti-entropy</strong> is the process of comparing replicas and reconciling differences.
+                        While gossip and read-repair catch many inconsistencies, a background anti-entropy process
+                        provides a safety net for data that is rarely read.
+                    </p>
+
+                    <h4>Merkle Trees for Efficient Comparison</h4>
+                    <p>
+                        Comparing all data between two replicas is expensive. <strong>Merkle trees</strong>
+                        (hash trees) make this efficient:
+                    </p>
+                    <ol>
+                        <li>Each replica maintains a Merkle tree over its data, where leaf nodes are hashes of individual key-value pairs.</li>
+                        <li>Parent nodes are hashes of their children.</li>
+                        <li>Two replicas compare their root hashes. If equal, all data matches.</li>
+                        <li>If different, they recurse down the tree, comparing child hashes, until they find the specific keys that differ.</li>
+                        <li>Only the differing keys are transferred &mdash; O(log N) comparisons to find differences in N keys.</li>
+                    </ol>
+
+                    <p>
+                        <strong>Used by:</strong> Cassandra (for anti-entropy repair), DynamoDB, Riak.
+                        Amazon Dynamo's paper specifically describes Merkle tree-based anti-entropy.
+                    </p>
+
+                    <div class="tip-box">
+                        <h4>Interview Mention</h4>
+                        <p>
+                            When designing any system with eventual consistency, mention anti-entropy as a background
+                            process: "For data that's rarely read and wouldn't be caught by read-repair, we run
+                            periodic Merkle tree comparisons between replicas to detect and fix drift."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. CONSISTENCY IN PRACTICE                                    -->
+            <!-- ============================================================ -->
+            <h2 id="practice">8. Consistency in Practice</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Google Spanner: TrueTime and External Consistency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>Google Spanner</strong> is a globally distributed database that provides
+                        <strong>external consistency</strong> (equivalent to linearizability) using a unique
+                        approach: <strong>TrueTime</strong>, a globally synchronized clock with bounded uncertainty.
+                    </p>
+
+                    <h4>How TrueTime Works</h4>
+                    <p>
+                        Every Google datacenter has GPS receivers and atomic clocks. The TrueTime API returns
+                        an interval <code>[earliest, latest]</code> rather than a single timestamp, representing
+                        the uncertainty of the current time. Typical uncertainty is 1-7 milliseconds.
+                    </p>
+
+                    <pre class="code-block"><code class="language-go">// TrueTime API (simplified)
+type TrueTime struct {
+    Earliest time.Time
+    Latest   time.Time
+}
+
+func Now() TrueTime {
+    // Returns interval [earliest, latest] with bounded uncertainty
+    // Typical epsilon: 1-7ms
+}
+
+// Spanner's commit protocol:
+// 1. Acquire locks on all participants
+// 2. Pick commit timestamp s = TT.Now().Latest
+// 3. WAIT until TT.Now().Earliest > s (called "commit-wait")
+// 4. Release locks and apply commit
+//
+// The commit-wait ensures that the commit timestamp is
+// definitely in the past by the time any reader could see it,
+// guaranteeing external consistency without consensus on every read.</code></pre>
+
+                    <h4>Why Commit-Wait?</h4>
+                    <p>
+                        The commit-wait delay (typically 7-10ms worst case) ensures that if transaction T1
+                        commits before T2 begins, then T1's timestamp is strictly less than T2's. This provides
+                        external consistency: the order of transactions as observed by the real world matches
+                        their timestamp order.
+                    </p>
+
+                    <h4>Key Insight</h4>
+                    <p>
+                        Spanner trades <strong>latency</strong> (commit-wait delay) for <strong>consistency</strong>.
+                        The tighter the clock synchronization, the shorter the wait. Google invested in physical
+                        infrastructure (GPS + atomic clocks) to make this delay small.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>CockroachDB: Serializable Without Atomic Clocks</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        <strong>CockroachDB</strong> aims to provide similar guarantees to Spanner but without
+                        specialized hardware. It uses <strong>hybrid logical clocks (HLC)</strong> and an
+                        uncertainty interval approach:
+                    </p>
+                    <ul>
+                        <li>Each node maintains an HLC that combines a physical timestamp with a logical counter.</li>
+                        <li>Reads specify a timestamp. If a read encounters a value written within its uncertainty window, it retries at a higher timestamp (called a <strong>read restart</strong>).</li>
+                        <li>The uncertainty interval is based on maximum clock offset (default 250ms for NTP-synced nodes, configurable).</li>
+                        <li>This is more conservative than Spanner (larger uncertainty = more restarts) but works without GPS/atomic clocks.</li>
+                    </ul>
+
+                    <p>
+                        CockroachDB uses Raft for replication within each range (partition), providing
+                        linearizable writes. Combined with HLC-based MVCC, it achieves serializable isolation.
+                    </p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>DynamoDB: Tunable Consistency</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Amazon DynamoDB offers two read consistency options:
+                    </p>
+                    <ul>
+                        <li><strong>Eventually consistent reads (default):</strong> May return stale data.
+                            Reads from any replica. Lower latency, higher throughput, 50% cheaper.</li>
+                        <li><strong>Strongly consistent reads:</strong> Returns the most recent data.
+                            Routes to the leader replica. Higher latency, may fail during leader failover.</li>
+                    </ul>
+
+                    <p>
+                        For transactions, DynamoDB supports <strong>TransactWriteItems</strong> and
+                        <strong>TransactGetItems</strong> that provide serializable isolation across up to
+                        100 items across tables. Internally, this uses a Paxos-like protocol.
+                    </p>
+
+                    <pre class="code-block"><code class="language-python"># DynamoDB: eventually consistent read (default)
+response = table.get_item(Key={'id': '42'})
+
+# DynamoDB: strongly consistent read
+response = table.get_item(
+    Key={'id': '42'},
+    ConsistentRead=True
+)
+
+# DynamoDB: transactional write (serializable)
+client.transact_write_items(
+    TransactItems=[
+        {
+            'Update': {
+                'TableName': 'Accounts',
+                'Key': {'id': {'S': 'alice'}},
+                'UpdateExpression': 'SET balance = balance - :amt',
+                'ExpressionAttributeValues': {':amt': {'N': '100'}},
+                'ConditionExpression': 'balance &gt;= :amt'
+            }
+        },
+        {
+            'Update': {
+                'TableName': 'Accounts',
+                'Key': {'id': {'S': 'bob'}},
+                'UpdateExpression': 'SET balance = balance + :amt',
+                'ExpressionAttributeValues': {':amt': {'N': '100'}}
+            }
+        }
+    ]
+)</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Decision Framework: How to Choose</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Use this framework when an interviewer asks you about consistency for your design:
+                    </p>
+
+                    <h4>Step 1: Classify the Data Path</h4>
+                    <ul>
+                        <li><strong>User-facing, writes money/inventory:</strong> Strong consistency (linearizable or serializable).</li>
+                        <li><strong>User-facing, reads own writes:</strong> Read-your-writes (session consistency).</li>
+                        <li><strong>User-facing, tolerates brief staleness:</strong> Eventual consistency with bounded staleness.</li>
+                        <li><strong>Internal, analytics/logging:</strong> Eventual consistency.</li>
+                    </ul>
+
+                    <h4>Step 2: Choose Mechanism</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Requirement</th>
+                                <th>Mechanism</th>
+                                <th>Example Technology</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Linearizable writes</td>
+                                <td>Consensus (Raft/Paxos)</td>
+                                <td>etcd, ZooKeeper, Spanner</td>
+                            </tr>
+                            <tr>
+                                <td>Serializable transactions</td>
+                                <td>2PC + consensus</td>
+                                <td>Spanner, CockroachDB</td>
+                            </tr>
+                            <tr>
+                                <td>Read-your-writes</td>
+                                <td>Sticky sessions or version tracking</td>
+                                <td>DynamoDB (consistent read), any DB with session routing</td>
+                            </tr>
+                            <tr>
+                                <td>High availability + convergence</td>
+                                <td>CRDTs or LWW</td>
+                                <td>Riak, Redis Enterprise</td>
+                            </tr>
+                            <tr>
+                                <td>Tunable per-query</td>
+                                <td>Quorum with configurable R, W</td>
+                                <td>Cassandra, DynamoDB</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Step 3: Articulate the Trade-off</h4>
+                    <p>Always state what you're giving up:</p>
+                    <ul>
+                        <li>"We choose strong consistency for the payment path, accepting higher tail latency (~50ms for consensus) and reduced availability during partitions."</li>
+                        <li>"The activity feed uses eventual consistency &mdash; users may see posts a few seconds late, but we get sub-10ms reads from any replica and full availability."</li>
+                        <li>"For the shopping cart, we use CRDTs (OR-Set) so the cart is always writable, even during partitions. The trade-off is that we can't enforce max-item limits without coordination."</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. INTERVIEW APPLICATION                                      -->
+            <!-- ============================================================ -->
+            <h2 id="interview">9. Interview Application</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Handling "Is This Strongly Consistent?" in an Interview</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        When an interviewer asks "Is this strongly consistent?", resist the urge to give a
+                        one-word answer. Instead, decompose the question:
+                    </p>
+
+                    <h4>Template Response</h4>
+                    <div class="node-example">
+"Let me separate the data paths:
+
+<strong>1. [Critical path, e.g., order placement]:</strong>
+   This requires linearizability. We use [mechanism]. The trade-off is
+   [latency / availability cost], which is acceptable because [reason].
+
+<strong>2. [Read-heavy path, e.g., product listings]:</strong>
+   This can tolerate eventual consistency with [bounded staleness / RYW].
+   We read from replicas and accept that data may be [X seconds] stale.
+
+<strong>3. [Background path, e.g., analytics]:</strong>
+   Fully eventually consistent. We batch-process events asynchronously."
+                    </div>
+
+                    <h4>Common Follow-up Questions &amp; How to Handle Them</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Question</th>
+                                <th>What They're Testing</th>
+                                <th>Strong Answer Pattern</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>"What happens during a network partition?"</td>
+                                <td>CAP understanding, graceful degradation</td>
+                                <td>Specify which paths degrade and how. "Writes to the payment service would fail (CP), but the product catalog remains readable (AP)."</td>
+                            </tr>
+                            <tr>
+                                <td>"Can two users see different values?"</td>
+                                <td>Consistency model knowledge</td>
+                                <td>Depends on the path. Explain which reads might be stale and for how long.</td>
+                            </tr>
+                            <tr>
+                                <td>"How do you handle conflicts?"</td>
+                                <td>Conflict resolution strategies</td>
+                                <td>Name the specific mechanism: LWW, vector clocks + app merge, CRDTs, or "conflicts prevented by consensus."</td>
+                            </tr>
+                            <tr>
+                                <td>"What if the leader goes down?"</td>
+                                <td>Failover and availability</td>
+                                <td>Describe election process, mention write unavailability during election (typically &lt;1 second for Raft), and data safety (no committed writes lost).</td>
+                            </tr>
+                            <tr>
+                                <td>"How do you scale writes?"</td>
+                                <td>Single-leader bottleneck awareness</td>
+                                <td>Partition data across multiple Raft groups (each shard has its own leader). Mention multi-leader if appropriate.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Trade-offs to Always Discuss</h4>
+                    <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                        <div class="card">
+                            <h3>Latency vs. Consistency</h3>
+                            <p>
+                                Consensus adds at least one round trip to a majority. Cross-DC consensus
+                                adds 50-150ms. Strong consistency = higher p99 latency.
+                            </p>
+                        </div>
+                        <div class="card">
+                            <h3>Availability vs. Consistency</h3>
+                            <p>
+                                During partitions, a CP system rejects writes. An AP system accepts writes
+                                but may have conflicts. State which your system chooses per data path.
+                            </p>
+                        </div>
+                        <div class="card">
+                            <h3>Complexity vs. Consistency</h3>
+                            <p>
+                                Weak consistency pushes complexity to the application (conflict resolution,
+                                idempotency, compensation). Strong consistency simplifies app logic but
+                                constrains infrastructure.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="warning-box">
+                        <h4>Red Flags Interviewers Watch For</h4>
+                        <ul>
+                            <li>Saying "eventual consistency" without specifying conflict resolution.</li>
+                            <li>Claiming "strong consistency" without explaining the cost or mechanism.</li>
+                            <li>Treating all data paths as needing the same consistency level.</li>
+                            <li>Not mentioning what happens during failures or partitions.</li>
+                            <li>Conflating database isolation levels (serializable) with distributed consistency (linearizable).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. SELF-CHECK QUIZ                                           -->
+            <!-- ============================================================ -->
+            <h2 id="quiz">10. Self-Check Quiz</h2>
+
+            <div class="quiz-container">
+
+                <!-- Q1 -->
+                <div class="quiz-question">
+                    <p>1. What is the key difference between linearizability and sequential consistency?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        <strong>Linearizability</strong> respects real-time ordering: if operation A completes before
+                        operation B begins, then A appears before B in the total order. <strong>Sequential consistency</strong>
+                        only requires that a total order exists consistent with each client's program order, but this order
+                        may not match real-time. A sequentially consistent system might re-order operations from different
+                        clients in ways that don't match wall-clock time.
+                    </div>
+                </div>
+
+                <!-- Q2 -->
+                <div class="quiz-question">
+                    <p>2. In a system with N=5 replicas, what values of R and W guarantee that every read sees the latest write? Give two different valid configurations.</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        Any R and W where <strong>R + W &gt; 5</strong>. Two examples:
+                        <ul>
+                            <li>R=3, W=3 (balanced, both require majority)</li>
+                            <li>R=1, W=5 (write to all, read from any one &mdash; fast reads, slow writes)</li>
+                        </ul>
+                        Other valid: R=2, W=4 or R=4, W=2.
+                    </div>
+                </div>
+
+                <!-- Q3 -->
+                <div class="quiz-question">
+                    <p>3. Two nodes have vector clocks V1 = [3, 1, 2] and V2 = [2, 3, 1]. Are these events causally related or concurrent? Why?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        They are <strong>concurrent</strong>. V1[0]=3 &gt; V2[0]=2 but V1[1]=1 &lt; V2[1]=3.
+                        Neither V1 &le; V2 nor V2 &le; V1, so neither happened before the other. A system using
+                        vector clocks would detect this as a conflict requiring resolution (merge, LWW, or CRDT).
+                    </div>
+                </div>
+
+                <!-- Q4 -->
+                <div class="quiz-question">
+                    <p>4. Why does Raft use randomized election timeouts?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        To avoid <strong>split votes</strong>. If all followers had the same timeout, they would
+                        all start elections simultaneously and split the vote (each voting for itself), preventing
+                        any candidate from getting a majority. Randomized timeouts (e.g., 150-300ms) ensure that
+                        usually one node times out first and wins the election before others start.
+                    </div>
+                </div>
+
+                <!-- Q5 -->
+                <div class="quiz-question">
+                    <p>5. A G-Counter on 3 nodes has state Node A=[5,0,0], Node B=[3,2,0], Node C=[3,0,4]. What is the counter value after all nodes merge?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        Merge is element-wise max: <code>max([5,3,3], [0,2,0], [0,0,4]) = [5, 2, 4]</code>.
+                        The counter value is <strong>5 + 2 + 4 = 11</strong>.
+                    </div>
+                </div>
+
+                <!-- Q6 -->
+                <div class="quiz-question">
+                    <p>6. What is the fundamental trade-off of sloppy quorums compared to strict quorums?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        Sloppy quorums improve <strong>write availability</strong> during partitions (writes can go to
+                        any reachable node, not just designated replicas), but they <strong>break the R + W &gt; N
+                        consistency guarantee</strong> because reads and writes may hit non-overlapping sets of nodes.
+                        Hinted handoff eventually delivers data to the correct replicas, but until then, strongly
+                        consistent reads are not guaranteed.
+                    </div>
+                </div>
+
+                <!-- Q7 -->
+                <div class="quiz-question">
+                    <p>7. How does Google Spanner achieve external consistency without requiring consensus on every read?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        Spanner uses <strong>TrueTime</strong>, a globally synchronized clock with bounded uncertainty.
+                        Write transactions perform a <strong>commit-wait</strong>: they pick a commit timestamp and wait
+                        until TrueTime guarantees that timestamp is in the past. This ensures that any transaction
+                        starting after the commit will see it. Reads at a snapshot timestamp can be served from any
+                        replica that has caught up to that timestamp, without an additional consensus round.
+                    </div>
+                </div>
+
+                <!-- Q8 -->
+                <div class="quiz-question">
+                    <p>8. You're designing a collaborative text editor that must work offline. Would you use consensus (Raft) or CRDTs? Why?</p>
+                    <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                    <div class="quiz-answer">
+                        <strong>CRDTs</strong> (or a related approach like OT). Consensus requires a majority of nodes
+                        to be reachable, which is incompatible with offline operation. CRDTs allow each device to make
+                        edits independently and merge when connectivity is restored, guaranteeing convergence without
+                        coordination. Libraries like <strong>Automerge</strong> and <strong>Yjs</strong> implement
+                        text CRDTs for exactly this use case. The trade-off is that some editing semantics (like
+                        "undo") are harder to implement with CRDTs.
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- KEY TAKEAWAYS                                                 -->
+            <!-- ============================================================ -->
+            <h2 id="takeaways">Key Takeaways</h2>
+            <div class="card">
+                <h3>Summary</h3>
+                <ol>
+                    <li><strong>Consistency is a spectrum</strong> &mdash; match the level to each data path's requirements, not one-size-fits-all.</li>
+                    <li><strong>Linearizability is expensive</strong> &mdash; use it only for data that requires it (locks, money, uniqueness).</li>
+                    <li><strong>Consensus (Raft/Paxos)</strong> is the foundation for strong consistency, but it limits availability and throughput.</li>
+                    <li><strong>Vector clocks</strong> detect concurrency; <strong>CRDTs</strong> resolve it automatically.</li>
+                    <li><strong>Quorums</strong> are tunable &mdash; R + W &gt; N for consistency, lower for availability.</li>
+                    <li><strong>Gossip + Merkle trees</strong> provide background anti-entropy for eventually consistent systems.</li>
+                    <li><strong>Always articulate the trade-off</strong>: what consistency buys you and what it costs.</li>
+                </ol>
+            </div>
+
+            <!-- Suggested Flashcards -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Suggested Flashcards (Anki/CSV)</span>
+                </div>
+                <div class="collapsible-content">
+                    <table class="comparison-table">
+                        <thead>
+                            <tr><th>Front</th><th>Back</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>What does linearizability guarantee that sequential consistency does not?</td>
+                                <td>Real-time ordering: if op A completes before op B begins, A is ordered before B.</td>
+                            </tr>
+                            <tr>
+                                <td>What is the quorum condition for strong consistency with N replicas?</td>
+                                <td>R + W &gt; N (read and write quorums must overlap).</td>
+                            </tr>
+                            <tr>
+                                <td>How do you determine if two vector clocks represent concurrent events?</td>
+                                <td>If neither V1 &le; V2 nor V2 &le; V1 (element-wise comparison), they are concurrent.</td>
+                            </tr>
+                            <tr>
+                                <td>What is a G-Counter CRDT's merge operation?</td>
+                                <td>Element-wise max of per-node counters. Value = sum of all elements.</td>
+                            </tr>
+                            <tr>
+                                <td>How does Google Spanner achieve external consistency?</td>
+                                <td>TrueTime (GPS + atomic clocks) with commit-wait: transaction waits until its timestamp is definitely in the past.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-03.html" class="btn btn-secondary">&larr; Previous: Distributed Systems Core</a>
+                <a href="module-15.html" class="btn btn-primary">Next: Message Queues &amp; EDA &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        // Quiz reveal functionality is handled inline via onclick handlers above
+        // Module completion tracking
+        (function() {
+            const moduleId = 'sd-module-14';
+            const storageKey = 'completed-modules';
+
+            function markComplete() {
+                try {
+                    const completed = JSON.parse(localStorage.getItem(storageKey) || '[]');
+                    if (!completed.includes(moduleId)) {
+                        completed.push(moduleId);
+                        localStorage.setItem(storageKey, JSON.stringify(completed));
+                    }
+                } catch(e) { /* ignore storage errors */ }
+            }
+
+            // Mark complete when user scrolls to bottom
+            let marked = false;
+            window.addEventListener('scroll', function() {
+                if (marked) return;
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 200) {
+                    markComplete();
+                    marked = true;
+                }
+            });
+        })();
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

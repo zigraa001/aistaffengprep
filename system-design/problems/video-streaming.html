@@ -8,39 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Problem Breakdowns</div>
-                    <a href="url-shortener.html" class="sidebar-link">URL Shortener</a>
-                    <a href="news-feed.html" class="sidebar-link">News Feed</a>
-                    <a href="chat-system.html" class="sidebar-link">Chat System</a>
-                    <a href="video-streaming.html" class="sidebar-link active">Video Streaming</a>
-                    <a href="vector-storage.html" class="sidebar-link">Vector Storage</a>
-                    <a href="airbnb-booking.html" class="sidebar-link">Airbnb Booking</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">☰</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -96,10 +67,12 @@
 
                 <strong>Storage (per day):</strong><br>
                 1M * 500MB = 500 TB raw<br>
-                Encoded (multiple resolutions): ~1.5 PB/day<br><br>
+                Encoded (multiple resolutions + codecs): ~750 TB/day<br>
+                (compressed ~60% from raw; multiple renditions share the same content)<br><br>
 
                 <strong>Bandwidth:</strong><br>
-                5B views * 100MB (avg) = 500 PB/day outgoing
+                5B views * ~50MB avg viewed (most views are partial, mobile resolutions) = ~250 PB/day outgoing<br>
+                (YouTube reportedly served ~500 PB/day in 2022; this is in the right ballpark at scale)
             </div>
 
             <h2 class="mt-4">3. High-Level Architecture</h2>
@@ -136,7 +109,7 @@ flowchart TB
                     <p>Convert source video to multiple formats/resolutions:</p>
                     <ul>
                         <li>360p, 480p, 720p, 1080p, 4K</li>
-                        <li>Different codecs: H.264, H.265, VP9, AV1</li>
+                        <li>Different codecs: H.264 (broadest compatibility), H.265/HEVC (~40% better compression), VP9 (royalty-free), <strong>AV1</strong> (~30% better than H.265, royalty-free &mdash; now the default codec for YouTube, Netflix, and most major platforms as of 2025-2026; hardware decode support is widespread in modern devices)</li>
                         <li>Segment into small chunks (2-10 sec)</li>
                     </ul>
 
@@ -519,6 +492,9 @@ class AdaptiveBitratePlayer {
                         <code>
 # Python - Multi-CDN URL generation with failover
 
+import asyncio
+import aiohttp
+
 class MultiCDNRouter:
     CDN_PROVIDERS = [
         {"name": "cloudfront", "base_url": "https://d123.cloudfront.net"},
@@ -665,7 +641,77 @@ class ResilientVideoPlayer {
                 </div>
             </div>
 
-            <h2 class="mt-4">8. Summary</h2>
+            <h2 class="mt-4">8. Staff-Level Topics Often Missed</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>DRM &amp; Content Protection</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>For premium content (Netflix, Disney+), DRM is non-negotiable:</p>
+                    <ul>
+                        <li><strong>Widevine</strong> (Google) &mdash; used by Chrome, Android, smart TVs. Three security levels: L1 (hardware TEE, required for HD/4K), L2 (software, rare), L3 (software-only, SD only).</li>
+                        <li><strong>FairPlay</strong> (Apple) &mdash; Safari, iOS, tvOS.</li>
+                        <li><strong>PlayReady</strong> (Microsoft) &mdash; Edge, Xbox, Windows apps.</li>
+                    </ul>
+                    <p>In practice, you encrypt each segment with AES-128 (CENC standard) and use a <strong>license server</strong> that issues decryption keys after authenticating the client. The manifest references a license acquisition URL. This adds ~50-200ms to initial playback.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Cost Optimization (Largest OpEx Driver)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>CDN egress is ~70% of total cost.</strong> At $0.01-0.02/GB and 250+ PB/day, this is $2.5-5M/day. Netflix built its own CDN (Open Connect) to reduce this by placing servers inside ISPs.</li>
+                        <li><strong>Transcoding costs:</strong> Encode popular content (top 10%) to all resolutions eagerly. For long-tail content, encode only 360p/720p initially and transcode higher resolutions on-demand. Netflix's <em>per-title encoding</em> analyzes each video to find the optimal bitrate ladder, saving ~20% bandwidth.</li>
+                        <li><strong>Storage tiering:</strong> Hot videos on SSD-backed storage/CDN edge; videos unwatched for 30+ days moved to cold storage (S3 Glacier). Re-warm on demand.</li>
+                        <li><strong>AV1 adoption:</strong> ~30% bandwidth savings over H.265 at equivalent quality, but 5-10x slower to encode. Encode to AV1 for popular content; use H.264/VP9 for long tail.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Live Streaming vs. VOD</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A common interviewer follow-up: "How would you add live streaming?"</p>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">VOD</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Live</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency target</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~2s start, buffering OK</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;5s glass-to-glass (LL-HLS/LL-DASH can achieve &lt;3s)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Transcoding</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Offline, can be slow &amp; high-quality</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Real-time, GPU-accelerated, must keep up with ingest rate</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CDN pattern</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pull from origin on cache miss</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Push to edges immediately; every viewer hits the same segment</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ingest protocol</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP upload / S3</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RTMP (legacy), SRT, or WebRTC (ultra-low-latency)</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <h2 class="mt-4">9. Summary</h2>
 
             <div class="card">
                 <table style="width: 100%; border-collapse: collapse;">
@@ -698,7 +744,7 @@ class ResilientVideoPlayer {
     <script src="../../assets/js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sd-sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -713,5 +759,7 @@ class ResilientVideoPlayer {
             });
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>

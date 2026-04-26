@@ -1221,9 +1221,270 @@ for head_idx in range(num_heads):
             </div>
 
             <!-- ============================================ -->
-            <!-- SECTION 6: POSITIONAL ENCODING -->
+            <!-- SECTION 6: GQA / MQA -->
             <!-- ============================================ -->
-            <h2 class="mt-4">6. Positional Encoding: Giving Models a Sense of Order</h2>
+            <h2 class="mt-4">6. Grouped-Query &amp; Multi-Query Attention: Production KV-Cache Optimization</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why MHA Is Too Expensive for Inference</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Standard Multi-Head Attention (MHA) gives every head its <em>own</em> Key and Value projections. During autoregressive generation each new token requires caching all previous K and V tensors for every head &mdash; the <strong>KV cache</strong>.</p>
+
+                    <div class="math-block">
+                        <strong>KV cache size per token</strong> = 2 &times; n_layers &times; n_heads &times; d_head &times; precision_bytes<br>
+                        For Llama-2 70B (MHA variant): 2 &times; 80 &times; 64 &times; 128 &times; 2 bytes &asymp; <strong>2.6 MB per token</strong><br>
+                        At a 4 096-token context that is &sim;10.5 GB <em>just for KV cache</em>.
+                    </div>
+
+                    <p>Multi-Query Attention (MQA) and Grouped-Query Attention (GQA) dramatically reduce this memory by <strong>sharing</strong> K/V heads across query heads.</p>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Query Attention (MQA)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Core idea:</strong> Use a <em>single</em> Key head and a <em>single</em> Value head, shared across <em>all</em> query heads. Each query head still has its own learned projection.</p>
+
+                    <div class="math-block">
+                        MQA: Q &isin; &Ropf;<sup>B&times;n<sub>q</sub>&times;S&times;d</sup>, &nbsp; K,V &isin; &Ropf;<sup>B&times;1&times;S&times;d</sup><br>
+                        K and V are broadcast to all n<sub>q</sub> query heads during the attention computation.
+                    </div>
+
+                    <p><strong>Introduced by:</strong> Noam Shazeer, 2019 (<em>"Fast Transformer Decoding: One Write-Head is All You Need"</em>)</p>
+
+                    <h4>Models Using MQA</h4>
+                    <ul>
+                        <li><strong>PaLM</strong> (540 B) &mdash; Google, 2022</li>
+                        <li><strong>Falcon-40B / 180B</strong> &mdash; TII, 2023</li>
+                        <li><strong>StarCoder</strong> &mdash; BigCode, 2023</li>
+                        <li><strong>GPT-J / GPT-NeoX</strong> (community models)</li>
+                    </ul>
+
+                    <div class="insight-box">
+                        <strong>Trade-off:</strong> MQA gives the biggest KV-cache saving (n<sub>heads</sub>&times; reduction) but can hurt quality &mdash; all query heads are forced to attend over exactly the same key/value space, limiting the diversity of attention patterns.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Grouped-Query Attention (GQA)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Core idea:</strong> Compromise between MHA and MQA. Divide the query heads into <strong>G groups</strong>; each group shares one K head and one V head.</p>
+
+                    <div class="math-block">
+                        GQA: Q &isin; &Ropf;<sup>B&times;n<sub>q</sub>&times;S&times;d</sup>, &nbsp; K,V &isin; &Ropf;<sup>B&times;G&times;S&times;d</sup><br>
+                        Where G divides n<sub>q</sub>. Each group of (n<sub>q</sub>/G) query heads shares one K/V pair.<br>
+                        When G = 1 &rarr; MQA. &nbsp; When G = n<sub>q</sub> &rarr; standard MHA.
+                    </div>
+
+                    <p><strong>Introduced by:</strong> Ainslie et al., 2023 (<em>"GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints"</em>)</p>
+
+                    <h4>Models Using GQA</h4>
+                    <ul>
+                        <li><strong>Llama-2 70B</strong> &mdash; Meta, 2023 (8 KV heads, 64 query heads &rarr; G=8)</li>
+                        <li><strong>Llama-3 8B / 70B / 405B</strong> &mdash; Meta, 2024</li>
+                        <li><strong>Mistral 7B / Mixtral 8&times;7B</strong> &mdash; Mistral AI, 2023-2024</li>
+                        <li><strong>Gemma</strong> &mdash; Google, 2024</li>
+                        <li><strong>Qwen-2</strong> &mdash; Alibaba, 2024</li>
+                    </ul>
+
+                    <div class="insight-box">
+                        <strong>Key insight:</strong> GQA was shown to recover nearly all of MHA quality while achieving most of MQA's speed-up. The original paper demonstrated you can <em>up-train</em> an existing MHA checkpoint into GQA with only 5% of the original pre-training compute.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Comparison: MHA vs MQA vs GQA</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Property</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">MHA</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">MQA</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">GQA</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">KV heads</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">n<sub>q</sub> (e.g. 64)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">G (e.g. 8)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">KV cache size (relative)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1&times;</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1/n<sub>q</sub> (&sim;1.6%)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">G/n<sub>q</sub> (&sim;12.5%)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quality (vs MHA)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Baseline</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slight degradation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Near-MHA quality</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Decoding throughput</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Baseline</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fastest</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Close to MQA</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notable models</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPT-3, BERT, Llama-2 7B/13B</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PaLM, Falcon, StarCoder</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Llama-2 70B, Llama-3, Mistral, Gemma</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Why KV cache matters so much:</strong> During autoregressive generation, compute is often <em>memory-bound</em>, not compute-bound. Each generated token must read the entire KV cache from GPU HBM. Halving the KV cache can nearly double throughput for long sequences. This is why virtually every production LLM released since mid-2023 uses GQA or MQA.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code Walkthrough: Grouped-Query Attention Implementation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import math
+
+class GroupedQueryAttention(nn.Module):
+    """
+    Grouped-Query Attention (GQA).
+
+    n_q_heads query heads share n_kv_heads K/V heads.
+    When n_kv_heads == 1         -&gt; Multi-Query Attention (MQA)
+    When n_kv_heads == n_q_heads -&gt; standard Multi-Head Attention (MHA)
+    """
+
+    def __init__(self, d_model: int, n_q_heads: int, n_kv_heads: int):
+        super().__init__()
+        assert n_q_heads % n_kv_heads == 0, \
+            "n_q_heads must be divisible by n_kv_heads"
+
+        self.n_q_heads = n_q_heads
+        self.n_kv_heads = n_kv_heads
+        self.n_groups = n_q_heads // n_kv_heads   # queries per KV head
+        self.d_head = d_model // n_q_heads
+
+        # Query projection: one per query head
+        self.W_q = nn.Linear(d_model, n_q_heads * self.d_head, bias=False)
+        # Key and Value projections: one per KV head (fewer!)
+        self.W_k = nn.Linear(d_model, n_kv_heads * self.d_head, bias=False)
+        self.W_v = nn.Linear(d_model, n_kv_heads * self.d_head, bias=False)
+        self.W_o = nn.Linear(n_q_heads * self.d_head, d_model, bias=False)
+
+    def forward(self, x, mask=None):
+        B, S, _ = x.shape
+
+        # Project and reshape
+        q = self.W_q(x).view(B, S, self.n_q_heads, self.d_head).transpose(1, 2)
+        k = self.W_k(x).view(B, S, self.n_kv_heads, self.d_head).transpose(1, 2)
+        v = self.W_v(x).view(B, S, self.n_kv_heads, self.d_head).transpose(1, 2)
+        # q: (B, n_q_heads, S, d_head)
+        # k, v: (B, n_kv_heads, S, d_head)
+
+        # ----- KEY STEP: expand KV heads to match query heads -----
+        # Repeat each KV head for its group of query heads
+        k = k.unsqueeze(2).expand(-1, -1, self.n_groups, -1, -1)
+        k = k.reshape(B, self.n_q_heads, S, self.d_head)
+        v = v.unsqueeze(2).expand(-1, -1, self.n_groups, -1, -1)
+        v = v.reshape(B, self.n_q_heads, S, self.d_head)
+
+        # Standard scaled dot-product attention
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_head)
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, float('-inf'))
+        attn = F.softmax(scores, dim=-1)
+        out = torch.matmul(attn, v)  # (B, n_q_heads, S, d_head)
+
+        # Concatenate heads and project
+        out = out.transpose(1, 2).contiguous().view(B, S, -1)
+        return self.W_o(out)
+
+
+# --- Usage examples ---
+d_model = 4096
+
+# Standard MHA (e.g., Llama-2 7B)
+mha = GroupedQueryAttention(d_model, n_q_heads=32, n_kv_heads=32)
+
+# MQA (e.g., PaLM, Falcon)
+mqa = GroupedQueryAttention(d_model, n_q_heads=32, n_kv_heads=1)
+
+# GQA (e.g., Llama-2 70B with 8 KV heads)
+gqa = GroupedQueryAttention(d_model, n_q_heads=64, n_kv_heads=8)
+
+x = torch.randn(2, 128, d_model)
+mask = torch.tril(torch.ones(128, 128)).unsqueeze(0).unsqueeze(0)
+
+print("MHA params:", sum(p.numel() for p in mha.parameters()))
+print("MQA params:", sum(p.numel() for p in mqa.parameters()))
+print("GQA params:", sum(p.numel() for p in gqa.parameters()))</code></pre>
+                    </div>
+
+                    <div class="insight-box">
+                        <strong>Implementation note:</strong> In optimized inference engines (vLLM, TensorRT-LLM, llama.cpp), the KV expansion is <em>not</em> done explicitly. Instead the attention kernel indexes directly into the smaller KV cache, avoiding the memory copy. The expand shown above is for clarity.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Interview Tips: When to Discuss GQA vs MHA</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="warning-box">
+                        <strong>When interviewers ask about serving LLMs at scale:</strong>
+                        <ul>
+                            <li>Mention that KV cache is the primary memory bottleneck during autoregressive generation</li>
+                            <li>Explain that GQA reduces KV cache by n<sub>q</sub>/G&times; with minimal quality loss</li>
+                            <li>Note that this is orthogonal to other optimizations (quantization, paged attention, speculative decoding)</li>
+                        </ul>
+                    </div>
+
+                    <div class="insight-box">
+                        <strong>Common follow-up questions:</strong>
+                        <ul>
+                            <li><em>"How does GQA interact with KV cache quantization?"</em> &mdash; They stack: GQA reduces the number of KV heads, quantization reduces bytes per element. Llama-3 + INT8 KV cache gives 16&times; total reduction vs MHA FP16.</li>
+                            <li><em>"Can you convert an MHA model to GQA after training?"</em> &mdash; Yes, the original GQA paper showed up-training with grouped mean-pooled KV weights recovers quality with ~5% of pre-training compute.</li>
+                            <li><em>"Why not always use MQA?"</em> &mdash; MQA pushes all representational burden onto queries. For larger models (&gt;30B), the quality gap becomes noticeable, making GQA the better trade-off.</li>
+                        </ul>
+                    </div>
+
+                    <div class="mistake-box">
+                        <strong>Red flag:</strong> Discussing LLM serving without mentioning KV cache memory. An interviewer expects staff-level candidates to understand that inference is memory-bandwidth-bound, not compute-bound, for long sequences.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- SECTION 7: POSITIONAL ENCODING -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">7. Positional Encoding: Giving Models a Sense of Order</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -1443,9 +1704,9 @@ print(f"Sinusoidal PE parameters: {sum(p.numel() for p in sinusoidal_pe.paramete
     return q_embed, k_embed
 
 def rotate_half(x):
-    """Rotate half the hidden dims."""
-    x1, x2 = x[..., :x.shape[-1]//2], x[..., x.shape[-1]//2:]
-    return torch.cat((-x2, x1), dim=-1)</code></pre>
+    """Rotate consecutive pairs of dimensions."""
+    x1, x2 = x[..., ::2], x[..., 1::2]  # Even and odd indices
+    return torch.stack((-x2, x1), dim=-1).flatten(-2)</code></pre>
                     </div>
 
                     <h4>ALiBi (Attention with Linear Biases)</h4>
@@ -1484,9 +1745,9 @@ def get_alibi_bias(num_heads, seq_len):
             </div>
 
             <!-- ============================================ -->
-            <!-- SECTION 7: FULL ATTENTION BLOCK -->
+            <!-- SECTION 8: FULL ATTENTION BLOCK -->
             <!-- ============================================ -->
-            <h2 class="mt-4">7. Full Attention Block Implementation</h2>
+            <h2 class="mt-4">8. Full Attention Block Implementation</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -1864,6 +2125,7 @@ graph LR
                     <li><strong>Cross-Attention:</strong> One sequence attending to another (decoder to encoder)</li>
                     <li><strong>Scaled Dot-Product:</strong> Attention(Q,K,V) = softmax(QK^T/sqrt(d_k))V</li>
                     <li><strong>Multi-Head Attention:</strong> Multiple parallel attention mechanisms for different aspects</li>
+                    <li><strong>GQA/MQA:</strong> Sharing KV heads across query groups to slash KV cache memory for production inference</li>
                     <li><strong>Positional Encoding:</strong> Adding position information to permutation-invariant attention</li>
                 </ul>
 
@@ -1882,6 +2144,7 @@ graph LR
                     <li>Different heads learn specialized roles (positional, syntactic, semantic)</li>
                     <li>RoPE and ALiBi provide better length extrapolation than learned positions</li>
                     <li>Many attention heads can be pruned without quality loss</li>
+                    <li>GQA (Llama-2 70B, Llama-3, Mistral) reduces KV cache by 8&times; with near-MHA quality</li>
                 </ul>
 
                 <h4>Ready for Module 5</h4>

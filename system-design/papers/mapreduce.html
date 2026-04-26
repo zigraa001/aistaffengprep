@@ -251,36 +251,10 @@
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Seminal Papers</div>
-                    <a href="memcache.html" class="sidebar-link">Facebook Memcache</a>
-                    <a href="mapreduce.html" class="sidebar-link active">Google MapReduce</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                    <a href="../module-05.html" class="sidebar-link">Seminal Papers Overview</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -471,8 +445,7 @@ flowchart TB
 
     subgraph Master["Master Node"]
         MS[Master Process]
-        MT[Task Tracker]
-        MF[Failure Detector]
+        MF[Failure Detection<br>via Heartbeats]
     end
 
     subgraph Workers["Worker Pool"]
@@ -485,7 +458,10 @@ flowchart TB
     subgraph GFS["Google File System"]
         GFS1[(Input Files)]
         GFS2[(Output Files)]
-        GFS3[(Intermediate)]
+    end
+
+    subgraph LocalDisk["Local Disk (Map Workers)"]
+        GFS3[(Intermediate Files)]
     end
 
     U -->|Submit Job| MS
@@ -499,10 +475,10 @@ flowchart TB
     W3 -->|Write| GFS2
     W4 -->|Write| GFS2
 
-    W1 <-->|Heartbeat| MT
-    W2 <-->|Heartbeat| MT
-    W3 <-->|Heartbeat| MT
-    W4 <-->|Heartbeat| MT
+    W1 <-->|Heartbeat| MS
+    W2 <-->|Heartbeat| MS
+    W3 <-->|Heartbeat| MS
+    W4 <-->|Heartbeat| MS
 
     style MS fill:#2563eb,color:#fff
                         </div>
@@ -723,7 +699,7 @@ sequenceDiagram
                     </div>
 
                     <h4>Effectiveness</h4>
-                    <p>Google found that backup tasks reduced job completion time by 44% for a large sort job, with only 3% increase in total machine time.</p>
+                    <p>Google found that disabling backup tasks increased job completion time by 44% for a large sort benchmark. The overhead of running backup copies was minimal (a few percent of total machine time), making this a highly cost-effective optimization.</p>
                 </div>
             </div>
 
@@ -811,10 +787,8 @@ def reduce(key, values):
                     <p>The master tracks which machines have which GFS chunks and prioritizes local scheduling.</p>
 
                     <div class="card" style="background: var(--code-bg); color: #e2e8f0; margin: 1rem 0;">
-                        <strong>Google's Numbers:</strong><br>
-                        - 80% of map tasks read data locally<br>
-                        - 15% read from same rack<br>
-                        - 5% require cross-rack transfer
+                        <strong>Google's Observation:</strong><br>
+                        The paper reports that "the vast majority of input data is read locally and consumes no network bandwidth." Conservatively, most production jobs achieve local reads for the large majority of map tasks, with only a small fraction requiring cross-rack transfers.
                     </div>
                 </div>
             </div>
@@ -1088,16 +1062,16 @@ print(partitioner.partition("user_180"))  # -> 2
                             <p>Open-source implementation. Makes MapReduce accessible to everyone.</p>
                         </div>
                         <div class="timeline-item">
-                            <h4>2009: Spark (Berkeley)</h4>
-                            <p>In-memory processing, 10-100x faster. Iterative algorithms finally practical.</p>
+                            <h4>2010: Spark (UC Berkeley AMPLab)</h4>
+                            <p>In-memory processing, 10-100x faster for iterative workloads. Published at HotCloud 2010; open-sourced and Apache top-level project by 2014.</p>
                         </div>
                         <div class="timeline-item">
-                            <h4>2011: Flink (Berlin)</h4>
-                            <p>True streaming with event-time processing. Real-time analytics.</p>
+                            <h4>2014: Apache Flink (from Stratosphere project, TU Berlin)</h4>
+                            <p>True streaming with event-time processing. Unified batch and stream processing. Apache top-level project in 2014.</p>
                         </div>
                         <div class="timeline-item">
-                            <h4>Today: Cloud-Native</h4>
-                            <p>Serverless data processing (BigQuery, Snowflake). Focus on SQL, not MapReduce.</p>
+                            <h4>2020s: Cloud-Native & Serverless</h4>
+                            <p>Serverless data processing (BigQuery, Snowflake, Databricks). Focus on SQL and DataFrame APIs rather than explicit MapReduce. Google itself deprecated MapReduce internally.</p>
                         </div>
                     </div>
 
@@ -1193,7 +1167,7 @@ print(partitioner.partition("user_180"))  # -> 2
     <script src="../../assets/js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sd-sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -1208,5 +1182,7 @@ print(partitioner.partition("user_180"))  # -> 2
             });
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>

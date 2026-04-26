@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 2: API Design &amp; Contract Patterns - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="../metrics-tradeoffs/index.html">Metrics</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link active" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 2: API Design &amp; Contract Patterns</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>REST, gRPC, and GraphQL &mdash; deep tradeoffs beyond the surface</li>
+                    <li>API versioning strategies and their organizational implications</li>
+                    <li>Schema evolution patterns for Protobuf, Avro, and JSON Schema</li>
+                    <li>Error handling patterns (RFC 7807) and idempotency design</li>
+                    <li>Staff-level API governance and contract-first development</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>API Paradigm Deep Dives</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the Richardson Maturity Model and why does it matter for API design?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The Richardson Maturity Model describes four levels of REST API maturity:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Level</th><th>Name</th><th>Description</th><th>Example</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>0</strong></td><td>The Swamp of POX</td><td>Single endpoint, RPC-style</td><td><code>POST /api</code> with action in body</td></tr>
+                            <tr><td><strong>1</strong></td><td>Resources</td><td>Multiple endpoints per resource</td><td><code>/users</code>, <code>/orders</code></td></tr>
+                            <tr><td><strong>2</strong></td><td>HTTP Verbs</td><td>Correct use of GET, POST, PUT, DELETE</td><td><code>GET /users/123</code>, <code>DELETE /users/123</code></td></tr>
+                            <tr><td><strong>3</strong></td><td>Hypermedia (HATEOAS)</td><td>Responses include navigation links</td><td>Response includes <code>"_links": {"next": ...}</code></td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Why it matters:</strong> Most production APIs are Level 2, which is fine for most use cases. Level 3 (HATEOAS) is theoretically ideal but rarely implemented because it adds complexity without clear ROI for most internal APIs. The model is useful as a <em>design conversation framework</em>, not a maturity target.</p>
+
+                    <p><strong>Staff-level take:</strong> In an interview, don't advocate for HATEOAS unless there's a specific reason (like public APIs where discoverability matters). Show that you understand the tradeoff: HATEOAS reduces coupling between client and server at the cost of payload size and implementation complexity.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: When should you choose gRPC over REST, and what are the real-world tradeoffs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> gRPC uses HTTP/2 and Protocol Buffers for high-performance, strongly-typed service-to-service communication.</p>
+
+                    <p><strong>Choose gRPC when:</strong></p>
+                    <ul>
+                        <li><strong>Internal microservices</strong> &mdash; Service-to-service calls where both sides are controlled by your org</li>
+                        <li><strong>Performance-critical paths</strong> &mdash; Binary serialization is 3-10x faster than JSON</li>
+                        <li><strong>Streaming requirements</strong> &mdash; Bidirectional streaming is a first-class feature</li>
+                        <li><strong>Polyglot environments</strong> &mdash; Auto-generated clients in every language from .proto files</li>
+                    </ul>
+
+                    <p><strong>Choose REST when:</strong></p>
+                    <ul>
+                        <li><strong>Public APIs</strong> &mdash; Universal client support, easier to debug with curl</li>
+                        <li><strong>Browser clients</strong> &mdash; gRPC-Web exists but adds complexity</li>
+                        <li><strong>Simple CRUD</strong> &mdash; REST's resource model maps naturally to database entities</li>
+                        <li><strong>Caching requirements</strong> &mdash; HTTP caching (CDN, browser) works out of the box with REST</li>
+                    </ul>
+
+                    <pre><code class="language-protobuf">// Example: gRPC service definition
+syntax = "proto3";
+
+service UserService {
+  rpc GetUser (GetUserRequest) returns (User);
+  rpc ListUsers (ListUsersRequest) returns (stream User);  // server streaming
+  rpc CreateUser (CreateUserRequest) returns (User);
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+message ListUsersRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}</code></pre>
+
+                    <p><strong>Hidden tradeoff:</strong> gRPC makes debugging harder. You can't just <code>curl</code> an endpoint &mdash; you need tools like <code>grpcurl</code> or Evans. Load balancing is also trickier because HTTP/2 multiplexes connections, so L4 load balancers see one long-lived connection instead of many short ones. You need L7 load balancing (Envoy, Istio).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is GraphQL Federation and when does it make sense?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> GraphQL Federation (Apollo Federation) lets multiple services each own part of a unified GraphQL schema. A gateway composes them into a single API for clients.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    Client[Client] --> GW[GraphQL Gateway]
+    GW --> US[Users Service - owns User type]
+    GW --> OS[Orders Service - extends User with orders]
+    GW --> PS[Products Service - owns Product type]
+                        </div>
+                    </div>
+
+                    <p><strong>When it makes sense:</strong></p>
+                    <ul>
+                        <li>Multiple teams own different parts of the domain but clients need a unified query interface</li>
+                        <li>Frontend teams are frustrated by over-fetching or under-fetching from multiple REST APIs</li>
+                        <li>You have a BFF layer that's becoming a bottleneck</li>
+                    </ul>
+
+                    <p><strong>When it doesn't:</strong></p>
+                    <ul>
+                        <li>Fewer than 3-4 services &mdash; a single GraphQL service is simpler</li>
+                        <li>No dedicated GraphQL infrastructure team &mdash; federation adds operational complexity</li>
+                        <li>Services are highly independent with little cross-entity querying</li>
+                    </ul>
+
+                    <p><strong>Real-world:</strong> Netflix uses GraphQL Federation to compose their studio APIs. Different teams own different parts of the content catalog (shows, episodes, talent), and federation lets the studio UI query across all of them in a single request.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do REST, gRPC, and GraphQL compare across key dimensions?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>REST</th><th>gRPC</th><th>GraphQL</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Protocol</strong></td><td>HTTP/1.1 or 2</td><td>HTTP/2</td><td>HTTP (typically 1.1)</td></tr>
+                            <tr><td><strong>Serialization</strong></td><td>JSON (text)</td><td>Protobuf (binary)</td><td>JSON (text)</td></tr>
+                            <tr><td><strong>Schema/Contract</strong></td><td>OpenAPI (optional)</td><td>.proto files (required)</td><td>SDL (required)</td></tr>
+                            <tr><td><strong>Streaming</strong></td><td>SSE, WebSocket</td><td>Native bidirectional</td><td>Subscriptions (WebSocket)</td></tr>
+                            <tr><td><strong>Browser support</strong></td><td>Native</td><td>Via gRPC-Web proxy</td><td>Native</td></tr>
+                            <tr><td><strong>Caching</strong></td><td>HTTP caching built-in</td><td>No HTTP caching</td><td>Complex (per-field)</td></tr>
+                            <tr><td><strong>Over/Under-fetching</strong></td><td>Common problem</td><td>Exact fields per RPC</td><td>Client chooses fields</td></tr>
+                            <tr><td><strong>Error handling</strong></td><td>HTTP status codes</td><td>gRPC status codes</td><td>errors array in response</td></tr>
+                            <tr><td><strong>Code generation</strong></td><td>Optional (OpenAPI)</td><td>Built-in (protoc)</td><td>Optional (codegen)</td></tr>
+                            <tr><td><strong>Learning curve</strong></td><td>Low</td><td>Medium</td><td>Medium-High</td></tr>
+                            <tr><td><strong>Best for</strong></td><td>Public APIs, CRUD</td><td>Internal services, perf</td><td>Complex client UIs</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>API Versioning &amp; Evolution</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main API versioning strategies and their tradeoffs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>Example</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>URL path</strong></td><td><code>/api/v1/users</code></td><td>Simple, visible, easy to route</td><td>Breaks caching across versions, encourages large version bumps</td></tr>
+                            <tr><td><strong>Query param</strong></td><td><code>/api/users?version=2</code></td><td>Easy to add</td><td>Easy to forget, harder to route</td></tr>
+                            <tr><td><strong>Header</strong></td><td><code>Accept: application/vnd.api.v2+json</code></td><td>Clean URLs, content negotiation</td><td>Less visible, harder to test in browser</td></tr>
+                            <tr><td><strong>No versioning</strong></td><td>Evolve in-place</td><td>Simplest if discipline is maintained</td><td>Requires strict additive-only changes</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level recommendation:</strong> For internal APIs, prefer <strong>no explicit versioning</strong> with additive-only evolution. This forces good discipline (never remove fields, only add) and avoids the complexity of maintaining multiple versions. For public APIs, <strong>URL path versioning</strong> is the most pragmatic choice because it's the easiest for consumers to understand and for you to route.</p>
+
+                    <p><strong>The real question is:</strong> How many versions will you support simultaneously? Supporting v1 and v2 doubles your testing surface. Most teams should support at most N and N-1, with a clear deprecation policy (e.g., "v1 will be sunset 12 months after v2 GA").</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How does schema evolution work in Protobuf, and what are the compatibility rules?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Protobuf is designed for safe schema evolution through field numbering:</p>
+
+                    <p><strong>Safe changes (backward compatible):</strong></p>
+                    <ul>
+                        <li>Add new fields (new field numbers)</li>
+                        <li>Remove fields (old code ignores unknown fields, new code uses defaults for missing fields)</li>
+                        <li>Rename fields (wire format uses field numbers, not names)</li>
+                    </ul>
+
+                    <p><strong>Unsafe changes (breaking):</strong></p>
+                    <ul>
+                        <li>Reuse a deleted field number (old data will be misinterpreted)</li>
+                        <li>Change a field's type (except compatible widening like int32 &rarr; int64)</li>
+                        <li>Change between singular and repeated</li>
+                    </ul>
+
+                    <pre><code class="language-protobuf">// Version 1
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+// Version 2 - SAFE evolution
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;           // NEW: added field
+  repeated string roles = 5;  // NEW: added field
+  // Field 6 reserved for deleted field
+  reserved 6;
+  reserved "old_field_name";
+}</code></pre>
+
+                    <p><strong>Key rule:</strong> Always use <code>reserved</code> for deleted field numbers to prevent accidental reuse. This is the most common mistake in Protobuf evolution.</p>
+
+                    <p><strong>Avro comparison:</strong> Avro uses schema resolution (reader's schema + writer's schema) and requires a Schema Registry. It supports more flexible evolution (field renaming via aliases) but requires the schema to be available at read time, whereas Protobuf is self-describing via field numbers.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is contract-first API development and why do staff engineers advocate for it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Contract-first means defining the API schema/specification <em>before</em> writing implementation code. The contract becomes the source of truth.</p>
+
+                    <p><strong>Workflow:</strong></p>
+                    <ol>
+                        <li>Write the OpenAPI spec (or .proto file, or GraphQL SDL)</li>
+                        <li>Review the contract with consumer teams</li>
+                        <li>Generate server stubs and client SDKs from the contract</li>
+                        <li>Implement the server against the generated interface</li>
+                        <li>Run contract tests to ensure implementation matches spec</li>
+                    </ol>
+
+                    <pre><code class="language-yaml"># OpenAPI 3.0 contract-first example
+openapi: 3.0.3
+info:
+  title: User Service API
+  version: 1.0.0
+paths:
+  /users/{userId}:
+    get:
+      operationId: getUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+components:
+  schemas:
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255</code></pre>
+
+                    <p><strong>Why staff engineers care:</strong> Contract-first enables parallel development (frontend and backend teams work simultaneously), catches design issues early (reviewing a YAML spec is faster than reviewing implementation), and prevents "API drift" where implementation diverges from documentation.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Error Handling &amp; Robustness</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is RFC 7807 (Problem Details) and how should you structure API errors?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> RFC 7807 defines a standard format for HTTP API error responses:</p>
+
+                    <pre><code class="language-json">{
+  "type": "https://api.example.com/errors/insufficient-funds",
+  "title": "Insufficient Funds",
+  "status": 422,
+  "detail": "Account 12345 has balance $10.00, but transfer requires $50.00",
+  "instance": "/transfers/abc-123",
+  "balance": 10.00,
+  "required": 50.00
+}</code></pre>
+
+                    <p><strong>Fields:</strong></p>
+                    <ul>
+                        <li><code>type</code> &mdash; URI identifying the error type (machine-readable)</li>
+                        <li><code>title</code> &mdash; Short human-readable summary</li>
+                        <li><code>status</code> &mdash; HTTP status code</li>
+                        <li><code>detail</code> &mdash; Human-readable explanation specific to this occurrence</li>
+                        <li><code>instance</code> &mdash; URI identifying this specific error occurrence</li>
+                        <li>Extension fields &mdash; Domain-specific data (like <code>balance</code> above)</li>
+                    </ul>
+
+                    <p><strong>Why it matters:</strong> Without a standard error format, every API invents its own structure. Consumers must write custom error parsing for each API. RFC 7807 provides a shared contract that client libraries and middleware can handle generically.</p>
+
+                    <p><strong>Common anti-patterns:</strong></p>
+                    <ul>
+                        <li>Returning 200 with error details in the body (breaks HTTP semantics)</li>
+                        <li>Generic error messages: <code>{"error": "Something went wrong"}</code></li>
+                        <li>Leaking internal details: <code>{"error": "NullPointerException at UserService.java:42"}</code></li>
+                        <li>Using 500 for everything (makes monitoring useless)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you design idempotent APIs and why is idempotency critical for platform reliability?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> An idempotent operation produces the same result regardless of how many times it's called. This is critical because in distributed systems, retries are inevitable &mdash; networks fail, timeouts happen, and clients may not know if a request succeeded.</p>
+
+                    <p><strong>HTTP methods and idempotency:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Method</th><th>Idempotent?</th><th>Safe?</th><th>Notes</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>GET</td><td>Yes</td><td>Yes</td><td>Always safe to retry</td></tr>
+                            <tr><td>PUT</td><td>Yes</td><td>No</td><td>Replaces entire resource</td></tr>
+                            <tr><td>DELETE</td><td>Yes</td><td>No</td><td>Second delete returns 404 (same end state)</td></tr>
+                            <tr><td>POST</td><td><strong>No</strong></td><td>No</td><td>Must add idempotency key</td></tr>
+                            <tr><td>PATCH</td><td>Depends</td><td>No</td><td>"Set X to 5" is idempotent; "increment X" is not</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Implementing idempotency for POST:</strong></p>
+                    <pre><code class="language-python"># Client sends: POST /payments
+# Header: Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000
+
+@app.post("/payments")
+async def create_payment(request: Request, payment: PaymentRequest):
+    idempotency_key = request.headers.get("Idempotency-Key")
+    if not idempotency_key:
+        raise HTTPException(400, "Idempotency-Key header required")
+
+    # Check if we've seen this key before
+    existing = await redis.get(f"idempotency:{idempotency_key}")
+    if existing:
+        return JSONResponse(json.loads(existing))  # Return cached response
+
+    # Process the payment
+    result = await process_payment(payment)
+
+    # Cache the response (with TTL, e.g., 24 hours)
+    await redis.setex(
+        f"idempotency:{idempotency_key}",
+        86400,
+        json.dumps(result)
+    )
+    return result</code></pre>
+
+                    <p><strong>Stripe's pattern:</strong> Stripe requires an <code>Idempotency-Key</code> header on all POST requests. They store the key, the request body, and the response. If the same key is sent again with the same body, they return the cached response. If the same key is sent with a <em>different</em> body, they return a 422 error. This prevents both duplicate processing and accidental key reuse.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>API Governance &amp; Best Practices</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is HATEOAS and should you actually implement it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> HATEOAS (Hypermedia As The Engine Of Application State) means responses include links to related actions and resources:</p>
+
+                    <pre><code class="language-json">{
+  "id": "order-123",
+  "status": "pending",
+  "total": 99.99,
+  "_links": {
+    "self": {"href": "/orders/order-123"},
+    "cancel": {"href": "/orders/order-123/cancel", "method": "POST"},
+    "payment": {"href": "/orders/order-123/pay", "method": "POST"},
+    "items": {"href": "/orders/order-123/items"}
+  }
+}</code></pre>
+
+                    <p><strong>Benefits:</strong> Clients discover available actions dynamically (e.g., the "cancel" link only appears when the order is cancellable). This decouples clients from hardcoded URL patterns.</p>
+
+                    <p><strong>Reality check:</strong> Almost nobody implements full HATEOAS for internal APIs because:</p>
+                    <ul>
+                        <li>Client teams already know the API structure from documentation</li>
+                        <li>The implementation cost is significant</li>
+                        <li>Most client frameworks don't use hypermedia controls anyway</li>
+                    </ul>
+
+                    <p><strong>Staff-level answer:</strong> "HATEOAS is valuable for public APIs with many third-party consumers who need discoverability (e.g., GitHub's API). For internal APIs, the cost rarely justifies the benefit. I'd use lightweight hypermedia &mdash; include pagination links and self links &mdash; but skip full HATEOAS."</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you ensure backward compatibility when evolving APIs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Backward compatibility means old clients continue to work with the new API version. The key rules:</p>
+
+                    <p><strong>Safe (backward compatible) changes:</strong></p>
+                    <ul>
+                        <li>Add new optional fields to responses</li>
+                        <li>Add new optional query parameters</li>
+                        <li>Add new endpoints</li>
+                        <li>Add new enum values (if clients handle unknown values gracefully)</li>
+                    </ul>
+
+                    <p><strong>Breaking changes:</strong></p>
+                    <ul>
+                        <li>Remove or rename fields</li>
+                        <li>Change field types</li>
+                        <li>Make optional fields required</li>
+                        <li>Change URL paths or HTTP methods</li>
+                        <li>Change error response formats</li>
+                        <li>Change authentication mechanisms</li>
+                    </ul>
+
+                    <p><strong>Robustness principle (Postel's Law):</strong> "Be conservative in what you send, be liberal in what you accept." Clients should ignore unknown fields. Servers should accept missing optional fields with defaults.</p>
+
+                    <p><strong>Automated enforcement:</strong> Use tools like <code>openapi-diff</code> or <code>buf breaking</code> (for Protobuf) in CI to automatically detect breaking changes:</p>
+
+                    <pre><code class="language-yaml"># CI pipeline step
+- name: Check API compatibility
+  run: |
+    openapi-diff --fail-on-incompatible \
+      main:openapi.yaml \
+      HEAD:openapi.yaml</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What does good API naming and resource design look like?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Good API naming follows predictable conventions that make the API intuitive without reading documentation:</p>
+
+                    <p><strong>Resource naming rules:</strong></p>
+                    <ul>
+                        <li>Use <strong>nouns</strong>, not verbs: <code>/users</code> not <code>/getUsers</code></li>
+                        <li>Use <strong>plural</strong>: <code>/users/123</code> not <code>/user/123</code></li>
+                        <li>Use <strong>kebab-case</strong>: <code>/user-profiles</code> not <code>/userProfiles</code></li>
+                        <li>Nest logically: <code>/users/123/orders</code> (orders belonging to user 123)</li>
+                        <li>Max 2-3 levels of nesting: <code>/users/123/orders/456/items</code> is the limit</li>
+                    </ul>
+
+                    <p><strong>When verbs are acceptable:</strong> For actions that don't map to CRUD, use a sub-resource:</p>
+                    <ul>
+                        <li><code>POST /orders/123/cancel</code> (action on a resource)</li>
+                        <li><code>POST /reports/generate</code> (triggers a process)</li>
+                        <li><code>POST /users/123/reset-password</code></li>
+                    </ul>
+
+                    <p><strong>Anti-patterns:</strong></p>
+                    <ul>
+                        <li><code>/api/v1/getUserById?id=123</code> &mdash; RPC-style, not resource-oriented</li>
+                        <li><code>/api/v1/users/123/orders/456/items/789/reviews</code> &mdash; too deeply nested</li>
+                        <li>Inconsistent pluralization: <code>/user/123/orders</code> vs <code>/products/456</code></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you handle API authentication and authorization at the platform level?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Platform-level API auth should be centralized and consistent across all services:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Pattern</th><th>Use Case</th><th>Implementation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>API Keys</strong></td><td>Server-to-server, low security</td><td>Simple, but hard to rotate and no user context</td></tr>
+                            <tr><td><strong>OAuth 2.0 / OIDC</strong></td><td>User-facing, delegated access</td><td>Standard, supports scopes, refresh tokens</td></tr>
+                            <tr><td><strong>mTLS</strong></td><td>Service-to-service in zero-trust</td><td>Certificate-based, strong identity, complex PKI</td></tr>
+                            <tr><td><strong>JWT</strong></td><td>Stateless auth tokens</td><td>Self-contained claims, no central lookup needed</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Platform engineering approach:</strong></p>
+                    <ul>
+                        <li>Provide a centralized auth service (or use a managed one like Auth0, Okta)</li>
+                        <li>API gateway handles token validation, so individual services don't implement auth parsing</li>
+                        <li>Standardize on JWT with specific claim schemas across all services</li>
+                        <li>Implement RBAC/ABAC at the gateway or through a policy engine (OPA/Cedar)</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant C as Client
+    participant GW as API Gateway
+    participant Auth as Auth Service
+    participant S as Service
+
+    C->>Auth: Authenticate (OAuth flow)
+    Auth-->>C: JWT access token
+    C->>GW: Request + JWT
+    GW->>GW: Validate JWT signature, check expiry
+    GW->>GW: Check scopes/permissions
+    GW->>S: Forward request + user context headers
+    S-->>GW: Response
+    GW-->>C: Response
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How should you handle partial failures and timeouts in API design?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> API responses should clearly communicate partial success, and clients should be designed to handle it:</p>
+
+                    <p><strong>Batch operations pattern:</strong></p>
+                    <pre><code class="language-json">// POST /users/batch-create
+// Request
+{
+  "users": [
+    {"email": "a@example.com", "name": "Alice"},
+    {"email": "existing@example.com", "name": "Bob"},
+    {"email": "invalid-email", "name": "Charlie"}
+  ]
+}
+
+// Response: 207 Multi-Status
+{
+  "results": [
+    {"index": 0, "status": 201, "data": {"id": "user-1", "email": "a@example.com"}},
+    {"index": 1, "status": 409, "error": {"type": "conflict", "detail": "Email already exists"}},
+    {"index": 2, "status": 422, "error": {"type": "validation", "detail": "Invalid email format"}}
+  ],
+  "summary": {"total": 3, "succeeded": 1, "failed": 2}
+}</code></pre>
+
+                    <p><strong>Timeout design:</strong></p>
+                    <ul>
+                        <li>Document expected response times in the API spec</li>
+                        <li>For long operations, return <code>202 Accepted</code> with a status URL</li>
+                        <li>Include <code>Retry-After</code> headers when rate limiting or processing</li>
+                        <li>Set explicit server-side timeouts that are shorter than client timeouts</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Async operation pattern
+@app.post("/reports", status_code=202)
+async def create_report(request: ReportRequest):
+    job_id = await queue_report_generation(request)
+    return {
+        "job_id": job_id,
+        "status": "processing",
+        "status_url": f"/reports/jobs/{job_id}",
+        "estimated_completion": "2024-01-15T10:30:00Z"
+    }</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the key principles of API governance at scale?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> API governance ensures consistency across dozens or hundreds of services without creating bureaucratic bottlenecks:</p>
+
+                    <p><strong>Governance layers:</strong></p>
+                    <ol>
+                        <li><strong>Style guide</strong> &mdash; Document naming conventions, error formats, pagination patterns, auth standards. Make it a living document, not a PDF.</li>
+                        <li><strong>Linting</strong> &mdash; Automated enforcement via tools like Spectral (OpenAPI linter) or buf lint (Protobuf). Run in CI so violations are caught before review.</li>
+                        <li><strong>Templates</strong> &mdash; Provide starter templates that include correct patterns by default (service scaffolding with standard middleware).</li>
+                        <li><strong>Review</strong> &mdash; API design reviews for new services or significant changes. Not a bottleneck &mdash; async review with a 48-hour SLA.</li>
+                    </ol>
+
+                    <pre><code class="language-yaml"># .spectral.yaml - API style enforcement
+extends: spectral:oas
+rules:
+  operation-operationId: error
+  operation-description: warn
+  path-keys-no-trailing-slash: error
+  oas3-api-servers: error
+  custom-error-format:
+    description: "Errors must use RFC 7807 format"
+    given: "$.paths.*.*.responses[?(@property.match(/^[45]/))]"
+    then:
+      field: content.application/problem+json
+      function: truthy</code></pre>
+
+                    <p><strong>Staff-level governance:</strong> The goal is to make the right thing the easy thing. Don't rely on manual reviews to catch style violations &mdash; automate them. Reserve human review for design-level decisions (resource modeling, compatibility, performance implications).</p>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-01.html" class="btn btn-secondary">&larr; Platform Fundamentals</a>
+                <a href="module-03.html" class="btn btn-primary">Next: Pagination &amp; Gateways &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

@@ -412,7 +412,9 @@ graph LR
 
                     <div class="callout callout-warning">
                         <div class="callout-title">Memory Warning</div>
-                        For Llama-2 70B with 4K context: KV cache alone is ~2.5GB per sequence in FP16!
+                        For Llama-2 70B with 4K context and GQA (8 KV heads, not 64):
+                        80 layers &times; 8 KV heads &times; 128 d_head &times; 4096 seq_len &times; 2 (K+V) &times; 2 bytes (FP16) &asymp; 2.5GB per sequence.
+                        With full MHA (64 heads) it would be ~20GB &mdash; GQA reduces KV cache by 8&times;.
                         This is why techniques like PagedAttention (vLLM) and quantized KV caches matter.
                     </div>
                 </div>
@@ -766,6 +768,11 @@ graph TB
                             </tr>
                         </tbody>
                     </table>
+                    <div class="callout callout-warning mt-3">
+                        <div class="callout-title">Baseten Inference Book: KV Cache Is the Most Important Resource</div>
+                        <p>Philip Kiely's inference book emphasizes: <strong>KV cache is arguably the most important resource in LLM inference.</strong> Without it, attention is quadratic and inference would be unbearably slow. Managing <em>where</em> it lives (GPU HBM vs CPU RAM vs SSD), <em>how much</em> to allocate (per-request vs shared pool), and <em>when to reuse</em> it across requests (prefix caching for shared system prompts) is the central resource management problem of LLM serving.</p>
+                        <p>Every optimization above &mdash; PagedAttention, quantized KV cache, MQA/GQA &mdash; is ultimately about making this single resource go further.</p>
+                    </div>
                 </div>
             </div>
 
@@ -2077,7 +2084,8 @@ def speculative_decode(
     while generated.shape[1] - input_ids.shape[1] < max_tokens:
         # Step 1: Draft K tokens with small model
         draft_tokens = []
-        draft_probs = []
+        draft_probs = []       # scalar prob of chosen token
+        draft_prob_dists = []  # full probability distribution per position
         current = generated.clone()
 
         for _ in range(K):
@@ -2089,6 +2097,7 @@ def speculative_decode(
 
                 draft_tokens.append(next_token.item())
                 draft_probs.append(probs[0, next_token.item()].item())
+                draft_prob_dists.append(probs[0])  # full distribution
                 current = torch.cat([current, next_token], dim=-1)
 
         total_draft_tokens += K
@@ -2117,7 +2126,7 @@ def speculative_decode(
                 accepted_tokens += 1
             else:
                 # Rejection: sample from adjusted distribution
-                adjusted_probs = torch.clamp(target_probs - draft_model_probs, min=0)
+                adjusted_probs = torch.clamp(target_probs - draft_prob_dists[i], min=0)
                 adjusted_probs = adjusted_probs / adjusted_probs.sum()
                 resampled = torch.multinomial(adjusted_probs, 1)
                 accepted.append(resampled.item())
@@ -2314,6 +2323,11 @@ print(f"Sparsity: {zero_params / total_params:.2%}")</code>
             <!-- ============================================ -->
             <h2 class="mt-4">8. Transformer Inference Arithmetic: FLOPs vs Memory Boundedness</h2>
 
+            <div class="callout callout-info">
+                <div class="callout-title">Baseten Inference Book: Optimization Is About Constraints, Not Maximization</div>
+                <p>A key insight from Philip Kiely: <strong>the best inference systems are specific, not general.</strong> They're tuned for a particular model, product, and traffic pattern. More constraints = higher performance. A system optimized for "70B model, chat traffic, P99 TTFT &lt; 300ms" will dramatically outperform a general-purpose setup. Before optimizing anything below, first define your specific constraints &mdash; model size, latency SLA, traffic shape, and cost target.</p>
+            </div>
+
             <div class="collapsible open">
                 <div class="collapsible-header">
                     <span>The Roofline Model: Are You Compute-Bound or Memory-Bound?</span>
@@ -2368,6 +2382,17 @@ print(f"Sparsity: {zero_params / total_params:.2%}")</code>
 
                     <div class="key-insight">
                         <strong>Key insight for decoding:</strong> At batch=1, every weight matrix multiply during decoding is memory-bandwidth bound. You're paying to load ~2 bytes per weight but only doing 2 FLOPs with it (one multiply-add). The GPU's 312 TFLOPs is almost entirely wasted. This is why decoding is slow — it's limited by HBM bandwidth, not compute.
+                    </div>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Baseten Inference Book: Memory Bandwidth Is THE Bottleneck</div>
+                        <p>Philip Kiely reinforces: <strong>Memory bandwidth, not compute, bottlenecks most LLM serving.</strong> Decode is memory-bound because model weights must be loaded from HBM for every generated token. This means any optimization that reduces memory movement directly improves tokens-per-second:</p>
+                        <ul>
+                            <li><strong>Quantization</strong> &mdash; halves or quarters the bytes loaded per weight</li>
+                            <li><strong>Kernel fusion</strong> &mdash; reduces intermediate memory round-trips</li>
+                            <li><strong>PagedAttention</strong> &mdash; eliminates KV cache memory fragmentation</li>
+                        </ul>
+                        <p>If you remember only one thing from inference arithmetic: <em>the GPU is starving for data, not for compute.</em></p>
                     </div>
                 </div>
             </div>
@@ -2667,6 +2692,70 @@ print(f"Expected speedup: {speedup:.1f}×")  # → ~2.3×
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION 9: INFERENCE ENGINES -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">9. Inference Engines: Choosing Your Serving Stack</h2>
+
+            <div class="callout callout-info">
+                <div class="callout-title">Baseten Inference Book: Engines as Abstraction Tools</div>
+                <p>Philip Kiely frames inference engines as <strong>tools for abstraction</strong> &mdash; they handle the complex interplay of continuous batching, quantization, speculative decoding, prefix caching, parallelism, and disaggregation so you don't have to build it all from scratch. The right choice depends on your model, hardware, and engineering bandwidth.</p>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Big Three Inference Engines</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Engine</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Strengths</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Best For</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Tradeoffs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>vLLM</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Broadest model support, PagedAttention pioneer, large community</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Teams wanting wide model compatibility and active ecosystem</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Not always fastest on specialized workloads</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>SGLang</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Strong MoE support, RadixAttention for prefix caching, customizable</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">MoE models (Mixtral, DeepSeek), complex multi-turn pipelines</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Smaller community than vLLM</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>TensorRT-LLM</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Highest raw performance, NVIDIA-optimized kernels</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Maximum throughput when you have GPU engineering bandwidth</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Steepest learning curve, NVIDIA-only, slower model onboarding</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Shared Feature Set</h4>
+                    <p>All three engines now support the core serving optimizations covered in this module:</p>
+                    <ul>
+                        <li><strong>Continuous batching</strong> &mdash; dynamically add/remove requests from running batch</li>
+                        <li><strong>Quantization</strong> &mdash; INT8, INT4, FP8 weight formats</li>
+                        <li><strong>Speculative decoding</strong> &mdash; draft-and-verify with smaller models</li>
+                        <li><strong>Prefix caching</strong> &mdash; reuse KV cache for shared prompt prefixes</li>
+                        <li><strong>Tensor & pipeline parallelism</strong> &mdash; multi-GPU model sharding</li>
+                        <li><strong>Disaggregated prefill/decode</strong> &mdash; separate compute pools for each phase</li>
+                    </ul>
+
+                    <div class="key-insight">
+                        <strong>Decision Framework:</strong> Start with <strong>vLLM</strong> for its broad support and fast iteration. Move to <strong>SGLang</strong> if you're deploying MoE models or need advanced prefix caching. Move to <strong>TensorRT-LLM</strong> only when you've proven product-market fit and need to squeeze out every last token-per-second on NVIDIA hardware.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- STAFF-LEVEL METRICS REFERENCE -->
             <!-- ============================================ -->
             <h2 class="mt-4">Staff-Level Metrics Reference</h2>
@@ -2715,6 +2804,26 @@ print(f"Expected speedup: {speedup:.1f}×")  # → ~2.3×
 
                     <div class="key-insight">
                         <strong>TTFT vs TPOT Tradeoff:</strong> Continuous batching optimizes throughput (TPOT) at the cost of TTFT because requests queue before processing. For interactive chat, optimize TTFT. For batch jobs, optimize throughput. You often can't maximize both simultaneously.
+                    </div>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Baseten Inference Book: Measure Latency in Percentiles, Not Averages</div>
+                        <p>LLM latency is <strong>right-skewed</strong> &mdash; P99 can be 5x longer than the median. An average that "looks fine" hides the fact that 1-in-100 users is having a terrible experience. Always track <strong>P50, P90, and P99</strong> for both TTFT and TPS (tokens per second).</p>
+                        <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                            <thead>
+                                <tr style="background:rgba(102,126,234,0.2);">
+                                    <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Percentile</th>
+                                    <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Tells You</th>
+                                    <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Why It Matters</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">P50 (Median)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Typical user experience</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Baseline performance</td></tr>
+                                <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">P90</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1-in-10 worst case</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Reveals queuing and batch contention</td></tr>
+                                <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">P99</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1-in-100 worst case</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">SLA-defining; often 5x P50 for LLMs</td></tr>
+                            </tbody>
+                        </table>
+                        <p><strong>Interview tip:</strong> If asked "how would you measure latency for your LLM service?", never say "average latency." Say "P50, P90, P99 for both TTFT and TPOT, broken down by model and request type."</p>
                     </div>
 
                     <h4>Real-World Throughput Numbers (A100 80GB SXM)</h4>

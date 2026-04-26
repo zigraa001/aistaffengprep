@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-This is an interactive GitHub Pages site for staff engineer interview preparation, covering six domains:
+This is an interactive GitHub Pages site for staff engineer interview preparation, covering seven domains:
 1. **Coding Rounds** - Algorithms, data structures, problem-solving patterns
 2. **System Design** - Scalability, distributed systems, architectural patterns
 3. **Low-Level Design** - OOP principles, design patterns, object-oriented design problems
 4. **Company-Specific** - Interview processes for top tech companies
 5. **Behavioral** - STAR method, leadership stories, communication
 6. **Generative AI Engineering** - LLMs, RAG, Agents, and Production AI Systems
+7. **Metrics & Tradeoffs** - Measuring success, cost efficiency, critical thinking, business impact
 
 **Live Site**: Served from repository root via GitHub Pages
 
@@ -24,14 +25,41 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 │   ├── index.html            # Course overview (9 modules)
 │   └── module-01.html - module-09.html
 ├── system-design/
-│   ├── index.html            # Course overview with left sidebar
-│   ├── module-01.html - module-12.html  # Core modules
-│   ├── problems/             # Detailed problem breakdowns
+│   ├── index.html            # Course overview (18 modules, 5 phases)
+│   ├── sidebar.js            # Shared sidebar component for all SD pages
+│   ├── module-01.html        # Scalability Fundamentals
+│   ├── module-02.html        # Database Systems
+│   ├── module-03.html        # Distributed Systems Core
+│   ├── module-04.html        # Storage & Stream Processing
+│   ├── module-05.html        # Seminal Papers Guide
+│   ├── module-06.html        # Common Problems Hub
+│   ├── module-07.html        # RESHADE Framework Mastery
+│   ├── module-08.html        # Mock Interviews & Practice
+│   ├── module-09.html        # API Design & Networking
+│   ├── module-10.html        # Numbers & Estimation
+│   ├── module-11.html        # Real-time Communication
+│   ├── module-12.html        # Rate Limiting & Throttling
+│   ├── module-13.html        # Caching Deep Dive (NEW)
+│   ├── module-14.html        # Data Consistency Patterns (NEW)
+│   ├── module-15.html        # Message Queues & EDA (NEW)
+│   ├── module-16.html        # Microservices & Service Architecture (NEW)
+│   ├── module-17.html        # Search & Indexing (NEW)
+│   ├── module-18.html        # Monitoring & Reliability (NEW)
+│   ├── module-19.html        # Security & Authentication (NEW)
+│   ├── module-20.html        # Staff-Level Design Thinking (NEW)
+│   ├── cheat-sheet.html      # Quick reference cheat sheet
+│   ├── problems/             # Practice problem breakdowns (10)
 │   │   ├── url-shortener.html
 │   │   ├── news-feed.html
 │   │   ├── chat-system.html
-│   │   └── video-streaming.html
-│   └── papers/               # Seminal paper deep dives
+│   │   ├── video-streaming.html
+│   │   ├── vector-storage.html
+│   │   ├── airbnb-booking.html
+│   │   ├── notification-system.html  (NEW)
+│   │   ├── distributed-cache.html    (NEW)
+│   │   ├── payment-system.html       (NEW)
+│   │   └── ride-sharing.html         (NEW)
+│   └── papers/               # Seminal paper deep dives (8)
 │       ├── gfs.html          # Google File System
 │       ├── bigtable.html     # Google BigTable
 │       ├── dynamo.html       # Amazon Dynamo
@@ -39,8 +67,7 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 │       ├── mapreduce.html    # Google MapReduce
 │       ├── kafka.html        # Apache Kafka
 │       ├── spanner.html      # Google Spanner
-│       ├── flink.html        # Apache Flink (stream processing)
-│       └── flashblade.html   # Pure Storage FlashBlade
+│       └── flink.html        # Apache Flink (stream processing)
 ├── low-level-design/
 │   ├── index.html            # Course overview (12 modules + problems)
 │   ├── module-01.html        # Design Principles (SOLID, DRY, KISS)
@@ -71,6 +98,9 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 ├── generative-ai/
 │   ├── index.html            # Course overview (16 modules)
 │   └── module-01.html - module-16.html
+├── metrics-tradeoffs/
+│   ├── index.html            # Course overview (15 modules)
+│   └── module-01.html - module-15.html
 ```
 
 ## Technology Stack

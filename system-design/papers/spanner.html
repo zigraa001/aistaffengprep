@@ -500,36 +500,10 @@
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Paper Deep Dives</div>
-                    <a href="spanner.html" class="sidebar-link active">Google Spanner</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                    <a href="../module-05.html" class="sidebar-link">Seminal Papers</a>
-                    <a href="../module-03.html" class="sidebar-link">Distributed Systems</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">☰</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -585,7 +559,7 @@
                         <ul>
                             <li><strong>No cross-row transactions</strong> - Only single-row atomic operations</li>
                             <li><strong>No SQL interface</strong> - Application developers had to manage consistency</li>
-                            <li><strong>Eventually consistent</strong> - Complex for applications requiring strong guarantees</li>
+                            <li><strong>Single-cluster strong consistency only</strong> - Cross-cluster replication was eventually consistent</li>
                             <li><strong>Manual sharding</strong> - Engineers had to manage data distribution</li>
                         </ul>
                     </div>
@@ -609,7 +583,7 @@
                             <li>Support general-purpose transactions with SQL</li>
                             <li>Handle Google-scale data (petabytes) with Google-scale traffic</li>
                         </ol>
-                        <p><strong>The CAP theorem says pick 2 of 3.</strong> Spanner chose consistency + partition tolerance, then minimized availability impact through TrueTime.</p>
+                        <p><strong>The CAP theorem</strong> is often oversimplified as "pick 2 of 3." Spanner prioritizes consistency (CP), but achieves high availability through Paxos-based replication across zones and fast leader election — not through TrueTime. TrueTime's role is enabling external consistency via commit-wait, not improving availability.</p>
                     </div>
 
                     <h4 class="mt-3">Real-World Motivation: Google Ads</h4>
@@ -830,9 +804,9 @@ flowchart LR
     D2 --> T1
     D3 --> T2
 
-    style D1 fill:#e0f2fe
-    style D2 fill:#e0f2fe
-    style D3 fill:#fef3c7
+    style D1 fill:rgba(59,130,246,0.3)
+    style D2 fill:rgba(59,130,246,0.3)
+    style D3 fill:rgba(245,158,11,0.3)
                         </div>
                     </div>
 
@@ -982,7 +956,7 @@ GROUP BY u.email, a.title;
                             <div class="time-interval" style="left: 30%; width: 40%;">
                                 <div class="interval-bound left"></div>
                                 <div class="interval-bound right"></div>
-                                <span>Uncertainty: ~7ms typical</span>
+                                <span>Uncertainty: ~4ms avg (1-7ms in 2012 paper)</span>
                                 <div class="interval-label earliest">TT.earliest()</div>
                                 <div class="interval-label latest">TT.latest()</div>
                             </div>
@@ -1022,7 +996,7 @@ public:
 // Usage example
 TTinterval interval = TrueTime::now();
 Timestamp epsilon = interval.latest - interval.earliest;
-// epsilon is typically 1-7ms in production
+// epsilon was 1-7ms (avg ~4ms) per the 2012 paper; modern Spanner achieves sub-1ms
                         </code>
                     </div>
 
@@ -1063,7 +1037,7 @@ flowchart TB
                         <h4>Why Two Types of Time Masters?</h4>
                         <ul>
                             <li><strong>GPS receivers:</strong> Accurate to microseconds, but can be jammed/spoofed</li>
-                            <li><strong>Atomic clocks:</strong> Drift ~6us/day, independent of GPS, different failure modes</li>
+                            <li><strong>Atomic clocks:</strong> Independent of GPS, different failure modes; drift is bounded and calibrated between sync intervals</li>
                             <li><strong>Redundancy:</strong> Masters cross-check each other, exclude outliers</li>
                             <li><strong>Polling:</strong> Daemons poll multiple masters every 30 seconds</li>
                         </ul>
@@ -1075,7 +1049,7 @@ flowchart TB
                         <ol>
                             <li><strong>Admits uncertainty exists</strong> - Exposes it to applications</li>
                             <li><strong>Bounds the uncertainty</strong> - Guarantees true time is in interval</li>
-                            <li><strong>Minimizes uncertainty</strong> - Typically 1-7ms with GPS + atomic clocks</li>
+                            <li><strong>Minimizes uncertainty</strong> - The 2012 paper reported 1-7ms (avg ~4ms sawtooth between syncs); modern deployments achieve sub-1ms</li>
                             <li><strong>Enables consistency</strong> - Commit-wait uses uncertainty bound</li>
                         </ol>
                     </div>
@@ -1155,13 +1129,13 @@ Transaction commit(Transaction txn) {
 
                     <div class="insight-card">
                         <h4>The Trade-off: Latency for Consistency</h4>
-                        <p>Commit wait adds latency equal to ~2 * epsilon (uncertainty interval):</p>
+                        <p>Commit wait adds latency of up to ~2 * epsilon (worst case, the full uncertainty interval):</p>
                         <ul>
-                            <li><strong>With GPS + atomic clocks:</strong> ~7ms average wait</li>
+                            <li><strong>With GPS + atomic clocks:</strong> A few milliseconds average wait (sub-1ms in modern Spanner)</li>
                             <li><strong>With only NTP:</strong> Would be 100ms+ (unusable)</li>
                             <li><strong>Google's investment:</strong> Special hardware makes this practical</li>
                         </ul>
-                        <p><strong>This is why CockroachDB without TrueTime hardware has higher write latency!</strong></p>
+                        <p><strong>Note:</strong> CockroachDB avoids commit-wait entirely by handling uncertainty on the read side (restarting reads that encounter uncertain timestamps). This avoids the write-side latency penalty but can cause read-side retries under clock skew.</p>
                     </div>
 
                     <div class="tradeoff-scale">
@@ -1332,18 +1306,28 @@ class SpannerTransaction:
         self.lock_manager = LockManager()
 
     def begin_transaction(self) -> Transaction:
-        """Start a new read-write transaction."""
+        """Start a new read-write transaction.
+
+        Note: In Spanner, read-write transactions acquire read locks and
+        read the latest committed value, NOT at a fixed snapshot. The
+        commit timestamp is chosen later, at commit time.
+        """
         txn = Transaction(
             id=f"txn_{time.time_ns()}",
-            read_timestamp=self.tt.now().latest  # Snapshot for reads
         )
         return txn
 
     def read(self, txn: Transaction, key: str) -> Optional[str]:
-        """Read at transaction's snapshot timestamp."""
+        """Read with lock acquisition (read-write transaction).
+
+        Unlike read-only transactions which use a snapshot timestamp,
+        read-write transactions acquire read locks and read the latest
+        committed value to ensure serializability.
+        """
         txn.read_set.add(key)
         group = self._get_paxos_group(key)
-        return group.read_at_timestamp(key, txn.read_timestamp)
+        # Acquire read lock and read latest committed value
+        return group.read_latest_with_lock(key, txn.id)
 
     def write(self, txn: Transaction, key: str, value: str):
         """Buffer write for commit time."""
@@ -1605,11 +1589,11 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
 -- Regional configuration (low latency, limited availability)
 -- instance config: regional-us-central1
 
--- Multi-region configuration (high availability, higher latency)
--- instance config: nam3 (Iowa, Oregon, Utah)
+-- Multi-region configuration (high availability, higher write latency)
+-- instance config: nam14 (e.g., Iowa leader, South Carolina, Oregon)
 -- - 2 read-write replicas in leader region
--- - 2 read-write replicas in other regions
--- - 1 witness replica
+-- - 2 read-only replicas in other regions
+-- - 1 witness replica (for Paxos quorum without serving reads)
 
 -- Global configuration
 -- instance config: nam-eur-asia1
@@ -1641,7 +1625,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Google Cloud Spanner</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Actual TrueTime (GPS + atomic)</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Managed service, Google-only</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fully managed on Google Cloud; uses actual TrueTime hardware</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>CockroachDB</strong></td>
@@ -1668,17 +1652,17 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
                             <li>Physical timestamp (wall clock)</li>
                             <li>Logical counter (for ordering within same physical time)</li>
                         </ul>
-                        <p><strong>Trade-off:</strong> Without hardware time bounds, CockroachDB must either:</p>
+                        <p><strong>Trade-off:</strong> Without hardware time bounds, CockroachDB:</p>
                         <ol>
-                            <li>Use higher clock uncertainty (~500ms default, configurable)</li>
-                            <li>Retry transactions that might have ordering issues</li>
-                            <li>Accept occasional linearizability violations for better latency</li>
+                            <li>Configures a max clock offset (default 500ms) — nodes exceeding this are ejected from the cluster</li>
+                            <li>Uses an <strong>uncertainty interval</strong> on reads: if a read encounters a value with a timestamp within its uncertainty window, it restarts at a higher timestamp</li>
+                            <li>Provides serializable isolation by default; single-key linearizability is maintained, but cross-key real-time ordering (strict serializability) requires careful clock management</li>
                         </ol>
                     </div>
 
                     <h4 class="mt-3">Google's Use of Spanner</h4>
                     <ul>
-                        <li><strong>Google Ads:</strong> ~10 trillion operations/day, global consistency</li>
+                        <li><strong>Google Ads:</strong> Hundreds of billions of operations/day, global consistency</li>
                         <li><strong>Google Play:</strong> App purchases, subscriptions</li>
                         <li><strong>Google Photos:</strong> Metadata storage</li>
                         <li><strong>Gmail:</strong> User data (migrated from Bigtable)</li>
@@ -1693,7 +1677,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
             <div class="interview-question">
                 <h4>Q1: Why can't you just use NTP for clock synchronization in a globally distributed database?</h4>
                 <div class="answer">
-                    <p><strong>Answer:</strong> NTP has uncertainty of 100ms-250ms over WAN, which would make commit-wait unacceptably slow. Spanner needs ~7ms uncertainty, achieved through GPS receivers and atomic clocks with independent failure modes. More importantly, NTP doesn't provide <strong>bounded uncertainty</strong> - you don't know how wrong your clock might be. TrueTime's key insight is exposing uncertainty as an interval, enabling the commit-wait protocol to guarantee consistency.</p>
+                    <p><strong>Answer:</strong> NTP has uncertainty of 100ms-250ms over WAN, which would make commit-wait unacceptably slow. Spanner's 2012 paper reported 1-7ms uncertainty (avg ~4ms), achieved through GPS receivers and atomic clocks with independent failure modes; modern deployments achieve sub-1ms. More importantly, NTP doesn't provide <strong>bounded uncertainty</strong> - you don't know how wrong your clock might be. TrueTime's key insight is exposing uncertainty as an interval, enabling the commit-wait protocol to guarantee consistency.</p>
                 </div>
             </div>
 
@@ -1706,7 +1690,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
                         <li>Multi-region placement in different failure domains</li>
                         <li>Fast failure detection and leader election (~10s leases)</li>
                     </ul>
-                    <p>In practice, Spanner achieves 99.999% availability (5 nines) while maintaining strong consistency.</p>
+                    <p>In practice, Cloud Spanner's SLA is 99.999% (5 nines) for multi-region configurations and 99.999% for regional configurations, while maintaining strong consistency.</p>
                 </div>
             </div>
 
@@ -1743,11 +1727,11 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
                     <p><strong>Answer:</strong> This is exactly what CockroachDB does. Key approaches:</p>
                     <ul>
                         <li><strong>Hybrid Logical Clocks:</strong> Combine physical time with logical counters</li>
-                        <li><strong>Higher uncertainty bounds:</strong> Assume ~500ms clock skew (configurable)</li>
-                        <li><strong>Transaction retry:</strong> If uncertainty might cause ordering issues, retry the transaction</li>
-                        <li><strong>Read refreshes:</strong> Refresh read timestamp if writes are detected during transaction</li>
+                        <li><strong>Configured max clock offset:</strong> Default 500ms — nodes that drift beyond this are removed from the cluster</li>
+                        <li><strong>Uncertainty-based read restarts:</strong> If a read encounters a value with a timestamp within its uncertainty window, the transaction restarts at a higher timestamp</li>
+                        <li><strong>Read refreshes:</strong> Advance read timestamp to avoid restarts when possible</li>
                     </ul>
-                    <p><strong>Trade-offs:</strong> Higher write latency (longer commit-wait equivalent), occasional transaction retries, or configurable relaxation of linearizability for latency-sensitive workloads.</p>
+                    <p><strong>Trade-offs:</strong> Occasional transaction restarts under clock skew, higher tail latency for cross-range reads, and reliance on well-synchronized NTP rather than specialized hardware. CockroachDB does NOT do commit-wait — it handles uncertainty on the read side instead.</p>
                 </div>
             </div>
 
@@ -1767,10 +1751,10 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
             <div class="interview-question">
                 <h4>Q7: What's the difference between Spanner's external consistency and serializability?</h4>
                 <div class="answer">
-                    <p><strong>Answer:</strong> External consistency = Serializability + Real-time ordering:</p>
+                    <p><strong>Answer:</strong> External consistency is Spanner's term for what the academic literature calls <strong>strict serializability</strong> (serializability + real-time ordering):</p>
                     <ul>
                         <li><strong>Serializability:</strong> Transactions appear to execute in some serial order</li>
-                        <li><strong>External consistency (linearizability):</strong> That serial order respects real-time - if T1 commits before T2 starts (wall clock time), T1 appears before T2</li>
+                        <li><strong>External consistency (strict serializability):</strong> That serial order respects real-time — if T1 commits before T2 starts (wall clock time), T1 must appear before T2 in the serial order. This is stronger than plain linearizability (which applies to single objects) because it applies to full multi-key transactions.</li>
                     </ul>
                     <p>Example: If I transfer money at 3:00 PM and check balance at 3:01 PM, external consistency guarantees I see the transfer. Serializability alone doesn't guarantee this - the "serial order" could put my read before the write.</p>
                 </div>
@@ -1803,7 +1787,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
                 <ul>
                     <li>Spanner doesn't violate CAP - it chooses CP with minimized availability impact</li>
                     <li>TrueTime isn't magic - it's expensive hardware + clever engineering</li>
-                    <li>External consistency isn't free - commit-wait adds ~7ms to writes</li>
+                    <li>External consistency isn't free - commit-wait adds latency proportional to clock uncertainty (a few ms historically, sub-ms in modern Spanner)</li>
                     <li>Not every application needs Spanner - eventually consistent is often fine</li>
                 </ul>
 
@@ -1836,7 +1820,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
             });
 
             // Sidebar toggle
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sd-sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -1867,5 +1851,7 @@ SET ROW DELETION POLICY (OLDER_THAN(timestamp, INTERVAL 90 DAY));
             });
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>

@@ -1097,7 +1097,7 @@ class GPT(nn.Module):
         """
         device = idx.device
         B, T = idx.size()
-        assert T <= self.config.block_size, f"Sequence too long: {T} > {self.config.block_size}"
+        assert T &lt;= self.config.block_size, f"Sequence too long: {T} &gt; {self.config.block_size}"
 
         # Create position indices
         pos = torch.arange(0, T, dtype=torch.long, device=device)  # [T]
@@ -1142,7 +1142,7 @@ class GPT(nn.Module):
         """
         for _ in range(max_new_tokens):
             # Crop to block_size if needed
-            idx_cond = idx if idx.size(1) <= self.config.block_size else idx[:, -self.config.block_size:]
+            idx_cond = idx if idx.size(1) &lt;= self.config.block_size else idx[:, -self.config.block_size:]
 
             # Forward pass
             logits, _ = self(idx_cond)
@@ -1153,7 +1153,7 @@ class GPT(nn.Module):
             # Optional top-k filtering
             if top_k is not None:
                 v, _ = torch.topk(logits, min(top_k, logits.size(-1)))
-                logits[logits < v[:, [-1]]] = float('-inf')
+                logits[logits &lt; v[:, [-1]]] = float('-inf')
 
             # Convert to probabilities
             probs = F.softmax(logits, dim=-1)
@@ -1206,7 +1206,7 @@ if __name__ == "__main__":
                     <ul>
                         <li>Reduces parameters significantly (vocab_size * n_embd parameters saved)</li>
                         <li>Improves generalization</li>
-                        <li>Is used by GPT-2, GPT-3, LLaMA, etc.</li>
+                        <li>Is used by GPT-2, GPT-3, LLaMA, Mistral, and most modern LLMs</li>
                     </ul>
 
                     <h4>GPT-2 vs GPT-3 vs Modern Architectures</h4>
@@ -1250,7 +1250,28 @@ if __name__ == "__main__":
                                 <td>175B</td>
                             </tr>
                             <tr>
-                                <td>LLaMA 7B</td>
+                                <td>LLaMA-2 7B</td>
+                                <td>32</td>
+                                <td>32</td>
+                                <td>4096</td>
+                                <td>7B</td>
+                            </tr>
+                            <tr>
+                                <td>LLaMA-3 8B</td>
+                                <td>32</td>
+                                <td>32</td>
+                                <td>4096</td>
+                                <td>8B</td>
+                            </tr>
+                            <tr>
+                                <td>LLaMA-3 70B</td>
+                                <td>80</td>
+                                <td>64</td>
+                                <td>8192</td>
+                                <td>70B</td>
+                            </tr>
+                            <tr>
+                                <td>Mistral 7B</td>
                                 <td>32</td>
                                 <td>32</td>
                                 <td>4096</td>
@@ -1261,11 +1282,12 @@ if __name__ == "__main__":
 
                     <h4>Modern Improvements (Not in Basic GPT)</h4>
                     <ul>
-                        <li><strong>RoPE (Rotary Position Embedding):</strong> Better length generalization</li>
-                        <li><strong>GQA (Grouped Query Attention):</strong> Faster inference with shared KV heads</li>
-                        <li><strong>SwiGLU activation:</strong> Better than GELU for large models</li>
-                        <li><strong>RMSNorm:</strong> Simpler than LayerNorm, similar performance</li>
-                        <li><strong>Flash Attention:</strong> Memory-efficient attention computation</li>
+                        <li><strong>RoPE (Rotary Position Embedding):</strong> Better length generalization (LLaMA, Mistral, Gemma)</li>
+                        <li><strong>GQA (Grouped Query Attention):</strong> Faster inference with shared KV heads (LLaMA-2 70B+, LLaMA-3, Mistral)</li>
+                        <li><strong>SwiGLU activation:</strong> Better than GELU for large models (LLaMA, Mistral, Gemma)</li>
+                        <li><strong>RMSNorm:</strong> Simpler than LayerNorm, similar performance (LLaMA, Gemma)</li>
+                        <li><strong>Flash Attention:</strong> Memory-efficient attention computation (used by virtually all modern training and inference stacks)</li>
+                        <li><strong>Sliding Window Attention:</strong> Attend to a fixed window for efficiency, with sparse global tokens (Mistral, Gemma 2)</li>
                     </ul>
                 </div>
             </div>
@@ -1359,7 +1381,7 @@ def train_gpt(
 
     def lr_lambda(step):
         # Linear warmup
-        if step < warmup_steps:
+        if step &lt; warmup_steps:
             return step / warmup_steps
         # Cosine decay
         progress = (step - warmup_steps) / (total_steps - warmup_steps)
@@ -1718,7 +1740,7 @@ graph TD
     Sample from the distribution with temperature scaling.
 
     Temperature controls randomness:
-    - T < 1: More deterministic (sharper distribution)
+    - T &lt; 1: More deterministic (sharper distribution)
     - T = 1: Original distribution
     - T > 1: More random (flatter distribution)
     """
@@ -1828,7 +1850,7 @@ graph LR
 
         # Find cutoff index (first position where cumsum > p)
         # Shift right to include the token that crosses threshold
-        sorted_indices_to_remove = cumulative_probs > p
+        sorted_indices_to_remove = cumulative_probs &gt; p
         sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
         sorted_indices_to_remove[..., 0] = False
 
@@ -1880,7 +1902,7 @@ graph LR
                             <tr>
                                 <td>Used by</td>
                                 <td>GPT-2 original demo</td>
-                                <td>GPT-3+, Claude, most modern LLMs</td>
+                                <td>OpenAI GPT-4o, Anthropic Claude, Google Gemini, most modern LLM APIs</td>
                             </tr>
                         </tbody>
                     </table>
@@ -2152,7 +2174,7 @@ graph LR
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Force structured output: <code>{"type": "json_object"}</code> guarantees valid JSON; <code>{"type": "json_schema", "json_schema": {...}}</code> validates against a schema. Internally uses constrained decoding — only tokens that keep the output valid are allowed.</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">object</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">text</td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI gpt-4o+, Azure</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenAI (GPT-4o, GPT-4.1, o-series), Azure, Anthropic Claude (tool_choice with JSON), Google Gemini</td>
                             </tr>
                             <tr>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>seed</strong></td>
@@ -2216,7 +2238,7 @@ graph LR
                             </tr>
                             <tr style="background:rgba(183,148,244,0.05);">
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>num_ctx</strong> <small>(context window)</small></td>
-                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">The context window size loaded for this request. Larger = more memory, allows longer conversations. Must be ≤ model's trained max (e.g. 8192 for Llama-2, 131072 for Llama-3.1).</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">The context window size loaded for this request. Larger = more memory, allows longer conversations. Must be ≤ model's trained max (e.g. 4096 for Llama-2 base, 8192 for Mistral 7B, 131072 for Llama-3.1/3.3).</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">512 – model_max</td>
                                 <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2048</td>
                             </tr>
@@ -2354,7 +2376,7 @@ for temp in [0.1, 0.5, 1.0, 1.5, 2.0]:
 def apply_top_k(logits, k):
     top_k_vals, _ = torch.topk(logits, k)
     threshold = top_k_vals[-1]
-    filtered = logits.masked_fill(logits < threshold, float('-inf'))
+    filtered = logits.masked_fill(logits &lt; threshold, float('-inf'))
     return F.softmax(filtered, dim=-1)
 
 print(apply_top_k(logits, k=3))  # Only "the", "a", "one" are candidates
@@ -2364,7 +2386,7 @@ def apply_top_p(logits, p):
     sorted_logits, sorted_idx = torch.sort(logits, descending=True)
     cum_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
     # Remove tokens once cumulative prob exceeds p (shifted by 1 to keep first over-threshold)
-    remove = cum_probs - F.softmax(sorted_logits, dim=-1) >= p
+    remove = cum_probs - F.softmax(sorted_logits, dim=-1) &gt;= p
     sorted_logits[remove] = float('-inf')
     # Scatter back to original order
     filtered = torch.zeros_like(logits).scatter_(0, sorted_idx, sorted_logits)
@@ -2382,12 +2404,12 @@ def apply_frequency_penalty(logits, token_counts, freq_penalty=0.5):
 def generate_token(logits, temperature=0.7, top_k=50, top_p=0.9):
     logits = logits / temperature          # 1. Scale by temperature
     top_k_vals, _ = torch.topk(logits, top_k)
-    logits[logits < top_k_vals[-1]] = float('-inf')  # 2. Top-k filter
+    logits[logits &lt; top_k_vals[-1]] = float('-inf')  # 2. Top-k filter
     probs = F.softmax(logits, dim=-1)
     # 3. Top-p filter on probabilities
     sorted_p, sorted_i = torch.sort(probs, descending=True)
     cum = torch.cumsum(sorted_p, dim=-1)
-    remove = (cum - sorted_p) >= top_p
+    remove = (cum - sorted_p) &gt;= top_p
     probs[sorted_i[remove]] = 0
     probs /= probs.sum()                   # renormalize
     return torch.multinomial(probs, 1).item()</code>
@@ -2471,7 +2493,7 @@ sampled = model.generate(**inputs, max_new_tokens=40,
 
 # Mirostat (llama.cpp via ctransformers / llama-cpp-python)
 # from llama_cpp import Llama
-# llm = Llama(model_path="llama-3.1-8b.gguf")
+# llm = Llama(model_path="Meta-Llama-3.1-8B-Instruct.gguf")
 # out = llm("The best way to learn programming is",
 #           max_tokens=40, mirostat_mode=2, mirostat_tau=5.0, mirostat_eta=0.1)
 
@@ -2523,9 +2545,9 @@ def is_likely_hallucination(response, threshold=-2.0):
     """Flag responses where any token has logprob below threshold."""
     suspicious_tokens = []
     for t in response.choices[0].logprobs.content:
-        if t.logprob < threshold:  # exp(-2.0) = 0.135 = model only 13.5% confident
+        if t.logprob &lt; threshold:  # exp(-2.0) = 0.135 = model only 13.5% confident
             suspicious_tokens.append((t.token, t.logprob))
-    return len(suspicious_tokens) > 0, suspicious_tokens</code>
+    return len(suspicious_tokens) &gt; 0, suspicious_tokens</code>
                     </div>
 
                     <h4 style="margin-top:1.5rem;">logit_bias — Surgical Token Control</h4>
@@ -2612,7 +2634,7 @@ def mirostat_v2(logits, tau=5.0, eta=0.1, mu=None):
     cumulative = 0.0
     candidates = []
     for token_id, p in sorted_pairs:
-        if cumulative + p > 1 - math.exp(-mu):
+        if cumulative + p &gt; 1 - math.exp(-mu):
             break
         candidates.append((token_id, p))
         cumulative += p
@@ -2769,7 +2791,6 @@ chat_response = client.chat.completions.create(
     messages=[{"role": "user", "content": "My order is late, what can I do?"}],
     temperature=0.6,
     top_p=0.9,
-    top_k=50,          # (some providers support this)
     max_tokens=256,
     frequency_penalty=0.3,   # mild: avoid robotic phrase repetition
 )
@@ -2835,7 +2856,7 @@ for i, choice in enumerate(ideas_response.choices):
                         <strong>Q2:</strong> What is the difference between Pre-LN and Post-LN Transformers?
                         <button class="reveal-btn">Reveal Answer</button>
                         <div class="recall-answer">
-                            <p><strong>Post-LN (original):</strong> LayerNorm after residual connection: x + LayerNorm(sublayer(x))</p>
+                            <p><strong>Post-LN (original):</strong> LayerNorm wraps the residual: LayerNorm(x + sublayer(x))</p>
                             <p><strong>Pre-LN (GPT-2+):</strong> LayerNorm before sublayer: x + sublayer(LayerNorm(x))</p>
                             <p>Pre-LN is more stable for training deep networks because gradients flow more easily through the residual connections. Most modern LLMs use Pre-LN.</p>
                         </div>
@@ -2845,7 +2866,7 @@ for i, choice in enumerate(ideas_response.choices):
                         <strong>Q3:</strong> Why does temperature=0.5 make generation more deterministic?
                         <button class="reveal-btn">Reveal Answer</button>
                         <div class="recall-answer">
-                            <p>Temperature divides the logits before softmax: softmax(logits/T). When T < 1, this amplifies the differences between logits. For example, if logits are [2, 1], then:</p>
+                            <p>Temperature divides the logits before softmax: softmax(logits/T). When T &lt; 1, this amplifies the differences between logits. For example, if logits are [2, 1], then:</p>
                             <ul>
                                 <li>T=1.0: softmax([2,1]) ≈ [0.73, 0.27]</li>
                                 <li>T=0.5: softmax([4,2]) ≈ [0.88, 0.12]</li>
@@ -3553,7 +3574,7 @@ print(decode(prompted_output[0].tolist()))
                     <li><strong>Module 8 (RAG):</strong> Combining generation with retrieval for knowledge-intensive tasks</li>
                 </ul>
 
-                <p>The core GPT architecture you built here is the foundation of Claude, GPT-4, LLaMA, and all modern LLMs. The differences are in scale, training data, and alignment techniques (RLHF) - which we cover in Module 6.</p>
+                <p>The core GPT architecture you built here is the foundation of Anthropic Claude (4, Sonnet, Haiku), OpenAI GPT-4o/GPT-4.1, Meta LLaMA 3, Google Gemini, and all modern LLMs. The differences are in scale, training data, architectural refinements (GQA, RoPE, SwiGLU), and alignment techniques (RLHF, RLAIF, DPO, Constitutional AI) - which we cover in Module 6.</p>
             </div>
 
             <div class="flex flex-between mt-4">

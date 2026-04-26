@@ -74,6 +74,28 @@
                         <span class="sidebar-link-number">9</span>Interview Simulation
                     </a>
                 </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -88,10 +110,13 @@
         <div class="card mt-3">
             <h3>Learning Objectives</h3>
             <ul>
-                <li>Understand heap data structure and operations</li>
-                <li>Solve Top-K problems efficiently</li>
-                <li>Use heaps for merge operations</li>
-                <li>Understand sorting algorithm trade-offs</li>
+                <li>Understand heap data structure and operations (min-heap, max-heap, heapify)</li>
+                <li>Master the <strong>Two Heaps</strong> pattern for median-finding and stream problems</li>
+                <li>Apply the <strong>K-Way Merge</strong> pattern for merging sorted sources</li>
+                <li>Solve Top-K problems with heap, QuickSelect, and bucket sort approaches</li>
+                <li>Know when to use O(n) sorts (counting, radix, bucket) vs O(n log n) sorts</li>
+                <li>Understand Tim Sort, stability, and what your language actually uses under the hood</li>
+                <li>Compare QuickSelect vs heap vs bucket sort with clear trade-off reasoning</li>
             </ul>
         </div>
 
@@ -164,10 +189,17 @@ def find_kth_largest(nums, k):
     return min_heap[0]  # Kth largest is the smallest in heap
 
 # Alternative: O(n) average with quickselect
+# Caution: O(n^2) worst case without randomization. Mutates input.
+import random
+
 def find_kth_largest_quickselect(nums, k):
     k = len(nums) - k  # Convert to kth smallest index
 
     def quickselect(l, r):
+        # Randomize pivot to avoid O(n^2) on sorted input
+        rand_idx = random.randint(l, r)
+        nums[rand_idx], nums[r] = nums[r], nums[rand_idx]
+
         pivot, p = nums[r], l
         for i in range(l, r):
             if nums[i] <= pivot:
@@ -221,6 +253,624 @@ def merge_k_lists(lists):
             </div>
         </div>
 
+        <!-- ============================================================ -->
+        <!-- TWO HEAPS PATTERN                                            -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Two Heaps Pattern</h2>
+
+        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 1.5rem;">
+            <h3 style="color: white;">Why Two Heaps?</h3>
+            <p>The Two Heaps pattern is one of the most important Grokking patterns. It lets you efficiently track the <strong>median</strong> of a dynamic dataset by splitting it into a "smaller half" (max-heap) and a "larger half" (min-heap). The median is always accessible in O(1) from the tops of the heaps. This pattern appears in streaming data, sliding windows, and optimization problems.</p>
+        </div>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Find Median from Data Stream (LeetCode #295)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Design a data structure that supports adding integers and finding the median of all elements added so far.</p>
+                <p><strong>Key Insight:</strong> Maintain two heaps. The max-heap stores the smaller half, the min-heap stores the larger half. The median is always at the boundary.</p>
+
+                <div class="diagram-container">
+                    <pre class="mermaid">
+graph LR
+    subgraph MaxHeap["Max-Heap (smaller half)"]
+        direction TB
+        A["top = largest of small"]
+    end
+    subgraph MinHeap["Min-Heap (larger half)"]
+        direction TB
+        B["top = smallest of large"]
+    end
+    MaxHeap -->|"median lives here"| MinHeap
+                    </pre>
+                </div>
+
+                <h4>Invariants</h4>
+                <ul>
+                    <li>Every element in max-heap &le; every element in min-heap</li>
+                    <li>Size difference between heaps is at most 1</li>
+                    <li>If odd total, the max-heap has one extra element (median = max-heap top)</li>
+                    <li>If even total, median = average of both tops</li>
+                </ul>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+
+class MedianFinder:
+    """
+    LeetCode #295 - Find Median from Data Stream
+
+    Two heaps:
+      - max_heap (negated): stores smaller half
+      - min_heap: stores larger half
+
+    addNum: O(log n)
+    findMedian: O(1)
+    """
+    def __init__(self):
+        self.small = []  # max-heap (negate values)
+        self.large = []  # min-heap
+
+    def addNum(self, num: int) -&gt; None:
+        # Step 1: Push to max-heap (smaller half)
+        heapq.heappush(self.small, -num)
+
+        # Step 2: Ensure max of small &lt;= min of large
+        if self.small and self.large and (-self.small[0]) &gt; self.large[0]:
+            val = -heapq.heappop(self.small)
+            heapq.heappush(self.large, val)
+
+        # Step 3: Balance sizes (small can have at most 1 more)
+        if len(self.small) &gt; len(self.large) + 1:
+            val = -heapq.heappop(self.small)
+            heapq.heappush(self.large, val)
+        elif len(self.large) &gt; len(self.small):
+            val = heapq.heappop(self.large)
+            heapq.heappush(self.small, -val)
+
+    def findMedian(self) -&gt; float:
+        if len(self.small) &gt; len(self.large):
+            return -self.small[0]
+        return (-self.small[0] + self.large[0]) / 2.0
+
+
+# Usage:
+# mf = MedianFinder()
+# mf.addNum(1)    # [1]          median = 1
+# mf.addNum(2)    # [1, 2]       median = 1.5
+# mf.addNum(3)    # [1, 2, 3]    median = 2</code></pre>
+                </div>
+
+                <div class="code-block mt-3">
+                    <pre><code class="language-java">// Java implementation using PriorityQueue
+import java.util.*;
+
+class MedianFinder {
+    // Max-heap for smaller half (default PriorityQueue is min-heap, use reverseOrder)
+    PriorityQueue&lt;Integer&gt; small = new PriorityQueue&lt;&gt;(Collections.reverseOrder());
+    // Min-heap for larger half
+    PriorityQueue&lt;Integer&gt; large = new PriorityQueue&lt;&gt;();
+
+    public void addNum(int num) {
+        small.offer(num);
+
+        // Ensure ordering: max of small &lt;= min of large
+        if (!small.isEmpty() &amp;&amp; !large.isEmpty() &amp;&amp; small.peek() &gt; large.peek()) {
+            large.offer(small.poll());
+        }
+
+        // Balance sizes
+        if (small.size() &gt; large.size() + 1) {
+            large.offer(small.poll());
+        } else if (large.size() &gt; small.size()) {
+            small.offer(large.poll());
+        }
+    }
+
+    public double findMedian() {
+        if (small.size() &gt; large.size()) {
+            return small.peek();
+        }
+        return (small.peek() + large.peek()) / 2.0;
+    }
+}</code></pre>
+                </div>
+
+                <h4>Complexity Analysis</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Operation</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">addNum</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">findMedian</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Sliding Window Median (LeetCode #480)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an array of integers and a window size k, find the median of each window as it slides from left to right.</p>
+                <p><strong>Key Challenge:</strong> Unlike the stream problem, we also need to <em>remove</em> elements as the window moves. Heaps do not natively support removal by value efficiently, so we use <strong>lazy deletion</strong>: mark elements as removed and clean them up when they appear at the top.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+from collections import defaultdict
+
+def medianSlidingWindow(nums, k):
+    """
+    LeetCode #480 - Sliding Window Median
+
+    Two heaps + lazy deletion using a balance counter.
+    Time: O(n log k), Space: O(k)
+    """
+    small = []  # max-heap (negated)
+    large = []  # min-heap
+    delayed = defaultdict(int)  # element -&gt; count of pending removals
+
+    # small_size and large_size track "logical" sizes (excluding lazy-deleted)
+    small_size = 0
+    large_size = 0
+    result = []
+
+    def prune(heap):
+        """Remove elements from top that are marked for lazy deletion."""
+        while heap:
+            val = -heap[0] if heap is small else heap[0]
+            if delayed[val] &gt; 0:
+                delayed[val] -= 1
+                heapq.heappop(heap)
+            else:
+                break
+
+    def rebalance():
+        """Ensure small_size == large_size or small_size == large_size + 1."""
+        nonlocal small_size, large_size
+        if small_size &gt; large_size + 1:
+            # Move top of small to large
+            val = -heapq.heappop(small)
+            heapq.heappush(large, val)
+            small_size -= 1
+            large_size += 1
+            prune(small)
+        elif large_size &gt; small_size:
+            val = heapq.heappop(large)
+            heapq.heappush(small, -val)
+            large_size -= 1
+            small_size += 1
+            prune(large)
+
+    def add(num):
+        nonlocal small_size, large_size
+        if not small or num &lt;= -small[0]:
+            heapq.heappush(small, -num)
+            small_size += 1
+        else:
+            heapq.heappush(large, num)
+            large_size += 1
+        rebalance()
+
+    def remove(num):
+        nonlocal small_size, large_size
+        delayed[num] += 1
+        if num &lt;= -small[0]:
+            small_size -= 1
+        else:
+            large_size -= 1
+        rebalance()
+        prune(small)
+        prune(large)
+
+    def get_median():
+        if k % 2 == 1:
+            return float(-small[0])
+        return (-small[0] + large[0]) / 2.0
+
+    # Initialize first window
+    for i in range(k):
+        add(nums[i])
+    result.append(get_median())
+
+    # Slide the window
+    for i in range(k, len(nums)):
+        add(nums[i])
+        remove(nums[i - k])
+        result.append(get_median())
+
+    return result
+
+
+# Example:
+# nums = [1, 3, -1, -3, 5, 3, 6, 7], k = 3
+# Output: [1.0, -1.0, -1.0, 3.0, 5.0, 6.0]</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>IPO Problem (LeetCode #502)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> You have initial capital W. Each project i has a profit[i] and minimum capital[i] required. You can do at most k projects. After completing a project, your capital increases by its profit. Maximize your final capital.</p>
+                <p><strong>Key Insight:</strong> Use a min-heap to track projects by required capital (to quickly find affordable ones), and a max-heap to pick the most profitable affordable project.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+
+def findMaximizedCapital(k, w, profits, capital):
+    """
+    LeetCode #502 - IPO
+
+    Two heaps:
+      - min-heap sorted by capital requirement (what we can afford)
+      - max-heap sorted by profit (best available project)
+
+    Time: O(n log n + k log n), Space: O(n)
+    """
+    # Min-heap of (capital_required, profit)
+    min_cap = [(c, p) for c, p in zip(capital, profits)]
+    heapq.heapify(min_cap)
+
+    # Max-heap of profits (for affordable projects)
+    max_profit = []
+
+    for _ in range(k):
+        # Move all affordable projects to the max-profit heap
+        while min_cap and min_cap[0][0] &lt;= w:
+            c, p = heapq.heappop(min_cap)
+            heapq.heappush(max_profit, -p)
+
+        # Pick the most profitable affordable project
+        if not max_profit:
+            break  # No affordable projects left
+
+        w += -heapq.heappop(max_profit)
+
+    return w
+
+
+# Example:
+# k=2, w=0, profits=[1,2,3], capital=[0,1,1]
+# Round 1: afford project 0 (cap=0), profit=1, w=1
+# Round 2: afford projects 1,2 (cap=1), pick profit=3, w=4
+# Output: 4</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Two Heaps Pattern Template</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>When to Use Two Heaps</h4>
+                <ul>
+                    <li>You need the <strong>median</strong> of a stream or window</li>
+                    <li>You need to <strong>partition data into two halves</strong> and efficiently query the boundary</li>
+                    <li>You need the <strong>best option from a dynamically changing set</strong> (like IPO)</li>
+                    <li>Problems involving "maximize minimum" or "minimize maximum"</li>
+                </ul>
+
+                <h4>Template</h4>
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+
+class TwoHeapTemplate:
+    """
+    Generic Two Heaps pattern:
+    - max_heap (small): stores elements in lower partition (negate for Python)
+    - min_heap (large): stores elements in upper partition
+
+    Invariant: all elements in small &lt;= all elements in large
+    Balance:   |len(small) - len(large)| &lt;= 1
+    """
+    def __init__(self):
+        self.small = []  # max-heap (negated)
+        self.large = []  # min-heap
+
+    def add(self, num):
+        # 1. Add to appropriate heap
+        if not self.small or num &lt;= -self.small[0]:
+            heapq.heappush(self.small, -num)
+        else:
+            heapq.heappush(self.large, num)
+
+        # 2. Rebalance
+        if len(self.small) &gt; len(self.large) + 1:
+            heapq.heappush(self.large, -heapq.heappop(self.small))
+        elif len(self.large) &gt; len(self.small):
+            heapq.heappush(self.small, -heapq.heappop(self.large))
+
+    def get_boundary(self):
+        """Returns the median or partition boundary."""
+        if len(self.small) &gt; len(self.large):
+            return -self.small[0]
+        return (-self.small[0] + self.large[0]) / 2.0</code></pre>
+                </div>
+
+                <h4>Related Problems</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Variant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-median-from-data-stream/" target="_blank">#295 Find Median from Data Stream</a></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Classic two-heap median</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sliding-window-median/" target="_blank">#480 Sliding Window Median</a></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Two heaps + lazy deletion</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/ipo/" target="_blank">#502 IPO</a></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Greedy with two heaps</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-right-interval/" target="_blank">#436 Find Right Interval</a></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Two heaps on intervals</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- K-WAY MERGE PATTERN EXPANSION                                -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">K-Way Merge Pattern</h2>
+
+        <div class="card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; margin-bottom: 1.5rem;">
+            <h3 style="color: white;">K-Way Merge: The Distributed Systems Workhorse</h3>
+            <p>Whenever you have K sorted sources and need to produce a single sorted output, the K-way merge pattern using a min-heap of size K is the go-to approach. It powers external sorting, merging database SSTables, Kafka log compaction, and distributed search ranking.</p>
+        </div>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Merge K Sorted Lists (LeetCode #23) - Full Solution</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Merge k sorted linked lists into one sorted linked list.</p>
+                <p><strong>Why this matters:</strong> This is the #1 most-asked heap problem at FAANG. It tests your ability to use heaps for merge operations and handle edge cases with linked lists.</p>
+
+                <h4>Approach Comparison</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">When to Use</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Brute force (collect all, sort)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(N log N)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(N)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Only when k is very large</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heap (min-heap of size k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(N log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best general approach</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Divide and conquer merge</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(N log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Recursive elegance, less space</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+from typing import List, Optional
+
+class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def mergeKLists(lists: List[Optional[ListNode]]) -&gt; Optional[ListNode]:
+    """
+    LeetCode #23 - Merge K Sorted Lists (Heap Approach)
+
+    Use a min-heap of size k. Each entry is (node.val, index, node).
+    The index is a tiebreaker since ListNode is not comparable.
+
+    Time: O(N log k) where N = total nodes across all lists
+    Space: O(k) for the heap
+    """
+    heap = []
+
+    # Initialize: push first node from each list
+    for i, node in enumerate(lists):
+        if node:
+            heapq.heappush(heap, (node.val, i, node))
+
+    dummy = ListNode(0)
+    curr = dummy
+
+    while heap:
+        val, idx, node = heapq.heappop(heap)
+        curr.next = node
+        curr = curr.next
+
+        if node.next:
+            heapq.heappush(heap, (node.next.val, idx, node.next))
+
+    return dummy.next
+
+
+def mergeKLists_divideconquer(lists: List[Optional[ListNode]]) -&gt; Optional[ListNode]:
+    """
+    Divide and Conquer approach.
+    Pair up lists and merge them, reducing k by half each round.
+
+    Time: O(N log k), Space: O(log k) recursion stack
+    """
+    if not lists:
+        return None
+
+    def merge2(l1, l2):
+        dummy = ListNode(0)
+        curr = dummy
+        while l1 and l2:
+            if l1.val &lt;= l2.val:
+                curr.next = l1
+                l1 = l1.next
+            else:
+                curr.next = l2
+                l2 = l2.next
+            curr = curr.next
+        curr.next = l1 or l2
+        return dummy.next
+
+    # Iteratively merge pairs
+    while len(lists) &gt; 1:
+        merged = []
+        for i in range(0, len(lists), 2):
+            l1 = lists[i]
+            l2 = lists[i + 1] if i + 1 &lt; len(lists) else None
+            merged.append(merge2(l1, l2))
+        lists = merged
+
+    return lists[0]</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Smallest Range Covering Elements from K Lists (LeetCode #632)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given k sorted lists, find the smallest range [a, b] that includes at least one number from each list.</p>
+                <p><strong>Key Insight:</strong> Use a min-heap to track one element from each list. The range at any point is [heap_min, current_max]. Advance the minimum element to try to shrink the range.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+from typing import List
+
+def smallestRange(nums: List[List[int]]) -&gt; List[int]:
+    """
+    LeetCode #632 - Smallest Range Covering Elements from K Lists
+
+    Maintain a min-heap with one element from each list.
+    Track the current maximum. Range = [heap_min, current_max].
+    Pop the minimum and push its next element. Update range if smaller.
+
+    Time: O(N log k) where N = total elements
+    Space: O(k)
+    """
+    # heap entries: (value, list_index, element_index)
+    heap = []
+    current_max = float('-inf')
+
+    # Initialize with first element from each list
+    for i, lst in enumerate(nums):
+        heapq.heappush(heap, (lst[0], i, 0))
+        current_max = max(current_max, lst[0])
+
+    best_range = [heap[0][0], current_max]
+
+    while True:
+        min_val, list_idx, elem_idx = heapq.heappop(heap)
+
+        # Update best range if current is smaller
+        if current_max - min_val &lt; best_range[1] - best_range[0]:
+            best_range = [min_val, current_max]
+
+        # Move to next element in the list that had the minimum
+        next_idx = elem_idx + 1
+        if next_idx &gt;= len(nums[list_idx]):
+            break  # One list exhausted - can't cover all lists anymore
+
+        next_val = nums[list_idx][next_idx]
+        heapq.heappush(heap, (next_val, list_idx, next_idx))
+        current_max = max(current_max, next_val)
+
+    return best_range
+
+
+# Example:
+# nums = [[4,10,15,24,26], [0,9,12,20], [5,18,22,30]]
+# Output: [20, 24] -- covers 24 from list 0, 20 from list 1, 22 from list 2</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Kth Smallest Element in Sorted Matrix (LeetCode #378)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an n x n matrix where each row and column is sorted in ascending order, find the kth smallest element.</p>
+                <p><strong>Two approaches:</strong> K-way merge with heap (treat each row as a sorted list) or binary search on the value range.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+from typing import List
+
+def kthSmallest_heap(matrix: List[List[int]], k: int) -&gt; int:
+    """
+    Approach 1: K-Way Merge with Heap
+    Treat each row as a sorted list. Pop the smallest k times.
+
+    Time: O(k log n), Space: O(n)
+    """
+    n = len(matrix)
+    # heap: (value, row, col)
+    heap = [(matrix[i][0], i, 0) for i in range(n)]
+    heapq.heapify(heap)
+
+    for _ in range(k - 1):
+        val, r, c = heapq.heappop(heap)
+        if c + 1 &lt; n:
+            heapq.heappush(heap, (matrix[r][c + 1], r, c + 1))
+
+    return heap[0][0]
+
+
+def kthSmallest_binarysearch(matrix: List[List[int]], k: int) -&gt; int:
+    """
+    Approach 2: Binary Search on Value
+    Binary search between matrix[0][0] and matrix[n-1][n-1].
+    For each mid value, count how many elements &lt;= mid.
+
+    Time: O(n log(max - min)), Space: O(1)
+    """
+    n = len(matrix)
+    lo, hi = matrix[0][0], matrix[n - 1][n - 1]
+
+    def count_le(target):
+        """Count elements &lt;= target using staircase walk. O(n)."""
+        count = 0
+        row, col = n - 1, 0  # Start from bottom-left
+        while row &gt;= 0 and col &lt; n:
+            if matrix[row][col] &lt;= target:
+                count += row + 1  # All elements above are also &lt;= target
+                col += 1
+            else:
+                row -= 1
+        return count
+
+    while lo &lt; hi:
+        mid = lo + (hi - lo) // 2
+        if count_le(mid) &lt; k:
+            lo = mid + 1
+        else:
+            hi = mid
+
+    return lo
+
+
+# Example:
+# matrix = [[1,5,9],[10,11,13],[12,13,15]], k = 8
+# Output: 13</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SORTING ALGORITHMS (existing header)                         -->
+        <!-- ============================================================ -->
         <h2 class="mt-4">Sorting Algorithms</h2>
 
         <!-- Interactive Sorting Visualization -->
@@ -275,15 +925,521 @@ def merge_k_lists(lists):
                         <tr style="background: var(--border-color);">
                             <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Algorithm</th>
                             <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time (avg)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time (worst)</th>
                             <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</th>
                             <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Stable</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quick Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Merge Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heap Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
-                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Counting Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n + k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quick Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n&sup2;)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Merge Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heap Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Counting Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n + k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n + k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SORTING DEEP DIVE: LINEAR TIME SORTS                        -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Sorting Deep Dive: Beyond Comparison Sorts</h2>
+
+        <div class="card" style="background: linear-gradient(135deg, #f2994a 0%, #f2c94c 100%); color: #333; margin-bottom: 1.5rem;">
+            <h3 style="color: #333;">O(n) Sorts: When to Break the O(n log n) Barrier</h3>
+            <p>Comparison-based sorts have a theoretical lower bound of O(n log n). But when your data has special properties (bounded integers, uniform distribution), <strong>counting sort, radix sort, and bucket sort</strong> achieve O(n) time. Knowing when to use them is a staff-level differentiator.</p>
+        </div>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Counting Sort, Radix Sort, Bucket Sort</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Counting Sort</h4>
+                <p><strong>When it shines:</strong> Small, bounded integer range (e.g., ages 0-150, ASCII chars 0-127, scores 0-100). It counts occurrences rather than comparing elements.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def counting_sort(arr, max_val=None):
+    """
+    Counting Sort - O(n + k) time, O(k) space
+    where k = range of values.
+
+    Stable: Yes (preserves relative order of equal elements)
+    Not comparison-based: bypasses O(n log n) lower bound.
+
+    Best for: small integer range (k &lt;&lt; n or k ~ n)
+    """
+    if not arr:
+        return arr
+
+    if max_val is None:
+        max_val = max(arr)
+
+    # Count occurrences
+    count = [0] * (max_val + 1)
+    for num in arr:
+        count[num] += 1
+
+    # Build sorted output
+    result = []
+    for val in range(max_val + 1):
+        result.extend([val] * count[val])
+
+    return result
+
+
+def counting_sort_stable(arr, key_func):
+    """
+    Stable counting sort using cumulative counts.
+    Essential for radix sort (which needs stability at each digit).
+    """
+    if not arr:
+        return arr
+
+    max_key = max(key_func(x) for x in arr)
+    count = [0] * (max_key + 1)
+
+    for x in arr:
+        count[key_func(x)] += 1
+
+    # Cumulative count gives final positions
+    for i in range(1, len(count)):
+        count[i] += count[i - 1]
+
+    # Build output (traverse right-to-left for stability)
+    output = [None] * len(arr)
+    for x in reversed(arr):
+        k = key_func(x)
+        count[k] -= 1
+        output[count[k]] = x
+
+    return output</code></pre>
+                </div>
+
+                <h4>Radix Sort</h4>
+                <p><strong>When it shines:</strong> Sorting integers or fixed-length strings. Processes digits from least significant to most significant, using counting sort as a subroutine at each digit. Runs in O(d * (n + b)) where d = number of digits and b = base.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def radix_sort(arr):
+    """
+    Radix Sort (LSD - Least Significant Digit first)
+    Time: O(d * (n + b)) where d = digits, b = base (10)
+    Space: O(n + b)
+
+    Best for: integers with bounded # of digits.
+    Example: sorting 1M 32-bit integers = O(4 * n) with base 256.
+    """
+    if not arr:
+        return arr
+
+    max_val = max(arr)
+    exp = 1  # Current digit position (1s, 10s, 100s, ...)
+
+    while max_val // exp &gt; 0:
+        # Counting sort by current digit
+        arr = _counting_sort_by_digit(arr, exp)
+        exp *= 10
+
+    return arr
+
+def _counting_sort_by_digit(arr, exp):
+    """Stable sort by the digit at position exp."""
+    n = len(arr)
+    output = [0] * n
+    count = [0] * 10
+
+    for num in arr:
+        digit = (num // exp) % 10
+        count[digit] += 1
+
+    for i in range(1, 10):
+        count[i] += count[i - 1]
+
+    for i in range(n - 1, -1, -1):
+        digit = (arr[i] // exp) % 10
+        count[digit] -= 1
+        output[count[digit]] = arr[i]
+
+    return output
+
+
+# For negative numbers, separate into negatives and positives,
+# radix sort each, then concatenate.</code></pre>
+                </div>
+
+                <h4>Bucket Sort</h4>
+                <p><strong>When it shines:</strong> Uniformly distributed floating-point numbers. Distributes elements into buckets, sorts each bucket (using insertion sort for small buckets), then concatenates.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def bucket_sort(arr):
+    """
+    Bucket Sort
+    Time: O(n) average when data is uniformly distributed
+    Worst case: O(n^2) when all elements land in one bucket
+    Space: O(n)
+
+    Best for: uniformly distributed floats in [0, 1)
+    """
+    if not arr:
+        return arr
+
+    n = len(arr)
+    buckets = [[] for _ in range(n)]
+
+    # Distribute elements into buckets
+    for num in arr:
+        bucket_idx = int(n * num)  # For [0, 1) range
+        bucket_idx = min(bucket_idx, n - 1)  # Handle edge case
+        buckets[bucket_idx].append(num)
+
+    # Sort individual buckets (insertion sort for small buckets)
+    for bucket in buckets:
+        bucket.sort()  # Python's Timsort is efficient for small arrays
+
+    # Concatenate all buckets
+    result = []
+    for bucket in buckets:
+        result.extend(bucket)
+
+    return result
+
+
+# Real-world: used in histogram equalization, geographic binning,
+# and database query optimization for range queries.</code></pre>
+                </div>
+
+                <h4>Decision Guide: Which Sort to Use</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scenario</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best Sort</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Small integers (0-100)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Counting Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n+k), k is small</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">32-bit integers</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Radix Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(4n) with base-256</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uniform floats [0,1)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bucket Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n) average</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">General-purpose, stable</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Merge Sort / Tim Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n), stable, predictable</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">General-purpose, in-place</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quick Sort / Introsort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n) avg, O(1) extra space</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Nearly sorted data</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tim Sort / Insertion Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n) best case</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Disk-based / external</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">External Merge Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sequential I/O, predictable</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Tim Sort: What Python and Java Actually Use</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Tim Sort</strong> is the default sorting algorithm in Python (<code>list.sort()</code>, <code>sorted()</code>), Java (<code>Arrays.sort()</code> for objects), and many other languages. Invented by Tim Peters in 2002, it is a hybrid of merge sort and insertion sort, optimized for real-world data that often contains partially ordered subsequences ("runs").</p>
+
+                <h4>How Tim Sort Works</h4>
+                <ol>
+                    <li><strong>Find natural runs:</strong> Scan the array for already-sorted subsequences (ascending or descending). Reverse descending runs in-place.</li>
+                    <li><strong>Extend short runs:</strong> If a run is shorter than minrun (typically 32-64), extend it using insertion sort. Insertion sort is extremely efficient for small arrays due to low overhead and cache locality.</li>
+                    <li><strong>Merge runs:</strong> Push runs onto a stack and merge them using a modified merge sort that maintains a merging invariant (similar to the Fibonacci sequence) to ensure balanced merges.</li>
+                    <li><strong>Galloping mode:</strong> When one run consistently "wins" during merge (contributes many elements in a row), switch to binary search ("galloping") to find the insertion point, skipping large chunks. This makes merging nearly-sorted data very fast.</li>
+                </ol>
+
+                <h4>Why Tim Sort is Brilliant</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Property</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tim Sort</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Quick Sort</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Merge Sort</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best case</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>O(n)</strong> (already sorted!)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Average</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Worst case</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n&sup2;)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stable</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Yes</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n)</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adaptive</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Yes</strong> (exploits existing order)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Stability: Why It Matters</h4>
+                <p>A <strong>stable sort</strong> preserves the relative order of elements with equal keys. This is critical when:</p>
+                <ul>
+                    <li><strong>Multi-key sorting:</strong> Sort by last name, then by first name. Stability ensures the first-name order is preserved within same last names.</li>
+                    <li><strong>Database queries:</strong> <code>ORDER BY date, priority</code> requires stability to respect the secondary sort.</li>
+                    <li><strong>Radix sort correctness:</strong> Each digit pass must be stable, or previous digit orderings are destroyed.</li>
+                    <li><strong>UI rendering:</strong> Sorting a table by one column should not randomly rearrange rows with equal values in that column.</li>
+                </ul>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Stability demonstration
+records = [
+    ("Alice", 85),
+    ("Bob", 92),
+    ("Charlie", 85),
+    ("Diana", 92)
+]
+
+# Stable sort by score: Alice still comes before Charlie (both 85)
+stable = sorted(records, key=lambda x: x[1])
+# [("Alice", 85), ("Charlie", 85), ("Bob", 92), ("Diana", 92)]
+
+# Unstable sort might give:
+# [("Charlie", 85), ("Alice", 85), ("Diana", 92), ("Bob", 92)]
+# -- relative order of equal elements not guaranteed
+
+# Multi-key sort leveraging stability:
+# First sort by secondary key (name), then primary key (score)
+records.sort(key=lambda x: x[0])  # Sort by name
+records.sort(key=lambda x: x[1])  # Sort by score (stable preserves name order)</code></pre>
+                </div>
+
+                <h4>Interview Tip: What Sort Does Your Language Use?</h4>
+                <ul>
+                    <li><strong>Python:</strong> Tim Sort (stable) for <code>list.sort()</code> and <code>sorted()</code></li>
+                    <li><strong>Java:</strong> Tim Sort for objects (<code>Arrays.sort(Object[])</code>), Dual-Pivot Quicksort for primitives (<code>Arrays.sort(int[])</code>)</li>
+                    <li><strong>C++:</strong> Introsort (Quicksort + Heapsort fallback) for <code>std::sort</code>, stable via <code>std::stable_sort</code> (merge sort)</li>
+                    <li><strong>Go:</strong> Pattern-defeating Quicksort (pdqsort) since Go 1.19</li>
+                    <li><strong>JavaScript:</strong> Tim Sort in V8 (Chrome/Node) since 2019</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- QUICKSELECT EXPANSION                                        -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">QuickSelect &amp; Top-K Deep Dive</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Kth Largest Element (LeetCode #215) - Three Approaches</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>This is the quintessential Top-K problem. Understanding all three approaches and their trade-offs is expected at staff level.</p>
+
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time (Avg)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time (Worst)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Space</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mutates?</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Streaming?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)-O(n)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes/No</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Min-Heap of size k</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Yes</strong></td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">QuickSelect</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>O(n)</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n&sup2;)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(1)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">No</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="code-block">
+                    <pre><code class="language-python">import heapq
+import random
+
+# ---- Approach 1: Min-Heap (preferred for interviews) ----
+def findKthLargest_heap(nums, k):
+    """
+    Min-heap of size k. After processing all elements,
+    the heap top is the kth largest.
+
+    Time: O(n log k), Space: O(k)
+    Advantage: Works for streams, doesn't modify input.
+    """
+    heap = []
+    for num in nums:
+        if len(heap) &lt; k:
+            heapq.heappush(heap, num)
+        elif num &gt; heap[0]:
+            heapq.heapreplace(heap, num)  # More efficient than pop+push
+    return heap[0]
+
+
+# ---- Approach 2: QuickSelect (optimal time) ----
+def findKthLargest_quickselect(nums, k):
+    """
+    QuickSelect: partition-based selection.
+    Average O(n), worst O(n^2). Randomize pivot to avoid worst case.
+
+    Time: O(n) average, Space: O(1)
+    Advantage: Fastest single-pass for static arrays.
+    Disadvantage: Mutates input, O(n^2) worst case.
+    """
+    k = len(nums) - k  # Convert to index of kth smallest
+
+    def quickselect(lo, hi):
+        # Randomize pivot
+        pivot_idx = random.randint(lo, hi)
+        nums[pivot_idx], nums[hi] = nums[hi], nums[pivot_idx]
+
+        pivot = nums[hi]
+        store = lo
+
+        for i in range(lo, hi):
+            if nums[i] &lt;= pivot:
+                nums[store], nums[i] = nums[i], nums[store]
+                store += 1
+
+        nums[store], nums[hi] = nums[hi], nums[store]
+
+        if store == k:
+            return nums[store]
+        elif store &lt; k:
+            return quickselect(store + 1, hi)
+        else:
+            return quickselect(lo, store - 1)
+
+    return quickselect(0, len(nums) - 1)
+
+
+# ---- Approach 3: Bucket Sort (when values are bounded) ----
+def findKthLargest_bucket(nums, k):
+    """
+    When values are bounded, use counting/bucket approach.
+    Time: O(n + range), Space: O(range)
+
+    Example: LeetCode constrains values to [-10^4, 10^4]
+    """
+    min_val = min(nums)
+    max_val = max(nums)
+    count = [0] * (max_val - min_val + 1)
+
+    for num in nums:
+        count[num - min_val] += 1
+
+    # Walk from largest to smallest
+    remaining = k
+    for val in range(max_val, min_val - 1, -1):
+        remaining -= count[val - min_val]
+        if remaining &lt;= 0:
+            return val
+
+    return min_val  # Should not reach here</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Top K Frequent Elements (LeetCode #347) - Heap vs QuickSelect vs Bucket Sort</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an integer array and k, return the k most frequent elements. The answer is guaranteed to be unique.</p>
+                <p>This problem is a favorite because it can be solved three completely different ways, and the interviewer wants to see you reason about which is best and why.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">from collections import Counter
+import heapq
+
+# ---- Approach 1: Heap - O(n log k) ----
+def topKFrequent_heap(nums, k):
+    """
+    Count frequencies, then use min-heap of size k
+    to find k most frequent.
+
+    Time: O(n + m log k) where m = unique elements
+    Space: O(m + k)
+    """
+    freq = Counter(nums)
+
+    # Min-heap of (frequency, element)
+    heap = []
+    for num, count in freq.items():
+        if len(heap) &lt; k:
+            heapq.heappush(heap, (count, num))
+        elif count &gt; heap[0][0]:
+            heapq.heapreplace(heap, (count, num))
+
+    return [num for _, num in heap]
+
+
+# ---- Approach 2: Bucket Sort - O(n) ----
+def topKFrequent_bucket(nums, k):
+    """
+    Bucket sort by frequency. Index = frequency, value = list of elements.
+    Maximum frequency is n, so bucket array has size n+1.
+
+    Time: O(n), Space: O(n)
+    This is the OPTIMAL approach for this problem.
+    """
+    freq = Counter(nums)
+    n = len(nums)
+
+    # Buckets: index = frequency, value = elements with that frequency
+    buckets = [[] for _ in range(n + 1)]
+    for num, count in freq.items():
+        buckets[count].append(num)
+
+    # Collect from highest frequency bucket
+    result = []
+    for i in range(n, 0, -1):
+        for num in buckets[i]:
+            result.append(num)
+            if len(result) == k:
+                return result
+
+    return result
+
+
+# ---- Approach 3: QuickSelect on frequencies - O(n) avg ----
+def topKFrequent_quickselect(nums, k):
+    """
+    Count frequencies, then use QuickSelect to find
+    the kth most frequent element threshold.
+
+    Time: O(n) average, Space: O(n)
+    """
+    freq = Counter(nums)
+    unique = list(freq.keys())
+
+    def partition(lo, hi):
+        pivot_freq = freq[unique[hi]]
+        store = lo
+        for i in range(lo, hi):
+            if freq[unique[i]] &gt;= pivot_freq:
+                unique[store], unique[i] = unique[i], unique[store]
+                store += 1
+        unique[store], unique[hi] = unique[hi], unique[store]
+        return store
+
+    def quickselect(lo, hi):
+        if lo == hi:
+            return
+        pivot_idx = partition(lo, hi)
+        if pivot_idx == k:
+            return
+        elif pivot_idx &lt; k:
+            quickselect(pivot_idx + 1, hi)
+        else:
+            quickselect(lo, pivot_idx - 1)
+
+    quickselect(0, len(unique) - 1)
+    return unique[:k]</code></pre>
+                </div>
+
+                <h4>Comparison for This Problem</h4>
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Time</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Interview Impression</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Heap</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n log k)</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Streaming data, small k</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good - shows heap knowledge</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bucket Sort</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>O(n)</strong></td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Static arrays, bounded freq</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Great</strong> - shows deeper insight</td></tr>
+                        <tr><td style="padding: 0.75rem; border: 1px solid var(--border-color);">QuickSelect</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">O(n) avg</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">General case</td><td style="padding: 0.75rem; border: 1px solid var(--border-color);">Impressive - shows versatility</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -436,7 +1592,7 @@ import time
 @dataclass
 class Order:
     order_id: str
-    price: float      # Price in cents to avoid float issues
+    price: int        # Price in cents to avoid float issues
     quantity: int
     timestamp: float  # Nanosecond precision in real systems
     side: str         # 'BUY' or 'SELL'
@@ -566,7 +1722,7 @@ class OrderBook:
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p><strong>Scale:</strong> Uber processes 17+ million trips daily across 10,000+ cities. Surge pricing updates every few minutes based on supply/demand in each area.</p>
+                <p><strong>Scale:</strong> Uber processes roughly 30 million trips daily across 10,000+ cities. Surge pricing updates every few minutes based on supply/demand in each area.</p>
 
                 <h4>The Problem: Aggregate Demand in Grid Cells</h4>
                 <p>Uber divides cities into hexagonal cells (H3 grid). Each cell needs real-time demand metrics to calculate surge. This is a streaming Top-K problem.</p>
@@ -631,7 +1787,8 @@ class SurgePricingEngine:
             demand_scores.append((cell_id, score, recent_requests))
 
         # Use min-heap of size K to find top-K
-        # More efficient than full sort: O(n log k) vs O(n log n)
+        # O(n log k) vs O(n log n) for full sort
+        # Note: CPython's nlargest falls back to sorted() when k is large relative to n
         top_cells = heapq.nlargest(
             self.top_k,
             demand_scores,
@@ -662,33 +1819,34 @@ class SurgePricingEngine:
 
 class StreamingTopK:
     """
-    More efficient: Maintain streaming top-K with heap.
-    Updates in O(log K) instead of recalculating.
+    Maintain streaming top-K with heap.
+    Uses lazy deletion: stale entries stay in heap until popped.
+    For exact results, call get_top_k() which filters via self.scores.
     """
 
     def __init__(self, k: int):
         self.k = k
-        self.heap = []  # Min-heap of (score, id)
-        self.scores = {}  # id -> current score
+        self.heap = []  # Min-heap of (score, id) - may contain stale entries
+        self.scores = {}  # id -> current score (source of truth)
 
     def update(self, item_id: str, score: float):
         """
-        Update item's score. Maintains top-K efficiently.
+        Update item's score. Maintains top-K approximately.
+        Stale heap entries are cleaned up lazily in get_top_k().
         Time: O(log K) amortized
         """
-        old_score = self.scores.get(item_id)
         self.scores[item_id] = score
 
         if len(self.heap) < self.k:
             heapq.heappush(self.heap, (score, item_id))
         elif score > self.heap[0][0]:
-            # New item better than current minimum in top-K
-            if old_score is None or old_score <= self.heap[0][0]:
-                heapq.heapreplace(self.heap, (score, item_id))
+            heapq.heappush(self.heap, (score, item_id))
 
     def get_top_k(self):
-        """Return current top-K. O(K log K)."""
-        return sorted(self.heap, reverse=True)</code></pre>
+        """Return current top-K, filtering stale entries. O(K log K)."""
+        # Filter to entries whose heap score matches current score
+        valid = [(s, id) for s, id in self.heap if self.scores.get(id) == s]
+        return sorted(valid, reverse=True)[:self.k]</code></pre>
                 </div>
             </div>
         </div>
@@ -781,7 +1939,7 @@ class DistributedSearchRanker:
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>Twitter processes 500 million tweets per day. Your timeline merges tweets from 1000s of accounts you follow, ranked by relevance - a classic k-way merge problem.</p>
+                <p>X (formerly Twitter) has historically processed around 500 million posts per day. Your timeline merges posts from 1000s of accounts you follow, ranked by relevance - a classic k-way merge problem.</p>
 
                 <h4>Fan-out on Read vs Write</h4>
                 <div class="code-block">
@@ -1019,15 +2177,151 @@ class ExternalSorter:
             </div>
         </div>
 
-        <h2 class="mt-4">Practice Problems</h2>
-        <div class="card">
-            <h4>Medium</h4>
-            <ul>
-                <li><a href="https://leetcode.com/problems/kth-largest-element-in-an-array/" target="_blank">Kth Largest Element (LeetCode #215)</a></li>
-                <li><a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank">Top K Frequent Elements (LeetCode #347)</a></li>
-                <li><a href="https://leetcode.com/problems/merge-k-sorted-lists/" target="_blank">Merge K Sorted Lists (LeetCode #23)</a></li>
-                <li><a href="https://leetcode.com/problems/task-scheduler/" target="_blank">Task Scheduler (LeetCode #621)</a></li>
-            </ul>
+        <!-- ============================================================ -->
+        <!-- COMPREHENSIVE LEETCODE PROBLEM TABLE                         -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Comprehensive Practice Problems</h2>
+
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <p>Problems organized by pattern and difficulty. Start with the essentials (marked with a star), then work through the rest. Aim for at least 2-3 problems per pattern before moving on.</p>
+        </div>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Heap Basics &amp; Top-K</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">#</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Pattern</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Key Insight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">215</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/kth-largest-element-in-an-array/" target="_blank">Kth Largest Element in an Array</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Top-K / QuickSelect</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Min-heap of size k OR QuickSelect</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">347</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/top-k-frequent-elements/" target="_blank">Top K Frequent Elements</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Top-K / Bucket Sort</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Bucket sort by frequency is O(n)</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">692</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/top-k-frequent-words/" target="_blank">Top K Frequent Words</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Top-K</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Custom comparator for ties</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">703</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/kth-largest-element-in-a-stream/" target="_blank">Kth Largest Element in a Stream</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Easy</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Streaming Top-K</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Maintain min-heap of size k</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">973</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/k-closest-points-to-origin/" target="_blank">K Closest Points to Origin</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Top-K</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-heap of size k by distance</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">621</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/task-scheduler/" target="_blank">Task Scheduler</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Heap + Greedy</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-heap for most frequent task first</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">1046</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/last-stone-weight/" target="_blank">Last Stone Weight</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Easy</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-Heap</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Repeatedly extract two largest</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">1337</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/the-k-weakest-rows-in-a-matrix/" target="_blank">K Weakest Rows in a Matrix</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Easy</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Top-K</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Heap with custom key</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Two Heaps Pattern</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">#</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Key Insight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">295</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-median-from-data-stream/" target="_blank">Find Median from Data Stream</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-heap (small) + min-heap (large)</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">480</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sliding-window-median/" target="_blank">Sliding Window Median</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Two heaps + lazy deletion</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">502</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/ipo/" target="_blank">IPO</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Min-heap (capital) + max-heap (profit)</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">436</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-right-interval/" target="_blank">Find Right Interval</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Two heaps on interval endpoints</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>K-Way Merge Pattern</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">#</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Key Insight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">23</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/merge-k-sorted-lists/" target="_blank">Merge K Sorted Lists</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Min-heap of size k, pop &amp; advance</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">378</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/kth-smallest-element-in-a-sorted-matrix/" target="_blank">Kth Smallest in Sorted Matrix</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">K-way merge OR binary search on value</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">632</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/smallest-range-covering-elements-from-k-lists/" target="_blank">Smallest Range from K Lists</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Min-heap + track max, advance min</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">373</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/find-k-pairs-with-smallest-sums/" target="_blank">Find K Pairs with Smallest Sums</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Heap on (sum, i, j), expand neighbors</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">88</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/merge-sorted-array/" target="_blank">Merge Sorted Array</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Easy</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Two-pointer merge from the end</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Sorting Problems</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">#</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Key Insight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">75</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sort-colors/" target="_blank">Sort Colors (Dutch National Flag)</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Three-way partition, O(n) one pass</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">148</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sort-list/" target="_blank">Sort List</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Merge sort on linked list</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">56</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/merge-intervals/" target="_blank">Merge Intervals</a> &#11088;</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sort by start, merge overlapping</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">179</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/largest-number/" target="_blank">Largest Number</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Custom comparator: a+b vs b+a</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">274</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/h-index/" target="_blank">H-Index</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Counting sort by citation count</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">164</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/maximum-gap/" target="_blank">Maximum Gap</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Bucket sort + pigeonhole principle</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">912</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sort-an-array/" target="_blank">Sort an Array</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Implement merge sort or quicksort</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">451</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/sort-characters-by-frequency/" target="_blank">Sort Characters by Frequency</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Bucket sort or heap by frequency</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Advanced Heap Problems</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table style="width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">#</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Problem</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Difficulty</th>
+                            <th style="padding: 0.6rem; border: 1px solid var(--border-color);">Key Insight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">767</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/reorganize-string/" target="_blank">Reorganize String</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-heap, alternate most frequent chars</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">355</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/design-twitter/" target="_blank">Design Twitter</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">K-way merge of user timelines</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">1834</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/single-threaded-cpu/" target="_blank">Single-Threaded CPU</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sort by arrival + min-heap by duration</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">1962</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/remove-stones-to-minimize-the-total/" target="_blank">Remove Stones to Minimize Total</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Max-heap, greedily halve largest pile</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">2542</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/maximum-subsequence-score/" target="_blank">Maximum Subsequence Score</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Medium</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Sort + min-heap to maintain top k sums</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">407</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/trapping-rain-water-ii/" target="_blank">Trapping Rain Water II</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">BFS from borders using min-heap</td></tr>
+                        <tr><td style="padding: 0.6rem; border: 1px solid var(--border-color);">778</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);"><a href="https://leetcode.com/problems/swim-in-rising-water/" target="_blank">Swim in Rising Water</a></td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Hard</td><td style="padding: 0.6rem; border: 1px solid var(--border-color);">Dijkstra-like with min-heap</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="flex flex-between mt-4">
@@ -1087,6 +2381,24 @@ class ExternalSorter:
                     options: ["Two min heaps", "Two max heaps", "Max heap for smaller half, min heap for larger half", "Min heap for smaller half, max heap for larger half"],
                     correct: 2,
                     explanation: "Max heap stores smaller half (top = largest of small), min heap stores larger half (top = smallest of large). Median is at the tops."
+                },
+                {
+                    question: "When is counting sort better than quicksort?",
+                    options: ["Always, since it's O(n)", "When the range of values k is much smaller than n", "When data is mostly sorted", "When you need an in-place sort"],
+                    correct: 1,
+                    explanation: "Counting sort is O(n + k). It beats O(n log n) sorts when k (value range) is small relative to n. For large k, the space and time to scan the count array dominates."
+                },
+                {
+                    question: "For LeetCode #347 (Top K Frequent Elements), what is the optimal time complexity?",
+                    options: ["O(n log n)", "O(n log k)", "O(n)", "O(k log n)"],
+                    correct: 2,
+                    explanation: "Using bucket sort by frequency achieves O(n). Count frequencies in O(n), create n+1 buckets, collect from highest frequency. Heap gives O(n log k) which is also good."
+                },
+                {
+                    question: "What sorting algorithm does Python's sorted() use?",
+                    options: ["Quick Sort", "Merge Sort", "Tim Sort", "Heap Sort"],
+                    correct: 2,
+                    explanation: "Python uses Tim Sort, a hybrid of merge sort and insertion sort that exploits existing order in data. It achieves O(n) on already-sorted input and O(n log n) worst case."
                 }
             ];
             const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);

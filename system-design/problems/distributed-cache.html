@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design a Distributed Cache - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Distributed Cache</h1>
+            <p class="text-muted">Examples: Memcached, Redis Cluster, Amazon ElastiCache, Hazelcast</p>
+
+            <!-- Difficulty Card -->
+            <div class="card mt-3" style="background: var(--danger-bg);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 1. PROBLEM STATEMENT                                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Problem Statement</h2>
+            <div class="card">
+                <p>Design a distributed in-memory caching system that can store hundreds of terabytes of data across thousands of nodes, serving millions of read/write operations per second with sub-millisecond latency.</p>
+                <p class="mt-2">The cache sits between your application tier and the persistent data store (database, object store, etc.), absorbing the vast majority of read traffic. At companies like Facebook, a single Memcached cluster serves over <strong>1 billion requests per second</strong> and stores <strong>hundreds of terabytes</strong> of data. Getting caching right is one of the highest-leverage design decisions at scale.</p>
+                <p class="mt-2"><strong>Why is this a staff-level problem?</strong> A distributed cache touches nearly every core distributed systems concept: partitioning, replication, consistency, failure detection, memory management, and performance optimization. Your answer reveals how deeply you understand the infrastructure that powers modern web-scale systems.</p>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 2. REQUIREMENTS CLARIFICATION                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>GET(key):</strong> Retrieve a value by key; return null/miss on absence</li>
+                        <li><strong>SET(key, value, TTL):</strong> Store a key-value pair with an optional time-to-live</li>
+                        <li><strong>DELETE(key):</strong> Explicitly remove a key from the cache</li>
+                        <li><strong>TTL / Expiration:</strong> Keys automatically expire after a configurable duration</li>
+                        <li><strong>Eviction:</strong> When memory is full, evict entries based on a configurable policy (LRU, LFU, random)</li>
+                        <li><strong>Atomic operations:</strong> Compare-and-swap (CAS), increment/decrement for counters</li>
+                        <li><strong>Bulk operations:</strong> Multi-get / multi-set for reducing round trips</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Sub-millisecond latency:</strong> P99 read latency &lt; 1ms within a datacenter</li>
+                        <li><strong>High throughput:</strong> Support 1M+ operations per second per node</li>
+                        <li><strong>High availability:</strong> No single point of failure; survive node and rack failures</li>
+                        <li><strong>Horizontal scalability:</strong> Add nodes to increase capacity linearly</li>
+                        <li><strong>Consistency model:</strong> Eventual consistency is acceptable; strong consistency optional</li>
+                        <li><strong>Memory efficiency:</strong> Minimize per-key overhead to maximize useful data stored</li>
+                        <li><strong>Operational simplicity:</strong> Easy to add/remove nodes, monitor, and debug</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Assumptions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+                        <tbody>
+                            <tr><td>Total data in cache</td><td>100 TB</td></tr>
+                            <tr><td>Number of unique keys</td><td>~100 billion</td></tr>
+                            <tr><td>Average value size</td><td>~1 KB</td></tr>
+                            <tr><td>Read QPS (peak)</td><td>10 million</td></tr>
+                            <tr><td>Write QPS (peak)</td><td>1 million</td></tr>
+                            <tr><td>Read:Write ratio</td><td>10:1</td></tr>
+                            <tr><td>Cache hit ratio target</td><td>&gt; 95%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 3. CAPACITY ESTIMATION                                       -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Memory &amp; Node Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Total data:</strong> 100 TB<br><br>
+
+                        <strong>Memory per node:</strong> 128 GB usable (typical server with 128-256 GB RAM)<br><br>
+
+                        <strong>Nodes needed (data only):</strong><br>
+                        100 TB / 128 GB = ~800 nodes<br><br>
+
+                        <strong>With replication (RF=2):</strong><br>
+                        800 * 2 = 1,600 nodes<br><br>
+
+                        <strong>Per-key overhead:</strong><br>
+                        Each key-value entry needs ~56-100 bytes of metadata<br>
+                        (key hash, pointers, TTL timestamp, flags, CAS token)<br>
+                        For 100B keys: 100B * 80 bytes = ~8 TB metadata overhead<br><br>
+
+                        <strong>Network bandwidth per node:</strong><br>
+                        10M QPS / 800 nodes = ~12,500 ops/node/sec<br>
+                        12,500 * 1 KB avg response = ~12.5 MB/s = ~100 Mbps per node<br>
+                        (Well within 10 Gbps NIC capacity)<br><br>
+
+                        <strong>Total cluster bandwidth:</strong><br>
+                        10M QPS * 1 KB = 10 GB/s = ~80 Gbps aggregate
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 4. HIGH-LEVEL DESIGN                                         -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. High-Level Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Architecture Overview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The system has four main layers:</p>
+                    <ol>
+                        <li><strong>Client Library</strong> -- embedded in app servers; handles key hashing, routing, connection pooling, retries</li>
+                        <li><strong>Cache Proxy (optional)</strong> -- a thin proxy layer (like mcrouter or twemproxy) that handles routing, replication, and failover centrally</li>
+                        <li><strong>Cache Nodes</strong> -- the actual in-memory data store instances, each owning a portion of the keyspace</li>
+                        <li><strong>Configuration Service</strong> -- a coordination service (ZooKeeper/etcd) that maintains the cluster topology and consistent hash ring</li>
+                    </ol>
+
+                    <div class="diagram-container mt-3">
+                        <div class="mermaid">
+graph TB
+    subgraph Clients["Application Tier"]
+        A1["App Server 1<br/>(Client Library)"]
+        A2["App Server 2<br/>(Client Library)"]
+        A3["App Server N<br/>(Client Library)"]
+    end
+
+    subgraph Proxy["Cache Proxy Layer (Optional)"]
+        P1["Proxy 1<br/>(mcrouter/twemproxy)"]
+        P2["Proxy 2"]
+    end
+
+    subgraph Cache["Cache Cluster"]
+        C1["Cache Node 1<br/>Partition: 0-63"]
+        C2["Cache Node 2<br/>Partition: 64-127"]
+        C3["Cache Node 3<br/>Partition: 128-191"]
+        C4["Cache Node N<br/>Partition: 192-255"]
+    end
+
+    subgraph Config["Configuration"]
+        ZK["ZooKeeper / etcd<br/>Cluster Topology"]
+    end
+
+    subgraph Storage["Persistent Storage"]
+        DB1["Database"]
+        DB2["Object Store"]
+    end
+
+    A1 --> P1
+    A2 --> P1
+    A3 --> P2
+    P1 --> C1
+    P1 --> C2
+    P2 --> C3
+    P2 --> C4
+    ZK -.->|topology updates| P1
+    ZK -.->|topology updates| P2
+    C1 -.->|heartbeat| ZK
+    C2 -.->|heartbeat| ZK
+    C3 -.->|heartbeat| ZK
+    C4 -.->|heartbeat| ZK
+    A1 -.->|cache miss| DB1
+    A2 -.->|cache miss| DB2
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Request Flow (Cache Read)</h4>
+                    <ol>
+                        <li>Application calls <code>cache.get("user:12345")</code></li>
+                        <li>Client library hashes the key: <code>hash("user:12345") mod N</code> to determine the target node</li>
+                        <li>Request is sent to that node (directly or via proxy)</li>
+                        <li>Node looks up key in its in-memory hash table</li>
+                        <li>On <strong>hit</strong>: return value directly (sub-millisecond)</li>
+                        <li>On <strong>miss</strong>: application fetches from database and populates cache (cache-aside pattern)</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 5. DATA MODEL                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. Data Model</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Key-Value Storage Structure</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Each cache entry stores the following:</p>
+
+                    <pre><code class="language-plaintext">+------------------------------------------------------------------+
+| Cache Entry                                                      |
++------------------------------------------------------------------+
+| key_hash       : uint64    (8 bytes)  - hash of the key          |
+| key_length     : uint16    (2 bytes)  - length of the raw key    |
+| key            : byte[]    (variable) - the actual key string    |
+| value_length   : uint32    (4 bytes)  - length of the value      |
+| value          : byte[]    (variable) - serialized value (opaque)|
+| flags          : uint32    (4 bytes)  - client-defined flags     |
+| ttl_timestamp  : uint32    (4 bytes)  - absolute expiry (epoch)  |
+| cas_token      : uint64    (8 bytes)  - compare-and-swap version |
+| lru_prev       : pointer   (8 bytes)  - LRU doubly-linked list  |
+| lru_next       : pointer   (8 bytes)  - LRU doubly-linked list  |
+| slab_class     : uint8     (1 byte)   - slab allocator class ID |
++------------------------------------------------------------------+
+| Metadata overhead per entry: ~56 bytes (excluding key/value)     |
++------------------------------------------------------------------+</code></pre>
+
+                    <h4 class="mt-3">Hash Table Design</h4>
+                    <p>The primary index is an open-addressing hash table (like Memcached) or a chained hash table. Key design decisions:</p>
+                    <ul>
+                        <li><strong>Hash function:</strong> Use a fast, well-distributed function like xxHash or MurmurHash3 (not cryptographic -- speed matters more than security here)</li>
+                        <li><strong>Collision resolution:</strong> Chaining with linked lists, or cuckoo hashing for better cache-line utilization</li>
+                        <li><strong>Load factor:</strong> Keep below 0.75 to maintain O(1) average lookup</li>
+                        <li><strong>Resizing:</strong> Incremental rehashing (Redis-style) to avoid latency spikes during expansion</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 6. DEEP DIVES                                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Deep Dives</h2>
+
+            <!-- 6a. Consistent Hashing -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6a. Consistent Hashing with Virtual Nodes</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>Why not simple modular hashing?</strong> With <code>hash(key) % N</code>, adding or removing a node remaps nearly all keys. For a 100TB cache, rehashing means a massive thundering-herd of cache misses hitting your database simultaneously -- a catastrophic scenario called a <em>cache avalanche</em>.</p>
+
+                    <p><strong>Consistent hashing</strong> maps both keys and nodes onto a virtual ring (0 to 2^32-1). A key is assigned to the first node encountered clockwise from its hash position. Adding/removing a node only affects the keys between it and its predecessor -- roughly 1/N of total keys.</p>
+
+                    <div class="diagram-container mt-3">
+                        <div class="mermaid">
+graph LR
+    subgraph Ring["Consistent Hash Ring (2^32 positions)"]
+        direction TB
+        V1["Node A - VNode 1<br/>pos: 1200"]
+        V2["Node B - VNode 1<br/>pos: 3400"]
+        V3["Node A - VNode 2<br/>pos: 5600"]
+        V4["Node C - VNode 1<br/>pos: 7800"]
+        V5["Node B - VNode 2<br/>pos: 9100"]
+        V6["Node C - VNode 2<br/>pos: 11000"]
+    end
+
+    K1["Key X<br/>hash: 2000"] -->|"routes to"| V2
+    K2["Key Y<br/>hash: 6500"] -->|"routes to"| V4
+    K3["Key Z<br/>hash: 9500"] -->|"routes to"| V6
+
+    style V1 fill:#4a90d9,color:white
+    style V3 fill:#4a90d9,color:white
+    style V2 fill:#e67e22,color:white
+    style V5 fill:#e67e22,color:white
+    style V4 fill:#27ae60,color:white
+    style V6 fill:#27ae60,color:white
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Virtual Nodes</h4>
+                    <p>With few physical nodes, the ring can become unbalanced. <strong>Virtual nodes (vnodes)</strong> solve this by placing each physical node at multiple positions on the ring (typically 100-200 vnodes per physical node).</p>
+                    <ul>
+                        <li><strong>Better load distribution:</strong> With 150 vnodes, standard deviation of load drops to ~10% of mean (vs. ~50% with 1 vnode)</li>
+                        <li><strong>Heterogeneous hardware:</strong> Give more vnodes to nodes with more memory</li>
+                        <li><strong>Smoother rebalancing:</strong> When a node leaves, its load spreads evenly across many nodes, not just one neighbor</li>
+                    </ul>
+
+                    <h4 class="mt-3">Implementation</h4>
+                    <pre><code class="language-python"># Consistent hash ring with virtual nodes
+import hashlib
+from bisect import bisect_right
+
+class ConsistentHashRing:
+    def __init__(self, nodes=None, vnodes=150):
+        self.vnodes = vnodes
+        self.ring = {}       # hash_value -&gt; node
+        self.sorted_keys = []
+        if nodes:
+            for node in nodes:
+                self.add_node(node)
+
+    def _hash(self, key: str) -&gt; int:
+        """Generate a 32-bit hash for a given key."""
+        return int(hashlib.md5(key.encode()).hexdigest(), 16) % (2**32)
+
+    def add_node(self, node: str):
+        """Add a node with its virtual nodes to the ring."""
+        for i in range(self.vnodes):
+            vnode_key = f"{node}:vnode{i}"
+            h = self._hash(vnode_key)
+            self.ring[h] = node
+            self.sorted_keys.append(h)
+        self.sorted_keys.sort()
+
+    def remove_node(self, node: str):
+        """Remove a node and all its virtual nodes."""
+        for i in range(self.vnodes):
+            vnode_key = f"{node}:vnode{i}"
+            h = self._hash(vnode_key)
+            del self.ring[h]
+            self.sorted_keys.remove(h)
+
+    def get_node(self, key: str) -&gt; str:
+        """Find the node responsible for a given key."""
+        if not self.ring:
+            return None
+        h = self._hash(key)
+        idx = bisect_right(self.sorted_keys, h)
+        if idx == len(self.sorted_keys):
+            idx = 0  # Wrap around the ring
+        return self.ring[self.sorted_keys[idx]]
+
+# Usage
+ring = ConsistentHashRing(["cache-1", "cache-2", "cache-3"])
+print(ring.get_node("user:12345"))  # =&gt; "cache-2"
+print(ring.get_node("session:abc"))  # =&gt; "cache-1"</code></pre>
+                </div>
+            </div>
+
+            <!-- 6b. Eviction Policies -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6b. Eviction Policies: LRU Implementation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>When a cache node runs out of memory, it must evict entries to make room. The eviction policy determines which entries to remove.</p>
+
+                    <table>
+                        <thead><tr><th>Policy</th><th>Mechanism</th><th>Pros</th><th>Cons</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>LRU</strong> (Least Recently Used)</td>
+                                <td>Evict the entry accessed longest ago</td>
+                                <td>Good general-purpose; recency is strong signal</td>
+                                <td>Scan pollution (one-time scans evict hot entries)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>LFU</strong> (Least Frequently Used)</td>
+                                <td>Evict the entry with fewest accesses</td>
+                                <td>Keeps long-term popular items</td>
+                                <td>Slow to adapt to changing access patterns</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Random</strong></td>
+                                <td>Evict a random entry</td>
+                                <td>O(1), no bookkeeping overhead</td>
+                                <td>May evict hot entries</td>
+                            </tr>
+                            <tr>
+                                <td><strong>TTL-based</strong></td>
+                                <td>Evict expired entries first</td>
+                                <td>Predictable; respects data freshness</td>
+                                <td>Doesn't help when nothing is expired</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Approx LRU</strong> (Redis)</td>
+                                <td>Sample N random keys, evict the oldest</td>
+                                <td>Near-LRU quality with O(1) memory overhead</td>
+                                <td>Slightly worse than true LRU</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">LRU: Doubly-Linked List + HashMap (O(1) operations)</h4>
+                    <p>The classic LRU cache uses two data structures together: a hash map for O(1) lookup by key, and a doubly-linked list to track access order.</p>
+
+                    <pre><code class="language-python">class LRUNode:
+    """Node in the doubly-linked list."""
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+        self.prev = None
+        self.next = None
+
+class LRUCache:
+    def __init__(self, capacity: int):
+        self.capacity = capacity
+        self.cache = {}  # key -&gt; LRUNode
+
+        # Sentinel nodes simplify edge cases
+        self.head = LRUNode(None, None)  # Most recently used
+        self.tail = LRUNode(None, None)  # Least recently used
+        self.head.next = self.tail
+        self.tail.prev = self.head
+
+    def _remove(self, node: LRUNode):
+        """Remove a node from the linked list."""
+        node.prev.next = node.next
+        node.next.prev = node.prev
+
+    def _add_to_front(self, node: LRUNode):
+        """Add a node right after head (most recently used)."""
+        node.prev = self.head
+        node.next = self.head.next
+        self.head.next.prev = node
+        self.head.next = node
+
+    def get(self, key: str):
+        """O(1) get -- move accessed node to front."""
+        if key not in self.cache:
+            return None  # Cache miss
+        node = self.cache[key]
+        self._remove(node)
+        self._add_to_front(node)
+        return node.value
+
+    def put(self, key: str, value):
+        """O(1) put -- evict LRU if at capacity."""
+        if key in self.cache:
+            self._remove(self.cache[key])
+        node = LRUNode(key, value)
+        self._add_to_front(node)
+        self.cache[key] = node
+
+        if len(self.cache) &gt; self.capacity:
+            # Evict from tail (least recently used)
+            lru = self.tail.prev
+            self._remove(lru)
+            del self.cache[lru.key]
+
+# Usage
+cache = LRUCache(3)
+cache.put("a", 1)
+cache.put("b", 2)
+cache.put("c", 3)
+cache.get("a")       # Moves "a" to front
+cache.put("d", 4)    # Evicts "b" (least recently used)</code></pre>
+
+                    <h4 class="mt-3">Redis Approximate LRU</h4>
+                    <p>Redis does not maintain a true linked list. Instead, each key stores a 24-bit timestamp of its last access. When eviction is needed, Redis samples <code>maxmemory-samples</code> (default 5) random keys and evicts the one with the oldest timestamp. With a sample size of 10, this approximation is nearly indistinguishable from true LRU -- and uses zero extra pointers per key.</p>
+                </div>
+            </div>
+
+            <!-- 6c. Hot Key Problem -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6c. Hot Key Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A <strong>hot key</strong> is a single key that receives a disproportionate share of traffic. Examples: a viral tweet, a celebrity's profile, a flash sale product. A single cache node handling that key becomes a bottleneck and can be overwhelmed.</p>
+
+                    <h4>Detection</h4>
+                    <ul>
+                        <li><strong>Real-time monitoring:</strong> Track per-key QPS at the proxy layer. Flag keys exceeding a threshold (e.g., &gt;10,000 QPS)</li>
+                        <li><strong>Sampling:</strong> Log a random 1% of requests and aggregate counts server-side</li>
+                        <li><strong>Redis: </strong> <code>redis-cli --hotkeys</code> (uses LFU approximation)</li>
+                    </ul>
+
+                    <h4 class="mt-2">Solutions</h4>
+                    <table>
+                        <thead><tr><th>Approach</th><th>How It Works</th><th>Trade-off</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Local (L1) cache</strong></td>
+                                <td>Each app server caches hot keys in-process memory (e.g., Guava cache with 1-5s TTL)</td>
+                                <td>Risk of stale data; bounded by app server memory</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Key replication</strong></td>
+                                <td>Replicate hot key to N random nodes; client randomly picks one</td>
+                                <td>Adds write complexity; consistency delay</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Key splitting</strong></td>
+                                <td>Append a random suffix: <code>hot_key_1, hot_key_2, ..., hot_key_N</code>; client reads from random shard</td>
+                                <td>Application must know about splitting</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Read-through proxy cache</strong></td>
+                                <td>Proxy layer (mcrouter) caches hot responses locally for a short TTL</td>
+                                <td>Additional memory at proxy tier</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Facebook's Approach</h4>
+                    <p>Facebook uses <strong>mcrouter</strong> as a cache proxy. For hot keys, mcrouter maintains a small local cache and batches requests to the same key into a single backend fetch, then fans out the response. This is called <strong>request coalescing</strong> -- if 1,000 concurrent requests arrive for the same key, only one is sent to the cache node, and the result is shared among all 1,000 waiters.</p>
+                </div>
+            </div>
+
+            <!-- 6d. Cache Coherency and Invalidation -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6d. Cache Coherency &amp; Invalidation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>"There are only two hard things in Computer Science: cache invalidation and naming things." -- Phil Karlton</p>
+
+                    <h4>Caching Patterns</h4>
+                    <table>
+                        <thead><tr><th>Pattern</th><th>Read Path</th><th>Write Path</th><th>Best For</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Cache-Aside</strong> (Lazy Loading)</td>
+                                <td>App checks cache; on miss, reads DB and populates cache</td>
+                                <td>App writes DB, then invalidates/deletes cache</td>
+                                <td>Read-heavy workloads; simplest model</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Write-Through</strong></td>
+                                <td>App reads cache (always populated)</td>
+                                <td>App writes to cache, cache synchronously writes to DB</td>
+                                <td>Strong consistency needed; write latency acceptable</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Write-Behind</strong> (Write-Back)</td>
+                                <td>App reads cache</td>
+                                <td>App writes to cache; cache asynchronously flushes to DB</td>
+                                <td>Write-heavy; can tolerate brief data loss risk</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Read-Through</strong></td>
+                                <td>Cache itself fetches from DB on miss (transparent)</td>
+                                <td>Varies</td>
+                                <td>When you want the cache to manage DB interaction</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Invalidation Strategies</h4>
+                    <ul>
+                        <li><strong>Delete on write:</strong> After writing to DB, delete the cache key. Next read triggers a cache-aside fill. Simple and safe, but the next read has a cache miss penalty.</li>
+                        <li><strong>Lease-based invalidation (Facebook):</strong> On a cache miss, the server issues a "lease" (a token). The client must present this lease when filling the cache. If the key was invalidated between the miss and the fill, the lease is revoked, preventing stale writes. This solves the <em>thundering herd</em> and <em>stale set</em> problems simultaneously.</li>
+                        <li><strong>Version-based:</strong> Store a version counter. Cache entries include their version. On read, compare versions; re-fetch if stale.</li>
+                        <li><strong>Event-driven invalidation:</strong> Database change events (CDC / binlog) trigger cache invalidation asynchronously via a message queue.</li>
+                    </ul>
+
+                    <div class="diagram-container mt-3">
+                        <div class="mermaid">
+sequenceDiagram
+    participant App as Application
+    participant Cache as Cache Node
+    participant DB as Database
+    participant MQ as Message Queue
+
+    Note over App,DB: Cache-Aside with Event-Driven Invalidation
+
+    App->>Cache: GET user:123
+    Cache-->>App: MISS
+    App->>DB: SELECT * FROM users WHERE id=123
+    DB-->>App: {name: "Alice", ...}
+    App->>Cache: SET user:123 {data} TTL=300s
+    Cache-->>App: OK
+
+    Note over App,DB: Later: Another service updates user:123
+
+    App->>DB: UPDATE users SET name='Bob' WHERE id=123
+    DB->>MQ: CDC event: user:123 changed
+    MQ->>Cache: DELETE user:123
+    Cache-->>MQ: OK
+
+    Note over App,DB: Next read gets fresh data
+
+    App->>Cache: GET user:123
+    Cache-->>App: MISS (invalidated)
+    App->>DB: SELECT * FROM users WHERE id=123
+    DB-->>App: {name: "Bob", ...}
+    App->>Cache: SET user:123 {data} TTL=300s
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6e. Replication for High Availability -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6e. Replication for High Availability</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>For a cache, replication is a nuanced decision. Unlike a database, lost cache data can be re-fetched from the source of truth. However, at massive scale, losing an entire node's data causes a <em>cache stampede</em> that can overwhelm the database.</p>
+
+                    <h4>Replication Strategies</h4>
+                    <table>
+                        <thead><tr><th>Strategy</th><th>Description</th><th>Used By</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>No replication</strong></td>
+                                <td>Accept cold-cache penalty on node failure; simple and memory-efficient</td>
+                                <td>Memcached (by default)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Primary-replica async</strong></td>
+                                <td>Primary accepts writes, replicates to N replicas asynchronously</td>
+                                <td>Redis Cluster</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Multi-region replication</strong></td>
+                                <td>Regional clusters with cross-datacenter invalidation</td>
+                                <td>Facebook (regional pools)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Redis Cluster Replication</h4>
+                    <ul>
+                        <li>Each primary has 1+ replicas; replicas are read-only</li>
+                        <li>Replication is asynchronous -- brief data loss is possible on failover</li>
+                        <li>When a primary fails, the cluster promotes a replica via <strong>Raft-like consensus</strong> among the remaining primaries</li>
+                        <li>Clients are redirected via <code>MOVED</code> and <code>ASK</code> redirections during resharding</li>
+                    </ul>
+
+                    <h4 class="mt-3">Warm-up on Recovery</h4>
+                    <p>When a new or restarted node joins, its cache is empty. To prevent a stampede:</p>
+                    <ul>
+                        <li><strong>Gradual traffic shifting:</strong> Route only a small % of traffic to the new node initially, increasing over minutes</li>
+                        <li><strong>Snapshot loading:</strong> Load an RDB/AOF snapshot from a replica before serving traffic</li>
+                        <li><strong>Double-read:</strong> On miss, also check the old owner before going to the database</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 6f. Memory Management: Slab Allocation -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6f. Memory Management: Slab Allocation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Naive memory allocation with <code>malloc()/free()</code> leads to severe <strong>memory fragmentation</strong> over time. After millions of allocations and frees of varying sizes, the heap becomes a Swiss cheese of unusable small gaps.</p>
+
+                    <h4>Memcached's Slab Allocator</h4>
+                    <p>Memcached pre-allocates memory into <strong>slab classes</strong>, each holding fixed-size <strong>chunks</strong>.</p>
+                    <ul>
+                        <li>Slab class 1: 96-byte chunks</li>
+                        <li>Slab class 2: 120-byte chunks (1.25x growth factor)</li>
+                        <li>Slab class 3: 152-byte chunks</li>
+                        <li>... up to 1 MB chunks</li>
+                    </ul>
+                    <p>When storing a 100-byte item, Memcached picks slab class 2 (120 bytes) -- wasting 20 bytes but eliminating fragmentation. Each slab class maintains its own LRU list and free list.</p>
+
+                    <pre><code class="language-plaintext">Slab Class 3 (152-byte chunks)
++--------+--------+--------+--------+--------+--------+
+| Chunk1 | Chunk2 | Chunk3 | Chunk4 | Chunk5 | Chunk6 |
+| [USED] | [USED] | [FREE] | [USED] | [FREE] | [USED] |
++--------+--------+--------+--------+--------+--------+
+         ^                            ^
+         |                            |
+       LRU tail                    Free list head</code></pre>
+
+                    <h4 class="mt-3">Trade-offs</h4>
+                    <ul>
+                        <li><strong>Pro:</strong> Zero fragmentation; O(1) allocation and deallocation</li>
+                        <li><strong>Con:</strong> Internal waste (items rarely perfectly fill a chunk)</li>
+                        <li><strong>Con:</strong> Slab calcification -- if workload changes and different slab classes are needed, memory is stuck in the old classes. Memcached added <code>slab_reassign</code> and <code>slab automove</code> to address this.</li>
+                    </ul>
+
+                    <h4 class="mt-3">Redis Approach</h4>
+                    <p>Redis uses <strong>jemalloc</strong> as its memory allocator (a general-purpose allocator optimized for multi-threaded applications). jemalloc uses size classes and thread-local caches to minimize fragmentation and lock contention. Redis also provides <code>MEMORY DOCTOR</code> and <code>MEMORY PURGE</code> commands for diagnosis.</p>
+                </div>
+            </div>
+
+            <!-- 6g. Client-Side Optimizations -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6g. Client-Side Optimizations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Connection Pooling</h4>
+                    <p>Establishing a TCP connection is expensive (~1ms with TLS handshake). Each app server maintains a pool of persistent connections to each cache node. This avoids connection overhead per request.</p>
+                    <ul>
+                        <li>Typical pool size: 5-20 connections per cache node per app server</li>
+                        <li>Connections are health-checked and recycled periodically</li>
+                        <li>Use consistent connection ordering to avoid deadlocks</li>
+                    </ul>
+
+                    <h4 class="mt-3">Pipelining</h4>
+                    <p>Instead of waiting for each response before sending the next request (one RTT per operation), pipelining sends multiple commands without waiting, then reads all responses. This reduces N round trips to 1.</p>
+
+                    <pre><code class="language-python"># Without pipelining: N round trips
+for key in keys:
+    value = cache.get(key)  # 1 RTT each = N * 0.5ms
+
+# With pipelining: 1 round trip
+pipe = cache.pipeline()
+for key in keys:
+    pipe.get(key)
+results = pipe.execute()  # 1 RTT = 0.5ms total
+
+# For 100 keys: 50ms vs 0.5ms -- a 100x improvement</code></pre>
+
+                    <h4 class="mt-3">Multi-Get Optimization</h4>
+                    <p>When fetching multiple keys that live on different nodes, the client library should:</p>
+                    <ol>
+                        <li>Group keys by their target node (using consistent hash)</li>
+                        <li>Send parallel requests to each node</li>
+                        <li>Aggregate results</li>
+                    </ol>
+                    <p>This turns a serial fan-out into a parallel fan-out. Latency = max(individual node latencies) instead of sum.</p>
+
+                    <h4 class="mt-3">Compression</h4>
+                    <p>For values larger than ~1 KB, compress before storing (zstd, lz4, or snappy). This reduces memory usage and network bandwidth at the cost of CPU. LZ4 compresses at ~4 GB/s and decompresses at ~8 GB/s -- negligible overhead for most workloads.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 7. FAILURE HANDLING                                          -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. Failure Handling</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Failure Scenarios &amp; Mitigations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Failure</th><th>Impact</th><th>Mitigation</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Single node crash</strong></td>
+                                <td>~1/N of keyspace becomes uncached; cache misses spike</td>
+                                <td>Replicas promote automatically; consistent hashing limits blast radius; gradual warm-up of replacement node</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Network partition</strong></td>
+                                <td>Some clients can't reach some nodes</td>
+                                <td>Client retries with fallback to replica or DB; proxy detects and reroutes</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Thundering herd (cache stampede)</strong></td>
+                                <td>Many clients simultaneously miss same key and hit DB</td>
+                                <td>Lease-based locking (only one client fills); stale-while-revalidate pattern; request coalescing at proxy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cache avalanche</strong></td>
+                                <td>Many keys expire at the same time</td>
+                                <td>Add random jitter to TTLs (e.g., TTL = base + random(0, 60s)); stagger expiration</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cache penetration</strong></td>
+                                <td>Requests for non-existent keys always miss and hit DB</td>
+                                <td>Cache negative results (null values) with short TTL; Bloom filter to reject impossible keys</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Split brain</strong></td>
+                                <td>Partitioned replicas both accept writes, causing divergence</td>
+                                <td>Quorum reads/writes; fencing tokens; for cache, eventual merge is usually acceptable since data can be re-fetched</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Full memory (OOM)</strong></td>
+                                <td>Node can't accept new writes</td>
+                                <td>Eviction policy kicks in automatically; monitor memory usage; set <code>maxmemory</code> with eviction enabled</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Gutter Pool (Facebook Pattern)</h4>
+                    <p>Facebook maintains a small "gutter" pool of idle cache servers. When a node fails, traffic is temporarily redirected to the gutter pool. This prevents the thundering herd from hitting the database. The gutter pool entries use a short TTL (e.g., 10 seconds) since they are purely a shock absorber while the primary node recovers.</p>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 8. ARCHITECTURE COMPARISON                                   -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Redis Cluster vs. Memcached Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Detailed Comparison</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Redis Cluster</th><th>Memcached</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Data structures</strong></td>
+                                <td>Strings, lists, sets, sorted sets, hashes, streams, HyperLogLog, bitmaps</td>
+                                <td>Strings only (opaque byte blobs)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Partitioning</strong></td>
+                                <td>16,384 hash slots; cluster-managed</td>
+                                <td>Client-side consistent hashing</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Replication</strong></td>
+                                <td>Built-in async primary-replica</td>
+                                <td>None natively (rely on proxy like mcrouter)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Persistence</strong></td>
+                                <td>RDB snapshots + AOF log</td>
+                                <td>None (purely in-memory)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Threading</strong></td>
+                                <td>Single-threaded command execution (multi-threaded I/O since 6.0)</td>
+                                <td>Multi-threaded from the start</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Memory efficiency</strong></td>
+                                <td>Higher overhead per key (data structure metadata)</td>
+                                <td>Lower overhead (slab allocator, minimal metadata)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Atomic operations</strong></td>
+                                <td>Lua scripting, MULTI/EXEC transactions</td>
+                                <td>CAS (compare-and-swap), incr/decr</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Eviction</strong></td>
+                                <td>Approximate LRU/LFU (sampled), per-key TTL</td>
+                                <td>True LRU per slab class</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Max value size</strong></td>
+                                <td>512 MB</td>
+                                <td>1 MB (default)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cluster management</strong></td>
+                                <td>Built-in gossip protocol</td>
+                                <td>External (client or proxy)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Best for</strong></td>
+                                <td>Rich data models, pub/sub, leaderboards, session stores, rate limiting</td>
+                                <td>Simple, high-throughput key-value caching at massive scale</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container mt-3">
+                        <div class="mermaid">
+graph TB
+    subgraph Redis["Redis Cluster Architecture"]
+        direction TB
+        RM1["Primary 1<br/>Slots 0-5460"]
+        RM2["Primary 2<br/>Slots 5461-10922"]
+        RM3["Primary 3<br/>Slots 10923-16383"]
+        RS1["Replica 1a"]
+        RS2["Replica 2a"]
+        RS3["Replica 3a"]
+        RM1 -->|async replication| RS1
+        RM2 -->|async replication| RS2
+        RM3 -->|async replication| RS3
+        RM1 <-->|gossip| RM2
+        RM2 <-->|gossip| RM3
+        RM1 <-->|gossip| RM3
+    end
+
+    subgraph Memcached["Memcached Architecture"]
+        direction TB
+        MC["mcrouter<br/>(Proxy)"]
+        MN1["Node 1"]
+        MN2["Node 2"]
+        MN3["Node 3"]
+        MN4["Node 4"]
+        MC --> MN1
+        MC --> MN2
+        MC --> MN3
+        MC --> MN4
+    end
+
+    style RM1 fill:#c0392b,color:white
+    style RM2 fill:#c0392b,color:white
+    style RM3 fill:#c0392b,color:white
+    style RS1 fill:#e74c3c,color:white
+    style RS2 fill:#e74c3c,color:white
+    style RS3 fill:#e74c3c,color:white
+    style MC fill:#2980b9,color:white
+    style MN1 fill:#3498db,color:white
+    style MN2 fill:#3498db,color:white
+    style MN3 fill:#3498db,color:white
+    style MN4 fill:#3498db,color:white
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">When to Choose Which?</h4>
+                    <ul>
+                        <li><strong>Choose Memcached</strong> when: you need a simple, fast, multi-threaded cache for string values; memory efficiency is paramount; you are caching database query results or rendered page fragments at extreme scale.</li>
+                        <li><strong>Choose Redis</strong> when: you need rich data structures (sorted sets for leaderboards, lists for queues); you want built-in replication and persistence; you need pub/sub or Lua scripting; your use case benefits from atomic operations on complex types.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 9. COMMON FOLLOW-UP QUESTIONS                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Common Follow-up Questions</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Interview Follow-ups</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <h4>Q: How would you handle multi-region caching?</h4>
+                        <p><strong>A:</strong> Each region has its own cache cluster. Writes go to the local cluster and are replicated to remote clusters asynchronously. Use a message bus (Kafka) for cross-region invalidation. Accept eventual consistency (reads in remote regions may be stale for a few hundred milliseconds). Facebook's approach: writes go to the primary region; remote regions receive invalidation markers via a dedicated replication pipeline.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: How do you handle cache warming after a cold start?</h4>
+                        <p><strong>A:</strong> (1) Load an RDB snapshot from a replica. (2) Use shadow traffic: replay production requests to the new node without serving responses, just to fill the cache. (3) Gradual traffic shifting: start with 1% of traffic, increase as hit ratio improves. (4) Pre-populate known hot keys from a database query.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: How would you implement rate limiting with a distributed cache?</h4>
+                        <p><strong>A:</strong> Use Redis's atomic <code>INCR</code> with <code>EXPIRE</code>. For a sliding window, use a sorted set with timestamps as scores. For token bucket, use a Lua script that atomically checks and decrements a counter. The key is the rate limit identifier (user ID, IP, API key).</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: What if your cache needs to handle objects larger than memory on a single node?</h4>
+                        <p><strong>A:</strong> Split large values into chunks, store each chunk as a separate key with a prefix (e.g., <code>blob:123:chunk:0</code>, <code>blob:123:chunk:1</code>). Store metadata about chunk count. Use multi-get to fetch all chunks in parallel. Alternatively, use a tiered cache: in-memory cache for hot/small items, SSD-based cache (e.g., CacheLib by Facebook) for larger items.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: How do you monitor the health of a distributed cache?</h4>
+                        <p><strong>A:</strong> Key metrics: (1) <strong>Hit ratio</strong> -- should be &gt;95%; drops indicate working set changed or TTLs are wrong. (2) <strong>Latency percentiles</strong> (P50, P99, P99.9) -- P99 spikes indicate GC pauses or network issues. (3) <strong>Eviction rate</strong> -- high eviction means you need more memory. (4) <strong>Memory fragmentation ratio</strong> -- should be near 1.0. (5) <strong>Connection count</strong> -- sudden spikes may indicate connection leak. (6) <strong>Replication lag</strong> (Redis) -- high lag means replicas are falling behind.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: How would you handle data that should never be cached?</h4>
+                        <p><strong>A:</strong> Implement a "no-cache" flag at the application layer. Sensitive data (PII, payment info) should bypass the cache or use encrypted cache entries with short TTLs. For compliance (GDPR), ensure cache invalidation is part of your data deletion pipeline -- when a user requests data deletion, purge all cache entries for that user across all regions.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>Q: What is cache-aside vs read-through vs write-through? When would you use each?</h4>
+                        <p><strong>A:</strong> See Section 6d above for the full comparison. In short: <strong>cache-aside</strong> is the simplest and most common -- the application manages cache population. <strong>Read-through</strong> hides the DB behind the cache (good for CDN-like patterns). <strong>Write-through</strong> ensures the cache is always up-to-date but adds write latency. <strong>Write-behind</strong> absorbs write spikes but risks data loss.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 10. INTERVIEW TIPS                                           -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">10. Interview Tips</h2>
+
+            <div class="card">
+                <h4>What Interviewers Look For</h4>
+                <ul>
+                    <li><strong>Structured approach:</strong> Start with requirements, then estimation, then high-level design, then deep dives. Don't jump into implementation details.</li>
+                    <li><strong>Trade-off awareness:</strong> Every design decision is a trade-off. Explain WHY you chose LRU over LFU, eventual consistency over strong consistency, replication over no replication.</li>
+                    <li><strong>Real-world grounding:</strong> Reference Memcached, Redis, and how companies like Facebook, Twitter, and Netflix use caching at scale.</li>
+                    <li><strong>Failure thinking:</strong> Proactively discuss what happens when things go wrong -- node failures, hot keys, thundering herds, split brains.</li>
+                </ul>
+            </div>
+
+            <div class="card mt-2">
+                <h4>Red Flags to Avoid</h4>
+                <ul>
+                    <li>Treating the cache as a single box instead of a distributed system</li>
+                    <li>Ignoring the consistency problem between cache and database</li>
+                    <li>Not discussing eviction until asked</li>
+                    <li>Using <code>hash(key) % N</code> without understanding why consistent hashing is needed</li>
+                    <li>Forgetting about hot keys and uneven load distribution</li>
+                    <li>Not discussing memory management (fragmentation, slab allocation)</li>
+                    <li>Assuming the cache is always correct (stale data issues)</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- 11. SUMMARY                                                  -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">11. Key Takeaways</h2>
+
+            <div class="card" style="background: var(--success-bg);">
+                <h4>Design Summary</h4>
+                <ol>
+                    <li><strong>Partitioning:</strong> Consistent hashing with virtual nodes distributes keys evenly and minimizes redistribution on topology changes</li>
+                    <li><strong>Eviction:</strong> LRU (or approximate LRU) is the default; use LFU for frequency-biased workloads</li>
+                    <li><strong>Hot keys:</strong> Detect with sampling/monitoring; mitigate with local caching, key splitting, or request coalescing</li>
+                    <li><strong>Coherency:</strong> Cache-aside with delete-on-write is simplest; use leases or CDC for stronger guarantees</li>
+                    <li><strong>Availability:</strong> Replication trades memory for resilience; gutter pools absorb failure shock</li>
+                    <li><strong>Memory:</strong> Slab allocation (Memcached) or jemalloc (Redis) prevent fragmentation</li>
+                    <li><strong>Client:</strong> Connection pooling, pipelining, and parallel multi-get are essential for performance</li>
+                </ol>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="chat-system.html" class="btn btn-secondary">&larr; Chat System</a>
+                <a href="../index.html" class="btn btn-primary">Back to System Design &rarr;</a>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+</body>
+</html>

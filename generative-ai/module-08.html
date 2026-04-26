@@ -328,7 +328,7 @@
                     <li>Vector databases: Pinecone, Chroma, Weaviate, Qdrant</li>
                     <li>Indexing strategies: HNSW, IVF, PQ</li>
                     <li>Reranking and hybrid search</li>
-                    <li>Semantic collapse: why flat RAG breaks at 50K+ documents (Stanford research)</li>
+                    <li>Retrieval degradation: why flat RAG breaks at scale and the curse of dimensionality</li>
                     <li>Hierarchical RAG: routing, HDBSCAN clustering, and graph-based retrieval</li>
                     <li>Evaluating RAG with RAGAS: Faithfulness, Answer Relevancy, Context Precision/Recall</li>
                 </ul>
@@ -494,8 +494,8 @@ graph LR
                             </tr>
                             <tr>
                                 <td><strong>Long Context</strong></td>
-                                <td>Small, static corpus (&lt;100K tokens)</td>
-                                <td>Expensive, "lost in the middle" problem</td>
+                                <td>Small, static corpus (&lt;1M tokens with Gemini, 200K with Claude)</td>
+                                <td>Expensive at scale, "lost in the middle" problem, latency</td>
                             </tr>
                         </tbody>
                     </table>
@@ -642,7 +642,7 @@ def semantic_chunk(text, threshold=0.5):
     CharacterTextSplitter,
     TokenTextSplitter,
     MarkdownTextSplitter,
-    PythonCodeTextSplitter
+    Language
 )
 
 # Basic recursive splitting (most common)
@@ -657,13 +657,11 @@ text = """Your long document here..."""
 chunks = recursive_splitter.split_text(text)
 
 # Token-based splitting (better for LLMs)
-from transformers import AutoTokenizer
-tokenizer = AutoTokenizer.from_pretrained("gpt2")
-
+# Use tiktoken with the encoding for modern OpenAI models
 token_splitter = TokenTextSplitter(
     chunk_size=512,
     chunk_overlap=50,
-    encoding_name="gpt2"  # Uses tiktoken
+    encoding_name="cl100k_base"  # Used by GPT-4o, text-embedding-3-*
 )
 chunks = token_splitter.split_text(text)
 
@@ -674,8 +672,9 @@ md_splitter = MarkdownTextSplitter(
 )
 # Splits on: headers (#, ##), code blocks, lists, etc.
 
-# Code-aware splitting
-code_splitter = PythonCodeTextSplitter(
+# Code-aware splitting (use Language enum with RecursiveCharacterTextSplitter)
+code_splitter = RecursiveCharacterTextSplitter.from_language(
+    Language.PYTHON,
     chunk_size=1000,
     chunk_overlap=100
 )
@@ -908,16 +907,16 @@ def parent_child_chunk(text, parent_size=2000, child_size=400):
                                 <td>Higher quality, more $$</td>
                             </tr>
                             <tr>
-                                <td><strong>Cohere embed-v3</strong></td>
+                                <td><strong>Cohere embed-v4</strong></td>
                                 <td>1024</td>
-                                <td>512</td>
-                                <td>Multilingual, search-optimized</td>
+                                <td>128K</td>
+                                <td>Multilingual, search-optimized, long-context</td>
                             </tr>
                             <tr>
-                                <td><strong>BGE-large-en</strong></td>
+                                <td><strong>BAAI/bge-m3</strong></td>
                                 <td>1024</td>
-                                <td>512</td>
-                                <td>Open source, top MTEB scores</td>
+                                <td>8192</td>
+                                <td>Open source, multilingual, multi-granularity</td>
                             </tr>
                             <tr>
                                 <td><strong>all-MiniLM-L6-v2</strong></td>
@@ -926,16 +925,16 @@ def parent_child_chunk(text, parent_size=2000, child_size=400):
                                 <td>Fast, lightweight, local</td>
                             </tr>
                             <tr>
-                                <td><strong>E5-large-v2</strong></td>
-                                <td>1024</td>
-                                <td>512</td>
-                                <td>Strong general performance</td>
+                                <td><strong>nomic-embed-text-v1.5</strong></td>
+                                <td>768</td>
+                                <td>8192</td>
+                                <td>Open source, strong MTEB, Matryoshka support</td>
                             </tr>
                             <tr>
-                                <td><strong>GTE-large</strong></td>
-                                <td>1024</td>
-                                <td>8192</td>
-                                <td>Long context embeddings</td>
+                                <td><strong>Alibaba GTE-Qwen2</strong></td>
+                                <td>1536-3584</td>
+                                <td>32K</td>
+                                <td>Long context embeddings, top MTEB</td>
                             </tr>
                         </tbody>
                     </table>
@@ -1029,7 +1028,7 @@ import numpy as np
 
 # Load model (downloads on first use)
 model = SentenceTransformer('all-MiniLM-L6-v2')  # Fast, small
-# model = SentenceTransformer('BAAI/bge-large-en-v1.5')  # Higher quality
+# model = SentenceTransformer('BAAI/bge-m3')  # Higher quality, multilingual
 
 def embed_texts(texts):
     """Embed texts using sentence transformers."""
@@ -1066,11 +1065,11 @@ def choose_embedding_model(
 ):
     if budget == "free" or latency_critical:
         if max_context_length > 512:
-            return "BAAI/bge-large-en-v1.5"  # Good quality, local
+            return "BAAI/bge-m3"  # Good quality, multilingual, local
         return "all-MiniLM-L6-v2"  # Fastest
 
     if need_multilingual:
-        return "cohere-embed-multilingual-v3"
+        return "cohere-embed-v4"  # Best multilingual, long-context
 
     if budget == "high":
         return "text-embedding-3-large"
@@ -1559,12 +1558,12 @@ for doc in documents:
                     <div class="code-block">
 <code>import cohere
 
-co = cohere.Client("your-api-key")
+co = cohere.ClientV2("your-api-key")  # Use ClientV2 for Cohere SDK v5+
 
 def rerank_cohere(query, documents, top_n=5):
     """Rerank documents using Cohere's reranker."""
     results = co.rerank(
-        model="rerank-english-v3.0",
+        model="rerank-v3.5",  # Latest Cohere reranker (supports multilingual)
         query=query,
         documents=documents,
         top_n=top_n,
@@ -1602,7 +1601,7 @@ for doc in reranked:
 model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 # Other options:
 # 'cross-encoder/ms-marco-MiniLM-L-12-v2' (more accurate)
-# 'BAAI/bge-reranker-large' (very accurate)
+# 'BAAI/bge-reranker-v2-m3' (very accurate, multilingual)
 
 def rerank_local(query, documents, top_n=5):
     """Rerank using local cross-encoder."""
@@ -1907,26 +1906,27 @@ for r in results:
                 </div>
                 <div class="collapsible-content">
                     <div class="callout callout-danger" style="margin-bottom:1rem;">
-                        <div class="callout-title">Critical Finding from Stanford Research</div>
-                        <p>As vector collections grow, retrieval precision <strong>collapses</strong>. Researchers found an <strong>87% precision drop</strong> when document counts exceeded 50K. This is not a chunking problem or a model-size problem — it is a fundamental property of high-dimensional embedding spaces.</p>
+                        <div class="callout-title">The Scale Problem: Retrieval Precision Degrades</div>
+                        <p>As vector collections grow, naive flat retrieval precision <strong>degrades significantly</strong>. Practitioners consistently report that single-index dense retrieval becomes unreliable at large corpus sizes. This is a well-known property of high-dimensional nearest-neighbor search: as the number of vectors increases, distance distributions become less discriminative (the "curse of dimensionality").</p>
                     </div>
 
-                    <h4>Semantic Collapse by the Numbers</h4>
+                    <h4>Observed Precision Degradation Pattern (Illustrative)</h4>
                     <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
                         <thead>
                             <tr style="background:rgba(102,126,234,0.2);">
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Corpus Size</th>
-                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Retrieval Precision</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Typical Retrieval Quality</th>
                                 <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1); text-align:left;">Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">95%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">✅ Healthy</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">10K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">65%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">⚠️ Degrading</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">50K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">15%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">❌ Collapsed</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">100K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">12%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">💀 Worse than keyword search</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">High (90%+ precision typical)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Healthy</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">10K-50K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Noticeably degraded</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Needs reranking + hybrid search</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">100K+ docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Unreliable without hierarchical approaches</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Requires architectural changes</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1M+ docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Flat retrieval is impractical</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Must use routing + sharding</td></tr>
                         </tbody>
                     </table>
+                    <p class="text-muted" style="font-size: 0.85rem;">Note: Exact numbers vary significantly by domain, embedding model quality, and chunk strategy. The pattern of degradation is consistent across benchmarks like BEIR and MTEB.</p>
 
                     <div class="key-insight">
                         <strong>Why this happens:</strong> As more vectors are added to the embedding space, distances between points converge. The angular separation that semantic search relies on becomes increasingly indistinct. At 50K+ documents, a query vector is nearly equidistant from hundreds of unrelated chunks — so top-k retrieval becomes near-random.
@@ -1959,10 +1959,10 @@ for r in results:
                             </tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Search scope</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">All 50K documents</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~45 documents (after routing)</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Latency</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">2.3 seconds</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0.3 seconds (10×)</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Accuracy</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">41%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">94% (2×)</td></tr>
-                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Scales to 1M docs?</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Search scope</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Entire corpus (all vectors)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Routed subset (50-200 docs)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Latency at 100K docs</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Higher (search + rerank over large set)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">5-10x faster (smaller search space)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Accuracy at scale</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Degrades with corpus size</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Stays high (search within focused subset)</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Scales to 1M docs?</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Poorly</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
                         </tbody>
                     </table>
 
@@ -2018,7 +2018,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 
 def cluster_documents(docs, min_cluster_size=50):
-    encoder = SentenceTransformer("BAAI/bge-large-en-v1.5")
+    encoder = SentenceTransformer("BAAI/bge-m3")
     # Embed full document summaries (not chunks)
     embeddings = encoder.encode([d["summary"] for d in docs])
 
@@ -2161,8 +2161,8 @@ print(result)
                     <li class="mb-2"><strong>Explain the "lost in the middle" problem and how RAG helps address it.</strong></li>
                     <li class="mb-2"><strong>What's the purpose of parent-child chunking?</strong></li>
                     <li class="mb-2"><strong>How do you decide between Pinecone, Chroma, and pgvector for a new project?</strong></li>
-                    <li class="mb-2"><strong>What is semantic collapse and at what corpus size does it typically become critical?</strong></li>
-                    <li class="mb-2"><strong>Why does adding smaller chunks make semantic collapse worse rather than better?</strong></li>
+                    <li class="mb-2"><strong>What is retrieval degradation at scale and why does flat vector search become unreliable for large corpora?</strong></li>
+                    <li class="mb-2"><strong>Why does adding smaller chunks make retrieval degradation worse rather than better at scale?</strong></li>
                     <li class="mb-2"><strong>Describe the three pillars of Hierarchical RAG and how each reduces retrieval search space.</strong></li>
                     <li class="mb-2"><strong>What does a RAGAS Faithfulness score below 0.8 indicate, and how do you fix it?</strong></li>
                     <li class="mb-2"><strong>Differentiate between Context Precision and Context Recall. Which one would be low if your retriever fetches irrelevant chunks?</strong></li>
@@ -2241,7 +2241,7 @@ class DocQASystem:
         # MODEL SELECTION RATIONALE
         # ===========================================
         # Embedder: MiniLM is fast (80ms/query) with good quality
-        # For production, consider: 'BAAI/bge-large-en-v1.5' (better quality)
+        # For production, consider: 'BAAI/bge-m3' (better quality, multilingual)
         # Or OpenAI 'text-embedding-3-small' (best quality, API cost)
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -2695,8 +2695,8 @@ if __name__ == "__main__":
                     <li><strong>Indexing:</strong> HNSW is the default. Use IVF for very large scale.</li>
                     <li><strong>Reranking:</strong> Always rerank! Cross-encoders significantly improve quality.</li>
                     <li><strong>Hybrid Search:</strong> Combine dense (semantic) and sparse (keyword) for best results.</li>
-                    <li><strong>Semantic Collapse:</strong> Flat RAG precision drops from 95% → 12% as corpus grows from 1K → 100K docs. Use Hierarchical RAG (routing + clustering + graph) for large corpora.</li>
-                    <li><strong>Hierarchical RAG:</strong> Route by domain → cluster with HDBSCAN → semantic search on ~50 docs. 10× faster and 2× more accurate than flat RAG at scale.</li>
+                    <li><strong>Scale Degradation:</strong> Flat RAG precision degrades significantly as corpus size grows beyond 10K-50K docs. Use Hierarchical RAG (routing + clustering + graph) for large corpora.</li>
+                    <li><strong>Hierarchical RAG:</strong> Route by domain, cluster with HDBSCAN, then semantic search on a focused subset. Significantly faster and more accurate than flat RAG at scale.</li>
                     <li><strong>RAGAS Evaluation:</strong> Faithfulness &lt; 0.8 = hallucination; Context Recall &lt; 0.7 = retrieval gaps. Measure both to diagnose which stage is failing.</li>
                 </ul>
 

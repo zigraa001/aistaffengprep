@@ -74,6 +74,28 @@
                         <span class="sidebar-link-number">9</span>Interview Simulation
                     </a>
                 </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -286,7 +308,7 @@
             state.append(choice)
 
             # Recurse
-            backtrack(state, remaining_choices, result)
+            backtrack(state, choices, result)
 
             # Undo choice (backtrack)
             state.pop()</code></pre>
@@ -925,7 +947,7 @@ def knapsack_branch_bound(weights, values, capacity):
 # weights = [10, 20, 30]
 # values = [60, 100, 120]
 # capacity = 50
-# Result: 220 (items 2 and 3)</code></pre>
+# Result: 220 (items with weights 20 and 30, values 100 and 120)</code></pre>
                 </div>
 
                 <h4>When to Use Branch and Bound</h4>
@@ -956,8 +978,8 @@ def knapsack_branch_bound(weights, values, capacity):
     2. Choose cell with fewest candidates (MRV heuristic)
     3. Propagate constraints when placing digits
 
-    Time: O(9^(n*n)) worst case, but much better in practice
-    Space: O(n*n) for the board state
+    Time: O(9^m) worst case where m is the number of empty cells (up to 81), but much better in practice
+    Space: O(m) for the recursion stack
     """
 
     def get_candidates(board, row, col):
@@ -1699,6 +1721,65 @@ class RegisterAllocator:
                 </ul>
                 <p>DPLL algorithm combines backtracking with unit propagation, solving industrial instances with millions of variables.</p>
 
+                <div class="code-block">
+                    <pre><code class="language-python"># Simplified DPLL (basis of modern SAT solvers)
+def dpll(clauses, assignment=None):
+    """
+    Davis-Putnam-Logemann-Loveland algorithm.
+    Core of SAT solvers that verify Intel CPUs, prove theorems,
+    and resolve package dependencies.
+    """
+    if assignment is None:
+        assignment = {}
+
+    # Unit propagation: if clause has one literal, must be true
+    changed = True
+    while changed:
+        changed = False
+        for clause in clauses:
+            unassigned = [lit for lit in clause
+                         if abs(lit) not in assignment]
+
+            if not unassigned:
+                # All literals assigned - check if every literal evaluates to False
+                if all(assignment.get(abs(lit), lit < 0) == (lit < 0)
+                       for lit in clause):
+                    return None  # Conflict - backtrack
+
+            elif len(unassigned) == 1:
+                # Unit clause - force assignment
+                lit = unassigned[0]
+                assignment[abs(lit)] = lit > 0
+                changed = True
+
+    # Check if all clauses satisfied
+    if all(any(assignment.get(abs(lit), None) == (lit > 0)
+               for lit in clause) for clause in clauses):
+        return assignment
+
+    # Pick unassigned variable (VSIDS heuristic in real solvers)
+    unassigned_vars = set()
+    for clause in clauses:
+        for lit in clause:
+            if abs(lit) not in assignment:
+                unassigned_vars.add(abs(lit))
+
+    if not unassigned_vars:
+        return None
+
+    var = next(iter(unassigned_vars))
+
+    # Try True
+    assignment[var] = True
+    result = dpll(clauses, assignment.copy())
+    if result:
+        return result
+
+    # Backtrack, try False
+    assignment[var] = False
+    return dpll(clauses, assignment.copy())</code></pre>
+                </div>
+
                 <h4>4. npm/pip Dependency Resolution</h4>
                 <p><strong>Scale:</strong> npm handles 2+ billion package downloads per week, resolving complex version constraints.</p>
 
@@ -1901,64 +1982,254 @@ class RideShareMatcher:
             </div>
         </div>
 
-                <div class="code-block">
-                    <pre><code class="language-python"># Simplified DPLL (basis of modern SAT solvers)
-def dpll(clauses, assignment=None):
-    """
-    Davis-Putnam-Logemann-Loveland algorithm.
-    Core of SAT solvers that verify Intel CPUs, prove theorems,
-    and resolve package dependencies.
-    """
-    if assignment is None:
-        assignment = {}
+        <!-- Subsets Pattern Systematization -->
+        <h2 class="mt-4">The Subsets Pattern (Grokking)</h2>
 
-    # Unit propagation: if clause has one literal, must be true
-    changed = True
-    while changed:
-        changed = False
-        for clause in clauses:
-            unassigned = [lit for lit in clause
-                         if abs(lit) not in assignment]
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Subsets Pattern &mdash; Include/Exclude Decision Tree</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>The <strong>Subsets</strong> pattern is one of the most versatile backtracking templates. Every element faces a binary decision: <em>include it</em> or <em>exclude it</em>. This creates a binary decision tree of depth N, yielding 2<sup>N</sup> leaves &mdash; exactly the number of subsets.</p>
 
-            if not unassigned:
-                # All literals false - clause unsatisfied
-                if all(assignment.get(abs(lit), lit < 0) == (lit < 0)
-                       for lit in clause):
-                    return None  # Conflict - backtrack
+                <h4>Include/Exclude Template</h4>
+<pre><code class="language-python"># Generic include/exclude template
+def subsets_template(nums):
+    result = []
 
-            elif len(unassigned) == 1:
-                # Unit clause - force assignment
-                lit = unassigned[0]
-                assignment[abs(lit)] = lit > 0
-                changed = True
+    def backtrack(index, current):
+        if index == len(nums):
+            result.append(current[:])   # leaf node &rarr; record subset
+            return
 
-    # Check if all clauses satisfied
-    if all(any(assignment.get(abs(lit), None) == (lit > 0)
-               for lit in clause) for clause in clauses):
-        return assignment
+        # INCLUDE nums[index]
+        current.append(nums[index])
+        backtrack(index + 1, current)
+        current.pop()                   # undo choice
 
-    # Pick unassigned variable (VSIDS heuristic in real solvers)
-    unassigned_vars = set()
-    for clause in clauses:
-        for lit in clause:
-            if abs(lit) not in assignment:
-                unassigned_vars.add(abs(lit))
+        # EXCLUDE nums[index]
+        backtrack(index + 1, current)
 
-    if not unassigned_vars:
-        return None
+    backtrack(0, [])
+    return result</code></pre>
 
-    var = next(iter(unassigned_vars))
+                <h4 class="mt-3">1. Subsets (LeetCode #78) &mdash; Iterative BFS-style</h4>
+                <p>Build subsets level by level: start with <code>[[]]</code> and, for each element, copy every existing subset and append the new element.</p>
+<pre><code class="language-python">def subsets_iterative(nums):
+    result = [[]]
+    for num in nums:
+        result += [subset + [num] for subset in result]
+    return result
+# [1,2,3] &rarr; [[], [1], [2], [1,2], [3], [1,3], [2,3], [1,2,3]]</code></pre>
 
-    # Try True
-    assignment[var] = True
-    result = dpll(clauses, assignment.copy())
-    if result:
-        return result
+                <h4 class="mt-3">Subsets (LeetCode #78) &mdash; Recursive (cascading)</h4>
+<pre><code class="language-python">def subsets_recursive(nums):
+    result = []
+    def backtrack(start, path):
+        result.append(path[:])          # every node is a valid subset
+        for i in range(start, len(nums)):
+            path.append(nums[i])
+            backtrack(i + 1, path)
+            path.pop()
+    backtrack(0, [])
+    return result</code></pre>
 
-    # Backtrack, try False
-    assignment[var] = False
-    return dpll(clauses, assignment.copy())</code></pre>
-                </div>
+                <h4 class="mt-3">2. Subsets II &mdash; Handling Duplicates (LeetCode #90)</h4>
+                <p><strong>Key insight:</strong> Sort the input first. At each recursion level, skip an element if it equals the previous one at the same level (i.e., <code>i &gt; start and nums[i] == nums[i-1]</code>). This avoids generating the same subset twice without needing a set.</p>
+<pre><code class="language-python">def subsets_with_dup(nums):
+    nums.sort()
+    result = []
+    def backtrack(start, path):
+        result.append(path[:])
+        for i in range(start, len(nums)):
+            if i &gt; start and nums[i] == nums[i - 1]:
+                continue                # skip duplicate at same level
+            path.append(nums[i])
+            backtrack(i + 1, path)
+            path.pop()
+    backtrack(0, [])
+    return result</code></pre>
+
+                <h4 class="mt-3">3. Letter Combinations of a Phone Number (LeetCode #17)</h4>
+                <p>Each digit maps to 3-4 letters. The decision tree branches by the letters of the current digit instead of include/exclude, but the structure is identical: choose a letter, recurse on the remaining digits, undo.</p>
+<pre><code class="language-python">def letter_combinations(digits):
+    if not digits:
+        return []
+    phone = {'2': 'abc', '3': 'def', '4': 'ghi', '5': 'jkl',
+             '6': 'mno', '7': 'pqrs', '8': 'tuv', '9': 'wxyz'}
+    result = []
+    def backtrack(idx, path):
+        if idx == len(digits):
+            result.append(''.join(path))
+            return
+        for ch in phone[digits[idx]]:
+            path.append(ch)
+            backtrack(idx + 1, path)
+            path.pop()
+    backtrack(0, [])
+    return result</code></pre>
+
+                <h4 class="mt-3">4. Combination Sum I, II, III</h4>
+                <table>
+                    <thead>
+                        <tr><th>Variant</th><th>Reuse?</th><th>Duplicates in input?</th><th>Key constraint</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Combination Sum I</strong> (#39)</td><td>Unlimited reuse</td><td>No</td><td>Recurse with <code>i</code> (not <code>i+1</code>) to allow reuse</td></tr>
+                        <tr><td><strong>Combination Sum II</strong> (#40)</td><td>Each element once</td><td>Yes</td><td>Sort + skip duplicates at same level</td></tr>
+                        <tr><td><strong>Combination Sum III</strong> (#216)</td><td>Each 1-9 once</td><td>No</td><td>Fixed count <em>k</em> numbers summing to <em>n</em></td></tr>
+                    </tbody>
+                </table>
+
+<pre><code class="language-python"># Combination Sum I &mdash; unlimited reuse (LC #39)
+def combination_sum(candidates, target):
+    result = []
+    def backtrack(start, path, remaining):
+        if remaining == 0:
+            result.append(path[:])
+            return
+        for i in range(start, len(candidates)):
+            if candidates[i] &gt; remaining:
+                break                   # prune (requires sorted input)
+            path.append(candidates[i])
+            backtrack(i, path, remaining - candidates[i])  # i, NOT i+1
+            path.pop()
+    candidates.sort()
+    backtrack(0, [], target)
+    return result
+
+# Combination Sum II &mdash; each element used once (LC #40)
+def combination_sum2(candidates, target):
+    candidates.sort()
+    result = []
+    def backtrack(start, path, remaining):
+        if remaining == 0:
+            result.append(path[:])
+            return
+        for i in range(start, len(candidates)):
+            if candidates[i] &gt; remaining:
+                break
+            if i &gt; start and candidates[i] == candidates[i - 1]:
+                continue
+            path.append(candidates[i])
+            backtrack(i + 1, path, remaining - candidates[i])
+            path.pop()
+    backtrack(0, [], target)
+    return result
+
+# Combination Sum III &mdash; k numbers from 1-9 summing to n (LC #216)
+def combination_sum3(k, n):
+    result = []
+    def backtrack(start, path, remaining):
+        if len(path) == k:
+            if remaining == 0:
+                result.append(path[:])
+            return
+        for i in range(start, 10):
+            if i &gt; remaining:
+                break
+            path.append(i)
+            backtrack(i + 1, path, remaining - i)
+            path.pop()
+    backtrack(1, [], n)
+    return result</code></pre>
+
+                <h4 class="mt-3">Decision Tree Visualisation</h4>
+                <p>For <code>subsets([1,2,3])</code> using the include/exclude model:</p>
+<pre><code>                          []
+                   /              \
+              [1]                   []
+            /      \             /      \
+        [1,2]      [1]       [2]        []
+        /   \     /   \     /   \      /   \
+   [1,2,3] [1,2] [1,3] [1] [2,3] [2] [3]  []
+</code></pre>
+                <p>Each leaf is a unique subset. The tree has depth N and 2<sup>N</sup> leaves, matching the total subset count.</p>
+            </div>
+        </div>
+
+        <!-- Comprehensive LeetCode Problem Table -->
+        <h2 class="mt-4">Backtracking Problem Map by Sub-Pattern</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>LeetCode Problems Organised by Sub-Pattern</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Sub-Pattern</th>
+                            <th>Problems</th>
+                            <th>Key Idea</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Subsets / Combinations</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/subsets/" target="_blank">#78 Subsets</a><br>
+                                <a href="https://leetcode.com/problems/subsets-ii/" target="_blank">#90 Subsets II</a><br>
+                                <a href="https://leetcode.com/problems/combinations/" target="_blank">#77 Combinations</a><br>
+                                <a href="https://leetcode.com/problems/combination-sum/" target="_blank">#39 Combination Sum</a><br>
+                                <a href="https://leetcode.com/problems/combination-sum-ii/" target="_blank">#40 Combination Sum II</a>
+                            </td>
+                            <td>Include/exclude each element; sort + skip for duplicates</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Permutations</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/permutations/" target="_blank">#46 Permutations</a><br>
+                                <a href="https://leetcode.com/problems/permutations-ii/" target="_blank">#47 Permutations II</a><br>
+                                <a href="https://leetcode.com/problems/next-permutation/" target="_blank">#31 Next Permutation</a><br>
+                                <a href="https://leetcode.com/problems/permutation-sequence/" target="_blank">#60 Permutation Sequence</a>
+                            </td>
+                            <td>Swap or used-array; sort + skip for duplicate handling</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Grid / Board Search</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/word-search/" target="_blank">#79 Word Search</a><br>
+                                <a href="https://leetcode.com/problems/word-search-ii/" target="_blank">#212 Word Search II</a><br>
+                                <a href="https://leetcode.com/problems/unique-paths-iii/" target="_blank">#980 Unique Paths III</a><br>
+                                <a href="https://leetcode.com/problems/surrounded-regions/" target="_blank">#130 Surrounded Regions</a>
+                            </td>
+                            <td>DFS on grid with visited tracking; Trie optimisation for multi-word</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Constraint Satisfaction</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/n-queens/" target="_blank">#51 N-Queens</a><br>
+                                <a href="https://leetcode.com/problems/n-queens-ii/" target="_blank">#52 N-Queens II</a><br>
+                                <a href="https://leetcode.com/problems/sudoku-solver/" target="_blank">#37 Sudoku Solver</a><br>
+                                <a href="https://leetcode.com/problems/valid-sudoku/" target="_blank">#36 Valid Sudoku</a>
+                            </td>
+                            <td>Place &amp; validate; use sets/bitmasks for O(1) constraint checks</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Partitioning</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/palindrome-partitioning/" target="_blank">#131 Palindrome Partitioning</a><br>
+                                <a href="https://leetcode.com/problems/restore-ip-addresses/" target="_blank">#93 Restore IP Addresses</a><br>
+                                <a href="https://leetcode.com/problems/partition-to-k-equal-sum-subsets/" target="_blank">#698 Partition to K Equal Sum</a><br>
+                                <a href="https://leetcode.com/problems/splitting-a-string-into-descending-consecutive-values/" target="_blank">#1849 Splitting Descending Values</a>
+                            </td>
+                            <td>Choose split point, recurse on remainder; validate partition constraints</td>
+                        </tr>
+                        <tr>
+                            <td><strong>String / Expression Generation</strong></td>
+                            <td>
+                                <a href="https://leetcode.com/problems/generate-parentheses/" target="_blank">#22 Generate Parentheses</a><br>
+                                <a href="https://leetcode.com/problems/letter-combinations-of-a-phone-number/" target="_blank">#17 Letter Combinations</a><br>
+                                <a href="https://leetcode.com/problems/expression-add-operators/" target="_blank">#282 Expression Add Operators</a><br>
+                                <a href="https://leetcode.com/problems/letter-case-permutation/" target="_blank">#784 Letter Case Permutation</a>
+                            </td>
+                            <td>Build string character by character; prune invalid states early</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -2039,7 +2310,7 @@ def dpll(clauses, assignment=None):
 
         <div class="flex flex-between mt-4">
             <a href="module-05.html" class="btn btn-secondary">&larr; Module 5</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <a href="module-07.html" class="btn btn-primary">Module 7 &rarr;</a>
         </div>
         </main>
     </div>

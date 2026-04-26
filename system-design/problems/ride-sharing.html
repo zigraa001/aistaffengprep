@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design Ride-Sharing (Uber) - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Ride-Sharing Service (Uber/Lyft)</h1>
+            <p class="text-muted">Examples: Uber, Lyft, Grab, Ola, DiDi</p>
+
+            <!-- Difficulty Card -->
+            <div class="card mt-3" style="background: var(--danger-bg, #3b1a1a);">
+                <strong>Difficulty:</strong> Hard (Staff-Level) | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- Staff-Level Signal -->
+            <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                <h3>Staff-Level Expectations</h3>
+                <p>At the staff level, interviewers expect you to go beyond basic request-response flows. You should demonstrate:</p>
+                <ul>
+                    <li><strong>Geospatial reasoning</strong> &mdash; Explain spatial indexing trade-offs (Geohash vs. H3 vs. Quadtree)</li>
+                    <li><strong>Real-time system design</strong> &mdash; Handle millions of concurrent WebSocket connections and location streams</li>
+                    <li><strong>Marketplace dynamics</strong> &mdash; Supply-demand matching, surge pricing algorithms, fairness constraints</li>
+                    <li><strong>State machine rigor</strong> &mdash; Trip lifecycle, failure recovery, consistency guarantees</li>
+                    <li><strong>Global scale</strong> &mdash; Multi-region deployment, city-level sharding, data sovereignty</li>
+                </ul>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 1. Problem Statement            -->
+            <!-- ============================== -->
+            <h2 class="mt-4">1. Problem Statement</h2>
+            <div class="card">
+                <p>Design a ride-sharing platform like Uber or Lyft that connects riders who need transportation with nearby drivers. The system must handle real-time location tracking, efficient driver-rider matching, dynamic pricing, trip management, and payments &mdash; all at massive scale across hundreds of cities worldwide.</p>
+                <p>Key challenges include: ingesting millions of location updates per second, performing sub-second geospatial queries to find nearby drivers, running a fair and efficient matching algorithm, and maintaining a consistent trip state machine across distributed services.</p>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 2. Requirements Clarification   -->
+            <!-- ============================== -->
+            <h2 class="mt-4">2. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Request a ride:</strong> Rider specifies pickup location, destination, and ride type (economy, premium, pool)</li>
+                        <li><strong>Driver matching:</strong> System finds and assigns the best available driver based on proximity, rating, and vehicle type</li>
+                        <li><strong>Real-time tracking:</strong> Both rider and driver see each other's live location on a map</li>
+                        <li><strong>ETA calculation:</strong> Accurate estimated time of arrival for pickup and destination</li>
+                        <li><strong>Dynamic pricing:</strong> Surge pricing based on supply-demand conditions in a geographic area</li>
+                        <li><strong>Trip management:</strong> Full trip lifecycle: request, match, pickup, in-progress, drop-off, payment</li>
+                        <li><strong>Trip history:</strong> Riders and drivers can view past trips, receipts, and routes</li>
+                        <li><strong>Ratings &amp; reviews:</strong> Bi-directional rating system after each trip</li>
+                        <li><strong>Notifications:</strong> Push notifications for ride status changes (driver arriving, trip started, etc.)</li>
+                        <li><strong>Driver availability:</strong> Drivers can go online/offline; system tracks available supply</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Real-time location updates:</strong> Drivers send GPS coordinates every 3-4 seconds</li>
+                        <li><strong>Low-latency matching:</strong> Match a driver within 30 seconds of ride request</li>
+                        <li><strong>High availability:</strong> 99.99% uptime &mdash; people depend on this for daily transportation and safety</li>
+                        <li><strong>Consistency:</strong> Trip state must be strongly consistent (a driver cannot be double-booked)</li>
+                        <li><strong>Scalability:</strong> Handle peak traffic (New Year's Eve, rush hour) with elastic scaling</li>
+                        <li><strong>Low latency:</strong> Location queries &lt; 50ms; ride request to fare estimate &lt; 200ms</li>
+                        <li><strong>Fault tolerance:</strong> Graceful degradation; never lose an active trip</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scale Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Platform Scale:</strong><br>
+                        - 20 million rides per day<br>
+                        - 5 million active drivers at peak<br>
+                        - 50 million registered riders<br>
+                        - Operations in 500+ cities worldwide<br><br>
+
+                        <strong>Location Updates:</strong><br>
+                        - 5M drivers * 1 update/4 sec = <strong>1.25M location updates/second</strong><br>
+                        - Each update: ~200 bytes (driver_id, lat, lng, heading, speed, timestamp)<br>
+                        - Location data throughput: 1.25M * 200B = <strong>250 MB/s</strong><br><br>
+
+                        <strong>Ride Requests:</strong><br>
+                        - 20M rides/day = ~230 rides/second average<br>
+                        - Peak (5x average): ~1,150 rides/second<br><br>
+
+                        <strong>Storage (Trips):</strong><br>
+                        - 20M trips/day * 2 KB/trip = 40 GB/day<br>
+                        - 14.6 TB/year for trip data<br>
+                        - Location history: 1.25M * 200B * 86,400 sec = <strong>21.6 TB/day</strong> (hot data, TTL required)
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 3. Capacity Estimation          -->
+            <!-- ============================== -->
+            <h2 class="mt-4">3. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Detailed Calculations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color);">
+                                <th style="text-align:left; padding:8px;">Metric</th>
+                                <th style="text-align:left; padding:8px;">Calculation</th>
+                                <th style="text-align:left; padding:8px;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Location update QPS</td>
+                                <td style="padding:8px;">5M drivers / 4 sec</td>
+                                <td style="padding:8px;"><strong>1.25M/s</strong></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Ride request QPS (peak)</td>
+                                <td style="padding:8px;">20M/day * 5x peak / 86400</td>
+                                <td style="padding:8px;"><strong>~1,150/s</strong></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">WebSocket connections</td>
+                                <td style="padding:8px;">5M drivers + active riders</td>
+                                <td style="padding:8px;"><strong>~8-10M concurrent</strong></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Location data/day</td>
+                                <td style="padding:8px;">1.25M/s * 200B * 86400</td>
+                                <td style="padding:8px;"><strong>21.6 TB/day</strong></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Trip records/year</td>
+                                <td style="padding:8px;">20M/day * 365 * 2KB</td>
+                                <td style="padding:8px;"><strong>14.6 TB/year</strong></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Network bandwidth (location)</td>
+                                <td style="padding:8px;">1.25M * 200B</td>
+                                <td style="padding:8px;"><strong>250 MB/s ingest</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--warning-color, #fbbf24);">
+                        <strong>Staff-Level Insight:</strong> The location update pipeline is the dominant data flow &mdash; it dwarfs ride requests by 1000x. This must be a streaming architecture (Kafka / Kinesis), not request-response. Uber processes over 1 million location events per second in production.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 4. High-Level Design            -->
+            <!-- ============================== -->
+            <h2 class="mt-4">4. High-Level Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Architecture Overview</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The system is composed of several domain services, each owning a specific concern. The key insight is separating the <strong>hot path</strong> (location updates, matching) from the <strong>cold path</strong> (trip history, analytics, payments).</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph Clients
+        RA[Rider App]
+        DA[Driver App]
+    end
+
+    subgraph Gateway Layer
+        ALB[API Gateway / Load Balancer]
+        WSG[WebSocket Gateway]
+    end
+
+    subgraph Core Services
+        RS[Ride Service<br/>Trip lifecycle]
+        MS[Matching Service<br/>Driver-rider pairing]
+        LS[Location Service<br/>Geospatial index]
+        PS[Pricing Service<br/>Surge & fare calc]
+        TS[Trip Service<br/>History & state]
+        PAY[Payment Service<br/>Billing & payouts]
+        NS[Notification Service<br/>Push & SMS]
+        ETA[ETA Service<br/>Time estimates]
+    end
+
+    subgraph Data Stores
+        PG[(PostgreSQL<br/>Trips, Users)]
+        RD[(Redis Cluster<br/>Driver locations)]
+        KF[Kafka<br/>Location stream]
+        ES[(Elasticsearch<br/>Geospatial queries)]
+        S3[(Object Storage<br/>Trip receipts, maps)]
+    end
+
+    RA -->|REST/gRPC| ALB
+    DA -->|REST/gRPC| ALB
+    RA <-->|WebSocket| WSG
+    DA <-->|WebSocket| WSG
+
+    ALB --> RS
+    ALB --> PS
+    ALB --> TS
+
+    WSG --> LS
+    WSG --> NS
+
+    RS --> MS
+    RS --> PS
+    RS --> PAY
+    RS --> NS
+    MS --> LS
+    MS --> ETA
+
+    LS --> KF
+    LS --> RD
+    LS --> ES
+    TS --> PG
+    PAY --> PG
+    TS --> S3
+                        </div>
+                    </div>
+
+                    <h3>Service Responsibilities</h3>
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color);">
+                                <th style="text-align:left; padding:8px;">Service</th>
+                                <th style="text-align:left; padding:8px;">Responsibility</th>
+                                <th style="text-align:left; padding:8px;">Key Tech</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Ride Service</strong></td>
+                                <td style="padding:8px;">Orchestrates ride lifecycle: create, match, track, complete</td>
+                                <td style="padding:8px;">gRPC, state machine</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Matching Service</strong></td>
+                                <td style="padding:8px;">Finds optimal driver-rider pairs using location + ranking</td>
+                                <td style="padding:8px;">Geospatial index, optimization</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Location Service</strong></td>
+                                <td style="padding:8px;">Ingests driver GPS, maintains real-time spatial index</td>
+                                <td style="padding:8px;">Redis, Kafka, H3/Geohash</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Pricing Service</strong></td>
+                                <td style="padding:8px;">Calculates fares, surge multipliers, upfront pricing</td>
+                                <td style="padding:8px;">ML models, supply-demand</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Trip Service</strong></td>
+                                <td style="padding:8px;">Stores trip records, route history, receipts</td>
+                                <td style="padding:8px;">PostgreSQL, S3</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>ETA Service</strong></td>
+                                <td style="padding:8px;">Computes time estimates using road graph + traffic data</td>
+                                <td style="padding:8px;">OSRM, ML prediction</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Payment Service</strong></td>
+                                <td style="padding:8px;">Handles charges, refunds, driver payouts</td>
+                                <td style="padding:8px;">Stripe, ledger DB</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Notification Service</strong></td>
+                                <td style="padding:8px;">Push notifications, SMS, in-app messages</td>
+                                <td style="padding:8px;">FCM/APNs, Twilio</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 5. Data Model                   -->
+            <!-- ============================== -->
+            <h2 class="mt-4">5. Data Model</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Core Entities</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h3>Rider</h3>
+                    <pre class="code-block"><code>CREATE TABLE riders (
+    rider_id        UUID PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    email           VARCHAR(255) UNIQUE NOT NULL,
+    phone           VARCHAR(20) UNIQUE NOT NULL,
+    rating          DECIMAL(3,2) DEFAULT 5.00,
+    payment_methods JSONB,
+    created_at      TIMESTAMP DEFAULT NOW()
+);</code></pre>
+
+                    <h3>Driver</h3>
+                    <pre class="code-block"><code>CREATE TABLE drivers (
+    driver_id       UUID PRIMARY KEY,
+    name            VARCHAR(255) NOT NULL,
+    phone           VARCHAR(20) UNIQUE NOT NULL,
+    license_number  VARCHAR(50) NOT NULL,
+    vehicle_type    VARCHAR(20) NOT NULL,  -- economy, premium, xl
+    vehicle_info    JSONB,                 -- make, model, color, plate
+    rating          DECIMAL(3,2) DEFAULT 5.00,
+    status          VARCHAR(20) DEFAULT 'offline',  -- offline, available, busy
+    city_id         INTEGER REFERENCES cities(city_id),
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- Index for finding available drivers by city
+CREATE INDEX idx_drivers_status_city ON drivers(status, city_id);</code></pre>
+
+                    <h3>Trip</h3>
+                    <pre class="code-block"><code>CREATE TABLE trips (
+    trip_id             UUID PRIMARY KEY,
+    rider_id            UUID REFERENCES riders(rider_id),
+    driver_id           UUID REFERENCES drivers(driver_id),
+    status              VARCHAR(20) NOT NULL,  -- see state machine
+    ride_type           VARCHAR(20) NOT NULL,  -- economy, premium, pool
+    pickup_location     GEOGRAPHY(POINT, 4326),
+    dropoff_location    GEOGRAPHY(POINT, 4326),
+    pickup_address      TEXT,
+    dropoff_address     TEXT,
+    requested_at        TIMESTAMP NOT NULL,
+    matched_at          TIMESTAMP,
+    pickup_at           TIMESTAMP,
+    started_at          TIMESTAMP,
+    completed_at        TIMESTAMP,
+    cancelled_at        TIMESTAMP,
+    cancelled_by        VARCHAR(10),  -- rider, driver, system
+    fare_amount         DECIMAL(10,2),
+    surge_multiplier    DECIMAL(4,2) DEFAULT 1.00,
+    distance_miles      DECIMAL(8,2),
+    duration_minutes    DECIMAL(8,2),
+    route_polyline      TEXT,
+    city_id             INTEGER REFERENCES cities(city_id),
+    created_at          TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for common queries
+CREATE INDEX idx_trips_rider ON trips(rider_id, created_at DESC);
+CREATE INDEX idx_trips_driver ON trips(driver_id, created_at DESC);
+CREATE INDEX idx_trips_status ON trips(status) WHERE status NOT IN ('completed', 'cancelled');
+CREATE INDEX idx_trips_city_time ON trips(city_id, created_at DESC);</code></pre>
+
+                    <h3>Driver Location (Redis / In-Memory)</h3>
+                    <pre class="code-block"><code># Redis data structure for real-time driver locations
+# Using Redis GEO commands for spatial queries
+
+# Store driver location
+GEOADD city:123:drivers -73.9857 40.7484 driver:abc-123
+
+# Find drivers within 3km of pickup point
+GEORADIUS city:123:drivers -73.9857 40.7484 3 km
+    WITHCOORD WITHDIST COUNT 20 ASC
+
+# Driver metadata hash (status, vehicle type, heading, speed)
+HSET driver:abc-123:meta \
+    status available \
+    vehicle_type economy \
+    heading 45 \
+    speed 25 \
+    last_update 1700000000</code></pre>
+
+                    <h3>Pricing Record</h3>
+                    <pre class="code-block"><code>CREATE TABLE pricing (
+    pricing_id      UUID PRIMARY KEY,
+    trip_id         UUID REFERENCES trips(trip_id),
+    base_fare       DECIMAL(10,2),
+    per_mile_rate   DECIMAL(6,2),
+    per_minute_rate DECIMAL(6,2),
+    surge_multiplier DECIMAL(4,2),
+    booking_fee     DECIMAL(6,2),
+    tolls           DECIMAL(8,2) DEFAULT 0,
+    subtotal        DECIMAL(10,2),
+    discount        DECIMAL(8,2) DEFAULT 0,
+    total           DECIMAL(10,2),
+    currency        VARCHAR(3) DEFAULT 'USD',
+    created_at      TIMESTAMP DEFAULT NOW()
+);</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6. Deep Dive: Location Service  -->
+            <!-- ============================== -->
+            <h2 class="mt-4">6. Deep Dives</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>6a. Location Service &amp; Geospatial Indexing</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The location service is the beating heart of the ride-sharing platform. It must ingest <strong>1.25 million location updates per second</strong>, maintain a real-time spatial index of all active drivers, and answer "find nearby drivers" queries in under 50ms.</p>
+
+                    <h3>Architecture: Location Update Pipeline</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    DA[Driver App] -->|GPS every 4s| WSG[WebSocket Gateway]
+    WSG -->|Batch writes| KF[Kafka<br/>location-updates topic]
+    KF -->|Consumer group| LP[Location Processor]
+    LP -->|Update position| RD[(Redis GEO<br/>Spatial Index)]
+    LP -->|Async write| TS[(TimescaleDB<br/>Location History)]
+    LP -->|Publish| FAN[Kafka<br/>location-fan-out]
+    FAN -->|Active trip updates| TRK[Tracking Consumers<br/>Push to rider apps]
+                        </div>
+                    </div>
+
+                    <h3>Geohash vs. H3 vs. Quadtree</h3>
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color);">
+                                <th style="text-align:left; padding:8px;">Approach</th>
+                                <th style="text-align:left; padding:8px;">How It Works</th>
+                                <th style="text-align:left; padding:8px;">Pros</th>
+                                <th style="text-align:left; padding:8px;">Cons</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Geohash</strong></td>
+                                <td style="padding:8px;">Encodes lat/lng into a base-32 string; shared prefix = proximity</td>
+                                <td style="padding:8px;">Simple, works with any DB, prefix queries</td>
+                                <td style="padding:8px;">Edge effects at cell boundaries; rectangular cells distort near poles</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>H3 (Uber)</strong></td>
+                                <td style="padding:8px;">Hexagonal hierarchical grid; each hex ~0.7 km&sup2; at resolution 9</td>
+                                <td style="padding:8px;">Uniform cell sizes, no edge effects, built for ride-sharing</td>
+                                <td style="padding:8px;">More complex, requires library support</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;"><strong>Quadtree</strong></td>
+                                <td style="padding:8px;">Recursive spatial subdivision; denser areas get finer splits</td>
+                                <td style="padding:8px;">Adaptive density, efficient for uneven distribution</td>
+                                <td style="padding:8px;">Not natively supported by DBs, harder to distribute</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                        <strong>Staff-Level Signal:</strong> Uber uses H3 in production because hexagonal cells have uniform distances to neighbors (unlike rectangular Geohash cells). This matters for "find drivers within 3 km" queries &mdash; with Geohash, you must search 9 cells (the target + 8 neighbors) to handle boundary effects. With H3, you search 7 cells (the target + 6 neighbors), and each neighbor is equidistant. At 1.25M updates/second, this 22% reduction in cell lookups is significant.
+                    </div>
+
+                    <h3>Finding Nearby Drivers (Redis GEO)</h3>
+                    <pre class="code-block"><code># Approach 1: Redis GEORADIUS (simple, works at moderate scale)
+# Find 20 closest available drivers within 5km
+GEORADIUS city:nyc:drivers -73.9857 40.7484 5 km \
+    WITHCOORD WITHDIST COUNT 20 ASC
+
+# Approach 2: H3-based lookup (Uber's approach, scales better)
+import h3
+
+def find_nearby_drivers(lat, lng, radius_km=3, resolution=9):
+    """Find drivers in nearby H3 hexagons."""
+    center_hex = h3.latlng_to_cell(lat, lng, resolution)
+    # k=1 ring gives 7 hexagons (center + 6 neighbors)
+    # k=2 ring gives 19 hexagons for larger radius
+    k_ring = 1 if radius_km &lt;= 3 else 2
+    hex_ring = h3.grid_disk(center_hex, k_ring)
+
+    nearby_drivers = []
+    for hex_id in hex_ring:
+        # Each hex maps to a Redis set of driver IDs
+        drivers = redis.smembers(f"hex:{hex_id}:drivers")
+        for driver_id in drivers:
+            meta = redis.hgetall(f"driver:{driver_id}:meta")
+            if meta['status'] == 'available':
+                nearby_drivers.append({
+                    'driver_id': driver_id,
+                    'lat': float(meta['lat']),
+                    'lng': float(meta['lng']),
+                    'vehicle_type': meta['vehicle_type'],
+                    'rating': float(meta['rating'])
+                })
+
+    # Sort by distance and return top candidates
+    nearby_drivers.sort(key=lambda d: haversine(lat, lng, d['lat'], d['lng']))
+    return nearby_drivers[:20]</code></pre>
+
+                    <h3>Location Update Processing</h3>
+                    <pre class="code-block"><code>def process_location_update(event):
+    """Process a single driver location update from Kafka."""
+    driver_id = event['driver_id']
+    lat, lng = event['latitude'], event['longitude']
+    timestamp = event['timestamp']
+
+    # 1. Update Redis GEO index
+    city_id = get_city_for_location(lat, lng)
+    redis.geoadd(f"city:{city_id}:drivers", lng, lat, driver_id)
+
+    # 2. Update H3 hex membership
+    old_hex = redis.hget(f"driver:{driver_id}:meta", "h3_hex")
+    new_hex = h3.latlng_to_cell(lat, lng, resolution=9)
+    if old_hex != new_hex:
+        if old_hex:
+            redis.srem(f"hex:{old_hex}:drivers", driver_id)
+        redis.sadd(f"hex:{new_hex}:drivers", driver_id)
+
+    # 3. Update driver metadata
+    redis.hset(f"driver:{driver_id}:meta", mapping={
+        'lat': lat, 'lng': lng,
+        'h3_hex': new_hex,
+        'heading': event.get('heading', 0),
+        'speed': event.get('speed', 0),
+        'last_update': timestamp
+    })
+
+    # 4. If driver is on active trip, fan out to rider's tracking channel
+    active_trip = redis.get(f"driver:{driver_id}:active_trip")
+    if active_trip:
+        publish_to_rider_tracking(active_trip, lat, lng, timestamp)</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6b. Matching Algorithm          -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6b. Matching Algorithm</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Matching is the most business-critical algorithm. A naive approach (assign closest driver) leaves money and efficiency on the table. Staff-level candidates should discuss <strong>batch matching</strong> vs. <strong>greedy matching</strong>.</p>
+
+                    <h3>Naive vs. Batch Matching</h3>
+
+                    <div class="card">
+                        <h4>Greedy (First-Come-First-Served)</h4>
+                        <p>Each ride request immediately grabs the closest available driver. Simple, but suboptimal:</p>
+                        <ul>
+                            <li>Driver A is 2 min from Rider 1 and 3 min from Rider 2</li>
+                            <li>Driver B is 10 min from Rider 1 and 1 min from Rider 2</li>
+                            <li>Greedy assigns A&rarr;1, B&rarr;2 (total: 2+1=3 min if lucky, but if Rider 1 arrives first, it's A&rarr;1 and B&rarr;2 = 2+1=3 min; if Rider 2 first, it's A&rarr;2 and B&rarr;1 = 3+10=13 min)</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Batch Matching (Uber's Approach)</h4>
+                        <p>Accumulate ride requests for a short window (2-5 seconds), then solve a global optimization:</p>
+                        <ul>
+                            <li>Formulate as a <strong>bipartite matching problem</strong></li>
+                            <li>Minimize total wait time (or maximize total driver utilization)</li>
+                            <li>Use the <strong>Hungarian algorithm</strong> or auction-based algorithms</li>
+                            <li>Uber reported a <strong>20% reduction in wait times</strong> after switching to batch matching</li>
+                        </ul>
+                    </div>
+
+                    <h3>Driver Scoring Function</h3>
+                    <pre class="code-block"><code>def score_driver(driver, ride_request):
+    """
+    Compute a match score for a driver-rider pair.
+    Lower score = better match.
+    """
+    # Distance-based ETA (primary factor)
+    eta_minutes = compute_eta(
+        driver.lat, driver.lng,
+        ride_request.pickup_lat, ride_request.pickup_lng
+    )
+
+    # Filter: skip if ETA &gt; max threshold (e.g., 15 min)
+    if eta_minutes &gt; MAX_PICKUP_ETA:
+        return float('inf')
+
+    # Vehicle type match
+    if ride_request.ride_type == 'premium' and driver.vehicle_type != 'premium':
+        return float('inf')
+
+    # Composite score (weights tuned via ML)
+    score = (
+        0.6 * eta_minutes +                    # Proximity
+        0.2 * (5.0 - driver.rating) * 3 +     # Driver rating (lower = better)
+        0.1 * driver.acceptance_rate_penalty +  # Penalize low acceptance
+        0.1 * driver.idle_time_bonus            # Prioritize idle drivers
+    )
+
+    return score</code></pre>
+
+                    <h3>Matching Flow</h3>
+                    <pre class="code-block"><code>async def match_ride(ride_request):
+    """Full matching pipeline."""
+    # 1. Find candidate drivers
+    candidates = location_service.find_nearby_drivers(
+        ride_request.pickup_lat,
+        ride_request.pickup_lng,
+        radius_km=5
+    )
+
+    if not candidates:
+        # Expand radius and retry
+        candidates = location_service.find_nearby_drivers(
+            ride_request.pickup_lat,
+            ride_request.pickup_lng,
+            radius_km=10
+        )
+
+    if not candidates:
+        return MatchResult(status='NO_DRIVERS_AVAILABLE')
+
+    # 2. Score and rank
+    scored = [(score_driver(d, ride_request), d) for d in candidates]
+    scored.sort(key=lambda x: x[0])
+
+    # 3. Offer to best driver (with timeout)
+    for score, driver in scored[:5]:  # Try top 5
+        offer = await send_driver_offer(driver.driver_id, ride_request, timeout=15)
+        if offer.accepted:
+            # 4. Atomically mark driver as busy
+            success = await claim_driver(driver.driver_id, ride_request.trip_id)
+            if success:
+                return MatchResult(status='MATCHED', driver=driver)
+            # Another request claimed this driver; try next
+
+    return MatchResult(status='NO_DRIVER_ACCEPTED')</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                        <strong>Staff-Level Signal:</strong> Discuss the <strong>claim_driver atomicity problem</strong>. Two ride requests might try to claim the same driver simultaneously. Use Redis SETNX or a database compare-and-swap: <code>UPDATE drivers SET status='busy', trip_id=? WHERE driver_id=? AND status='available'</code>. Check affected rows = 1 to confirm the claim. This is a classic distributed locking problem.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6c. Real-time Tracking          -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6c. Real-time Tracking</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Once a trip is matched, the rider needs to see the driver's live location. This requires a dedicated real-time push channel.</p>
+
+                    <h3>Tracking Architecture</h3>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant DA as Driver App
+    participant WSG as WebSocket Gateway
+    participant KF as Kafka
+    participant LP as Location Processor
+    participant RD as Redis PubSub
+    participant WSR as WebSocket Gateway (Rider)
+    participant RA as Rider App
+
+    DA->>WSG: GPS update (lat, lng, heading, speed)
+    WSG->>KF: Publish to location-updates topic
+    KF->>LP: Consume location event
+    LP->>LP: Update Redis GEO index
+    LP->>RD: PUBLISH trip:{trip_id}:location
+    RD->>WSR: Subscribe delivers update
+    WSR->>RA: Push location to rider via WebSocket
+
+    Note over DA,RA: Updates flow every 3-4 seconds
+    Note over LP,RD: Processor also writes to TimescaleDB for trip history
+                        </div>
+                    </div>
+
+                    <h3>WebSocket Connection Management</h3>
+                    <p>At peak, we have <strong>8-10 million concurrent WebSocket connections</strong>. Key design considerations:</p>
+                    <ul>
+                        <li><strong>Connection affinity:</strong> Use consistent hashing to route a user's connection to the same gateway server</li>
+                        <li><strong>Heartbeats:</strong> Ping/pong every 30 seconds to detect dead connections</li>
+                        <li><strong>Reconnection:</strong> Client-side exponential backoff with jitter; server replays last known state on reconnect</li>
+                        <li><strong>Fan-out:</strong> A driver's location update must reach only the specific rider tracking that trip (1:1 fan-out, not broadcast)</li>
+                    </ul>
+
+                    <pre class="code-block"><code>// WebSocket Gateway - simplified Go implementation
+func handleDriverLocationUpdate(conn *websocket.Conn, msg LocationUpdate) {
+    driverID := msg.DriverID
+
+    // 1. Forward to Kafka for processing
+    kafka.Produce("location-updates", driverID, msg)
+
+    // 2. If driver has an active trip, push directly to rider
+    tripID, err := redis.Get(ctx, fmt.Sprintf("driver:%s:active_trip", driverID)).Result()
+    if err == nil &amp;&amp; tripID != "" {
+        // Find which gateway server the rider is connected to
+        riderGateway, _ := redis.Get(ctx, fmt.Sprintf("trip:%s:rider_gateway", tripID)).Result()
+
+        if riderGateway == selfID {
+            // Rider is on this server - push directly
+            riderConn := getConnection(tripID, "rider")
+            riderConn.WriteJSON(LocationEvent{
+                Type:      "driver_location",
+                TripID:    tripID,
+                Latitude:  msg.Latitude,
+                Longitude: msg.Longitude,
+                Heading:   msg.Heading,
+                ETA:       computeQuickETA(msg, tripID),
+            })
+        } else {
+            // Rider is on another gateway - use Redis PubSub
+            redis.Publish(ctx, fmt.Sprintf("trip:%s:location", tripID), msg)
+        }
+    }
+}</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--warning-color, #fbbf24);">
+                        <strong>Staff-Level Insight:</strong> A common mistake is using a global pub/sub channel for all location updates. This creates a <strong>thundering herd problem</strong> at 1.25M messages/second. Instead, use per-trip channels. Redis Pub/Sub can handle millions of channels efficiently because idle channels consume no resources.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6d. ETA Calculation             -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6d. ETA Calculation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>ETA accuracy directly impacts user trust and pricing. Uber has published extensively on their approach, which combines graph algorithms with machine learning.</p>
+
+                    <h3>ETA Layers</h3>
+                    <ol>
+                        <li><strong>Road Graph (Dijkstra / A*):</strong> Base routing on the road network graph (OpenStreetMap or proprietary). Gives theoretical shortest-time path.</li>
+                        <li><strong>Historical Traffic:</strong> Overlay average speed data per road segment per time-of-day and day-of-week. "This highway averages 25 mph on Friday at 5 PM."</li>
+                        <li><strong>Real-time Traffic:</strong> Use live GPS data from active drivers to compute current segment speeds. If 50 drivers are crawling on I-405 at 10 mph, update that edge weight.</li>
+                        <li><strong>ML Post-Processing:</strong> A gradient-boosted model adjusts the graph-based ETA using features like weather, events, pickup complexity (airport vs. street), and historical trip durations for similar routes.</li>
+                    </ol>
+
+                    <pre class="code-block"><code>class ETAService:
+    def compute_eta(self, origin_lat, origin_lng, dest_lat, dest_lng):
+        """Multi-layer ETA computation."""
+        # Layer 1: Graph-based routing
+        route = self.routing_engine.route(
+            origin=(origin_lat, origin_lng),
+            destination=(dest_lat, dest_lng),
+            algorithm='a_star'
+        )
+        base_eta = route.duration_seconds
+
+        # Layer 2: Historical traffic adjustment
+        hour = datetime.now().hour
+        day_of_week = datetime.now().weekday()
+        historical_factor = self.traffic_db.get_speed_factor(
+            route.segments, hour, day_of_week
+        )
+        adjusted_eta = base_eta * historical_factor
+
+        # Layer 3: Real-time traffic from driver GPS
+        realtime_factor = self.realtime_traffic.get_speed_factor(
+            route.segments
+        )
+        adjusted_eta *= realtime_factor
+
+        # Layer 4: ML correction
+        features = {
+            'base_eta': adjusted_eta,
+            'distance_km': route.distance_km,
+            'num_turns': route.num_turns,
+            'hour': hour,
+            'day_of_week': day_of_week,
+            'weather': self.weather_api.current_conditions(),
+            'is_airport': self.is_airport_pickup(origin_lat, origin_lng),
+        }
+        ml_eta = self.ml_model.predict(features)
+
+        return int(ml_eta)</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                        <strong>Staff-Level Signal:</strong> Discuss <strong>ETA decomposition</strong>. The pickup ETA and trip ETA have different error profiles. Pickup ETAs must account for the driver finding the exact pickup spot (parking, one-way streets), which adds 2-5 minutes of uncertainty that pure routing ignores. Uber adds a learned "last mile" correction for this.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6e. Surge Pricing               -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6e. Surge Pricing</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Surge pricing is a marketplace balancing mechanism. When demand exceeds supply in an area, prices increase to (a) incentivize more drivers to come online and (b) reduce marginal demand.</p>
+
+                    <h3>How Surge Works</h3>
+                    <ol>
+                        <li><strong>Divide city into zones:</strong> Use H3 hexagons at resolution 7 (~5 km&sup2; each)</li>
+                        <li><strong>Measure supply:</strong> Count available drivers per zone</li>
+                        <li><strong>Measure demand:</strong> Count ride requests per zone in last N minutes</li>
+                        <li><strong>Compute multiplier:</strong> demand/supply ratio mapped to a pricing curve</li>
+                        <li><strong>Smooth:</strong> Apply temporal smoothing to avoid price whiplash</li>
+                    </ol>
+
+                    <pre class="code-block"><code>def compute_surge_multiplier(zone_id, city_id):
+    """Compute surge pricing multiplier for a zone."""
+    # Count supply: available drivers in this zone
+    supply = redis.scard(f"zone:{zone_id}:available_drivers")
+
+    # Count demand: ride requests in last 5 minutes
+    now = time.time()
+    demand = redis.zcount(
+        f"zone:{zone_id}:requests",
+        now - 300,  # 5 min window
+        now
+    )
+
+    if supply == 0:
+        return MAX_SURGE  # Cap at 3.0x
+
+    # Raw ratio
+    ratio = demand / max(supply, 1)
+
+    # Map ratio to multiplier using a curve
+    # ratio &lt; 0.5: no surge (1.0x)
+    # ratio 0.5-1.0: mild surge (1.0-1.5x)
+    # ratio 1.0-2.0: moderate surge (1.5-2.5x)
+    # ratio &gt; 2.0: heavy surge (2.5-3.0x, capped)
+    if ratio &lt; 0.5:
+        multiplier = 1.0
+    elif ratio &lt; 1.0:
+        multiplier = 1.0 + (ratio - 0.5) * 1.0
+    elif ratio &lt; 2.0:
+        multiplier = 1.5 + (ratio - 1.0) * 1.0
+    else:
+        multiplier = min(2.5 + (ratio - 2.0) * 0.5, MAX_SURGE)
+
+    # Temporal smoothing: blend with previous value
+    prev = redis.get(f"zone:{zone_id}:surge") or 1.0
+    smoothed = 0.7 * multiplier + 0.3 * float(prev)
+
+    redis.setex(f"zone:{zone_id}:surge", 60, round(smoothed, 2))
+    return round(smoothed, 2)</code></pre>
+
+                    <h3>Fare Calculation</h3>
+                    <pre class="code-block"><code>def calculate_fare(trip):
+    """Calculate total fare for a completed trip."""
+    # City-specific rate card
+    rates = get_rate_card(trip.city_id, trip.ride_type)
+
+    base_fare = rates.base_fare                          # e.g., $2.50
+    distance_fare = trip.distance_miles * rates.per_mile  # e.g., $1.75/mile
+    time_fare = trip.duration_minutes * rates.per_minute  # e.g., $0.35/min
+
+    subtotal = base_fare + distance_fare + time_fare
+
+    # Apply surge
+    surged = subtotal * trip.surge_multiplier
+
+    # Add booking fee and tolls
+    total = surged + rates.booking_fee + trip.tolls
+
+    # Apply minimum fare
+    total = max(total, rates.minimum_fare)
+
+    return round(total, 2)</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--warning-color, #fbbf24);">
+                        <strong>Fairness Considerations (Staff-Level):</strong>
+                        <ul>
+                            <li><strong>Surge caps:</strong> Many cities regulate maximum surge (e.g., 3x) and prohibit surge during declared emergencies</li>
+                            <li><strong>Upfront pricing:</strong> Modern Uber shows the fare before booking &mdash; this uses ML to predict the actual fare, decoupling the rider's price from the metered trip</li>
+                            <li><strong>Anti-gaming:</strong> Detect and prevent drivers from colluding to create artificial scarcity (mass log-offs)</li>
+                            <li><strong>Equity:</strong> Ensure surge doesn't systematically disadvantage lower-income neighborhoods</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6f. Trip State Machine          -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6f. Trip State Machine</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A trip's lifecycle is modeled as a finite state machine. Every transition triggers side effects (notifications, billing, driver status changes). Getting this right is critical for consistency.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> REQUESTED: Rider requests ride
+    REQUESTED --> MATCHING: System searches for drivers
+    MATCHING --> MATCHED: Driver accepts
+    MATCHING --> NO_DRIVERS: No drivers available
+    NO_DRIVERS --> MATCHING: Retry with expanded radius
+    NO_DRIVERS --> CANCELLED: Timeout / rider cancels
+    MATCHED --> DRIVER_EN_ROUTE: Driver heading to pickup
+    DRIVER_EN_ROUTE --> DRIVER_ARRIVED: Driver at pickup
+    DRIVER_ARRIVED --> IN_PROGRESS: Rider picked up, trip starts
+    IN_PROGRESS --> COMPLETED: Trip ends at destination
+    COMPLETED --> [*]
+
+    REQUESTED --> CANCELLED: Rider cancels
+    MATCHED --> CANCELLED: Rider/Driver cancels
+    DRIVER_EN_ROUTE --> CANCELLED: Rider/Driver cancels
+    DRIVER_ARRIVED --> CANCELLED: No-show timeout
+    CANCELLED --> [*]
+                        </div>
+                    </div>
+
+                    <h3>State Transition Handler</h3>
+                    <pre class="code-block"><code>class TripStateMachine:
+    VALID_TRANSITIONS = {
+        'REQUESTED':       ['MATCHING', 'CANCELLED'],
+        'MATCHING':        ['MATCHED', 'NO_DRIVERS', 'CANCELLED'],
+        'NO_DRIVERS':      ['MATCHING', 'CANCELLED'],
+        'MATCHED':         ['DRIVER_EN_ROUTE', 'CANCELLED'],
+        'DRIVER_EN_ROUTE': ['DRIVER_ARRIVED', 'CANCELLED'],
+        'DRIVER_ARRIVED':  ['IN_PROGRESS', 'CANCELLED'],
+        'IN_PROGRESS':     ['COMPLETED'],
+        'COMPLETED':       [],
+        'CANCELLED':       [],
+    }
+
+    def transition(self, trip_id, new_status, actor=None):
+        """Atomically transition a trip's state."""
+        # Optimistic locking with version check
+        trip = db.execute("""
+            SELECT trip_id, status, version
+            FROM trips WHERE trip_id = %s FOR UPDATE
+        """, [trip_id])
+
+        if new_status not in self.VALID_TRANSITIONS[trip.status]:
+            raise InvalidTransitionError(
+                f"Cannot go from {trip.status} to {new_status}"
+            )
+
+        # Update with version bump
+        rows = db.execute("""
+            UPDATE trips
+            SET status = %s, version = version + 1, updated_at = NOW()
+            WHERE trip_id = %s AND version = %s
+        """, [new_status, trip_id, trip.version])
+
+        if rows != 1:
+            raise ConcurrentModificationError()
+
+        # Trigger side effects
+        self._on_transition(trip_id, trip.status, new_status, actor)
+
+    def _on_transition(self, trip_id, old_status, new_status, actor):
+        """Side effects for each state transition."""
+        if new_status == 'MATCHED':
+            notify_rider("Driver is on the way!", trip_id)
+            notify_driver("New ride request accepted", trip_id)
+            update_driver_status(trip_id, 'busy')
+
+        elif new_status == 'DRIVER_ARRIVED':
+            notify_rider("Your driver has arrived!", trip_id)
+            start_noshow_timer(trip_id, timeout=300)  # 5 min
+
+        elif new_status == 'IN_PROGRESS':
+            cancel_noshow_timer(trip_id)
+            start_trip_metering(trip_id)
+
+        elif new_status == 'COMPLETED':
+            stop_trip_metering(trip_id)
+            fare = calculate_fare(trip_id)
+            charge_rider(trip_id, fare)
+            update_driver_status(trip_id, 'available')
+            request_ratings(trip_id)
+
+        elif new_status == 'CANCELLED':
+            handle_cancellation(trip_id, old_status, actor)
+            update_driver_status(trip_id, 'available')</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                        <strong>Staff-Level Signal:</strong> Use <code>SELECT ... FOR UPDATE</code> (pessimistic locking) or optimistic concurrency control (version column) to prevent race conditions. Two simultaneous requests (rider cancels while driver completes) must result in exactly one valid transition, not a corrupted state. In a distributed system, consider using a saga pattern with compensation actions for multi-service state changes.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 6g. Geo-indexing Deep Dive      -->
+            <!-- ============================== -->
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>6g. Geo-indexing with Geohash: How It Works</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Geohashing converts a 2D coordinate (latitude, longitude) into a 1D string by interleaving bits of the latitude and longitude, then encoding in base-32. Nearby points share a common prefix.</p>
+
+                    <h3>Geohash Precision Levels</h3>
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color);">
+                                <th style="text-align:left; padding:8px;">Length</th>
+                                <th style="text-align:left; padding:8px;">Cell Width</th>
+                                <th style="text-align:left; padding:8px;">Cell Height</th>
+                                <th style="text-align:left; padding:8px;">Use Case</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">4</td>
+                                <td style="padding:8px;">39.1 km</td>
+                                <td style="padding:8px;">19.5 km</td>
+                                <td style="padding:8px;">Metro area / city-level surge zones</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">5</td>
+                                <td style="padding:8px;">4.9 km</td>
+                                <td style="padding:8px;">4.9 km</td>
+                                <td style="padding:8px;">Neighborhood-level driver search</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">6</td>
+                                <td style="padding:8px;">1.2 km</td>
+                                <td style="padding:8px;">0.61 km</td>
+                                <td style="padding:8px;">Precise nearby driver lookup</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">7</td>
+                                <td style="padding:8px;">153 m</td>
+                                <td style="padding:8px;">153 m</td>
+                                <td style="padding:8px;">Street-level precision</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">8</td>
+                                <td style="padding:8px;">38 m</td>
+                                <td style="padding:8px;">19 m</td>
+                                <td style="padding:8px;">Exact pickup location</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>The Boundary Problem</h3>
+                    <p>Two points right next to each other can have completely different geohash prefixes if they fall on opposite sides of a cell boundary. To handle this, always query the <strong>target cell + its 8 neighbors</strong>:</p>
+
+                    <pre class="code-block"><code>import geohash2
+
+def find_drivers_geohash(lat, lng, precision=6):
+    """Find nearby drivers using geohash with neighbor expansion."""
+    center = geohash2.encode(lat, lng, precision=precision)
+    neighbors = geohash2.neighbors(center)  # Returns 8 surrounding cells
+
+    all_cells = [center] + neighbors  # 9 cells total
+
+    drivers = []
+    for cell in all_cells:
+        # Each cell maps to a Redis set of driver IDs
+        cell_drivers = redis.smembers(f"geohash:{cell}:drivers")
+        drivers.extend(cell_drivers)
+
+    # Filter by exact distance and availability
+    return [d for d in drivers
+            if is_available(d) and haversine_distance(lat, lng, d.lat, d.lng) &lt; 5.0]</code></pre>
+
+                    <div class="card mt-3" style="border-left: 4px solid var(--primary-color, #60a5fa);">
+                        <strong>Staff-Level Signal:</strong> Compare Geohash precision 6 (1.2 km cells, 9 cells = ~10 km&sup2; search area) with H3 resolution 9 (0.1 km&sup2; cells, 7 cells = ~0.7 km&sup2;). H3 gives much finer-grained control, but requires k-ring expansion for larger radii. Discuss the trade-off: Geohash is simpler and natively supported by Redis and many databases; H3 requires a library but gives better spatial properties.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 7. Scaling Considerations       -->
+            <!-- ============================== -->
+            <h2 class="mt-4">7. Scaling Considerations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Scaling to Global Operations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>City-Level Sharding</h3>
+                    <p>Ride-sharing has a natural sharding key: <strong>city</strong>. A ride in New York never needs to know about drivers in London. This gives us clean isolation:</p>
+                    <ul>
+                        <li><strong>Location data:</strong> Shard Redis by city &mdash; <code>city:{city_id}:drivers</code></li>
+                        <li><strong>Matching:</strong> Run independent matching engines per city</li>
+                        <li><strong>Surge:</strong> Compute per-city (or per-zone within city)</li>
+                        <li><strong>Trip data:</strong> Shard PostgreSQL by city_id for active trips; archive to a global data warehouse</li>
+                    </ul>
+
+                    <h3>Location Data Volume</h3>
+                    <p>At 21.6 TB/day of raw location data, storage strategy is critical:</p>
+                    <ul>
+                        <li><strong>Hot tier (Redis):</strong> Only latest location per driver (~5M entries, ~1 GB). This is the real-time index.</li>
+                        <li><strong>Warm tier (TimescaleDB/InfluxDB):</strong> Last 24 hours of location history for active trip tracking and ETA refinement. TTL = 24h.</li>
+                        <li><strong>Cold tier (S3 + Parquet):</strong> Compressed location history for analytics, ML training, route optimization. Stored indefinitely but queried via Spark/Presto.</li>
+                    </ul>
+
+                    <h3>Handling Peak Load</h3>
+                    <table style="width:100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border-color);">
+                                <th style="text-align:left; padding:8px;">Challenge</th>
+                                <th style="text-align:left; padding:8px;">Strategy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">New Year's Eve (10x surge in ride requests)</td>
+                                <td style="padding:8px;">Pre-provision matching capacity; aggressive surge pricing activates early to attract drivers; queue ride requests with estimated wait times</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Sports event end (sudden spike in one area)</td>
+                                <td style="padding:8px;">Predictive scaling based on event schedules; "scheduled rides" feature; geofence-aware surge</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">WebSocket connection storms</td>
+                                <td style="padding:8px;">Rate limiting on reconnects; connection draining during deployments; regional WebSocket gateway clusters</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding:8px;">Kafka consumer lag</td>
+                                <td style="padding:8px;">Partition by city for parallelism; auto-scale consumer groups; drop stale location updates (&gt;10s old)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h3>Multi-Region Deployment</h3>
+                    <ul>
+                        <li><strong>Regional independence:</strong> Each region (US, EU, APAC) runs its own full stack. A rider in Mumbai never hits US servers.</li>
+                        <li><strong>Data sovereignty:</strong> GDPR requires EU trip data stays in EU. No cross-region replication of PII.</li>
+                        <li><strong>Global services:</strong> User authentication, account management, and analytics can be centralized with read replicas.</li>
+                        <li><strong>Cross-region travel:</strong> When a user opens the app in a new region, route them to the nearest regional deployment. Account data syncs lazily.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 8. Failure Scenarios            -->
+            <!-- ============================== -->
+            <h2 class="mt-4">8. Failure Scenarios</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Handling Failures Gracefully</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>Driver Goes Offline Mid-Trip</h3>
+                    <div class="card">
+                        <p><strong>Detection:</strong> No location update received for &gt;30 seconds (normally every 4s).</p>
+                        <p><strong>Response:</strong></p>
+                        <ol>
+                            <li>Mark driver connection as "stale" after 15 seconds</li>
+                            <li>Show rider "driver connection lost" and last known position</li>
+                            <li>After 60 seconds, attempt phone call to driver</li>
+                            <li>After 120 seconds, offer rider option to cancel (no fee) or wait</li>
+                            <li>If driver reconnects, resume trip from last known state</li>
+                            <li>If driver never reconnects, cancel trip, refund any charge, assign new driver</li>
+                        </ol>
+                        <p><strong>Root causes:</strong> Tunnel/dead zone, phone crash, battery died, driver-side app crash. Design for all of these.</p>
+                    </div>
+
+                    <h3>Payment Fails After Trip Completion</h3>
+                    <div class="card mt-3">
+                        <p><strong>Strategy:</strong> Pre-authorize payment before matching a driver. Place a hold for the estimated fare amount.</p>
+                        <ol>
+                            <li>On ride request: pre-auth estimated fare + 20% buffer</li>
+                            <li>On trip completion: capture actual amount (must be &le; pre-auth)</li>
+                            <li>If capture fails: retry 3 times with exponential backoff</li>
+                            <li>If still fails: queue for async retry, mark trip as "payment_pending"</li>
+                            <li>Driver gets paid regardless (platform absorbs risk)</li>
+                            <li>Rider account flagged; future rides require alternative payment method</li>
+                        </ol>
+                    </div>
+
+                    <h3>GPS Drift / Inaccurate Location</h3>
+                    <div class="card mt-3">
+                        <p><strong>Problem:</strong> Urban canyons, tunnels, and multi-story buildings cause GPS accuracy to degrade to 50-100m.</p>
+                        <p><strong>Mitigations:</strong></p>
+                        <ul>
+                            <li><strong>Snap to road:</strong> Use map-matching algorithms to snap GPS points to the nearest road segment</li>
+                            <li><strong>Kalman filter:</strong> Smooth noisy GPS readings using speed, heading, and historical trajectory</li>
+                            <li><strong>Outlier rejection:</strong> If a GPS point implies &gt;200 km/h movement, discard it</li>
+                            <li><strong>Pickup pin:</strong> Let riders manually adjust pickup pin; driver sees both GPS and pin location</li>
+                        </ul>
+                    </div>
+
+                    <h3>Matching Service Failure</h3>
+                    <div class="card mt-3">
+                        <p><strong>Fallback strategy:</strong></p>
+                        <ul>
+                            <li>Queue ride requests in Kafka; they survive service restarts</li>
+                            <li>Degrade to simple nearest-driver matching (skip optimization)</li>
+                            <li>Show riders "finding your ride" with extended timeout</li>
+                            <li>Circuit breaker prevents cascading failures to location and pricing services</li>
+                        </ul>
+                    </div>
+
+                    <h3>Redis Cluster Failure (Location Index)</h3>
+                    <div class="card mt-3">
+                        <p><strong>Impact:</strong> Cannot find nearby drivers = cannot match rides.</p>
+                        <p><strong>Mitigations:</strong></p>
+                        <ul>
+                            <li>Redis Cluster with replicas (automatic failover in &lt;10s)</li>
+                            <li>Secondary index in Elasticsearch as hot standby</li>
+                            <li>Drivers cache their own location locally; on Redis recovery, bulk re-register</li>
+                            <li>During outage: use last known positions (stale by seconds, usually acceptable)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 9. API Design                   -->
+            <!-- ============================== -->
+            <h2 class="mt-4">9. API Design</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Key API Endpoints</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre class="code-block"><code># Rider APIs
+POST   /api/v1/rides/estimate
+       Body: { pickup: {lat, lng}, dropoff: {lat, lng}, ride_type: "economy" }
+       Response: { estimated_fare: "$12-15", surge: 1.2, eta_minutes: 4 }
+
+POST   /api/v1/rides
+       Body: { pickup: {lat, lng}, dropoff: {lat, lng}, ride_type: "economy",
+               payment_method_id: "pm_xxx" }
+       Response: { trip_id: "trip_abc", status: "REQUESTED" }
+
+GET    /api/v1/rides/{trip_id}
+       Response: { trip_id, status, driver: {...}, eta, fare, route }
+
+DELETE /api/v1/rides/{trip_id}
+       Response: { status: "CANCELLED", cancellation_fee: "$5.00" }
+
+GET    /api/v1/rides/history?page=1&amp;limit=20
+       Response: { trips: [...], pagination: {...} }
+
+POST   /api/v1/rides/{trip_id}/rating
+       Body: { rating: 5, comment: "Great driver!" }
+
+# Driver APIs
+PUT    /api/v1/drivers/status
+       Body: { status: "available" }   # go online/offline
+
+POST   /api/v1/drivers/location
+       Body: { lat: 40.7484, lng: -73.9857, heading: 45, speed: 30 }
+       (Also sent via WebSocket for lower overhead)
+
+POST   /api/v1/drivers/rides/{trip_id}/accept
+POST   /api/v1/drivers/rides/{trip_id}/arrive
+POST   /api/v1/drivers/rides/{trip_id}/start
+POST   /api/v1/drivers/rides/{trip_id}/complete
+
+# WebSocket Channels
+ws://gateway/driver/{driver_id}/location    # Driver pushes GPS
+ws://gateway/rider/{trip_id}/tracking       # Rider receives driver location</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- 10. Common Follow-up Questions  -->
+            <!-- ============================== -->
+            <h2 class="mt-4">10. Common Follow-up Questions</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Questions Interviewers Ask</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <div class="card">
+                        <h4>Q: How would you implement ride-sharing/pooling (UberPool)?</h4>
+                        <p><strong>A:</strong> Pool introduces a fundamentally harder matching problem. Instead of 1:1 driver-rider matching, you must solve a <strong>vehicle routing problem (VRP)</strong>: given N active pool requests, find routes that pick up and drop off multiple riders with minimal detour. This requires:</p>
+                        <ul>
+                            <li>A route compatibility check: Can rider B be added to driver X's current route without adding &gt;5 min to rider A's trip?</li>
+                            <li>Dynamic re-optimization as new requests arrive</li>
+                            <li>Shared fare splitting based on actual detour percentage</li>
+                            <li>This is NP-hard; use heuristic algorithms (insertion heuristic, simulated annealing) with time limits</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Q: How do you handle the "two riders request the same driver" race condition?</h4>
+                        <p><strong>A:</strong> Use atomic claim operations. In Redis: <code>SET driver:{id}:trip {trip_id} NX EX 30</code> (NX = only if not exists). In PostgreSQL: <code>UPDATE drivers SET status='busy' WHERE id=? AND status='available'</code> and check <code>affected_rows == 1</code>. The loser retries with the next-best driver. This is compare-and-swap at the application level.</p>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Q: How would you handle a natural disaster or mass evacuation?</h4>
+                        <p><strong>A:</strong> Disable surge pricing (regulatory requirement in many jurisdictions). Activate emergency mode: prioritize rides leaving the affected area, increase matching radius, enable all vehicle types for all requests, coordinate with city emergency services for road closures, and use push notifications to alert drivers of surge demand areas (without price incentive, use "community service" framing). Pre-compute evacuation routing.</p>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Q: How do you prevent driver fraud (fake rides, GPS spoofing)?</h4>
+                        <p><strong>A:</strong> Multi-layered detection:</p>
+                        <ul>
+                            <li><strong>GPS spoofing detection:</strong> Compare GPS with cell tower triangulation and Wi-Fi positioning. Flag inconsistencies.</li>
+                            <li><strong>Trip pattern analysis:</strong> ML model trained on legitimate trips detects anomalies (too-perfect routes, rides between the same two points repeatedly, rides that start and end at the same location).</li>
+                            <li><strong>Speed/acceleration validation:</strong> If GPS shows 0-to-60 in 0.5 seconds, the data is spoofed.</li>
+                            <li><strong>Photo verification:</strong> Periodic selfie checks for drivers; rider-driver photo match.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Q: How do you ensure driver safety?</h4>
+                        <p><strong>A:</strong> Real-time trip monitoring: if a trip deviates significantly from the expected route or enters an unusual area, trigger an automated check-in. Provide an in-app SOS button that shares live location with emergency services. Record trip audio (with consent) as a deterrent. Driver identity verification at onboarding and periodic re-checks.</p>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Q: How would you design scheduled rides (book a ride for tomorrow at 6 AM)?</h4>
+                        <p><strong>A:</strong> Scheduled rides use a <strong>deferred matching</strong> approach: store the request with a target time, then run a matching job 10-15 minutes before the scheduled pickup. The challenge is reserving driver capacity without locking drivers too early (they might want to take other rides). Solutions: show the scheduled ride to nearby drivers as an "offer" they can pre-accept; use ML to predict driver supply at the target time and only confirm if confidence is high. If no pre-accepted driver, fall back to on-demand matching at T-10 minutes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================== -->
+            <!-- Summary Cheat Sheet             -->
+            <!-- ============================== -->
+            <h2 class="mt-4">Summary Cheat Sheet</h2>
+
+            <div class="card">
+                <table style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border-color);">
+                            <th style="text-align:left; padding:8px;">Component</th>
+                            <th style="text-align:left; padding:8px;">Technology</th>
+                            <th style="text-align:left; padding:8px;">Why</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Real-time location index</td>
+                            <td style="padding:8px;">Redis GEO + H3</td>
+                            <td style="padding:8px;">Sub-millisecond spatial queries, 1M+ updates/sec</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Location streaming</td>
+                            <td style="padding:8px;">Kafka</td>
+                            <td style="padding:8px;">Durable, high-throughput event bus for 1.25M events/sec</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Trip data</td>
+                            <td style="padding:8px;">PostgreSQL</td>
+                            <td style="padding:8px;">ACID transactions for trip state machine, strong consistency</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Real-time push</td>
+                            <td style="padding:8px;">WebSocket + Redis PubSub</td>
+                            <td style="padding:8px;">Low-latency bidirectional communication</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Matching</td>
+                            <td style="padding:8px;">Batch optimizer (Hungarian)</td>
+                            <td style="padding:8px;">20% better wait times vs. greedy</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">ETA</td>
+                            <td style="padding:8px;">OSRM + ML post-processing</td>
+                            <td style="padding:8px;">Graph routing + real-world correction</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Location history</td>
+                            <td style="padding:8px;">TimescaleDB (warm) + S3/Parquet (cold)</td>
+                            <td style="padding:8px;">Time-series optimized, cheap archival</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid var(--border-color);">
+                            <td style="padding:8px;">Sharding strategy</td>
+                            <td style="padding:8px;">City-based partitioning</td>
+                            <td style="padding:8px;">Natural isolation, no cross-shard queries needed</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Navigation -->
+            <div style="display:flex; justify-content:space-between; margin-top:2rem;">
+                <a href="video-streaming.html" class="btn btn-secondary">&larr; Previous: Video Streaming</a>
+                <a href="../index.html" class="btn btn-primary">Back to System Design &rarr;</a>
+            </div>
+
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+</body>
+</html>

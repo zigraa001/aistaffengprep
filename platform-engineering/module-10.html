@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 10: Code Review &mdash; Correctness &amp; Performance - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar"><div class="nav-container"><a href="../index.html" class="logo">StaffEngPrep</a><ul class="nav-links"><li><a href="../coding-rounds/index.html">Coding</a></li><li><a href="../system-design/index.html">System Design</a></li><li><a href="../low-level-design/index.html">LLD</a></li><li><a href="../company-specific/index.html">Companies</a></li><li><a href="../behavioral/index.html">Behavioral</a></li><li><a href="../generative-ai/index.html">Gen AI</a></li><li><a href="../metrics-tradeoffs/index.html">Metrics</a></li><li><a href="index.html" style="color: var(--primary-color);">Platform Eng</a></li></ul></div></nav>
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"><nav class="sidebar-nav">
+            <div class="sidebar-section"><div class="sidebar-section-title">Getting Started</div><a href="index.html" class="sidebar-link">Introduction</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Fundamentals &amp; API Design</div><a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a><a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a><a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Connectivity &amp; Reliability</div><a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a><a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a><a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Testing &amp; QA</div><a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a><a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a><a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Code Review &amp; Security</div><a href="module-10.html" class="sidebar-link active" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a><a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Observability &amp; Production</div><a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a></div>
+            <div class="sidebar-section"><div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div><a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a><a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a><a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a></div>
+        </nav></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 10: Code Review &mdash; Correctness &amp; Performance</h1>
+            <div class="card"><h3>What You'll Learn</h3><ul>
+                <li>Code review dimensions: correctness, performance, maintainability</li>
+                <li>Spotting N+1 queries, race conditions, and off-by-one errors</li>
+                <li>Database anti-patterns and reviewing migrations</li>
+                <li>"Spot the Bug" exercises with real code snippets</li>
+                <li>PR culture, constructive feedback, and staff-level review standards</li>
+            </ul></div>
+
+            <h2>Review Dimensions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What are the key dimensions to evaluate during code review?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Dimension</th><th>Questions to Ask</th><th>Priority</th></tr></thead>
+                        <tbody>
+                            <tr><td><strong>Correctness</strong></td><td>Does it do what it's supposed to? Edge cases handled?</td><td>Critical</td></tr>
+                            <tr><td><strong>Security</strong></td><td>Input validation? Auth checks? Injection risks?</td><td>Critical</td></tr>
+                            <tr><td><strong>Performance</strong></td><td>N+1 queries? Unbounded collections? Missing indexes?</td><td>High</td></tr>
+                            <tr><td><strong>Reliability</strong></td><td>Error handling? Timeouts? Retry logic?</td><td>High</td></tr>
+                            <tr><td><strong>Maintainability</strong></td><td>Clear naming? Reasonable complexity? Tests?</td><td>Medium</td></tr>
+                            <tr><td><strong>API design</strong></td><td>Backward compatible? Consistent with conventions?</td><td>Medium</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Staff-level prioritization:</strong> Focus review energy on correctness and security first. Style and naming are important but can be automated with linters. Don't spend 30 minutes arguing about variable names while a race condition goes unnoticed.</p>
+                </div>
+            </div>
+
+            <h2>Common Bugs to Spot</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you spot N+1 query problems in code review?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The N+1 problem occurs when code fetches a list of items and then makes a separate query for each item's related data.</p>
+                    <pre><code class="language-python"># BAD: N+1 queries (1 query for orders + N queries for users)
+orders = db.query("SELECT * FROM orders WHERE status = 'pending'")
+for order in orders:
+    user = db.query("SELECT * FROM users WHERE id = %s", order.user_id)  # N queries!
+    order.user_name = user.name
+
+# GOOD: Single query with JOIN
+orders = db.query("""
+    SELECT o.*, u.name as user_name
+    FROM orders o
+    JOIN users u ON o.user_id = u.id
+    WHERE o.status = 'pending'
+""")
+
+# GOOD: Batch fetch
+orders = db.query("SELECT * FROM orders WHERE status = 'pending'")
+user_ids = [o.user_id for o in orders]
+users = db.query("SELECT * FROM users WHERE id = ANY(%s)", user_ids)
+user_map = {u.id: u for u in users}</code></pre>
+
+                    <p><strong>Red flags in review:</strong></p>
+                    <ul>
+                        <li>Database calls inside a for/while loop</li>
+                        <li>ORM lazy loading in a loop (e.g., <code>order.user.name</code> in Python/Django)</li>
+                        <li>Missing <code>.prefetch_related()</code> or <code>.select_related()</code> in Django</li>
+                        <li>Missing <code>@EntityGraph</code> or <code>JOIN FETCH</code> in JPA/Hibernate</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you spot race conditions during code review?</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python"># BUG: Race condition - check-then-act without atomicity
+def transfer_funds(from_account, to_account, amount):
+    balance = db.get_balance(from_account)
+    if balance &gt;= amount:          # Thread A checks: balance=100, amount=80
+        # Thread B also checks: balance=100, amount=80 (BOTH pass!)
+        db.deduct(from_account, amount)  # Thread A deducts 80 (balance=20)
+        db.add(to_account, amount)       # Thread B deducts 80 (balance=-60!) BUG!
+
+# FIX: Use database-level atomicity
+def transfer_funds(from_account, to_account, amount):
+    rows_updated = db.execute("""
+        UPDATE accounts SET balance = balance - %s
+        WHERE id = %s AND balance &gt;= %s
+    """, amount, from_account, amount)  # Atomic check-and-deduct
+
+    if rows_updated == 0:
+        raise InsufficientFundsError()
+    db.execute("UPDATE accounts SET balance = balance + %s WHERE id = %s",
+               amount, to_account)</code></pre>
+
+                    <p><strong>Red flags in review:</strong></p>
+                    <ul>
+                        <li>Read-then-write patterns without locking or atomic operations</li>
+                        <li>Shared mutable state without synchronization</li>
+                        <li><code>if not exists then create</code> patterns (TOCTOU)</li>
+                        <li>Incrementing counters with <code>count = get(); set(count + 1)</code> instead of atomic increment</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What database anti-patterns should you watch for in reviews?</span></div>
+                <div class="collapsible-content">
+                    <table>
+                        <thead><tr><th>Anti-Pattern</th><th>Problem</th><th>Fix</th></tr></thead>
+                        <tbody>
+                            <tr><td>Missing index on WHERE/JOIN columns</td><td>Full table scan on every query</td><td>Add index, check EXPLAIN plan</td></tr>
+                            <tr><td>SELECT * in production code</td><td>Fetches unnecessary columns, breaks on schema changes</td><td>Select specific columns</td></tr>
+                            <tr><td>Unbounded queries (no LIMIT)</td><td>Returns millions of rows, OOM</td><td>Always paginate or LIMIT</td></tr>
+                            <tr><td>String concatenation in SQL</td><td>SQL injection vulnerability</td><td>Use parameterized queries</td></tr>
+                            <tr><td>Missing transaction for multi-step writes</td><td>Partial updates on failure</td><td>Wrap in transaction</td></tr>
+                            <tr><td>Indexing every column</td><td>Slow writes, wasted storage</td><td>Index only columns used in WHERE/JOIN/ORDER BY</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h2>Spot the Bug Exercises</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #1: User registration endpoint</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.post("/register")
+async def register(request: RegisterRequest):
+    # Check if email exists
+    existing = await db.fetch_one(
+        "SELECT id FROM users WHERE email = $1", request.email
+    )
+    if existing:
+        raise HTTPException(409, "Email already exists")
+
+    # Hash password
+    hashed = hashlib.md5(request.password.encode()).hexdigest()
+
+    # Create user
+    user = await db.execute(
+        "INSERT INTO users (email, password, role) VALUES ($1, $2, $3)",
+        request.email, hashed, request.role
+    )
+    return {"id": user.id, "email": request.email}</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>MD5 for passwords</strong> &mdash; MD5 is cryptographically broken. Use bcrypt or argon2.</li>
+                        <li><strong>Race condition</strong> &mdash; Two concurrent registrations with the same email can both pass the check. Add a UNIQUE constraint on the email column and handle the DB constraint violation.</li>
+                        <li><strong>User-controlled role</strong> &mdash; <code>request.role</code> lets users set their own role (e.g., "admin"). Role should be set server-side.</li>
+                        <li><strong>No input validation</strong> &mdash; No email format validation, no password strength check.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #2: Pagination endpoint</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">@app.get("/orders")
+async def list_orders(page: int = 1, per_page: int = 100):
+    offset = (page - 1) * per_page
+    orders = await db.fetch_all(
+        f"SELECT * FROM orders ORDER BY created_at DESC OFFSET {offset} LIMIT {per_page}"
+    )
+    total = await db.fetch_val("SELECT COUNT(*) FROM orders")
+    return {"orders": orders, "total": total, "page": page}</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>SQL injection</strong> &mdash; f-string with user input (<code>offset</code>, <code>per_page</code>). Use parameterized queries.</li>
+                        <li><strong>No upper bound on per_page</strong> &mdash; User can request <code>per_page=1000000</code> and OOM the server. Cap at a reasonable max (e.g., 100).</li>
+                        <li><strong>No lower bound on page</strong> &mdash; <code>page=0</code> or negative values produce invalid offsets.</li>
+                        <li><strong>SELECT *</strong> &mdash; Returns all columns including potentially sensitive data.</li>
+                        <li><strong>COUNT(*) on every request</strong> &mdash; Expensive on large tables. Consider caching or removing total count.</li>
+                        <li><strong>Offset pagination</strong> &mdash; Slow on large datasets. Consider cursor-based pagination.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #3: Cache invalidation</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">async def get_user_profile(user_id: str):
+    # Check cache
+    cached = await redis.get(f"user:{user_id}")
+    if cached:
+        return json.loads(cached)
+
+    # Fetch from DB
+    user = await db.fetch_one("SELECT * FROM users WHERE id = $1", user_id)
+    if user:
+        await redis.set(f"user:{user_id}", json.dumps(user))
+    return user
+
+async def update_user_profile(user_id: str, data: dict):
+    await db.execute("UPDATE users SET name = $1 WHERE id = $2", data["name"], user_id)
+    await redis.delete(f"user:{user_id}")</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>No TTL on cache</strong> &mdash; If <code>update_user_profile</code> fails to delete cache (Redis down), stale data persists forever. Always set a TTL.</li>
+                        <li><strong>Race condition on update</strong> &mdash; Between DB update and cache delete, another request can read stale DB data and re-cache it. Use cache-aside with TTL, or write-through cache.</li>
+                        <li><strong>No error handling on cache operations</strong> &mdash; If Redis is down, <code>get_user_profile</code> throws instead of falling back to DB.</li>
+                        <li><strong>Cache stampede</strong> &mdash; If cache expires and 1000 requests hit simultaneously, all 1000 query the DB. Use a lock or probabilistic early expiration.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #4: Concurrent counter update</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">public class ViewCounter {
+    private Map&lt;String, Integer&gt; counts = new HashMap&lt;&gt;();
+
+    public void incrementView(String pageId) {
+        int current = counts.getOrDefault(pageId, 0);
+        counts.put(pageId, current + 1);
+    }
+
+    public int getViews(String pageId) {
+        return counts.getOrDefault(pageId, 0);
+    }
+}</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>Not thread-safe</strong> &mdash; HashMap is not concurrent. Multiple threads calling <code>incrementView</code> simultaneously can corrupt the map or lose increments. Use <code>ConcurrentHashMap</code> with <code>compute()</code> or <code>AtomicInteger</code>.</li>
+                        <li><strong>Lost updates</strong> &mdash; Read-then-write is not atomic even with ConcurrentHashMap's <code>get</code>/<code>put</code>. Use <code>counts.merge(pageId, 1, Integer::sum)</code>.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #5: API retry logic</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">def call_payment_api(order_id, amount):
+    for attempt in range(5):
+        try:
+            response = requests.post(
+                "https://api.payment.com/charges",
+                json={"order_id": order_id, "amount": amount},
+                timeout=30
+            )
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 400:
+                return response.json()  # Client error, retry won't help
+        except requests.Timeout:
+            time.sleep(1)
+    raise PaymentError("Payment failed after 5 attempts")</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>Retrying 400 errors</strong> &mdash; The code continues looping on 400 (client error). These are not retryable. It should return/raise on 400.</li>
+                        <li><strong>No idempotency key</strong> &mdash; Retrying a payment POST without an idempotency key can charge the customer multiple times.</li>
+                        <li><strong>Fixed sleep (no backoff)</strong> &mdash; All retries are 1 second apart. Use exponential backoff with jitter.</li>
+                        <li><strong>No circuit breaker</strong> &mdash; If the payment API is down, every order attempt waits 5 &times; 30s = 2.5 minutes.</li>
+                        <li><strong>Swallowing non-timeout exceptions</strong> &mdash; Connection errors are not caught.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <h2>Review Culture</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you give constructive feedback in code reviews?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+                    <table>
+                        <thead><tr><th>Instead of</th><th>Say</th></tr></thead>
+                        <tbody>
+                            <tr><td>"This is wrong"</td><td>"This could cause X when Y happens. What if we..."</td></tr>
+                            <tr><td>"Why did you do it this way?"</td><td>"I'm curious about the thinking behind this approach. I was considering X because..."</td></tr>
+                            <tr><td>"This is bad code"</td><td>"nit: this could be simplified to..." or "suggestion: consider X for readability"</td></tr>
+                            <tr><td>Blocking for style</td><td>"nit (non-blocking): prefer X style" and approve anyway</td></tr>
+                        </tbody>
+                    </table>
+                    <p><strong>Comment prefixes:</strong></p>
+                    <ul>
+                        <li><strong>nit:</strong> &mdash; Style/naming suggestion, non-blocking</li>
+                        <li><strong>suggestion:</strong> &mdash; Consider this alternative, non-blocking</li>
+                        <li><strong>question:</strong> &mdash; I don't understand this, help me understand</li>
+                        <li><strong>issue:</strong> &mdash; This is a bug or security issue, must fix before merge</li>
+                        <li><strong>praise:</strong> &mdash; This is well done! (Don't forget positive feedback)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What should staff engineers prioritize when reviewing code?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Staff engineers should focus on what automated tools can't catch:</p>
+                    <ul>
+                        <li><strong>Architectural fit</strong> &mdash; Does this change align with the system's architecture? Does it introduce unnecessary coupling?</li>
+                        <li><strong>Failure modes</strong> &mdash; What happens when this code fails? Are error paths tested?</li>
+                        <li><strong>Scalability implications</strong> &mdash; Will this work at 10x current load?</li>
+                        <li><strong>API contract changes</strong> &mdash; Is this backward compatible? Will it break consumers?</li>
+                        <li><strong>Operational impact</strong> &mdash; Can this be deployed safely? Is it observable? Can it be rolled back?</li>
+                        <li><strong>Missing context</strong> &mdash; Is the PR description sufficient? Will the next person understand why this change was made?</li>
+                    </ul>
+                    <p><strong>What to delegate to automation:</strong> Style, formatting, import ordering, unused variables, simple type errors. Configure linters and formatters in CI so humans don't waste time on these.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="module-09.html" class="btn btn-secondary">&larr; E2E &amp; Chaos</a>
+                <a href="module-11.html" class="btn btn-primary">Next: Security Review &rarr;</a>
+            </div>
+        </main>
+    </div>
+    <script src="../assets/js/app.js"></script>
+</body>
+</html>

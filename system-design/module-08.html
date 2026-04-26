@@ -8,85 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../coding-rounds/index.html">Coding</a></li>
-                <li><a href="index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../company-specific/index.html">Companies</a></li>
-                <li><a href="../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Getting Started</div>
-                    <a href="index.html" class="sidebar-link">Introduction</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Core Concepts</div>
-                    <a href="module-01.html" class="sidebar-link" data-module="1">
-                        <span class="sidebar-link-number">1</span>Scalability Fundamentals
-                    </a>
-                    <a href="module-02.html" class="sidebar-link" data-module="2">
-                        <span class="sidebar-link-number">2</span>Database Systems
-                    </a>
-                    <a href="module-03.html" class="sidebar-link" data-module="3">
-                        <span class="sidebar-link-number">3</span>Distributed Systems
-                    </a>
-                    <a href="module-04.html" class="sidebar-link" data-module="4">
-                        <span class="sidebar-link-number">4</span>Storage & Data Processing
-                    </a>
-                    <a href="module-05.html" class="sidebar-link" data-module="5">
-                        <span class="sidebar-link-number">5</span>Seminal Papers
-                    </a>
-                    <a href="module-09.html" class="sidebar-link" data-module="9">
-                        <span class="sidebar-link-number">6</span>API Design
-                    </a>
-                    <a href="module-10.html" class="sidebar-link" data-module="10">
-                        <span class="sidebar-link-number">7</span>Numbers to Know
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Patterns</div>
-                    <a href="module-11.html" class="sidebar-link" data-module="11">
-                        <span class="sidebar-link-number">8</span>Real-time Updates
-                    </a>
-                    <a href="module-12.html" class="sidebar-link" data-module="12">
-                        <span class="sidebar-link-number">9</span>Rate Limiting
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Problem Breakdowns</div>
-                    <a href="module-06.html" class="sidebar-link" data-module="6">
-                        <span class="sidebar-link-number">10</span>Common Problems
-                    </a>
-                    <a href="problems/url-shortener.html" class="sidebar-link">URL Shortener</a>
-                    <a href="problems/news-feed.html" class="sidebar-link">News Feed</a>
-                    <a href="problems/chat-system.html" class="sidebar-link">Chat System</a>
-                    <a href="problems/video-streaming.html" class="sidebar-link">Video Streaming</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Interview Prep</div>
-                    <a href="module-07.html" class="sidebar-link" data-module="7">
-                        <span class="sidebar-link-number">11</span>Framework Mastery
-                    </a>
-                    <a href="module-08.html" class="sidebar-link active" data-module="8">
-                        <span class="sidebar-link-number">12</span>Mock Interviews
-                    </a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -272,9 +197,10 @@ def generate_short_code(long_url: str) -> str:
     return hash_bytes[:7]
 
 # Problems:
-# 1. Collisions: MD5 has birthday problem
+# 1. Truncating to 7 hex chars = only 16^7 ≈ 268M possibilities (high collision rate)
 # 2. Same URL = same code (good or bad?)
 # 3. Need collision detection & retry loop
+# 4. hexdigest gives only 0-9a-f, not full base62 alphabet
                     </code>
                 </div>
 
@@ -363,16 +289,32 @@ func (g *IDGenerator) NextID() (int64, error) {
 }
 
 func (g *IDGenerator) allocateRange() error {
-    // Atomic increment in Zookeeper
-    newMax, err := g.zk.IncrBy("/url-shortener/counter", g.rangeSize)
-    if err != nil {
-        return err
+    // CAS loop on Zookeeper znode (ZK has no native IncrBy)
+    for {
+        data, stat, err := g.zk.Get("/url-shortener/counter")
+        if err != nil {
+            return err
+        }
+        current := parseInt64(data)
+        newMax := current + g.rangeSize
+        _, err = g.zk.Set("/url-shortener/counter",
+            []byte(strconv.FormatInt(newMax, 10)), stat.Version)
+        if err == zk.ErrBadVersion {
+            continue // Another server won the race; retry
+        }
+        if err != nil {
+            return err
+        }
+        g.maxID = newMax
+        g.currentID = current
+        return nil
     }
-    g.maxID = newMax
-    g.currentID = newMax - g.rangeSize
-    return nil
 }
                     </code>
+                </div>
+
+                <div class="card mt-2" style="background: var(--warning-bg, #fff3cd);">
+                    <strong>Security Note:</strong> Sequential counter-based IDs are predictable — an attacker can enumerate all URLs. Mitigations: (1) add a random salt and hash the counter before encoding, (2) use a bijective shuffle (format-preserving encryption) to scramble the sequence, or (3) accept the trade-off if URLs are not secret. Mention this in interviews to demonstrate security awareness.
                 </div>
 
                 <div class="card mt-2" style="background: var(--success-bg);">
@@ -653,7 +595,7 @@ flowchart LR
                     <li class="module-item">
                         <div class="module-number">5</div>
                         <div class="module-info">
-                            <div class="module-title">News Feed (Facebook/Twitter)</div>
+                            <div class="module-title">News Feed (Facebook/X)</div>
                             <div class="module-desc">Fan-out strategies, ranking, caching</div>
                         </div>
                     </li>
@@ -797,7 +739,7 @@ flowchart LR
     <script src="../assets/js/app.js"></script>
     <script>
         // Sidebar toggle for mobile
-        const sidebar = document.getElementById('sidebar');
+        const sidebar = document.getElementById('sd-sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -843,5 +785,7 @@ flowchart LR
             window.location.href = 'index.html';
         }
     </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
 </body>
 </html>

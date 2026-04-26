@@ -1,0 +1,2050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 12: Microservices &amp; Service Architecture - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.95rem;
+        }
+        .comparison-table th,
+        .comparison-table td {
+            border: 1px solid var(--border-color, #ddd);
+            padding: 0.75rem 1rem;
+            text-align: left;
+        }
+        .comparison-table th {
+            background: var(--primary-color, #4a6fa5);
+            color: #fff;
+            font-weight: 600;
+        }
+        .comparison-table tr:nth-child(even) {
+            background: var(--bg-secondary, #f8f9fa);
+        }
+        .staff-signal {
+            background: linear-gradient(135deg, #667eea22, #764ba222);
+            border-left: 4px solid #667eea;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .staff-signal strong {
+            color: #667eea;
+        }
+        .interview-tip {
+            background: linear-gradient(135deg, #48bb7822, #38a16922);
+            border-left: 4px solid #48bb78;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .interview-tip strong {
+            color: #38a169;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, #ed893622, #dd6b2022);
+            border-left: 4px solid #ed8936;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box strong {
+            color: #dd6b20;
+        }
+        .quiz-container {
+            margin-top: 2rem;
+        }
+        .quiz-question {
+            background: var(--bg-secondary, #f8f9fa);
+            border: 1px solid var(--border-color, #ddd);
+            border-radius: 0.5rem;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .quiz-question h4 {
+            margin-top: 0;
+        }
+        .quiz-options label {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            margin: 0.35rem 0;
+            border-radius: 0.35rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .quiz-options label:hover {
+            background: var(--primary-color-light, #e8eef6);
+        }
+        .quiz-feedback {
+            display: none;
+            padding: 0.75rem 1rem;
+            margin-top: 0.75rem;
+            border-radius: 0.35rem;
+            font-weight: 500;
+        }
+        .quiz-feedback.correct {
+            display: block;
+            background: #c6f6d5;
+            color: #276749;
+        }
+        .quiz-feedback.incorrect {
+            display: block;
+            background: #fed7d7;
+            color: #9b2c2c;
+        }
+        .btn-check-answer {
+            margin-top: 0.5rem;
+            padding: 0.5rem 1.25rem;
+            background: var(--primary-color, #4a6fa5);
+            color: #fff;
+            border: none;
+            border-radius: 0.35rem;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-check-answer:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 12: Microservices &amp; Service Architecture</h1>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>When and why to decompose a monolith into microservices &mdash; and when <em>not</em> to</li>
+                    <li>Domain-Driven Design (DDD) for identifying service boundaries</li>
+                    <li>API Gateway, Backend-for-Frontend (BFF), and Service Mesh patterns</li>
+                    <li>Synchronous vs. asynchronous inter-service communication</li>
+                    <li>Resilience patterns: circuit breaker, bulkhead, retry with jitter</li>
+                    <li>Data management: database-per-service, sagas, event-driven sync</li>
+                    <li>Deployment strategies: blue-green, canary, rolling, feature flags</li>
+                    <li>Observability: distributed tracing, centralized logging, metrics</li>
+                    <li>Conway's Law and its implications for system architecture</li>
+                    <li>Real-world architectures at Netflix, Amazon, and Uber</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: MONOLITH TO MICROSERVICES                         -->
+            <!-- ============================================================ -->
+            <h2 id="monolith-to-microservices">1. Monolith to Microservices</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Evolution: Why Companies Migrate</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Every successful distributed system started as a monolith. The question is never
+                        &ldquo;should we build microservices from day one?&rdquo; &mdash; the answer to that is almost
+                        always <strong>no</strong>. The real question is: <em>at what point does the monolith
+                        start actively impeding your ability to ship?</em>
+                    </p>
+                    <p>
+                        A monolith is a single deployable unit where all components (UI, business logic, data access)
+                        live in one codebase and share one process. This is how most applications should begin because
+                        it minimizes coordination cost, simplifies debugging, and lets you iterate at maximum speed
+                        when the team is small and the domain is poorly understood.
+                    </p>
+                    <p>
+                        Problems emerge at scale along three axes:
+                    </p>
+                    <ul>
+                        <li><strong>Team scale</strong> &mdash; When 50+ engineers commit to the same codebase,
+                            merge conflicts, long CI pipelines, and deployment queues dominate the workweek.
+                            At Amazon in the early 2000s, a single deploy could take hours and require
+                            dozens of engineers to coordinate.</li>
+                        <li><strong>Operational scale</strong> &mdash; Different features have different scaling
+                            profiles. A monolith forces you to scale everything uniformly. If your search
+                            index needs 10x the compute of your checkout flow, you pay 10x for both.</li>
+                        <li><strong>Domain complexity</strong> &mdash; As the domain grows, bounded contexts
+                            blur together. An &ldquo;Order&rdquo; object that started clean accumulates
+                            responsibilities from shipping, payments, inventory, and fraud detection until
+                            changes anywhere risk breaking everything.</li>
+                    </ul>
+
+                    <h4>Monolith vs. Microservices: Trade-Off Matrix</h4>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Monolith</th>
+                                <th>Microservices</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Deployment</strong></td>
+                                <td>Single unit; simple but risky (all-or-nothing)</td>
+                                <td>Independent deployment per service; smaller blast radius</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Development speed</strong></td>
+                                <td>Fast early; slows with scale</td>
+                                <td>Slower start (infra overhead); faster at scale</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Scalability</strong></td>
+                                <td>Uniform scaling only</td>
+                                <td>Independent scaling per service</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Team autonomy</strong></td>
+                                <td>Low &mdash; shared codebase creates contention</td>
+                                <td>High &mdash; each team owns its service end-to-end</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Debugging</strong></td>
+                                <td>Simple &mdash; one process, one log, one stack trace</td>
+                                <td>Complex &mdash; requires distributed tracing, correlation IDs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Data consistency</strong></td>
+                                <td>ACID transactions trivially available</td>
+                                <td>Eventual consistency; need sagas or 2PC</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Operational cost</strong></td>
+                                <td>Low &mdash; one thing to run</td>
+                                <td>High &mdash; networking, orchestration, monitoring per service</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Technology diversity</strong></td>
+                                <td>Single tech stack</td>
+                                <td>Polyglot possible (at a cost)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Latency</strong></td>
+                                <td>In-process calls (nanoseconds)</td>
+                                <td>Network calls (milliseconds); requires careful fanout design</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>When Microservices Are the WRONG Choice</h4>
+
+                    <div class="warning-box">
+                        <strong>Anti-pattern: Premature Decomposition.</strong>
+                        If your team is fewer than ~20 engineers, your domain is not well understood,
+                        or you do not have mature CI/CD and observability infrastructure, microservices
+                        will slow you down, not speed you up. You trade one set of problems (monolith complexity)
+                        for a harder set (distributed systems complexity) without the organizational scale
+                        to justify it.
+                    </div>
+
+                    <ul>
+                        <li><strong>Startups finding product-market fit</strong> &mdash; You need maximum iteration
+                            speed. Microservices introduce latency in both the code path and the development process.</li>
+                        <li><strong>Small teams (&lt;10 engineers)</strong> &mdash; The overhead of managing
+                            service-to-service communication, independent deployments, and distributed debugging
+                            dwarfs any benefit.</li>
+                        <li><strong>Tightly coupled domains</strong> &mdash; If nearly every user action touches
+                            most services, you have a distributed monolith &mdash; all the downsides of both.</li>
+                        <li><strong>No platform engineering team</strong> &mdash; Without tooling for service
+                            scaffolding, CI/CD, observability, and networking, each team reinvents the wheel.</li>
+                    </ul>
+
+                    <h4>Real-World Examples</h4>
+
+                    <p>
+                        <strong>Shopify: The Modular Monolith.</strong> Shopify runs one of the largest
+                        Ruby on Rails monoliths in the world, serving millions of merchants. Rather than
+                        decomposing into microservices, they invested in a <em>modular monolith</em>
+                        architecture where the codebase is partitioned into components with enforced
+                        boundaries (using a tool called &ldquo;Packwerk&rdquo;). Each component has a
+                        well-defined public API. This gives them team autonomy and code isolation
+                        without the operational overhead of a distributed system. They deploy multiple
+                        times per day.
+                    </p>
+                    <p>
+                        <strong>Netflix: 700+ Microservices.</strong> Netflix started as a monolithic
+                        Java app. As they scaled to 200M+ subscribers across 190 countries, they
+                        decomposed into over 700 microservices. Each service is independently deployable,
+                        and teams own their services end-to-end. This lets them handle diverse workloads:
+                        the recommendation engine can scale independently from the streaming pipeline,
+                        which can scale independently from the billing system.
+                    </p>
+
+                    <h4>The Strangler Fig Pattern</h4>
+
+                    <p>
+                        Named after the strangler fig tree that grows around a host tree and eventually
+                        replaces it, this is the safest migration strategy. You do not rewrite the
+                        monolith. Instead, you incrementally route new functionality to new services while
+                        the monolith continues to serve existing traffic. Over months or years, the
+                        monolith shrinks until it can be decommissioned.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Phase 1: Identify"
+        A[Monolith] --> B[Identify Bounded Context]
+    end
+    subgraph "Phase 2: Extract"
+        C[Facade / Proxy] -->|new traffic| D[New Service]
+        C -->|existing traffic| E[Monolith]
+    end
+    subgraph "Phase 3: Replace"
+        F[Facade / Proxy] -->|all traffic| G[New Service]
+        H[Monolith - shrunk] -.->|deprecated| F
+    end
+    B --> C
+    E --> F
+                        </div>
+                    </div>
+
+                    <p>
+                        Key principles of the Strangler Fig approach:
+                    </p>
+                    <ol>
+                        <li><strong>Start with a proxy/facade</strong> that sits in front of the monolith
+                            and can route requests to either the old or new code.</li>
+                        <li><strong>Extract one bounded context at a time</strong>, beginning with the one
+                            that is least coupled to the rest of the monolith.</li>
+                        <li><strong>Run both old and new in parallel</strong> for a period, comparing
+                            outputs (shadow traffic) to build confidence.</li>
+                        <li><strong>Cut over incrementally</strong> &mdash; percentage-based routing lets
+                            you ramp from 1% to 100% while monitoring error rates.</li>
+                        <li><strong>Delete the old code</strong> once the new service is fully serving traffic.</li>
+                    </ol>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In an interview, do not jump to microservices
+                        as the default. Start with a monolith and explain under what conditions you would
+                        decompose. This shows maturity. Then describe the migration strategy (Strangler Fig)
+                        rather than a big-bang rewrite. Interviewers value pragmatism over architecture
+                        astronautics.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: SERVICE DECOMPOSITION                              -->
+            <!-- ============================================================ -->
+            <h2 id="service-decomposition">2. Service Decomposition</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Finding the Right Service Boundaries</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        The hardest part of microservices is not building them &mdash; it is deciding
+                        <em>where to draw the lines</em>. Get the boundaries wrong and you end up with
+                        a &ldquo;distributed monolith&rdquo;: all the operational complexity of microservices
+                        with none of the benefits. The primary tool for getting this right is
+                        <strong>Domain-Driven Design (DDD)</strong>.
+                    </p>
+
+                    <h4>Domain-Driven Design and Bounded Contexts</h4>
+
+                    <p>
+                        Eric Evans coined the term &ldquo;Bounded Context&rdquo; in his 2003 book
+                        <em>Domain-Driven Design</em>. A bounded context is a boundary within which
+                        a particular domain model is defined and applicable. Different bounded contexts
+                        can have different models for the same real-world concept.
+                    </p>
+
+                    <p>
+                        For example, in an e-commerce system:
+                    </p>
+                    <ul>
+                        <li><strong>Order Context</strong>: A &ldquo;Product&rdquo; is an order line item
+                            with quantity, price, and SKU.</li>
+                        <li><strong>Catalog Context</strong>: A &ldquo;Product&rdquo; is a rich object
+                            with images, descriptions, categories, and reviews.</li>
+                        <li><strong>Warehouse Context</strong>: A &ldquo;Product&rdquo; is an inventory
+                            item with bin location, weight, and dimensions.</li>
+                    </ul>
+
+                    <p>
+                        Each bounded context becomes a candidate for a service. The key insight is that
+                        <strong>these are different models that happen to share a name</strong>. Forcing
+                        them into a single &ldquo;Product&rdquo; class creates a god object that every
+                        team must coordinate on.
+                    </p>
+
+                    <h4>E-Commerce Domain Decomposition</h4>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Catalog Service"
+        CS[Product Catalog]
+        CS --> CS1[Search & Browse]
+        CS --> CS2[Product Details]
+        CS --> CS3[Reviews & Ratings]
+    end
+    subgraph "Order Service"
+        OS[Order Management]
+        OS --> OS1[Cart]
+        OS --> OS2[Checkout]
+        OS --> OS3[Order History]
+    end
+    subgraph "Payment Service"
+        PS[Payment Processing]
+        PS --> PS1[Payment Gateway]
+        PS --> PS2[Refunds]
+        PS --> PS3[Fraud Detection]
+    end
+    subgraph "Inventory Service"
+        IS[Inventory Management]
+        IS --> IS1[Stock Levels]
+        IS --> IS2[Reservations]
+        IS --> IS3[Warehouse Ops]
+    end
+    subgraph "Shipping Service"
+        SS[Shipping & Delivery]
+        SS --> SS1[Rate Calculation]
+        SS --> SS2[Label Generation]
+        SS --> SS3[Tracking]
+    end
+    subgraph "User Service"
+        US[User & Identity]
+        US --> US1[Authentication]
+        US --> US2[Profiles]
+        US --> US3[Addresses]
+    end
+    OS -->|"price lookup"| CS
+    OS -->|"reserve stock"| IS
+    OS -->|"charge"| PS
+    OS -->|"ship"| SS
+    OS -->|"identity"| US
+                        </div>
+                    </div>
+
+                    <h4>How to Identify Service Boundaries</h4>
+
+                    <ol>
+                        <li><strong>Event Storming:</strong> Gather domain experts and developers in a
+                            room. Map out every domain event (OrderPlaced, PaymentReceived, ItemShipped)
+                            on sticky notes. Cluster related events &mdash; each cluster often maps to a
+                            bounded context.</li>
+                        <li><strong>Look for natural team boundaries:</strong> If two groups of engineers
+                            rarely need to coordinate, their code can likely be separate services.</li>
+                        <li><strong>Identify data ownership:</strong> Which data is read and written by
+                            which business capabilities? Data that is primarily owned by one capability
+                            belongs in that service.</li>
+                        <li><strong>Examine change frequency:</strong> Features that change together should
+                            live together. If the payment flow changes independently from the catalog,
+                            they should be separate services.</li>
+                    </ol>
+
+                    <h4>The Two-Pizza Team Heuristic</h4>
+
+                    <p>
+                        Jeff Bezos famously mandated that every team at Amazon should be small enough
+                        to feed with two pizzas (6-10 people). This is not arbitrary &mdash; it aligns
+                        with the cognitive limit on how many people can effectively coordinate without
+                        formal processes slowing them down. Each two-pizza team should own one or a few
+                        closely related services. If a service requires more than one team to maintain,
+                        it is probably too large.
+                    </p>
+
+                    <h4>Common Decomposition Mistakes</h4>
+
+                    <div class="warning-box">
+                        <strong>Mistake 1: Too Fine-Grained.</strong>
+                        Creating a service for every database table or every REST endpoint leads to
+                        &ldquo;nanoservices&rdquo; &mdash; dozens of tiny services that cannot do anything
+                        useful without calling five other services. The result is enormous network overhead,
+                        debugging nightmares, and operational toil. If two services are always deployed
+                        together and always call each other synchronously, they should be one service.
+                    </div>
+
+                    <div class="warning-box">
+                        <strong>Mistake 2: Shared Databases.</strong>
+                        If multiple services read from and write to the same database tables, you have
+                        not actually decomposed &mdash; the database <em>is</em> the coupling. Any schema
+                        change requires coordinating across all consuming services. This is the single
+                        most common failure mode in microservice migrations.
+                    </div>
+
+                    <div class="warning-box">
+                        <strong>Mistake 3: Synchronous Chains.</strong>
+                        Service A calls B, which calls C, which calls D. Latency compounds, availability
+                        drops multiplicatively (0.99^4 = 0.96), and a single slow service brings down
+                        the whole chain. Prefer asynchronous communication or at least keep synchronous
+                        call chains to a maximum depth of 2-3.
+                    </div>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> When decomposing in an interview, articulate the
+                        criteria you use to decide boundaries. Saying &ldquo;I would use DDD bounded
+                        contexts, looking at data ownership and change frequency&rdquo; is far stronger
+                        than &ldquo;I would create a user service, an order service, and a payment
+                        service.&rdquo; Show your reasoning, not just the result.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: API GATEWAY PATTERN                                -->
+            <!-- ============================================================ -->
+            <h2 id="api-gateway">3. API Gateway Pattern</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Front Door to Your Microservices</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Without an API gateway, clients must know the addresses of individual services,
+                        handle authentication themselves, and make multiple requests to compose a single
+                        page view. The API gateway is a reverse proxy that provides a single entry point,
+                        handling cross-cutting concerns so that individual services do not have to.
+                    </p>
+
+                    <h4>Core Responsibilities</h4>
+
+                    <ul>
+                        <li><strong>Request routing</strong> &mdash; Maps public URLs to internal services
+                            (e.g., <code>/api/orders/*</code> routes to the Order service).</li>
+                        <li><strong>Authentication &amp; authorization</strong> &mdash; Validates JWT tokens
+                            or API keys at the edge so services receive pre-authenticated requests.</li>
+                        <li><strong>Rate limiting</strong> &mdash; Protects backend services from traffic
+                            spikes (see <a href="module-12.html">Module 12: Rate Limiting</a>).</li>
+                        <li><strong>Protocol translation</strong> &mdash; Accepts REST/HTTP from clients,
+                            translates to gRPC for internal communication.</li>
+                        <li><strong>Response aggregation</strong> &mdash; Combines responses from multiple
+                            services into a single response (API composition).</li>
+                        <li><strong>TLS termination</strong> &mdash; Offloads HTTPS so internal traffic
+                            can use plain HTTP or mTLS.</li>
+                        <li><strong>Caching</strong> &mdash; Caches responses for read-heavy endpoints.</li>
+                        <li><strong>Observability</strong> &mdash; Adds request IDs, logs, and metrics
+                            at the edge.</li>
+                    </ul>
+
+                    <h4>Architecture</h4>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph Clients
+        WEB[Web App]
+        MOB[Mobile App]
+        EXT[3rd-Party API]
+    end
+    subgraph "API Gateway Layer"
+        GW[API Gateway]
+        GW --- AUTH[Auth]
+        GW --- RL[Rate Limiter]
+        GW --- CACHE[Cache]
+        GW --- LOG[Logging]
+    end
+    subgraph "Backend Services"
+        SVC1[User Service]
+        SVC2[Order Service]
+        SVC3[Catalog Service]
+        SVC4[Payment Service]
+    end
+    WEB -->|HTTPS| GW
+    MOB -->|HTTPS| GW
+    EXT -->|HTTPS| GW
+    GW -->|gRPC| SVC1
+    GW -->|gRPC| SVC2
+    GW -->|gRPC| SVC3
+    GW -->|gRPC| SVC4
+                        </div>
+                    </div>
+
+                    <h4>Backend for Frontend (BFF) Pattern</h4>
+
+                    <p>
+                        A single API gateway quickly becomes a bottleneck if different clients
+                        (web, iOS, Android, TV) need different data shapes and aggregations. The
+                        BFF pattern creates a dedicated gateway per client type. Each BFF is owned
+                        by the frontend team it serves, so they can evolve the API contract without
+                        coordinating with other client teams.
+                    </p>
+
+                    <pre><code class="language-text">Web Client  --&gt;  Web BFF      --&gt;  Backend Services
+iOS Client  --&gt;  Mobile BFF   --&gt;  Backend Services
+TV Client   --&gt;  TV BFF       --&gt;  Backend Services</code></pre>
+
+                    <p>
+                        <strong>Why BFF works:</strong> The mobile app might need a condensed payload
+                        (bandwidth matters), the web app might need rich data for a single-page app,
+                        and the TV app might need a completely different data format. A single gateway
+                        serving all three ends up with complex conditional logic that is hard to maintain.
+                    </p>
+
+                    <h4>API Composition / Aggregation</h4>
+
+                    <p>
+                        Consider a product detail page that needs data from Catalog (product info),
+                        Inventory (stock status), Reviews (ratings), and Pricing (current price).
+                        Without composition, the client makes four requests. With an API gateway
+                        that supports composition, one client request fans out to four services
+                        in parallel:
+                    </p>
+
+                    <pre><code class="language-python"># Pseudocode: API composition in the gateway
+async def get_product_detail(product_id):
+    # Fan out to services in parallel
+    catalog, inventory, reviews, pricing = await asyncio.gather(
+        catalog_client.get_product(product_id),
+        inventory_client.get_stock(product_id),
+        reviews_client.get_ratings(product_id),
+        pricing_client.get_price(product_id),
+    )
+    # Compose unified response
+    return {
+        "product": catalog,
+        "in_stock": inventory.available &gt; 0,
+        "rating": reviews.average,
+        "price": pricing.current,
+    }</code></pre>
+
+                    <h4>Popular Implementations</h4>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Gateway</th>
+                                <th>Strengths</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Kong</strong></td>
+                                <td>Plugin ecosystem, Lua-based extensibility, open source</td>
+                                <td>General purpose, on-prem or cloud</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Envoy</strong></td>
+                                <td>L7 proxy, gRPC native, deep observability, WASM filters</td>
+                                <td>Service mesh integration, high-performance routing</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AWS API Gateway</strong></td>
+                                <td>Managed, auto-scaling, Lambda integration</td>
+                                <td>Serverless architectures on AWS</td>
+                            </tr>
+                            <tr>
+                                <td><strong>NGINX</strong></td>
+                                <td>Battle-tested, high performance, wide ecosystem</td>
+                                <td>Simple reverse proxy / load balancing</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When designing a system in an interview, mention
+                        the API gateway early. It shows you think about cross-cutting concerns (auth,
+                        rate limiting, observability) rather than just business logic. Clarify whether
+                        you need a single gateway or BFF pattern based on client requirements.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: SERVICE MESH                                       -->
+            <!-- ============================================================ -->
+            <h2 id="service-mesh">4. Service Mesh</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Infrastructure Layer for Service-to-Service Communication</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        An API gateway handles north-south traffic (client to service). A
+                        <strong>service mesh</strong> handles east-west traffic (service to service).
+                        It extracts networking concerns &mdash; retries, circuit breaking, mTLS,
+                        load balancing, observability &mdash; out of application code and into a
+                        dedicated infrastructure layer.
+                    </p>
+
+                    <h4>The Sidecar Proxy Pattern</h4>
+
+                    <p>
+                        In a service mesh, every service instance is paired with a <strong>sidecar
+                        proxy</strong> (typically Envoy). All inbound and outbound traffic passes
+                        through the sidecar. The application code makes a plain HTTP/gRPC call to
+                        <code>localhost</code>; the sidecar intercepts it, applies policies (mTLS,
+                        retry, timeout, circuit breaking), and forwards it to the destination
+                        service's sidecar.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Service A Pod"
+        A[Service A Code]
+        PA[Envoy Sidecar]
+    end
+    subgraph "Service B Pod"
+        B[Service B Code]
+        PB[Envoy Sidecar]
+    end
+    subgraph "Control Plane"
+        CP[Istiod]
+        CP -->|config push| PA
+        CP -->|config push| PB
+    end
+    A -->|localhost| PA
+    PA -->|mTLS| PB
+    PB -->|localhost| B
+                        </div>
+                    </div>
+
+                    <h4>Istio / Envoy Architecture</h4>
+
+                    <p>
+                        <strong>Istio</strong> is the most widely adopted service mesh. It consists of:
+                    </p>
+                    <ul>
+                        <li><strong>Data plane (Envoy proxies)</strong> &mdash; Sidecar proxies deployed
+                            alongside every service. They intercept all network traffic and enforce policies.</li>
+                        <li><strong>Control plane (Istiod)</strong> &mdash; A single binary that manages
+                            configuration, certificate issuance (for mTLS), and service discovery. It
+                            pushes configuration to all Envoy sidecars via xDS APIs.</li>
+                    </ul>
+
+                    <h4>What a Service Mesh Gives You</h4>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Capability</th>
+                                <th>Without Mesh (library-based)</th>
+                                <th>With Mesh (sidecar-based)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>mTLS</strong></td>
+                                <td>Each service manages certificates</td>
+                                <td>Automatic cert rotation, zero-trust by default</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Retries / timeouts</strong></td>
+                                <td>Each service implements its own</td>
+                                <td>Centrally configured, language-agnostic</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Circuit breaking</strong></td>
+                                <td>Library (Hystrix, resilience4j) in each service</td>
+                                <td>Configured in sidecar; app code unaware</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Observability</strong></td>
+                                <td>Instrumentation per service per language</td>
+                                <td>Automatic metrics, traces, access logs from proxy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Traffic management</strong></td>
+                                <td>Custom load balancer config</td>
+                                <td>Canary routing, traffic splitting, fault injection</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>When a Service Mesh Is Overkill</h4>
+
+                    <ul>
+                        <li><strong>Fewer than ~10 services</strong> &mdash; The operational overhead
+                            of managing the mesh (control plane, sidecar injection, debugging proxy
+                            issues) exceeds the benefit.</li>
+                        <li><strong>Homogeneous tech stack</strong> &mdash; If all services use the same
+                            language, a shared library can provide retries, circuit breaking, and
+                            observability without the proxy overhead.</li>
+                        <li><strong>Latency-critical paths</strong> &mdash; Each sidecar hop adds
+                            ~1-3ms of latency. For ultra-low-latency systems, this matters.</li>
+                        <li><strong>Small team</strong> &mdash; Someone needs to be the mesh expert.
+                            If nobody on the team understands Envoy configuration, debugging mesh
+                            issues becomes a black hole.</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> A staff engineer distinguishes between what
+                        the team needs <em>now</em> and what it will need at scale. Start with a shared
+                        library approach. Plan for a mesh migration when you cross ~20 services or when
+                        polyglot services make library-based solutions impractical. Articulate this
+                        progression in interviews.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: INTER-SERVICE COMMUNICATION                        -->
+            <!-- ============================================================ -->
+            <h2 id="inter-service-communication">5. Inter-Service Communication</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Synchronous, Asynchronous, and Resilience Patterns</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h3>5.1 Synchronous Communication</h3>
+
+                    <h4>REST vs. gRPC</h4>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>REST (HTTP/JSON)</th>
+                                <th>gRPC (HTTP/2 + Protobuf)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Payload format</strong></td>
+                                <td>JSON (text, human-readable)</td>
+                                <td>Protobuf (binary, compact)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Performance</strong></td>
+                                <td>Slower serialization; larger payloads</td>
+                                <td>~10x faster serialization; ~5x smaller payloads</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Streaming</strong></td>
+                                <td>Limited (SSE, WebSockets separate)</td>
+                                <td>Native bidirectional streaming</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Contract</strong></td>
+                                <td>OpenAPI spec (optional, often stale)</td>
+                                <td>.proto files (required, auto-generated code)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Browser support</strong></td>
+                                <td>Native</td>
+                                <td>Requires grpc-web proxy</td>
+                            </tr>
+                            <tr>
+                                <td><strong>When to use</strong></td>
+                                <td>Public APIs, web clients, simple CRUD</td>
+                                <td>Internal service-to-service, high throughput, polyglot</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-protobuf">// Example gRPC service definition (.proto)
+syntax = "proto3";
+
+service OrderService {
+    rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
+    rpc GetOrder (GetOrderRequest) returns (Order);
+    rpc StreamOrderUpdates (GetOrderRequest) returns (stream OrderUpdate);
+}
+
+message CreateOrderRequest {
+    string user_id = 1;
+    repeated OrderItem items = 2;
+}
+
+message OrderItem {
+    string product_id = 1;
+    int32 quantity = 2;
+}</code></pre>
+
+                    <h3>5.2 Asynchronous Communication</h3>
+
+                    <p>
+                        Asynchronous communication decouples services in time: the sender does not wait
+                        for the receiver to process the message. This improves availability (sender
+                        succeeds even if receiver is down) and absorbs traffic spikes (queue acts as a
+                        buffer).
+                    </p>
+
+                    <ul>
+                        <li><strong>Message Queues (point-to-point)</strong> &mdash; A producer sends a
+                            message to a queue; exactly one consumer processes it. Examples: SQS, RabbitMQ.
+                            Good for task distribution and work queues.</li>
+                        <li><strong>Event Streams (pub/sub)</strong> &mdash; A producer publishes an event
+                            to a topic; multiple consumers can subscribe independently. Examples: Kafka,
+                            AWS SNS+SQS. Good for event-driven architectures where multiple services need
+                            to react to the same event.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Example: Publishing an order event to Kafka
+from kafka import KafkaProducer
+import json
+
+producer = KafkaProducer(
+    bootstrap_servers=['kafka:9092'],
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')
+)
+
+def publish_order_created(order):
+    event = {
+        "event_type": "OrderCreated",
+        "order_id": order.id,
+        "user_id": order.user_id,
+        "items": [{"sku": i.sku, "qty": i.qty} for i in order.items],
+        "total": str(order.total),
+        "timestamp": order.created_at.isoformat()
+    }
+    producer.send("orders", key=order.id.encode(), value=event)
+    producer.flush()</code></pre>
+
+                    <h3>5.3 Service Discovery</h3>
+
+                    <p>
+                        In a dynamic environment where service instances are created and destroyed
+                        (autoscaling, deployments), hard-coding addresses is not viable. Service
+                        discovery solves &ldquo;where is the Order service right now?&rdquo;
+                    </p>
+
+                    <ul>
+                        <li><strong>Client-side discovery:</strong> The client queries a service registry
+                            (Consul, Eureka) and picks an instance using a load-balancing strategy.
+                            Pros: no extra hop. Cons: client must implement discovery logic per language.</li>
+                        <li><strong>Server-side discovery:</strong> The client sends requests to a load
+                            balancer (AWS ALB, Kubernetes Service) that queries the registry and routes.
+                            Pros: client is simple. Cons: extra network hop, potential bottleneck.</li>
+                        <li><strong>DNS-based:</strong> Kubernetes Services provide DNS-based discovery
+                            out of the box (<code>order-service.default.svc.cluster.local</code>).</li>
+                    </ul>
+
+                    <h3>5.4 Resilience Patterns</h3>
+
+                    <h4>Circuit Breaker Pattern</h4>
+
+                    <p>
+                        When a downstream service is failing, continuing to send requests wastes
+                        resources and increases latency. The circuit breaker monitors failure rates
+                        and &ldquo;opens&rdquo; the circuit when a threshold is exceeded, immediately
+                        returning errors without making the call. After a timeout, it moves to
+                        &ldquo;half-open&rdquo; and allows a few test requests. If they succeed,
+                        the circuit closes; if they fail, it opens again.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Closed
+    Closed --> Open : Failure threshold exceeded
+    Open --> HalfOpen : Timeout expires
+    HalfOpen --> Closed : Test request succeeds
+    HalfOpen --> Open : Test request fails
+    Closed --> Closed : Success / under threshold
+
+    note right of Closed
+        Normal operation.
+        Requests pass through.
+        Failures counted.
+    end note
+
+    note right of Open
+        Fail fast. Return error
+        or fallback immediately.
+        No calls to downstream.
+    end note
+
+    note right of HalfOpen
+        Allow limited test traffic.
+        If success, close circuit.
+        If failure, reopen.
+    end note
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python"># Circuit breaker implementation sketch
+import time
+from enum import Enum
+
+class CircuitState(Enum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+class CircuitBreaker:
+    def __init__(self, failure_threshold=5, recovery_timeout=30, test_requests=3):
+        self.state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout = recovery_timeout
+        self.test_requests = test_requests
+        self.last_failure_time = None
+        self.test_success_count = 0
+
+    def call(self, func, *args, **kwargs):
+        if self.state == CircuitState.OPEN:
+            if time.time() - self.last_failure_time &gt; self.recovery_timeout:
+                self.state = CircuitState.HALF_OPEN
+                self.test_success_count = 0
+            else:
+                raise CircuitOpenError("Circuit is open; failing fast")
+
+        try:
+            result = func(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception as e:
+            self._on_failure()
+            raise
+
+    def _on_success(self):
+        if self.state == CircuitState.HALF_OPEN:
+            self.test_success_count += 1
+            if self.test_success_count &gt;= self.test_requests:
+                self.state = CircuitState.CLOSED
+                self.failure_count = 0
+        else:
+            self.failure_count = 0
+
+    def _on_failure(self):
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count &gt;= self.failure_threshold:
+            self.state = CircuitState.OPEN</code></pre>
+
+                    <h4>Retry with Exponential Backoff and Jitter</h4>
+
+                    <p>
+                        Retrying immediately after a failure often makes things worse &mdash;
+                        all clients retry at the same time, creating a thundering herd. Exponential
+                        backoff spaces retries out (1s, 2s, 4s, 8s...). Adding <strong>jitter</strong>
+                        (randomness) prevents synchronized retries across clients.
+                    </p>
+
+                    <pre><code class="language-python">import random
+import time
+
+def retry_with_backoff(func, max_retries=5, base_delay=1.0, max_delay=60.0):
+    """Retry with exponential backoff and full jitter."""
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except RetryableError:
+            if attempt == max_retries - 1:
+                raise  # Last attempt, propagate error
+
+            # Exponential backoff: 2^attempt * base_delay
+            exp_delay = min(base_delay * (2 ** attempt), max_delay)
+
+            # Full jitter: random between 0 and exp_delay
+            sleep_time = random.uniform(0, exp_delay)
+
+            print(f"Attempt {attempt + 1} failed. Retrying in {sleep_time:.2f}s")
+            time.sleep(sleep_time)</code></pre>
+
+                    <h4>Timeout and Deadline Propagation</h4>
+
+                    <p>
+                        Every network call must have a timeout. Without one, a hung downstream
+                        service will consume threads/connections indefinitely, eventually cascading
+                        the failure upstream. But timeouts alone are not enough in a chain:
+                    </p>
+
+                    <p>
+                        If Service A has a 5s timeout and calls Service B (which has a 5s timeout to
+                        Service C), the total could be 10s before A gets an error. <strong>Deadline
+                        propagation</strong> passes a single deadline through the chain. gRPC supports
+                        this natively: A sets a 5s deadline; B receives 4.8s remaining (accounting for
+                        network hop); C receives 4.5s remaining. Every service knows how much time is left.
+                    </p>
+
+                    <h4>Bulkhead Pattern</h4>
+
+                    <p>
+                        Named after the watertight compartments in a ship's hull, the bulkhead
+                        pattern isolates failures. If Service A communicates with Service B and
+                        Service C, separate thread pools (or connection pools) ensure that if
+                        Service B becomes slow and exhausts its pool, Service C is unaffected.
+                    </p>
+
+                    <pre><code class="language-java">// Bulkhead using separate thread pools (Java / Resilience4j)
+BulkheadConfig config = BulkheadConfig.custom()
+    .maxConcurrentCalls(25)       // Max 25 concurrent calls
+    .maxWaitDuration(Duration.ofMillis(500))  // Wait max 500ms for a slot
+    .build();
+
+Bulkhead orderServiceBulkhead = Bulkhead.of("orderService", config);
+Bulkhead paymentServiceBulkhead = Bulkhead.of("paymentService", config);
+
+// Each downstream service has its own isolated thread pool
+// If order service is slow, payment service calls are unaffected
+Supplier&lt;Order&gt; decoratedCall = Bulkhead.decorateSupplier(
+    orderServiceBulkhead,
+    () -&gt; orderClient.getOrder(orderId)
+);</code></pre>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In interviews, demonstrate that you think
+                        about failure modes systematically. When you add a service call, immediately
+                        discuss: &ldquo;What timeout do we set? What happens when it fails? Do we retry?
+                        Do we need a circuit breaker? How do we prevent cascading failures?&rdquo;
+                        This signals operational maturity.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: DATA MANAGEMENT                                    -->
+            <!-- ============================================================ -->
+            <h2 id="data-management">6. Data Management in Microservices</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Database per Service, Sagas, and Event-Driven Sync</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Database per Service Pattern</h4>
+
+                    <p>
+                        Each service owns its data store exclusively. No other service can access
+                        it directly &mdash; only through the service's API. This provides:
+                    </p>
+
+                    <ul>
+                        <li><strong>Schema independence</strong> &mdash; The Order service can
+                            change its schema without coordinating with the Catalog service.</li>
+                        <li><strong>Technology freedom</strong> &mdash; The Catalog service might use
+                            Elasticsearch for full-text search; the Order service uses PostgreSQL for
+                            ACID transactions; the Session service uses Redis for speed.</li>
+                        <li><strong>Independent scaling</strong> &mdash; The analytics database can be
+                            a columnar store with heavy read replicas, while the transaction database
+                            is a write-optimized OLTP system.</li>
+                    </ul>
+
+                    <h4>Shared Database Anti-Pattern</h4>
+
+                    <div class="warning-box">
+                        <strong>Why shared databases undermine microservices:</strong>
+                        If Service A and Service B both read/write the <code>orders</code> table,
+                        they are coupled at the data layer. Any schema migration requires
+                        coordinating both teams. A poorly indexed query from Service B can bring
+                        down Service A's performance. You have microservices in name only &mdash;
+                        it is a distributed monolith with a shared state.
+                    </div>
+
+                    <p>
+                        The one legitimate exception is during a migration. Using the Strangler Fig
+                        pattern, both the old monolith and the new service may temporarily share a
+                        database. But this should be time-bounded with a clear plan to split.
+                    </p>
+
+                    <h4>Data Consistency Challenges</h4>
+
+                    <p>
+                        With database-per-service, you lose ACID transactions across service boundaries.
+                        Consider placing an order: you need to (1) create the order, (2) reserve
+                        inventory, and (3) charge the payment. Each step is in a different service
+                        with a different database. If the payment fails, you need to undo the
+                        inventory reservation and cancel the order.
+                    </p>
+
+                    <h4>Saga Pattern</h4>
+
+                    <p>
+                        A saga is a sequence of local transactions, each within a single service. If
+                        one step fails, compensating transactions undo the prior steps. See
+                        <a href="module-15.html">Module 15</a> for an in-depth treatment.
+                    </p>
+
+                    <p>
+                        Two orchestration styles:
+                    </p>
+                    <ul>
+                        <li><strong>Choreography:</strong> Each service publishes events; the next
+                            service reacts. No central coordinator. Simple for 2-3 step sagas;
+                            becomes hard to follow with more steps.</li>
+                        <li><strong>Orchestration:</strong> A saga orchestrator (a separate service
+                            or workflow engine like Temporal) directs each step and handles
+                            compensation. Easier to understand and debug for complex flows.</li>
+                    </ul>
+
+                    <h4>Event-Driven Data Synchronization</h4>
+
+                    <p>
+                        When services need each other's data for queries (e.g., the Order service
+                        needs product names from the Catalog service), there are two approaches:
+                    </p>
+
+                    <ol>
+                        <li><strong>Synchronous API call:</strong> Order service calls Catalog service
+                            at query time. Simple but creates runtime coupling (Catalog being down
+                            breaks Order queries).</li>
+                        <li><strong>Event-driven materialized view:</strong> Catalog service publishes
+                            <code>ProductUpdated</code> events. Order service consumes these events
+                            and maintains a local read-only copy of the product data it needs. This
+                            is eventually consistent but highly available and performant.</li>
+                    </ol>
+
+                    <pre><code class="language-python"># Event-driven materialized view in the Order service
+class ProductCacheConsumer:
+    """Consumes ProductUpdated events to maintain a local cache."""
+
+    def handle_product_updated(self, event):
+        self.local_db.upsert(
+            table="product_cache",
+            key=event["product_id"],
+            data={
+                "name": event["name"],
+                "price": event["price"],
+                "image_url": event["image_url"],
+                # Only store what the Order service actually needs
+            }
+        )
+
+    def handle_product_deleted(self, event):
+        self.local_db.soft_delete(
+            table="product_cache",
+            key=event["product_id"]
+        )</code></pre>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When discussing data management, always clarify
+                        the consistency requirements. &ldquo;Does the business require strong consistency
+                        here, or is eventual consistency acceptable?&rdquo; For most read-heavy, non-financial
+                        operations, eventual consistency (with a few seconds of staleness) is acceptable
+                        and dramatically simplifies the architecture.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: DEPLOYMENT PATTERNS                                -->
+            <!-- ============================================================ -->
+            <h2 id="deployment-patterns">7. Deployment Patterns</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Safe, Progressive Delivery Strategies</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>
+                        Independent deployability is a core benefit of microservices, but deploying
+                        services safely at scale requires deliberate strategies. The goal is always
+                        the same: minimize blast radius while maximizing deployment velocity.
+                    </p>
+
+                    <h4>Blue-Green Deployment</h4>
+
+                    <p>
+                        Maintain two identical production environments: Blue (current live) and
+                        Green (new version). Deploy the new version to Green, run smoke tests,
+                        then switch the router from Blue to Green. If something goes wrong,
+                        switch back instantly.
+                    </p>
+
+                    <ul>
+                        <li><strong>Pro:</strong> Near-instant rollback (just switch the router).</li>
+                        <li><strong>Con:</strong> Requires 2x infrastructure during deployment. Database
+                            schema changes are tricky (both versions must be compatible).</li>
+                    </ul>
+
+                    <h4>Canary Deployment</h4>
+
+                    <p>
+                        Route a small percentage of traffic (1-5%) to the new version while the rest
+                        continues on the old version. Monitor error rates, latency, and business
+                        metrics. Gradually increase traffic to 100% over minutes to hours.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    LB[Load Balancer]
+
+    subgraph "Stable - v1.2 (95%)"
+        S1[Instance 1]
+        S2[Instance 2]
+        S3[Instance 3]
+    end
+
+    subgraph "Canary - v1.3 (5%)"
+        C1[Instance 4]
+    end
+
+    LB -->|95%| S1
+    LB -->|95%| S2
+    LB -->|95%| S3
+    LB -->|5%| C1
+
+    subgraph "Monitoring"
+        M[Metrics Dashboard]
+        M -.->|"compare p99 latency, error rate, business KPIs"| LB
+    end
+                        </div>
+                    </div>
+
+                    <ul>
+                        <li><strong>Pro:</strong> Minimal blast radius; real production traffic validates the change.</li>
+                        <li><strong>Con:</strong> Requires sophisticated routing and monitoring. Must handle
+                            backward-compatible APIs during the transition.</li>
+                    </ul>
+
+                    <h4>Rolling Deployment</h4>
+
+                    <p>
+                        Update instances one at a time (or in small batches). Kubernetes does this by
+                        default with <code>Deployment</code> resources. At any point, some instances
+                        run the old version and some run the new.
+                    </p>
+
+                    <ul>
+                        <li><strong>Pro:</strong> No extra infrastructure needed. Built into Kubernetes.</li>
+                        <li><strong>Con:</strong> During rollout, two versions coexist &mdash; must handle
+                            backward compatibility. Rollback is slower (must roll forward or back).</li>
+                    </ul>
+
+                    <h4>Feature Flags</h4>
+
+                    <p>
+                        Decouple deployment from release. Deploy code that is hidden behind a flag;
+                        toggle the flag in a configuration system (LaunchDarkly, Unleash, Flagsmith)
+                        to enable it for specific users, percentages, or regions.
+                    </p>
+
+                    <pre><code class="language-python"># Feature flag usage
+from feature_flags import FeatureFlags
+
+flags = FeatureFlags(config_url="https://flags.internal/api")
+
+def get_recommendations(user_id):
+    if flags.is_enabled("new_recommendation_engine", user_id=user_id):
+        # New ML-based recommendations (being tested on 10% of users)
+        return new_recommendation_engine.recommend(user_id)
+    else:
+        # Existing collaborative filtering
+        return legacy_recommendations.recommend(user_id)</code></pre>
+
+                    <p>
+                        Feature flags are particularly powerful because they let you ship incomplete
+                        features (hidden behind flags), run A/B tests, do targeted rollouts (e.g.,
+                        enable for employees first), and instantly kill a feature without a deployment
+                        if something goes wrong.
+                    </p>
+
+                    <div class="warning-box">
+                        <strong>Feature Flag Hygiene:</strong> Feature flags are technical debt if not
+                        cleaned up. Every flag should have an owner, a planned removal date, and an
+                        alert if it stays in the codebase past its expiry. Stale flags create confusing
+                        code paths and combinatorial testing nightmares.
+                    </div>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> In an interview, mention that you would use
+                        canary deployments with automated rollback based on metrics thresholds. Explain
+                        that you monitor both technical metrics (p99 latency, error rate) and business
+                        metrics (conversion rate, revenue) during canary. This shows you think about
+                        deployment as a production safety concern, not just a CI/CD step.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: OBSERVABILITY                                      -->
+            <!-- ============================================================ -->
+            <h2 id="observability">8. Observability</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Three Pillars + Correlation</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <p>
+                        In a monolith, you can debug with a single stack trace. In a microservices
+                        architecture, a single user request may touch 10+ services. Without proper
+                        observability, you are debugging blind. Observability has three pillars:
+                        <strong>logs</strong>, <strong>metrics</strong>, and <strong>traces</strong>.
+                    </p>
+
+                    <h4>Distributed Tracing</h4>
+
+                    <p>
+                        A trace follows a single request across all services it touches. Each service
+                        creates a <strong>span</strong> (a unit of work with start time, end time, and
+                        metadata). Spans are linked by a shared <strong>trace ID</strong> and a
+                        parent-child relationship.
+                    </p>
+
+                    <ul>
+                        <li><strong>OpenTelemetry (OTel)</strong> &mdash; The industry standard for
+                            instrumentation. Language-specific SDKs auto-instrument common frameworks
+                            (HTTP, gRPC, database drivers). Vendor-neutral: sends data to Jaeger,
+                            Zipkin, Datadog, or any OTLP-compatible backend.</li>
+                        <li><strong>Jaeger</strong> &mdash; Open-source distributed tracing backend
+                            by Uber. Visualizes traces as Gantt charts showing timing across services.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># OpenTelemetry auto-instrumentation (Python)
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+
+# Setup: runs once at application startup
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanExporter(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+# Auto-instrument Flask and outbound HTTP calls
+FlaskInstrumentor().instrument()
+RequestsInstrumentor().instrument()
+
+# Now every incoming request gets a trace, and every outbound
+# HTTP call creates a child span automatically.</code></pre>
+
+                    <h4>Centralized Logging</h4>
+
+                    <p>
+                        With 50 services running 3 instances each, SSH-ing into individual containers
+                        to read logs is not viable. Centralized logging aggregates all logs into a
+                        searchable system.
+                    </p>
+
+                    <ul>
+                        <li><strong>ELK Stack</strong> &mdash; Elasticsearch (storage + search),
+                            Logstash (ingestion + transformation), Kibana (visualization).</li>
+                        <li><strong>EFK Stack</strong> &mdash; Replace Logstash with Fluentd
+                            (lower resource usage, Kubernetes-native).</li>
+                        <li><strong>Cloud-native</strong> &mdash; AWS CloudWatch Logs, GCP Cloud
+                            Logging, Azure Monitor Logs.</li>
+                    </ul>
+
+                    <p>
+                        <strong>Structured logging</strong> is essential. Emit JSON logs with consistent
+                        fields so they are machine-parseable:
+                    </p>
+
+                    <pre><code class="language-json">{
+    "timestamp": "2025-03-15T10:23:45.123Z",
+    "level": "ERROR",
+    "service": "order-service",
+    "trace_id": "abc123def456",
+    "span_id": "789ghi",
+    "user_id": "user_42",
+    "message": "Payment failed: card declined",
+    "error_code": "PAYMENT_DECLINED",
+    "order_id": "ord_98765",
+    "payment_amount": 149.99,
+    "payment_currency": "USD"
+}</code></pre>
+
+                    <h4>Metrics Aggregation</h4>
+
+                    <ul>
+                        <li><strong>Prometheus</strong> &mdash; Pull-based metrics collection.
+                            Services expose <code>/metrics</code> endpoints; Prometheus scrapes them
+                            at intervals. Excellent for time-series data. PromQL for querying.</li>
+                        <li><strong>Grafana</strong> &mdash; Dashboards and alerting. Connects to
+                            Prometheus (and many other data sources) to visualize metrics.</li>
+                    </ul>
+
+                    <p>Key metrics every service should expose (RED method):</p>
+                    <ul>
+                        <li><strong>Rate</strong> &mdash; Requests per second.</li>
+                        <li><strong>Errors</strong> &mdash; Error rate (5xx, timeouts, etc.).</li>
+                        <li><strong>Duration</strong> &mdash; Latency percentiles (p50, p95, p99).</li>
+                    </ul>
+
+                    <h4>Correlation IDs</h4>
+
+                    <p>
+                        A correlation ID (or request ID) is generated at the edge (API gateway) and
+                        propagated through every service in the request chain via HTTP headers
+                        (e.g., <code>X-Request-ID</code>). Every log line, metric, and trace span
+                        includes this ID. When a user reports a problem, you search for their
+                        correlation ID and see the entire request flow across all services.
+                    </p>
+
+                    <h4>Health Checks and Readiness Probes</h4>
+
+                    <ul>
+                        <li><strong>Liveness probe</strong> (<code>/health/live</code>) &mdash; &ldquo;Is
+                            the process alive?&rdquo; If this fails, the orchestrator restarts the container.</li>
+                        <li><strong>Readiness probe</strong> (<code>/health/ready</code>) &mdash; &ldquo;Can
+                            this instance serve traffic?&rdquo; If this fails, the load balancer stops
+                            sending traffic but does not restart the container. This handles cases like
+                            warming up caches or waiting for database connections.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Flask health check endpoints
+@app.route("/health/live")
+def liveness():
+    return {"status": "alive"}, 200
+
+@app.route("/health/ready")
+def readiness():
+    checks = {
+        "database": check_db_connection(),
+        "cache": check_redis_connection(),
+        "downstream": check_critical_dependencies(),
+    }
+    all_healthy = all(checks.values())
+    status_code = 200 if all_healthy else 503
+    return {"status": "ready" if all_healthy else "not_ready", "checks": checks}, status_code</code></pre>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When designing any distributed system, proactively
+                        mention observability. &ldquo;I would add distributed tracing with OpenTelemetry,
+                        structured logging with correlation IDs, and RED metrics per service.&rdquo;
+                        This signals that you build production-ready systems, not just whiteboard
+                        architectures.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 9: CONWAY'S LAW                                       -->
+            <!-- ============================================================ -->
+            <h2 id="conways-law">9. Conway's Law</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How Organization Structure Shapes Architecture</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <blockquote>
+                        <p>
+                            &ldquo;Any organization that designs a system will produce a design whose
+                            structure is a copy of the organization's communication structure.&rdquo;
+                            &mdash; Melvin Conway, 1967
+                        </p>
+                    </blockquote>
+
+                    <p>
+                        Conway's Law is not just an observation &mdash; it is a force of nature in
+                        software engineering. If you have a frontend team, a backend team, and a
+                        database team, you will get a three-tier architecture regardless of what
+                        the architecture diagram says, because that is how the teams communicate.
+                    </p>
+
+                    <h4>The Inverse Conway Maneuver</h4>
+
+                    <p>
+                        If Conway's Law says your architecture mirrors your org structure, then
+                        to get the architecture you want, <strong>organize your teams to match it</strong>.
+                        This is the Inverse Conway Maneuver, popularized by the book <em>Team Topologies</em>
+                        by Skelton and Pais.
+                    </p>
+
+                    <p>
+                        Want microservices? You need autonomous cross-functional teams, each owning
+                        a service end-to-end (frontend, backend, database, ops). If you try to adopt
+                        microservices with functional teams (frontend team, backend team, DBA team),
+                        every feature will require cross-team coordination, defeating the purpose.
+                    </p>
+
+                    <h4>Team Topologies in Practice</h4>
+
+                    <ul>
+                        <li><strong>Stream-aligned teams</strong> &mdash; Aligned to a business domain
+                            (Order team, Search team, Payments team). They own their services and
+                            can deliver end-to-end without blocking on other teams.</li>
+                        <li><strong>Platform teams</strong> &mdash; Provide self-service infrastructure
+                            (CI/CD, observability, service mesh, databases-as-a-service) so that
+                            stream-aligned teams do not each reinvent the operational wheel.</li>
+                        <li><strong>Enabling teams</strong> &mdash; Help other teams adopt new practices
+                            or technologies (e.g., helping teams adopt Kubernetes or distributed tracing).</li>
+                        <li><strong>Complicated subsystem teams</strong> &mdash; Own technically complex
+                            components (ML models, video encoding engines) that require deep specialist
+                            knowledge.</li>
+                    </ul>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Staff engineers are expected to think about
+                        organizational dynamics, not just code. Mentioning Conway's Law and team topology
+                        in a system design interview demonstrates that you understand the sociotechnical
+                        system &mdash; that architecture cannot be designed in isolation from the humans
+                        who build and operate it. This is a strong differentiator from senior-level
+                        candidates who focus purely on technical components.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 10: REAL-WORLD ARCHITECTURES                          -->
+            <!-- ============================================================ -->
+            <h2 id="real-world">10. Real-World Architecture Examples</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Netflix, Amazon, and Uber</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>Netflix: 700+ Microservices and Chaos Engineering</h4>
+
+                    <p>
+                        Netflix serves 200M+ subscribers across 190+ countries. Their architecture
+                        includes 700+ microservices running on AWS. Key architectural decisions:
+                    </p>
+                    <ul>
+                        <li><strong>Zuul</strong> as the API gateway &mdash; handles routing, auth,
+                            canary testing, and load shedding at the edge.</li>
+                        <li><strong>Eureka</strong> for service discovery &mdash; a REST-based
+                            registry where services register themselves and discover others.</li>
+                        <li><strong>Hystrix</strong> (now Resilience4j) for circuit breaking &mdash;
+                            pioneered the circuit breaker pattern at scale to prevent cascading failures.</li>
+                        <li><strong>Chaos Engineering</strong> &mdash; Netflix runs Chaos Monkey
+                            (randomly kills instances), Chaos Kong (simulates entire region failures),
+                            and Chaos Gorilla (takes down an entire availability zone). The philosophy:
+                            if your system cannot handle random failures in production, it will fail
+                            in ways you do not expect. Better to cause controlled failures regularly.</li>
+                        <li><strong>EVCache</strong> &mdash; Distributed cache (based on Memcached)
+                            serving 30+ million requests per second.</li>
+                    </ul>
+
+                    <h4>Amazon: Service-Oriented Architecture</h4>
+
+                    <p>
+                        In 2002, Jeff Bezos sent the famous &ldquo;API Mandate&rdquo; memo:
+                    </p>
+                    <ol>
+                        <li>All teams will expose their data and functionality through service interfaces.</li>
+                        <li>Teams must communicate with each other through these interfaces.</li>
+                        <li>There will be no other form of inter-process communication allowed.</li>
+                        <li>It does not matter what technology they use.</li>
+                        <li>All service interfaces must be designed from the ground up to be externalizable.</li>
+                        <li>Anyone who does not do this will be fired.</li>
+                    </ol>
+                    <p>
+                        This memo birthed Amazon's service-oriented architecture and ultimately
+                        AWS itself. Today, a single page load on amazon.com calls 200-300 services.
+                        Each team owns their services, including ops (the &ldquo;you build it, you
+                        run it&rdquo; philosophy). This forced teams to build reliable, well-documented
+                        APIs because they knew other teams (and eventually external customers via AWS)
+                        would depend on them.
+                    </p>
+
+                    <h4>Uber: Domain-Oriented Microservice Architecture (DOMA)</h4>
+
+                    <p>
+                        By 2020, Uber had ~2,200 microservices. They found that the &ldquo;pure&rdquo;
+                        microservice model created chaos: too many services, too many dependencies,
+                        too much operational overhead. Their response was <strong>DOMA</strong>:
+                    </p>
+                    <ul>
+                        <li><strong>Domains:</strong> Group related microservices into domains
+                            (e.g., &ldquo;Marketplace&rdquo; domain contains pricing, matching,
+                            dispatch, and surge services).</li>
+                        <li><strong>Domain Gateways:</strong> Each domain exposes a single gateway
+                            that acts as the public API for that domain. Other domains call the
+                            gateway, not individual services. This dramatically reduces cross-domain
+                            coupling.</li>
+                        <li><strong>Layers:</strong> Domains are organized into layers (infrastructure,
+                            business logic, product, presentation) with strict dependency rules &mdash;
+                            upper layers can depend on lower layers but not vice versa.</li>
+                    </ul>
+
+                    <p>
+                        DOMA is a pragmatic middle ground: you get the benefits of microservices
+                        (team autonomy, independent scaling) with the organizational clarity of
+                        a structured architecture. It is particularly relevant for companies that
+                        have already decomposed too far and need to add structure back.
+                    </p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    subgraph "Presentation Layer"
+        RIDER[Rider App Gateway]
+        DRIVER[Driver App Gateway]
+    end
+    subgraph "Product Layer"
+        TRIPS[Trips Domain]
+        SAFETY[Safety Domain]
+    end
+    subgraph "Business Logic Layer"
+        MKT[Marketplace Domain]
+        PAY[Payments Domain]
+        MAPS[Maps Domain]
+    end
+    subgraph "Infrastructure Layer"
+        STORE[Storage Platform]
+        MSG[Messaging Platform]
+        OBS[Observability Platform]
+    end
+
+    RIDER --> TRIPS
+    RIDER --> SAFETY
+    DRIVER --> TRIPS
+    DRIVER --> SAFETY
+    TRIPS --> MKT
+    TRIPS --> PAY
+    TRIPS --> MAPS
+    SAFETY --> MAPS
+    MKT --> STORE
+    MKT --> MSG
+    PAY --> STORE
+    MAPS --> STORE
+    TRIPS --> OBS
+    MKT --> OBS
+                        </div>
+                    </div>
+
+                    <div class="staff-signal">
+                        <strong>Staff-Level Signal:</strong> Reference Uber's DOMA when discussing
+                        microservice architecture at scale. It shows you understand that the microservice
+                        journey does not end at decomposition &mdash; mature organizations often need to
+                        re-aggregate into domains. This is a nuanced perspective that distinguishes
+                        staff-level thinking.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 11: INTERVIEW APPLICATION                             -->
+            <!-- ============================================================ -->
+            <h2 id="interview-application">11. Interview Application</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Discuss Microservices in System Design Interviews</span>
+                </div>
+                <div class="collapsible-content">
+
+                    <h4>The Decision Framework</h4>
+
+                    <p>
+                        When the interviewer asks &ldquo;Would you use microservices here?&rdquo;,
+                        do not answer yes or no immediately. Walk through a decision framework:
+                    </p>
+
+                    <ol>
+                        <li><strong>What is the team size and org structure?</strong>
+                            &mdash; Fewer than 20 engineers? Probably stay monolithic.
+                            Multiple autonomous teams? Microservices may make sense.</li>
+                        <li><strong>What are the scaling requirements?</strong>
+                            &mdash; Do different components have radically different scaling profiles?
+                            If the search engine needs 100x the compute of the admin panel, separate them.</li>
+                        <li><strong>What is the deployment velocity requirement?</strong>
+                            &mdash; Does the team need to deploy multiple times per day? Do different
+                            features change at different rates? Independent deployability is a key
+                            microservice benefit.</li>
+                        <li><strong>Do you have the infrastructure maturity?</strong>
+                            &mdash; CI/CD, container orchestration, observability, service mesh.
+                            Without these, microservices amplify operational pain.</li>
+                    </ol>
+
+                    <h4>Common Trade-Offs to Articulate</h4>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Benefit</th>
+                                <th>Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Independent deployment</td>
+                                <td>Distributed system complexity</td>
+                            </tr>
+                            <tr>
+                                <td>Team autonomy</td>
+                                <td>Inter-service API contract management</td>
+                            </tr>
+                            <tr>
+                                <td>Technology freedom</td>
+                                <td>Operational overhead of multiple tech stacks</td>
+                            </tr>
+                            <tr>
+                                <td>Independent scaling</td>
+                                <td>Network latency and data consistency challenges</td>
+                            </tr>
+                            <tr>
+                                <td>Fault isolation</td>
+                                <td>Requires sophisticated observability and resilience patterns</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>What Interviewers Look For</h4>
+
+                    <ul>
+                        <li><strong>Nuanced thinking</strong> &mdash; Not &ldquo;microservices are always
+                            better&rdquo; but &ldquo;given the scale and team size, here is what I would
+                            choose and why.&rdquo;</li>
+                        <li><strong>Awareness of operational complexity</strong> &mdash; Mentioning
+                            observability, deployment strategies, and failure modes unprompted shows
+                            production experience.</li>
+                        <li><strong>Data management strategy</strong> &mdash; How do you handle
+                            cross-service data consistency? Sagas? Event-driven materialized views?</li>
+                        <li><strong>Evolutionary architecture</strong> &mdash; Starting with a monolith
+                            and describing when and how you would decompose shows pragmatism.</li>
+                        <li><strong>Organizational awareness</strong> &mdash; Mentioning Conway's Law
+                            and team topology shows you think beyond code.</li>
+                    </ul>
+
+                    <h4>Red Flags to Avoid</h4>
+
+                    <div class="warning-box">
+                        <strong>Red Flags:</strong>
+                        <ul>
+                            <li>Jumping to microservices without justification</li>
+                            <li>Ignoring data consistency challenges across services</li>
+                            <li>Not discussing failure modes (what happens when Service B is down?)</li>
+                            <li>Creating a &ldquo;distributed monolith&rdquo; (shared database, synchronous
+                                chains, coordinated deployments)</li>
+                            <li>Not mentioning observability or monitoring</li>
+                            <li>Decomposing too finely (one service per REST endpoint)</li>
+                        </ul>
+                    </div>
+
+                    <h4>Sample Interview Dialogue</h4>
+
+                    <div class="card">
+                        <p><strong>Interviewer:</strong> &ldquo;Design a food delivery system like DoorDash.&rdquo;</p>
+                        <p><strong>Strong answer (excerpt):</strong> &ldquo;For the initial architecture, I would
+                        start with a modular monolith with clear module boundaries: Order Management, Restaurant
+                        Catalog, Delivery Tracking, Payments, and Notifications. Each module has its own
+                        database schema and interacts with others through well-defined internal APIs.</p>
+                        <p>As the system scales to support millions of orders per day with hundreds of engineers,
+                        I would extract services starting with the highest-value candidates: Delivery Tracking
+                        (different scaling profile &mdash; high-frequency GPS updates), Payments (regulatory
+                        requirements, separate PCI scope), and Notifications (can be fully asynchronous).
+                        I would use the Strangler Fig pattern, introducing a routing layer that gradually
+                        shifts traffic to new services.</p>
+                        <p>For inter-service communication, Order Management would publish events
+                        (OrderCreated, OrderCanceled) to Kafka. Delivery Tracking and Notifications
+                        consume these asynchronously. For the payment flow, I would use a saga with
+                        an orchestrator because it is critical-path and needs reliable compensation
+                        on failure.</p>
+                        <p>I would instrument everything with OpenTelemetry from day one, use canary
+                        deployments with automated rollback based on p99 latency and error rate, and
+                        require circuit breakers on all synchronous service calls.&rdquo;</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 12: SELF-CHECK QUIZ                                   -->
+            <!-- ============================================================ -->
+            <h2 id="quiz">12. Self-Check Quiz</h2>
+
+            <div class="quiz-container">
+
+                <div class="quiz-question" data-correct="c">
+                    <h4>Q1: What is the primary risk of decomposing into microservices too early?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q1" value="a"> a) Higher cloud costs</label>
+                        <label><input type="radio" name="q1" value="b"> b) Slower CI/CD pipelines</label>
+                        <label><input type="radio" name="q1" value="c"> c) Distributed system complexity without the organizational scale to justify it</label>
+                        <label><input type="radio" name="q1" value="d"> d) Inability to use ACID transactions</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="b">
+                    <h4>Q2: In Domain-Driven Design, what is a Bounded Context?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q2" value="a"> a) A database schema boundary</label>
+                        <label><input type="radio" name="q2" value="b"> b) A boundary within which a particular domain model is defined and applicable</label>
+                        <label><input type="radio" name="q2" value="c"> c) A Kubernetes namespace</label>
+                        <label><input type="radio" name="q2" value="d"> d) A rate limiting boundary</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="d">
+                    <h4>Q3: What is the key difference between an API Gateway and a Service Mesh?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q3" value="a"> a) API Gateways are faster than Service Meshes</label>
+                        <label><input type="radio" name="q3" value="b"> b) Service Meshes handle authentication, API Gateways do not</label>
+                        <label><input type="radio" name="q3" value="c"> c) API Gateways use Envoy, Service Meshes use NGINX</label>
+                        <label><input type="radio" name="q3" value="d"> d) API Gateways handle north-south (client-to-service) traffic; Service Meshes handle east-west (service-to-service) traffic</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="a">
+                    <h4>Q4: Why is a shared database considered an anti-pattern in microservices?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q4" value="a"> a) It couples services at the data layer, requiring coordinated schema changes and creating performance interference</label>
+                        <label><input type="radio" name="q4" value="b"> b) Databases cannot handle multiple connections from different services</label>
+                        <label><input type="radio" name="q4" value="c"> c) It violates the CAP theorem</label>
+                        <label><input type="radio" name="q4" value="d"> d) It makes services run slower due to connection pooling</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="c">
+                    <h4>Q5: In a circuit breaker, what happens in the &ldquo;half-open&rdquo; state?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q5" value="a"> a) All requests are rejected</label>
+                        <label><input type="radio" name="q5" value="b"> b) All requests pass through normally</label>
+                        <label><input type="radio" name="q5" value="c"> c) A limited number of test requests are allowed through to check if the downstream service has recovered</label>
+                        <label><input type="radio" name="q5" value="d"> d) Requests are queued until the circuit closes</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="b">
+                    <h4>Q6: What is the primary advantage of canary deployments over blue-green deployments?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q6" value="a"> a) Canary deployments are faster to execute</label>
+                        <label><input type="radio" name="q6" value="b"> b) Canary deployments expose only a small percentage of users to risk, allowing gradual validation with real traffic</label>
+                        <label><input type="radio" name="q6" value="c"> c) Canary deployments do not require a load balancer</label>
+                        <label><input type="radio" name="q6" value="d"> d) Canary deployments support database schema changes more easily</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="a">
+                    <h4>Q7: Conway's Law states that:</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q7" value="a"> a) A system's architecture mirrors the communication structure of the organization that built it</label>
+                        <label><input type="radio" name="q7" value="b"> b) Adding more engineers to a late project makes it later</label>
+                        <label><input type="radio" name="q7" value="c"> c) Software complexity grows exponentially with the number of services</label>
+                        <label><input type="radio" name="q7" value="d"> d) All abstractions are leaky</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+                <div class="quiz-question" data-correct="d">
+                    <h4>Q8: Uber's DOMA (Domain-Oriented Microservice Architecture) was created to solve which problem?</h4>
+                    <div class="quiz-options">
+                        <label><input type="radio" name="q8" value="a"> a) Slow CI/CD pipelines</label>
+                        <label><input type="radio" name="q8" value="b"> b) Lack of service discovery</label>
+                        <label><input type="radio" name="q8" value="c"> c) High cloud infrastructure costs</label>
+                        <label><input type="radio" name="q8" value="d"> d) Too many microservices with too many unstructured dependencies, causing organizational chaos</label>
+                    </div>
+                    <button class="btn-check-answer" onclick="checkAnswer(this)">Check Answer</button>
+                    <div class="quiz-feedback"></div>
+                </div>
+
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- FLASHCARD SUGGESTIONS                                         -->
+            <!-- ============================================================ -->
+            <h2 id="flashcards">Suggested Flashcards</h2>
+
+            <div class="card">
+                <h3>5 Key Flashcard Q&amp;A Pairs (for Anki/CSV export)</h3>
+                <ol>
+                    <li>
+                        <strong>Q:</strong> What is the Strangler Fig pattern?<br>
+                        <strong>A:</strong> An incremental migration strategy where new functionality is
+                        built as separate services while the monolith continues serving existing traffic.
+                        A proxy routes traffic to either old or new code. Over time, the monolith shrinks
+                        until it can be decommissioned.
+                    </li>
+                    <li>
+                        <strong>Q:</strong> What are the three states of a circuit breaker?<br>
+                        <strong>A:</strong> Closed (normal operation, tracking failures), Open (fail fast,
+                        no downstream calls), Half-Open (allow limited test requests to check recovery).
+                    </li>
+                    <li>
+                        <strong>Q:</strong> What is the difference between an API Gateway and a Service Mesh?<br>
+                        <strong>A:</strong> API Gateway handles north-south traffic (client-to-service):
+                        routing, auth, rate limiting. Service Mesh handles east-west traffic
+                        (service-to-service): mTLS, retries, circuit breaking, observability via sidecar proxies.
+                    </li>
+                    <li>
+                        <strong>Q:</strong> What is Conway's Law and the Inverse Conway Maneuver?<br>
+                        <strong>A:</strong> Conway's Law: system architecture mirrors org communication
+                        structure. Inverse Conway Maneuver: organize teams to match the desired architecture
+                        (e.g., cross-functional teams for microservices).
+                    </li>
+                    <li>
+                        <strong>Q:</strong> Why is &ldquo;database per service&rdquo; important in microservices?<br>
+                        <strong>A:</strong> It ensures services are decoupled at the data layer. Shared
+                        databases create hidden coupling (coordinated schema changes, performance interference),
+                        resulting in a distributed monolith.
+                    </li>
+                </ol>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- TL;DR                                                         -->
+            <!-- ============================================================ -->
+            <h2 id="tldr">tl;dr</h2>
+
+            <div class="card">
+                <p>
+                    Microservices trade development simplicity for operational complexity. They are
+                    justified when team scale, deployment velocity, or heterogeneous scaling
+                    requirements outgrow what a monolith can support. The keys are: decompose along
+                    DDD bounded contexts (not arbitrarily), use an API gateway for edge concerns and
+                    asynchronous communication to reduce coupling, invest heavily in observability
+                    (traces, structured logs, metrics), and deploy progressively with canary releases.
+                    Conway's Law means your architecture will mirror your org &mdash; so structure
+                    your teams to match the architecture you want.
+                </p>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- NAVIGATION                                                    -->
+            <!-- ============================================================ -->
+            <div class="flex flex-between mt-4">
+                <a href="module-12.html" class="btn btn-secondary">&larr; Previous: Rate Limiting</a>
+                <a href="module-17.html" class="btn btn-primary">Next: Search &amp; Indexing &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>
+        // Quiz checking logic
+        function checkAnswer(button) {
+            var questionDiv = button.closest('.quiz-question');
+            var correct = questionDiv.getAttribute('data-correct');
+            var selected = questionDiv.querySelector('input[type="radio"]:checked');
+            var feedback = questionDiv.querySelector('.quiz-feedback');
+
+            if (!selected) {
+                feedback.textContent = 'Please select an answer.';
+                feedback.className = 'quiz-feedback incorrect';
+                return;
+            }
+
+            if (selected.value === correct) {
+                feedback.textContent = 'Correct!';
+                feedback.className = 'quiz-feedback correct';
+            } else {
+                feedback.textContent = 'Incorrect. The correct answer is: ' + correct.toUpperCase() + '.';
+                feedback.className = 'quiz-feedback incorrect';
+            }
+        }
+
+        // Module completion tracking
+        (function() {
+            var key = 'sd_module_16_complete';
+            var scrollThreshold = 0.8;
+            window.addEventListener('scroll', function() {
+                var scrolled = (window.scrollY + window.innerHeight) / document.documentElement.scrollHeight;
+                if (scrolled > scrollThreshold && !localStorage.getItem(key)) {
+                    localStorage.setItem(key, new Date().toISOString());
+                }
+            });
+        })();
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

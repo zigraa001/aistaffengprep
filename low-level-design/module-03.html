@@ -58,7 +58,7 @@
                     <a href="problems/parking-lot.html" class="sidebar-link">
                         <span class="sidebar-link-number">P1</span>Parking Lot
                     </a>
-                    <a href="problems/elevator-system.html" class="sidebar-link">
+                    <a href="problems/elevator.html" class="sidebar-link">
                         <span class="sidebar-link-number">P2</span>Elevator System
                     </a>
                 </div>
@@ -396,9 +396,9 @@ public class EncryptionDecorator extends DataSourceDecorator {
 public class CompressionDecorator extends DataSourceDecorator {
     private final int compressionLevel;
 
-    public CompressionDecorator(DataSource source, int level) {
+    public CompressionDecorator(DataSource source, int compressionLevel) {
         super(source);
-        this.compressionLevel = level;
+        this.compressionLevel = compressionLevel;
     }
 
     @Override
@@ -414,19 +414,28 @@ public class CompressionDecorator extends DataSourceDecorator {
     }
 
     private String compress(String data) {
-        // GZIP compression
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (GZIPOutputStream gzip = new GZIPOutputStream(baos)) {
-            gzip.write(data.getBytes(StandardCharsets.UTF_8));
+        // Deflate compression with configurable level
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            Deflater deflater = new Deflater(compressionLevel);
+            try (DeflaterOutputStream dos = new DeflaterOutputStream(baos, deflater)) {
+                dos.write(data.getBytes(StandardCharsets.UTF_8));
+            }
+            return Base64.getEncoder().encodeToString(baos.toByteArray());
+        } catch (IOException e) {
+            throw new RuntimeException("Compression failed", e);
         }
-        return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
 
     private String decompress(String data) {
-        byte[] compressed = Base64.getDecoder().decode(data);
-        ByteArrayInputStream bais = new ByteArrayInputStream(compressed);
-        try (GZIPInputStream gzip = new GZIPInputStream(bais)) {
-            return new String(gzip.readAllBytes(), StandardCharsets.UTF_8);
+        try {
+            byte[] compressed = Base64.getDecoder().decode(data);
+            ByteArrayInputStream bais = new ByteArrayInputStream(compressed);
+            try (InflaterInputStream iis = new InflaterInputStream(bais)) {
+                return new String(iis.readAllBytes(), StandardCharsets.UTF_8);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Decompression failed", e);
         }
     }
 }
@@ -473,10 +482,10 @@ public class Application {
         // With logging
         source = new LoggingDecorator(source, LoggerFactory.getLogger("DataSource"));
 
-        // Write: data -> compress -> encrypt -> log -> file
+        // Write: data -> log -> compress -> encrypt -> file
         source.writeData("Sensitive business data");
 
-        // Read: file -> log -> decrypt -> decompress -> data
+        // Read: file -> decrypt -> decompress -> log -> data
         String data = source.readData();
     }
 }</code></pre>

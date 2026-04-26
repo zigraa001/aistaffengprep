@@ -51,7 +51,7 @@
                     <a href="problems/parking-lot.html" class="sidebar-link">
                         <span class="sidebar-link-number">P1</span>Parking Lot
                     </a>
-                    <a href="problems/elevator-system.html" class="sidebar-link">
+                    <a href="problems/elevator.html" class="sidebar-link">
                         <span class="sidebar-link-number">P2</span>Elevator System
                     </a>
                     <a href="problems/vending-machine.html" class="sidebar-link">
@@ -338,9 +338,12 @@ public class Stock implements StockSubject {
     public void notifyObservers() {
         // Push model - send data with notification
         for (StockObserver observer : observers) {
-            observer.onPriceUpdate(symbol, price, price);
+            observer.onPriceUpdate(symbol, this.price, this.price);
         }
     }
+    // Note: notifyObservers() sends current price as both old and new.
+    // For meaningful change tracking, prefer calling setPrice() which
+    // captures the old price before updating.
 
     public void setPrice(BigDecimal newPrice) {
         BigDecimal oldPrice = this.price;
@@ -408,8 +411,10 @@ public class StockDashboard implements StockObserver {
         display.updatePrice(newPrice);
 
         BigDecimal change = newPrice.subtract(oldPrice);
-        BigDecimal percentChange = change.divide(oldPrice, 4, RoundingMode.HALF_UP)
-            .multiply(BigDecimal.valueOf(100));
+        BigDecimal percentChange = oldPrice.signum() == 0
+            ? BigDecimal.ZERO
+            : change.divide(oldPrice, 4, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100));
 
         display.updateChange(change, percentChange);
     }
@@ -447,7 +452,7 @@ public class StockMarket {
 
     public void simulateMarket() {
         Stock apple = new Stock("AAPL", new BigDecimal("150.00"));
-        Stock google = new Stock("GOOGL", new BigDecimal("2800.00"));
+        Stock google = new Stock("GOOGL", new BigDecimal("170.00"));
 
         // Register observers
         StockDashboard dashboard = new StockDashboard();

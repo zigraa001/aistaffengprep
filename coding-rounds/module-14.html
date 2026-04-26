@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 14: Tries &amp; Advanced Data Structures - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="index.html" style="color: var(--primary-color);">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+            </ul>
+        </div>
+    </nav>
+    <div class="layout-with-sidebar">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                    <a href="cheat-sheet.html" class="sidebar-link">Cheat Sheet</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Foundations
+                    </a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Arrays &amp; Two Pointers
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Patterns</div>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Trees &amp; Binary Search
+                    </a>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Graphs
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>Dynamic Programming
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced</div>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Backtracking
+                    </a>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Heaps &amp; Sorting
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Non-LeetCode Problems
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Interview Prep</div>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Interview Simulation
+                    </a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link active" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
+            </nav>
+        </aside>
+        <!-- Mobile sidebar toggle -->
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+        <!-- Main Content -->
+        <main class="main-content">
+        <h1>Module 14: Tries &amp; Advanced Data Structures</h1>
+        <div class="card mt-3">
+            <h3>Learning Objectives</h3>
+            <ul>
+                <li>Implement a Trie with insert, search, startsWith, and delete operations</li>
+                <li>Understand memory trade-offs: hashmap children vs fixed-size array children</li>
+                <li>Solve classic trie interview problems (Word Search II, Design Add and Search Words)</li>
+                <li>Build and query a Segment Tree for range-sum queries with point updates</li>
+                <li>Implement a Fenwick Tree (Binary Indexed Tree) and know when to prefer it</li>
+                <li>Understand probabilistic and skip-list data structures at a conceptual level</li>
+            </ul>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 1: Trie Implementation                               -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">1. Trie Implementation</h2>
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Core Trie &mdash; Insert, Search, StartsWith, Delete</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>A <strong>trie</strong> (prefix tree) stores strings character-by-character. Each edge represents a character, and each node may mark the end of a word. Tries give O(L) lookup where L is the word length, independent of how many words are stored &mdash; unlike hash tables which degrade under collisions.</p>
+                <p><strong>Why tries matter in interviews:</strong> They are the canonical solution for prefix-based queries (autocomplete, spell check, IP routing). Google's search suggestion box is conceptually a trie with ranking.</p>
+                <div class="diagram-container">
+                    <div class="mermaid">
+graph TD
+    ROOT["root"] --> A["a"]
+    ROOT --> D["d"]
+    A --> P["p*"]
+    A --> PP["pp"]
+    PP --> LE["le*"]
+    D --> O["o*"]
+    D --> OG["og*"]
+    style P fill:#4caf50,color:#fff
+    style LE fill:#4caf50,color:#fff
+    style O fill:#4caf50,color:#fff
+    style OG fill:#4caf50,color:#fff
+                    </div>
+                    <p style="text-align:center; font-size:0.9em; color:var(--text-muted);">Trie containing: "ap", "apple", "do", "dog". Green = end-of-word.</p>
+                </div>
+                <h4>Full Implementation (Python)</h4>
+                <div class="code-block">
+                    <pre><code class="language-python">class TrieNode:
+    __slots__ = ('children', 'is_end')
+    def __init__(self):
+        self.children = {}   # char -&gt; TrieNode
+        self.is_end = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word: str) -&gt; None:
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.is_end = True
+
+    def search(self, word: str) -&gt; bool:
+        node = self._find(word)
+        return node is not None and node.is_end
+
+    def startsWith(self, prefix: str) -&gt; bool:
+        return self._find(prefix) is not None
+
+    def _find(self, prefix: str):
+        node = self.root
+        for ch in prefix:
+            if ch not in node.children:
+                return None
+            node = node.children[ch]
+        return node
+
+    def delete(self, word: str) -&gt; bool:
+        """Returns True if word was deleted. Uses post-order cleanup."""
+        def _delete(node, word, depth):
+            if depth == len(word):
+                if not node.is_end:
+                    return False
+                node.is_end = False
+                return len(node.children) == 0  # can prune?
+            ch = word[depth]
+            if ch not in node.children:
+                return False
+            should_prune = _delete(node.children[ch], word, depth + 1)
+            if should_prune:
+                del node.children[ch]
+                return not node.is_end and len(node.children) == 0
+            return False
+        _delete(self.root, word, 0)
+        return True</code></pre>
+                </div>
+                <h4 class="mt-3">Memory: Hashmap vs Array Children</h4>
+                <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+                    <thead>
+                        <tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                            <th style="padding:10px; text-align:left;">Approach</th>
+                            <th style="padding:10px; text-align:left;">Per-Node Memory</th>
+                            <th style="padding:10px; text-align:left;">Child Lookup</th>
+                            <th style="padding:10px; text-align:left;">Best For</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:8px;">HashMap children</td><td style="padding:8px;">~56B + 8B/child (Python dict)</td><td style="padding:8px;">O(1) avg</td><td style="padding:8px;">Sparse alphabets (Unicode, URLs)</td></tr>
+                        <tr><td style="padding:8px;">Array[26] children</td><td style="padding:8px;">26 &times; 8B = 208B fixed</td><td style="padding:8px;">O(1) worst</td><td style="padding:8px;">Dense lowercase-only, speed-critical</td></tr>
+                    </tbody>
+                </table>
+                <p class="mt-2"><strong>Rule of thumb:</strong> Use hashmap in interviews (cleaner code, handles any character set). Use array in competitive programming or when the alphabet is known and small.</p>
+            </div>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 2: Trie Problems                                     -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">2. Classic Trie Problems</h2>
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>LeetCode #211 &mdash; Design Add and Search Words (Wildcard)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Design a data structure that supports <code>addWord(word)</code> and <code>search(word)</code> where <code>search</code> can contain <code>.</code> as a wildcard matching any single character.</p>
+                <p><strong>Key insight:</strong> Standard trie insert; for search, when you hit a <code>.</code>, branch into all children recursively.</p>
+                <div class="code-block">
+                    <pre><code class="language-python">class WordDictionary:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def addWord(self, word: str) -&gt; None:
+        node = self.root
+        for ch in word:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.is_end = True
+
+    def search(self, word: str) -&gt; bool:
+        def dfs(node, i):
+            if i == len(word):
+                return node.is_end
+            if word[i] == '.':
+                return any(dfs(child, i + 1)
+                           for child in node.children.values())
+            if word[i] not in node.children:
+                return False
+            return dfs(node.children[word[i]], i + 1)
+        return dfs(self.root, 0)</code></pre>
+                </div>
+                <p><strong>Time:</strong> O(L) for addWord. O(26^L) worst case for search with all dots, but in practice much faster due to pruning.</p>
+            </div>
+        </div>
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>LeetCode #212 &mdash; Word Search II (Trie + Backtracking)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an m&times;n board of characters and a list of words, find all words that can be formed by sequentially adjacent cells (no cell reused per word).</p>
+                <p><strong>Why trie:</strong> A naive approach searches for each word independently (O(words &times; m&times;n &times; 4^L)). Building a trie of all target words lets you search for all words simultaneously in a single board traversal.</p>
+                <div class="code-block">
+                    <pre><code class="language-python">def findWords(board, words):
+    root = TrieNode()
+    for w in words:                # build trie of target words
+        node = root
+        for ch in w:
+            if ch not in node.children:
+                node.children[ch] = TrieNode()
+            node = node.children[ch]
+        node.word = w              # store full word at terminal
+
+    result = []
+    rows, cols = len(board), len(board[0])
+
+    def dfs(r, c, node):
+        ch = board[r][c]
+        if ch not in node.children:
+            return
+        child = node.children[ch]
+        if hasattr(child, 'word') and child.word:
+            result.append(child.word)
+            child.word = None      # avoid duplicates
+
+        board[r][c] = '#'          # mark visited
+        for dr, dc in ((0,1),(0,-1),(1,0),(-1,0)):
+            nr, nc = r + dr, c + dc
+            if 0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and board[nr][nc] != '#':
+                dfs(nr, nc, child)
+        board[r][c] = ch           # restore
+
+        if not child.children:     # prune empty branches
+            del node.children[ch]
+
+    for r in range(rows):
+        for c in range(cols):
+            dfs(r, c, root)
+    return result</code></pre>
+                </div>
+                <p><strong>Optimization:</strong> The <code>del node.children[ch]</code> prune step is critical. Without it, you repeatedly explore dead branches. This brings the solution from TLE to accepted.</p>
+            </div>
+        </div>
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>LeetCode #1268 &mdash; Search Suggestions System (Autocomplete)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an array of products and a search word, after each character typed return the top 3 lexicographically smallest matches.</p>
+                <p><strong>Approach:</strong> Sort products, build a trie, store sorted words at each node (or collect via DFS). Alternatively, use binary search on the sorted list for each prefix &mdash; simpler and often preferred in interviews.</p>
+                <div class="code-block">
+                    <pre><code class="language-python">def suggestedProducts(products, searchWord):
+    products.sort()
+    result, prefix = [], ""
+    for ch in searchWord:
+        prefix += ch
+        # Binary search for leftmost match
+        import bisect
+        i = bisect.bisect_left(products, prefix)
+        suggestions = []
+        for j in range(i, min(i + 3, len(products))):
+            if products[j].startswith(prefix):
+                suggestions.append(products[j])
+        result.append(suggestions)
+    return result</code></pre>
+                </div>
+                <p><strong>Interview tip:</strong> Mention both approaches. The trie approach is O(total chars) to build but O(1) per prefix lookup. The binary search approach is O(n log n) sort + O(L log n) per query. For a one-shot query, binary search wins; for a persistent autocomplete service, the trie wins.</p>
+            </div>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 3: Segment Tree                                      -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">3. Segment Tree</h2>
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Build, Query, Update for Range Sum</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>When to use:</strong> You need both <em>range queries</em> (sum/min/max over [l, r]) and <em>point or range updates</em>. A prefix sum handles range queries in O(1) but updates cost O(n). A segment tree gives O(log n) for both.</p>
+                <p><strong>Real-world usage:</strong> Database engines use segment-tree-like structures for range index scans. Competitive programming staple for problems involving mutable ranges.</p>
+                <div class="diagram-container">
+                    <div class="mermaid">
+graph TD
+    N1["[0,3] sum=10"] --> N2["[0,1] sum=3"]
+    N1 --> N3["[2,3] sum=7"]
+    N2 --> N4["[0] val=1"]
+    N2 --> N5["[1] val=2"]
+    N3 --> N6["[2] val=3"]
+    N3 --> N7["[3] val=4"]
+                    </div>
+                    <p style="text-align:center; font-size:0.9em; color:var(--text-muted);">Segment tree for array [1, 2, 3, 4]. Each node stores the sum of its range.</p>
+                </div>
+                <h4>Compact Array-Based Implementation</h4>
+                <div class="code-block">
+                    <pre><code class="language-python">class SegmentTree:
+    """Range sum queries + point updates in O(log n)."""
+    def __init__(self, nums):
+        self.n = len(nums)
+        self.tree = [0] * (2 * self.n)
+        # Build: fill leaves, then internal nodes
+        for i in range(self.n):
+            self.tree[self.n + i] = nums[i]
+        for i in range(self.n - 1, 0, -1):
+            self.tree[i] = self.tree[2*i] + self.tree[2*i+1]
+
+    def update(self, i, val):
+        """Set nums[i] = val."""
+        i += self.n
+        self.tree[i] = val
+        while i &gt; 1:
+            i //= 2
+            self.tree[i] = self.tree[2*i] + self.tree[2*i+1]
+
+    def query(self, l, r):
+        """Return sum of nums[l..r] inclusive."""
+        res = 0
+        l += self.n
+        r += self.n + 1
+        while l &lt; r:
+            if l &amp; 1:
+                res += self.tree[l]
+                l += 1
+            if r &amp; 1:
+                r -= 1
+                res += self.tree[r]
+            l //= 2
+            r //= 2
+        return res</code></pre>
+                </div>
+                <p><strong>Complexity:</strong> Build O(n), query O(log n), update O(log n). Space O(2n) = O(n).</p>
+                <p><strong>Why this implementation?</strong> The iterative bottom-up approach (often called "Codeforces-style") avoids recursion overhead and is half the code of the recursive version. Node <code>i</code>'s children are <code>2i</code> and <code>2i+1</code>. Leaves are at indices <code>[n, 2n)</code>.</p>
+            </div>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 4: Fenwick Tree (BIT)                                -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">4. Fenwick Tree (Binary Indexed Tree)</h2>
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Point Update + Prefix Query</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>A Fenwick tree supports <strong>prefix sum queries</strong> and <strong>point updates</strong> both in O(log n), using only a flat array of size n+1. It is simpler and has lower constant factors than a segment tree, but less general (no lazy propagation, harder to adapt to min/max).</p>
+                <h4>Implementation</h4>
+                <div class="code-block">
+                    <pre><code class="language-python">class FenwickTree:
+    """1-indexed Binary Indexed Tree for prefix sums."""
+    def __init__(self, n):
+        self.n = n
+        self.tree = [0] * (n + 1)
+
+    def update(self, i, delta):
+        """Add delta to index i (1-indexed)."""
+        while i &lt;= self.n:
+            self.tree[i] += delta
+            i += i &amp; (-i)    # add lowest set bit
+
+    def query(self, i):
+        """Return prefix sum [1..i]."""
+        s = 0
+        while i &gt; 0:
+            s += self.tree[i]
+            i -= i &amp; (-i)    # remove lowest set bit
+        return s
+
+    def range_query(self, l, r):
+        """Return sum [l..r] (1-indexed)."""
+        return self.query(r) - self.query(l - 1)</code></pre>
+                </div>
+                <h4 class="mt-3">Segment Tree vs Fenwick Tree</h4>
+                <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+                    <thead>
+                        <tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                            <th style="padding:10px; text-align:left;">Feature</th>
+                            <th style="padding:10px; text-align:left;">Segment Tree</th>
+                            <th style="padding:10px; text-align:left;">Fenwick Tree</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:8px;">Space</td><td style="padding:8px;">2n or 4n</td><td style="padding:8px;">n+1</td></tr>
+                        <tr><td style="padding:8px;">Range sum query</td><td style="padding:8px;">O(log n)</td><td style="padding:8px;">O(log n)</td></tr>
+                        <tr><td style="padding:8px;">Point update</td><td style="padding:8px;">O(log n)</td><td style="padding:8px;">O(log n)</td></tr>
+                        <tr><td style="padding:8px;">Range update</td><td style="padding:8px;">O(log n) with lazy</td><td style="padding:8px;">Possible but tricky</td></tr>
+                        <tr><td style="padding:8px;">Range min/max</td><td style="padding:8px;">Supported</td><td style="padding:8px;">Not natively</td></tr>
+                        <tr><td style="padding:8px;">Code complexity</td><td style="padding:8px;">~25 lines</td><td style="padding:8px;">~15 lines</td></tr>
+                        <tr><td style="padding:8px;">Constant factor</td><td style="padding:8px;">Higher</td><td style="padding:8px;">Lower (cache-friendly)</td></tr>
+                    </tbody>
+                </table>
+                <p class="mt-2"><strong>When to choose:</strong> If you only need prefix sums + point updates, prefer Fenwick (simpler, faster). If you need range min/max, lazy propagation, or arbitrary range operations, use a segment tree.</p>
+            </div>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 5: Advanced DS Overview                              -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">5. Advanced Data Structures Overview</h2>
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Skip Lists, Bloom Filters, Count-Min Sketch</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Skip List</h4>
+                <p>A randomized structure layering sorted linked lists with express lanes. Expected O(log n) search/insert/delete. <strong>Used by Redis</strong> for sorted sets &mdash; simpler than balanced BSTs, supports range scans, and amenable to lock-free concurrency.</p>
+                <h4 class="mt-3">Bloom Filter</h4>
+                <p>A space-efficient probabilistic set: no false negatives, possible false positives. Uses k hash functions mapping to a bit array of size m. False positive rate ~(1 - e^(-kn/m))^k.</p>
+                <p><strong>Uses:</strong> Chrome safe browsing, Cassandra (skip disk reads for missing keys), Medium (avoid re-recommending articles).</p>
+                <h4 class="mt-3">Count-Min Sketch</h4>
+                <p>A probabilistic frequency table using d hash functions &times; w counters. Query returns minimum across d positions (overcounts possible, undercounts not). Used for network anomaly detection and trending topic identification.</p>
+                <table style="width:100%; border-collapse:collapse; margin-top:12px;">
+                    <thead>
+                        <tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                            <th style="padding:10px; text-align:left;">Structure</th>
+                            <th style="padding:10px; text-align:left;">Type</th>
+                            <th style="padding:10px; text-align:left;">Error</th>
+                            <th style="padding:10px; text-align:left;">Space</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:8px;">Skip List</td><td style="padding:8px;">Exact ordered set</td><td style="padding:8px;">None</td><td style="padding:8px;">O(n) expected</td></tr>
+                        <tr><td style="padding:8px;">Bloom Filter</td><td style="padding:8px;">Probabilistic set</td><td style="padding:8px;">False positives only</td><td style="padding:8px;">O(n) bits, much smaller than storing elements</td></tr>
+                        <tr><td style="padding:8px;">Count-Min Sketch</td><td style="padding:8px;">Probabilistic frequency</td><td style="padding:8px;">Overcounts only</td><td style="padding:8px;">O(1/&epsilon; &times; log 1/&delta;)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <!-- ============================================================ -->
+        <!-- SECTION 6: LeetCode Problem Table                            -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">6. LeetCode Problem Table</h2>
+        <div class="card">
+            <table style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                        <th style="padding:10px; text-align:left;">#</th>
+                        <th style="padding:10px; text-align:left;">Problem</th>
+                        <th style="padding:10px; text-align:left;">Difficulty</th>
+                        <th style="padding:10px; text-align:left;">Key Concept</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td style="padding:8px;">208</td><td style="padding:8px;"><a href="https://leetcode.com/problems/implement-trie-prefix-tree/" target="_blank">Implement Trie</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Core trie operations</td></tr>
+                    <tr><td style="padding:8px;">211</td><td style="padding:8px;"><a href="https://leetcode.com/problems/design-add-and-search-words-data-structure/" target="_blank">Add and Search Words</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Trie + DFS wildcard</td></tr>
+                    <tr><td style="padding:8px;">212</td><td style="padding:8px;"><a href="https://leetcode.com/problems/word-search-ii/" target="_blank">Word Search II</a></td><td style="padding:8px;">Hard</td><td style="padding:8px;">Trie + backtracking + pruning</td></tr>
+                    <tr><td style="padding:8px;">1268</td><td style="padding:8px;"><a href="https://leetcode.com/problems/search-suggestions-system/" target="_blank">Search Suggestions System</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Trie or binary search autocomplete</td></tr>
+                    <tr><td style="padding:8px;">307</td><td style="padding:8px;"><a href="https://leetcode.com/problems/range-sum-query-mutable/" target="_blank">Range Sum Query - Mutable</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Segment tree or Fenwick tree</td></tr>
+                    <tr><td style="padding:8px;">315</td><td style="padding:8px;"><a href="https://leetcode.com/problems/count-of-smaller-numbers-after-self/" target="_blank">Count of Smaller Numbers After Self</a></td><td style="padding:8px;">Hard</td><td style="padding:8px;">Fenwick tree on value space</td></tr>
+                    <tr><td style="padding:8px;">421</td><td style="padding:8px;"><a href="https://leetcode.com/problems/maximum-xor-of-two-numbers-in-an-array/" target="_blank">Maximum XOR of Two Numbers</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Bitwise trie</td></tr>
+                    <tr><td style="padding:8px;">648</td><td style="padding:8px;"><a href="https://leetcode.com/problems/replace-words/" target="_blank">Replace Words</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Trie prefix matching</td></tr>
+                    <tr><td style="padding:8px;">677</td><td style="padding:8px;"><a href="https://leetcode.com/problems/map-sum-pairs/" target="_blank">Map Sum Pairs</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Trie with value aggregation</td></tr>
+                    <tr><td style="padding:8px;">745</td><td style="padding:8px;"><a href="https://leetcode.com/problems/prefix-and-suffix-search/" target="_blank">Prefix and Suffix Search</a></td><td style="padding:8px;">Hard</td><td style="padding:8px;">Double trie or combined key trie</td></tr>
+                    <tr><td style="padding:8px;">493</td><td style="padding:8px;"><a href="https://leetcode.com/problems/reverse-pairs/" target="_blank">Reverse Pairs</a></td><td style="padding:8px;">Hard</td><td style="padding:8px;">Fenwick tree or merge sort</td></tr>
+                    <tr><td style="padding:8px;">1395</td><td style="padding:8px;"><a href="https://leetcode.com/problems/count-number-of-teams/" target="_blank">Count Number of Teams</a></td><td style="padding:8px;">Medium</td><td style="padding:8px;">Fenwick tree for order statistics</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- ============================================================ -->
+        <!-- QUIZ                                                         -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Module Quiz</h2>
+        <div id="module-quiz"></div>
+        <div class="mt-4" style="text-align:center;">
+            <button class="btn btn-primary" onclick="completeModule()">Mark Module Complete &amp; Continue &rarr;</button>
+        </div>
+        <!-- Navigation -->
+        <div class="flex flex-between mt-4">
+            <a href="module-13.html" class="btn btn-secondary">&larr; Previous: Bit Manipulation</a>
+            <a href="module-15.html" class="btn btn-primary">Next: Math &amp; Intervals &rarr;</a>
+        </div>
+        </main>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const quizQuestions = [
+                {
+                    question: "What is the time complexity of searching for a word of length L in a trie containing N words?",
+                    options: ["O(N)", "O(L)", "O(N log N)", "O(L log N)"],
+                    correct: 1,
+                    explanation: "Trie search traverses exactly L nodes (one per character), regardless of how many words are stored. This is one of the trie's main advantages over hash tables for prefix-based operations."
+                },
+                {
+                    question: "In Word Search II (#212), why is pruning empty trie branches critical?",
+                    options: [
+                        "It reduces space from O(n^2) to O(n)",
+                        "It prevents finding duplicate words",
+                        "It avoids repeatedly exploring dead-end paths, preventing TLE",
+                        "It is required for correctness, not just performance"
+                    ],
+                    correct: 2,
+                    explanation: "After finding a word, the trie branch leading to it may become empty. Without pruning, every future DFS from nearby cells still traverses these dead branches, causing Time Limit Exceeded on large inputs."
+                },
+                {
+                    question: "Which data structure should you prefer for prefix-sum queries with point updates when you do NOT need range min/max?",
+                    options: ["Segment tree", "Fenwick tree (BIT)", "Prefix sum array", "Balanced BST"],
+                    correct: 1,
+                    explanation: "A Fenwick tree handles prefix sums + point updates in O(log n) with simpler code, lower constant factors, and less memory than a segment tree. It is the better choice when you only need sum-based operations."
+                },
+                {
+                    question: "What type of error can a Bloom filter produce?",
+                    options: [
+                        "False negatives only",
+                        "False positives only",
+                        "Both false positives and false negatives",
+                        "Neither (it is always exact)"
+                    ],
+                    correct: 1,
+                    explanation: "A Bloom filter may say an element is in the set when it is not (false positive due to hash collisions), but if it says an element is NOT in the set, that is guaranteed correct (no false negatives)."
+                },
+                {
+                    question: "In a bottom-up segment tree of size n, where are the leaf nodes stored in the array?",
+                    options: [
+                        "Indices [0, n)",
+                        "Indices [1, n]",
+                        "Indices [n, 2n)",
+                        "Indices [2n, 4n)"
+                    ],
+                    correct: 2,
+                    explanation: "In the compact iterative segment tree, the array has size 2n. Leaves are stored at indices [n, 2n), and internal nodes at [1, n). Index 0 is unused. Node i's children are at 2i and 2i+1."
+                }
+            ];
+
+            const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+            quiz.render();
+        });
+
+        function completeModule() {
+            StaffEngPrep.ProgressTracker.markModuleComplete('coding', 14);
+            alert('Module 14 marked as complete!');
+            window.location.href = 'module-15.html';
+        }
+    </script>
+</body>
+</html>

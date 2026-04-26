@@ -467,7 +467,7 @@ graph TD
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost Awareness</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses GPT-4 for everything</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Uses the most expensive model for everything</td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Intelligent model routing, caching</td>
                             </tr>
                             <tr>
@@ -541,8 +541,8 @@ graph TB
     end
 
     subgraph "AI Layer"
-        H --> I[Fast Model<br/>GPT-3.5/Claude Haiku]
-        H --> J[Smart Model<br/>GPT-4/Claude Sonnet]
+        H --> I[Fast Model<br/>GPT-4o-mini/Claude Haiku]
+        H --> J[Smart Model<br/>GPT-4o/Claude Sonnet]
         I --> K[Response Formatter]
         J --> K
     end
@@ -685,7 +685,7 @@ class PromptEngine:
 
     SYSTEM_PROMPTS = {
         CompletionType.INLINE: """You are an expert code completion engine.
-Complete the code at the cursor position (marked with <CURSOR>).
+Complete the code at the cursor position (marked with &lt;CURSOR&gt;).
 Rules:
 - Return ONLY the completion, no explanation
 - Match the existing code style exactly
@@ -786,7 +786,7 @@ Rules:
             if 0 <= cursor_line_idx < len(lines):
                 line = lines[cursor_line_idx]
                 col = context.cursor_position[1]
-                lines[cursor_line_idx] = line[:col] + "<CURSOR>" + line[col:]
+                lines[cursor_line_idx] = line[:col] + "&lt;CURSOR&gt;" + line[col:]
 
             code_with_cursor = '\n'.join(lines)
             user_prompt = f"""Context:
@@ -797,7 +797,7 @@ Code:
 {code_with_cursor}
 ```
 
-Complete the code at <CURSOR>."""
+Complete the code at &lt;CURSOR&gt;."""
 
         elif completion_type == CompletionType.DOCSTRING:
             user_prompt = f"""Generate a docstring for this function:
@@ -849,15 +849,15 @@ class LLMRouter:
         self.models = {
             "fast": {
                 "provider": "openai",
-                "model": "gpt-3.5-turbo",
+                "model": "gpt-4o-mini",
                 "max_latency_ms": 500,
-                "cost_per_1k_tokens": 0.002
+                "cost_per_1k_tokens": 0.00015
             },
             "balanced": {
                 "provider": "anthropic",
-                "model": "claude-3-haiku-20240307",
+                "model": "claude-4-haiku",
                 "max_latency_ms": 1000,
-                "cost_per_1k_tokens": 0.00025
+                "cost_per_1k_tokens": 0.0008
             },
             "smart": {
                 "provider": "anthropic",
@@ -1599,7 +1599,7 @@ Provide a comprehensive answer with citations [1], [2], etc. for each fact."""
         context, citations = self.build_context(search_results)
 
         response = await self.llm.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": self.SYSTEM_PROMPT},
                 {"role": "user", "content": self.USER_PROMPT_TEMPLATE.format(
@@ -2134,7 +2134,7 @@ def create_research_workflow(llm, tools: list = None):
 async def run_research(topic: str):
     from langchain_openai import ChatOpenAI
 
-    llm = ChatOpenAI(model="gpt-4-turbo-preview")
+    llm = ChatOpenAI(model="gpt-4o")
 
     # Optional: Add search tools
     # from langchain_community.tools.tavily_search import TavilySearchResults
@@ -2210,7 +2210,7 @@ async def run_research(topic: str):
 
                     <div class="warning-box">
                         <h5>2. The Cost Explosion</h5>
-                        <p><strong>Mistake:</strong> Using GPT-4 for everything because "it's more accurate."</p>
+                        <p><strong>Mistake:</strong> Using the most capable model (e.g., GPT-4o, Claude Opus) for everything because "it's more accurate."</p>
                         <p><strong>Reality:</strong> A busy app can rack up $10,000+ monthly bills with naive model selection.</p>
                         <p><strong>Solution:</strong> Implement model routing. Use fast/cheap models for 80% of tasks, smart models for 20%.</p>
                     </div>
@@ -2273,7 +2273,7 @@ class AIProjectTestSuite:
             "",                          # Empty input
             "a" * 10000,                 # Very long input
             "Hello\x00World",            # Null bytes
-            "<script>alert('xss')</script>",  # XSS attempt
+            "&lt;script&gt;alert('xss')&lt;/script&gt;",  # XSS attempt
             "DROP TABLE users;",         # SQL injection attempt
             "\n\n\n\n\n",               # Only whitespace
         ]
@@ -2484,7 +2484,7 @@ class AIProjectTestSuite:
                     <div class="code-block">
                         <code>
 # Dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -2512,8 +2512,6 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
                     <div class="code-block">
                         <code>
 # docker-compose.yml
-version: '3.8'
-
 services:
   app:
     build: .
@@ -2590,7 +2588,7 @@ volumes:
 
 | Component | Technology | Why |
 |-----------|------------|-----|
-| LLM | Claude 3.5 Sonnet | Best reasoning for complex tasks |
+| LLM | Claude Sonnet 4 | Best reasoning for complex tasks |
 | Vector DB | ChromaDB | Easy setup, good performance |
 | Framework | FastAPI | Async support, auto docs |
 

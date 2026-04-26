@@ -371,44 +371,10 @@
     </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Deep Dive Papers</div>
-                    <a href="flink.html" class="sidebar-link active">Apache Flink</a>
-                    <a href="kafka.html" class="sidebar-link">Apache Kafka</a>
-                    <a href="gfs.html" class="sidebar-link">Google File System</a>
-                    <a href="dynamo.html" class="sidebar-link">Amazon Dynamo</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Related Modules</div>
-                    <a href="../module-04.html" class="sidebar-link">Storage &amp; Data Processing</a>
-                    <a href="../module-05.html" class="sidebar-link">Seminal Papers</a>
-                    <a href="../module-03.html" class="sidebar-link">Distributed Systems</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">☰</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -579,7 +545,7 @@ flowchart TB
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>ResourceManager</strong></td>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Resource allocation</td>
-                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Manages TaskManager slots, integrates with YARN/K8s/Mesos</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Manages TaskManager slots, integrates with YARN/Kubernetes (Mesos support removed in Flink 1.14)</td>
                             </tr>
                             <tr>
                                 <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>JobMaster</strong></td>
@@ -600,7 +566,7 @@ flowchart TB
                     </table>
 
                     <div class="card mt-2" style="background: rgba(233, 30, 99, 0.1); border: 1px solid #e91e63;">
-                        <strong>High Availability:</strong> In production, JobManager runs with a standby using ZooKeeper or Kubernetes for leader election. State is stored in a distributed file system (HDFS/S3) so any JobManager can recover a failed job.
+                        <strong>High Availability:</strong> In production, JobManager runs with a standby using Kubernetes-native HA (preferred) or ZooKeeper for leader election. State is stored in a distributed file system (HDFS/S3) so any JobManager can recover a failed job. Since Flink 1.19+, Kubernetes-native HA is the recommended approach for containerized deployments.
                     </div>
                 </div>
             </div>
@@ -776,7 +742,7 @@ flowchart TB
                     <h4 class="mt-3">Memory Configuration</h4>
                     <div class="code-block">
                         <code>
-# TaskManager memory configuration (flink-conf.yaml)
+# TaskManager memory configuration (config.yaml, formerly flink-conf.yaml before Flink 1.19)
 taskmanager.memory.process.size: 4096m    # Total container memory
 
 # Breakdown (automatically calculated or manual):
@@ -1143,8 +1109,9 @@ sequenceDiagram
                     <h4 class="mt-3">Key Properties</h4>
                     <ul>
                         <li><strong>Asynchronous:</strong> Snapshots happen in the background, not blocking processing</li>
-                        <li><strong>Barrier alignment:</strong> Multi-input operators wait for barriers from all inputs</li>
-                        <li><strong>Incremental:</strong> RocksDB backend only saves changed state</li>
+                        <li><strong>Barrier alignment:</strong> Multi-input operators wait for barriers from all inputs (exactly-once mode)</li>
+                        <li><strong>Unaligned checkpoints (Flink 1.11+):</strong> Barriers can overtake in-flight data, avoiding stalls under backpressure. Enable with <code>execution.checkpointing.unaligned.enabled: true</code>. Trade-off: checkpoints are larger because they include in-flight data</li>
+                        <li><strong>Incremental:</strong> RocksDB backend only saves changed state (SST files)</li>
                         <li><strong>Exactly-once:</strong> On recovery, replay from checkpoint with identical state</li>
                     </ul>
 
@@ -1267,15 +1234,15 @@ public class FraudDetector extends KeyedProcessFunction&lt;String, Transaction, 
                             <p style="font-size: 0.85rem; margin-top: 0.75rem;"><strong>Best for:</strong> Low-latency analytics, fraud detection, real-time ML</p>
                         </div>
                         <div class="compare-card spark">
-                            <h4>Spark Streaming</h4>
+                            <h4>Spark Structured Streaming</h4>
                             <ul>
-                                <li>Micro-batch architecture</li>
-                                <li>Higher latency (seconds)</li>
-                                <li>Mature ML ecosystem</li>
-                                <li>Better for batch-heavy workloads</li>
-                                <li>Simpler operations</li>
+                                <li>Micro-batch by default; continuous mode (experimental) for lower latency</li>
+                                <li>Higher latency in micro-batch mode (100ms+)</li>
+                                <li>Mature ML ecosystem (MLlib, SparkML)</li>
+                                <li>Better for batch-heavy workloads with some streaming</li>
+                                <li>Simpler operations, wider adoption</li>
                             </ul>
-                            <p style="font-size: 0.85rem; margin-top: 0.75rem;"><strong>Best for:</strong> ETL, batch analytics with some streaming</p>
+                            <p style="font-size: 0.85rem; margin-top: 0.75rem;"><strong>Best for:</strong> ETL, unified batch + streaming analytics when latency &gt; 100ms is acceptable</p>
                         </div>
                         <div class="compare-card kafka-streams">
                             <h4>Kafka Streams</h4>
@@ -1291,8 +1258,8 @@ public class FraudDetector extends KeyedProcessFunction&lt;String, Transaction, 
                     </div>
 
                     <div class="interview-q">
-                        <strong>Interview Question:</strong> "When would you choose Flink over Spark Streaming?"
-                        <p style="margin-top: 0.5rem;">Answer: Choose Flink when you need: (1) True event-time processing with late data handling, (2) Sub-second latency requirements, (3) Large stateful computations (fraud detection, sessionization), (4) Complex event processing patterns. Choose Spark when batch processing is primary and streaming is secondary, or when you need tight integration with MLlib.</p>
+                        <strong>Interview Question:</strong> "When would you choose Flink over Spark Structured Streaming?"
+                        <p style="margin-top: 0.5rem;">Answer: Choose Flink when you need: (1) True event-time processing with sophisticated late data handling, (2) Consistently sub-second latency, (3) Large stateful computations (fraud detection, sessionization) with TB-scale state, (4) Complex event processing patterns. Choose Spark when batch processing is your primary workload with some streaming, when your team already has Spark expertise, or when you need tight ML pipeline integration. Note: Spark Structured Streaming has narrowed the gap with watermark support and continuous mode, but Flink remains superior for latency-critical stateful streaming.</p>
                     </div>
                 </div>
             </div>
@@ -1396,8 +1363,56 @@ public class FraudDetectionJob {
                 </div>
             </div>
 
+            <!-- Flink SQL -->
+            <h2 class="mt-4">9. Flink SQL &amp; Table API</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>SQL as a First-Class Citizen</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Flink SQL has become the primary API for many production use cases. It provides the same event-time semantics, windowing, and exactly-once guarantees as the DataStream API, but with a declarative SQL interface.</p>
+
+                    <div class="code-block">
+                        <code>
+-- Create a source table backed by Kafka
+CREATE TABLE transactions (
+    user_id STRING,
+    amount DECIMAL(10,2),
+    transaction_time TIMESTAMP(3),
+    WATERMARK FOR transaction_time AS transaction_time - INTERVAL '5' SECOND
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'transactions',
+    'properties.bootstrap.servers' = 'kafka:9092',
+    'format' = 'json'
+);
+
+-- Windowed aggregation with event time
+SELECT
+    user_id,
+    TUMBLE_START(transaction_time, INTERVAL '5' MINUTE) AS window_start,
+    COUNT(*) AS tx_count,
+    SUM(amount) AS total_amount
+FROM transactions
+GROUP BY
+    user_id,
+    TUMBLE(transaction_time, INTERVAL '5' MINUTE);
+                        </code>
+                    </div>
+
+                    <div class="takeaway-box">
+                        <span class="takeaway-icon">&#128161;</span>
+                        <div>
+                            <strong>Why Flink SQL matters for interviews:</strong> Many organizations (especially those using managed Flink services like Amazon Managed Service for Apache Flink or Confluent Cloud) use Flink SQL for stream processing without writing Java/Scala code. Knowing both the SQL and DataStream APIs demonstrates breadth.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Interview Prep -->
-            <h2 class="mt-4">9. Interview Preparation</h2>
+            <h2 class="mt-4">10. Interview Preparation</h2>
 
             <div class="collapsible open">
                 <div class="collapsible-header">
@@ -1463,5 +1478,7 @@ public class FraudDetectionJob {
             flowchart: { useMaxWidth: true }
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>

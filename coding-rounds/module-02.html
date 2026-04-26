@@ -73,6 +73,28 @@
                         <span class="sidebar-link-number">9</span>Interview Simulation
                     </a>
                 </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Pattern Mastery</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>Linked Lists
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Stacks &amp; Queues
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Greedy Algorithms
+                    </a>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Bit Manipulation
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Tries &amp; Advanced DS
+                    </a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15">
+                        <span class="sidebar-link-number">15</span>Math &amp; Intervals
+                    </a>
+                </div>
             </nav>
         </aside>
 
@@ -476,7 +498,12 @@
                             const rightVal = tpState.opposite.right + 1;
                             const sum = leftVal + rightVal;
 
-                            if (sum < tpState.opposite.target) {
+                            if (sum === tpState.opposite.target) {
+                                updateOppositeEndsUI();
+                                document.getElementById('oppositeStatus').textContent =
+                                    'Found target! Sum=' + sum + ' at L=' + tpState.opposite.left + ', R=' + tpState.opposite.right;
+                                return;
+                            } else if (sum < tpState.opposite.target) {
                                 tpState.opposite.left++;
                             } else {
                                 tpState.opposite.right--;
@@ -1080,7 +1107,6 @@
                                     if (windowLen < swState.variable.minLen) {
                                         swState.variable.minLen = windowLen;
                                     }
-                                    document.getElementById('fixedStatus').textContent;
                                     document.getElementById('variableStatus').textContent =
                                         'Sum ' + windowSum + ' >= ' + swState.variable.target + '! Length=' + windowLen + '. Shrinking window...';
 
@@ -1259,6 +1285,973 @@ def min_window(s, t):
             </div>
         </div>
 
+        <!-- Sliding Window Deep Dive -->
+        <h2 class="mt-4">Sliding Window Deep Dive</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Fixed-Size vs Variable-Size Windows</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Understanding the distinction between fixed and variable windows is essential. Most sliding window problems fall cleanly into one category, and recognizing which one immediately narrows your approach.</p>
+
+                <h4>Fixed-Size Window</h4>
+                <p><strong>When to use:</strong> The problem specifies a window size k, or you need to evaluate all contiguous subarrays of length k.</p>
+                <ul>
+                    <li>Maximum sum subarray of size k</li>
+                    <li>Maximum of all subarrays of size k (uses deque for O(n))</li>
+                    <li>String permutation check within a window</li>
+                </ul>
+                <div class="code-block">
+                    <pre><code class="language-python">def fixed_window_template(arr, k):
+    """Generic fixed-size sliding window.
+    Time: O(n), Space: depends on window state
+    """
+    # 1. Build initial window of size k
+    window_state = initialize()
+    for i in range(k):
+        add_to_window(window_state, arr[i])
+
+    result = evaluate(window_state)
+
+    # 2. Slide: remove left element, add right element
+    for i in range(k, len(arr)):
+        add_to_window(window_state, arr[i])       # Add new right
+        remove_from_window(window_state, arr[i-k]) # Remove old left
+        result = update_result(result, window_state)
+
+    return result</code></pre>
+                </div>
+
+                <h4 class="mt-3">Variable-Size Window</h4>
+                <p><strong>When to use:</strong> You need to find the longest/shortest subarray satisfying some condition. The window expands and contracts dynamically.</p>
+                <ul>
+                    <li>Longest substring without repeating characters</li>
+                    <li>Minimum window substring</li>
+                    <li>Minimum size subarray sum</li>
+                    <li>Longest substring with at most K distinct characters</li>
+                </ul>
+                <div class="code-block">
+                    <pre><code class="language-python">def variable_window_longest(arr):
+    """Find LONGEST window satisfying condition.
+    Expand right always. Shrink left when INVALID.
+    """
+    left = 0
+    best = 0
+    window_state = {}
+
+    for right in range(len(arr)):
+        add_to_window(window_state, arr[right])
+
+        while not is_valid(window_state):    # Shrink until valid
+            remove_from_window(window_state, arr[left])
+            left += 1
+
+        best = max(best, right - left + 1)  # Window is valid here
+
+    return best
+
+
+def variable_window_shortest(arr, target):
+    """Find SHORTEST window satisfying condition.
+    Expand right always. Shrink left when VALID (to minimize).
+    """
+    left = 0
+    best = float('inf')
+    window_state = {}
+
+    for right in range(len(arr)):
+        add_to_window(window_state, arr[right])
+
+        while is_valid(window_state):        # Shrink while still valid
+            best = min(best, right - left + 1)
+            remove_from_window(window_state, arr[left])
+            left += 1
+
+    return best if best != float('inf') else 0</code></pre>
+                </div>
+
+                <div class="card mt-3" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25);">
+                    <h4>Decision Framework</h4>
+                    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <th style="text-align:left; padding: 8px;">Question</th>
+                            <th style="text-align:left; padding: 8px;">Fixed</th>
+                            <th style="text-align:left; padding: 8px;">Variable</th>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">Window size given?</td>
+                            <td style="padding: 8px;">Yes (k)</td>
+                            <td style="padding: 8px;">No, find optimal</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">Shrink condition</td>
+                            <td style="padding: 8px;">Always (keep size k)</td>
+                            <td style="padding: 8px;">Depends on validity</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">Optimization target</td>
+                            <td style="padding: 8px;">Best among all k-windows</td>
+                            <td style="padding: 8px;">Longest or shortest valid</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">Left pointer movement</td>
+                            <td style="padding: 8px;">Exactly once per step</td>
+                            <td style="padding: 8px;">Zero or more per step</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Minimum Window Substring &mdash; Full Walkthrough (LeetCode #76)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given strings <code>s</code> and <code>t</code>, find the minimum window in <code>s</code> that contains every character in <code>t</code> (including duplicates).</p>
+
+                <h4>Why This Problem Matters</h4>
+                <p>This is the <em>canonical</em> variable-size sliding window problem. It tests your ability to maintain a frequency map, track a "formed" condition, and contract the window optimally. Every other variable window problem is a simplified version of this.</p>
+
+                <h4>Step-by-Step Walkthrough</h4>
+                <p>Input: <code>s = "ADOBECODEBANC"</code>, <code>t = "ABC"</code></p>
+
+                <div class="card" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.25); margin: 15px 0;">
+                    <pre style="font-family: monospace; font-size: 13px; line-height: 1.8; margin: 0;">
+Step 1:  [A] D O B E C O D E B A N C    formed=1/3  (have A)
+Step 2:  [A D] O B E C O D E B A N C    formed=1/3
+Step 3:  [A D O] B E C O D E B A N C    formed=1/3
+Step 4:  [A D O B] E C O D E B A N C    formed=2/3  (have A,B)
+Step 5:  [A D O B E] C O D E B A N C    formed=2/3
+Step 6:  [A D O B E C] O D E B A N C    formed=3/3  window="ADOBEC" (len=6)
+  Shrink: A[D O B E C] O D E B A N C    formed=2/3  (lost A)
+Step 7-9: expand right...
+Step 10: A D O B E[C O D E B] A N C     formed=2/3
+Step 11: A D O B E[C O D E B A] N C     formed=3/3  window="CODEBA" (len=6)
+  Shrink: A D O B E C[O D E B A] N C    formed=3/3  window="ODEBA" (len=5)
+  Shrink: A D O B E C O[D E B A] N C    formed=3/3  window="DEBA" (len=4)  &lt;-- new best!
+  Shrink: A D O B E C O D[E B A] N C    formed=3/3  window="EBA" -- wait, no C! formed=2/3
+Step 12: A D O B E C O D[E B A N] C     formed=2/3
+Step 13: A D O B E C O D[E B A N C]     formed=3/3  window="EBANC" (len=5)
+  Shrink: ... until formed &lt; 3
+
+Answer: "BANC" (len=4)</pre>
+                </div>
+
+                <h4>The Key Insight</h4>
+                <p>We maintain two counts: <code>target_count</code> (what we need) and <code>window_counts</code> (what we have). The variable <code>formed</code> tracks how many <em>unique characters</em> have met their required frequency. This avoids checking all characters every step -- we only update <code>formed</code> when a character's count crosses the threshold.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">from collections import Counter
+
+def min_window_annotated(s, t):
+    """
+    LeetCode #76 - Minimum Window Substring
+    Time: O(|s| + |t|)  -- each char visited at most twice by left/right
+    Space: O(|s| + |t|) -- for the hash maps
+    """
+    if not t or not s:
+        return ""
+
+    # STEP 1: Build frequency map of target
+    target_count = Counter(t)
+    required = len(target_count)  # Number of unique chars we need
+
+    # STEP 2: State variables
+    left = 0
+    formed = 0                     # How many unique chars meet required freq
+    window_counts = {}
+    ans = (float('inf'), 0, 0)     # (window_length, left, right)
+
+    for right in range(len(s)):
+        # STEP 3: Expand -- add s[right] to window
+        char = s[right]
+        window_counts[char] = window_counts.get(char, 0) + 1
+
+        # Check if this char's frequency now matches target
+        if char in target_count and window_counts[char] == target_count[char]:
+            formed += 1
+
+        # STEP 4: Contract -- shrink from left while window is valid
+        while formed == required:
+            # Update answer if this window is smaller
+            window_len = right - left + 1
+            if window_len &lt; ans[0]:
+                ans = (window_len, left, right)
+
+            # Remove s[left] from window
+            left_char = s[left]
+            window_counts[left_char] -= 1
+            if left_char in target_count and window_counts[left_char] &lt; target_count[left_char]:
+                formed -= 1
+            left += 1
+
+    return "" if ans[0] == float('inf') else s[ans[1]:ans[2] + 1]
+
+
+# Edge cases to test:
+# min_window("a", "a")       -> "a"
+# min_window("a", "aa")      -> ""  (not enough chars)
+# min_window("ab", "b")      -> "b"
+# min_window("ADOBECODEBANC", "ABC") -> "BANC"</code></pre>
+                </div>
+
+                <h4>Common Mistakes</h4>
+                <ul>
+                    <li><strong>Off-by-one:</strong> Using <code>window_counts[char] &gt;= target_count[char]</code> instead of <code>==</code> for the formed check. Using <code>&gt;=</code> would increment formed multiple times for the same character.</li>
+                    <li><strong>Forgetting duplicates:</strong> If <code>t = "AAB"</code>, you need two A's, not just one.</li>
+                    <li><strong>Not contracting enough:</strong> The inner while loop must keep shrinking until the window is no longer valid, not just shrink once.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Minimum Size Subarray Sum (LeetCode #209)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an array of positive integers and a target, find the minimal length of a contiguous subarray whose sum is greater than or equal to target. Return 0 if no such subarray.</p>
+
+                <h4>Why It's a Great Interview Problem</h4>
+                <p>This is the simplest variable-size window problem. It cleanly demonstrates the "expand then contract" pattern without the complexity of frequency maps. Interviewers use it to check whether you truly understand variable windows or are just memorizing templates.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def min_subarray_len(target, nums):
+    """
+    LeetCode #209 - Minimum Size Subarray Sum
+    Time: O(n) -- each element added and removed at most once
+    Space: O(1)
+
+    Key insight: all numbers are POSITIVE, so expanding always
+    increases sum, contracting always decreases it. This monotonic
+    property is what makes sliding window correct here.
+    """
+    left = 0
+    current_sum = 0
+    min_len = float('inf')
+
+    for right in range(len(nums)):
+        current_sum += nums[right]            # Expand
+
+        while current_sum &gt;= target:          # Contract while valid
+            min_len = min(min_len, right - left + 1)
+            current_sum -= nums[left]
+            left += 1
+
+    return min_len if min_len != float('inf') else 0
+
+
+# Follow-up: What if numbers can be negative?
+# Sliding window BREAKS because sum is no longer monotonic.
+# Use prefix sum + binary search for O(n log n), or deque for O(n).</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java version -- frequently asked in interviews at Google/Amazon
+public int minSubArrayLen(int target, int[] nums) {
+    int left = 0, sum = 0, minLen = Integer.MAX_VALUE;
+
+    for (int right = 0; right &lt; nums.length; right++) {
+        sum += nums[right];
+
+        while (sum &gt;= target) {
+            minLen = Math.min(minLen, right - left + 1);
+            sum -= nums[left++];
+        }
+    }
+
+    return minLen == Integer.MAX_VALUE ? 0 : minLen;
+}</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Longest Substring Without Repeating Characters &mdash; Deep Dive (LeetCode #3)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given a string, find the length of the longest substring without repeating characters.</p>
+
+                <h4>Three Approaches (Know All Three for Interviews)</h4>
+
+                <p><strong>Approach 1: HashSet + Shrink (Clearest)</strong></p>
+                <div class="code-block">
+                    <pre><code class="language-python">def length_of_longest_v1(s):
+    """Shrink left until no duplicate. O(2n) worst case = O(n)."""
+    char_set = set()
+    left = 0
+    best = 0
+
+    for right in range(len(s)):
+        while s[right] in char_set:
+            char_set.remove(s[left])
+            left += 1
+        char_set.add(s[right])
+        best = max(best, right - left + 1)
+
+    return best</code></pre>
+                </div>
+
+                <p><strong>Approach 2: HashMap Jump (Optimal)</strong></p>
+                <div class="code-block">
+                    <pre><code class="language-python">def length_of_longest_v2(s):
+    """Jump left directly to past the duplicate. Strictly O(n)."""
+    last_seen = {}     # char -> last index where it appeared
+    left = 0
+    best = 0
+
+    for right, char in enumerate(s):
+        if char in last_seen and last_seen[char] &gt;= left:
+            left = last_seen[char] + 1  # Jump past the duplicate
+        last_seen[char] = right
+        best = max(best, right - left + 1)
+
+    return best
+
+# Why is this better? In approach 1, left might move multiple
+# times per iteration (e.g., "abcda" -> when we see 2nd 'a',
+# left moves from 0 to 1). In approach 2, left jumps directly.</code></pre>
+                </div>
+
+                <p><strong>Approach 3: Array instead of HashMap (For ASCII)</strong></p>
+                <div class="code-block">
+                    <pre><code class="language-python">def length_of_longest_v3(s):
+    """Use array for O(1) lookup when charset is known (e.g., ASCII)."""
+    last_seen = [-1] * 128  # ASCII
+    left = 0
+    best = 0
+
+    for right in range(len(s)):
+        idx = ord(s[right])
+        if last_seen[idx] &gt;= left:
+            left = last_seen[idx] + 1
+        last_seen[idx] = right
+        best = max(best, right - left + 1)
+
+    return best
+
+# Interview tip: mentioning this optimization shows you think
+# about constant factors and memory layout (cache-friendly).</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Sliding Window Template &mdash; One Template to Rule Them All</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Most sliding window problems can be solved with this single template. The only things that change are the window state, the validity condition, and how you update the result.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">from collections import defaultdict
+
+def sliding_window_template(s, t=""):
+    """
+    Universal variable-size sliding window template.
+    Solves: Min Window Substring, Longest Substring Without Repeating,
+    Longest Substring With At Most K Distinct, Find All Anagrams, etc.
+    """
+    # 1. Define what you need
+    need = defaultdict(int)
+    for c in t:
+        need[c] += 1
+
+    # 2. State variables
+    window = defaultdict(int)
+    left = 0
+    formed = 0
+    required = len(need)   # unique chars to satisfy
+    result = ...           # depends on problem (min length, max length, list of indices)
+
+    # 3. Expand window
+    for right in range(len(s)):
+        char = s[right]
+        window[char] += 1
+
+        # Check if current char satisfies its requirement
+        if need[char] &gt; 0 and window[char] == need[char]:
+            formed += 1
+
+        # 4. Contract window
+        # For SHORTEST valid window: while formed == required
+        # For LONGEST valid window:  while formed &gt; required (or invalid condition)
+        while formed == required:      # &lt;-- change this condition
+            # Update result
+            # ...
+
+            # Remove left char
+            left_char = s[left]
+            window[left_char] -= 1
+            if need[left_char] &gt; 0 and window[left_char] &lt; need[left_char]:
+                formed -= 1
+            left += 1
+
+    return result</code></pre>
+                </div>
+
+                <div class="card mt-3" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25);">
+                    <h4>How to Adapt the Template</h4>
+                    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <th style="text-align:left; padding: 8px;">Problem</th>
+                            <th style="text-align:left; padding: 8px;">Contract Condition</th>
+                            <th style="text-align:left; padding: 8px;">Result Update</th>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">Min Window Substring</td>
+                            <td style="padding: 8px;"><code>while formed == required</code></td>
+                            <td style="padding: 8px;">Track minimum <code>right - left + 1</code></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">Longest No Repeating</td>
+                            <td style="padding: 8px;"><code>while window[char] &gt; 1</code></td>
+                            <td style="padding: 8px;">Track maximum <code>right - left + 1</code></td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                            <td style="padding: 8px;">At Most K Distinct</td>
+                            <td style="padding: 8px;"><code>while len(window) &gt; k</code></td>
+                            <td style="padding: 8px;">Track maximum <code>right - left + 1</code></td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px;">Find All Anagrams</td>
+                            <td style="padding: 8px;"><code>while right - left + 1 &gt; len(p)</code></td>
+                            <td style="padding: 8px;">Append <code>left</code> when formed == required</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fast & Slow Pointers Expansion -->
+        <h2 class="mt-4">Fast &amp; Slow Pointers &mdash; Beyond Arrays</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Linked List Cycle Detection (Floyd's Algorithm)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>The fast/slow pointer pattern you saw in the animation above is the same idea behind Floyd's cycle detection. The slow pointer moves 1 step, the fast moves 2 steps. If there is a cycle, they <em>must</em> meet. If fast reaches null, there is no cycle.</p>
+
+                <p><strong>Why they must meet:</strong> Once both pointers are in the cycle, the gap between them decreases by 1 each step (fast gains 1, so the distance mod cycle-length shrinks by 1). They collide in at most cycle-length steps.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+
+def has_cycle(head):
+    """LeetCode #141 - Linked List Cycle. O(n) time, O(1) space."""
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow == fast:
+            return True
+    return False
+
+def find_cycle_start(head):
+    """LeetCode #142 - Linked List Cycle II. Find where cycle begins.
+
+    Math: Let distance from head to cycle start = a,
+    cycle start to meeting point = b, rest of cycle = c.
+    When they meet: slow traveled a+b, fast traveled a+b+c+b = a+2b+c.
+    Fast travels 2x slow: 2(a+b) = a+2b+c  =>  a = c.
+    So a pointer from head and a pointer from meeting point
+    will meet at the cycle start!
+    """
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow == fast:
+            # Phase 2: find cycle start
+            finder = head
+            while finder != slow:
+                finder = finder.next
+                slow = slow.next
+            return finder
+    return None  # No cycle</code></pre>
+                </div>
+
+                <p><em>See <a href="module-10.html">Module 10: Linked Lists</a> for full linked list coverage.</em></p>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Remove Nth Node from End of List (LeetCode #19)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Remove the nth node from the end of a linked list in one pass.</p>
+                <p><strong>Key insight:</strong> Advance the fast pointer n steps ahead first. Then move both pointers together. When fast reaches the end, slow is at the node before the one to remove.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def remove_nth_from_end(head, n):
+    """
+    LeetCode #19 - One-pass solution using fast/slow gap.
+    Time: O(L) where L is list length. Space: O(1).
+    """
+    dummy = ListNode(0, head)  # Handle edge case: removing head
+    slow = fast = dummy
+
+    # Advance fast by n+1 steps (so slow lands BEFORE the target)
+    for _ in range(n + 1):
+        fast = fast.next
+
+    # Move both until fast hits end
+    while fast:
+        slow = slow.next
+        fast = fast.next
+
+    # slow.next is the node to remove
+    slow.next = slow.next.next
+    return dummy.next</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java version
+public ListNode removeNthFromEnd(ListNode head, int n) {
+    ListNode dummy = new ListNode(0, head);
+    ListNode slow = dummy, fast = dummy;
+
+    for (int i = 0; i &lt;= n; i++) fast = fast.next;
+    while (fast != null) { slow = slow.next; fast = fast.next; }
+
+    slow.next = slow.next.next;
+    return dummy.next;
+}</code></pre>
+                </div>
+
+                <h4>Interview Tip</h4>
+                <p>Always use a <strong>dummy node</strong> when the head might be removed. This eliminates special-case handling and is considered best practice by interviewers at Google and Meta.</p>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Middle of Linked List (LeetCode #876)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Find the middle node. If two middle nodes, return the second.</p>
+                <p>When fast reaches the end, slow is at the middle. This is because slow moves at half the speed.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def middle_node(head):
+    """
+    LeetCode #876. O(n) time, O(1) space, single pass.
+    """
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+    return slow  # slow is at middle
+
+# For odd length [1,2,3,4,5]: returns 3
+# For even length [1,2,3,4,5,6]: returns 4 (second middle)
+
+# This pattern is used as a building block in:
+# - Merge sort on linked lists (split at middle)
+# - Palindrome linked list check (reverse second half)
+# - Reorder list (interleave first and reversed second half)</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Array Manipulation Patterns -->
+        <h2 class="mt-4">Array Manipulation Patterns</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Dutch National Flag &mdash; 3-Way Partition (LeetCode #75)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Sort an array containing only 0s, 1s, and 2s in-place, in a single pass.</p>
+                <p><strong>Why it matters:</strong> This is Dijkstra's 3-way partitioning algorithm. It appears directly in interviews and is also the foundation of 3-way quicksort (used when many duplicate keys exist).</p>
+
+                <h4>The Invariant</h4>
+                <p>Maintain three regions using three pointers:</p>
+                <ul>
+                    <li><code>[0, low)</code> &mdash; all 0s</li>
+                    <li><code>[low, mid)</code> &mdash; all 1s</li>
+                    <li><code>[mid, high]</code> &mdash; unexamined</li>
+                    <li><code>(high, end]</code> &mdash; all 2s</li>
+                </ul>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def sort_colors(nums):
+    """
+    LeetCode #75 - Sort Colors (Dutch National Flag)
+    Time: O(n), Space: O(1), Single pass
+
+    Key insight: three pointers divide array into four regions.
+    Only 'mid' advances -- low and high act as boundaries.
+    """
+    low, mid, high = 0, 0, len(nums) - 1
+
+    while mid &lt;= high:
+        if nums[mid] == 0:
+            nums[low], nums[mid] = nums[mid], nums[low]
+            low += 1
+            mid += 1      # Safe to advance: swapped value was already examined
+        elif nums[mid] == 1:
+            mid += 1      # 1 is in the right place
+        else:  # nums[mid] == 2
+            nums[mid], nums[high] = nums[high], nums[mid]
+            high -= 1
+            # Do NOT advance mid! The swapped value hasn't been examined yet.
+
+# Example trace:
+# [2, 0, 2, 1, 1, 0]
+# [0, 0, 2, 1, 1, 2]  low=0,mid=0,high=5 -> swap 2&lt;->0, high=4
+# ... eventually: [0, 0, 1, 1, 2, 2]</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-java">// Java version
+public void sortColors(int[] nums) {
+    int low = 0, mid = 0, high = nums.length - 1;
+    while (mid &lt;= high) {
+        if (nums[mid] == 0) {
+            swap(nums, low++, mid++);
+        } else if (nums[mid] == 1) {
+            mid++;
+        } else {
+            swap(nums, mid, high--);
+        }
+    }
+}
+
+private void swap(int[] a, int i, int j) {
+    int tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+}</code></pre>
+                </div>
+
+                <h4>Common Mistake</h4>
+                <p>Advancing <code>mid</code> after swapping with <code>high</code>. The value swapped from the right hasn't been examined yet, so <code>mid</code> must stay to inspect it on the next iteration.</p>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Kadane's Algorithm &mdash; Maximum Subarray (LeetCode #53)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Find the contiguous subarray with the largest sum.</p>
+                <p><strong>Why it matters:</strong> Kadane's is one of the most elegant DP/greedy algorithms. It demonstrates that sometimes the best approach is to decide at each step: "should I extend the current subarray or start fresh?"</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def max_subarray(nums):
+    """
+    LeetCode #53 - Maximum Subarray (Kadane's Algorithm)
+    Time: O(n), Space: O(1)
+
+    Insight: At each position, the max subarray ending here is either:
+      1. Just nums[i] alone (start fresh), or
+      2. nums[i] + max subarray ending at i-1 (extend)
+    """
+    current_sum = nums[0]
+    max_sum = nums[0]
+
+    for i in range(1, len(nums)):
+        # Core decision: extend or restart?
+        current_sum = max(nums[i], current_sum + nums[i])
+        max_sum = max(max_sum, current_sum)
+
+    return max_sum
+
+# Example: [-2, 1, -3, 4, -1, 2, 1, -5, 4]
+# current: -2, 1, -2, 4,  3, 5, 6,  1, 5
+# max_sum: -2, 1,  1, 4,  4, 5, 6,  6, 6  -> Answer: 6 ([4,-1,2,1])</code></pre>
+                </div>
+
+                <h4>Variants Interviewers Ask</h4>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># Variant 1: Return the actual subarray, not just the sum
+def max_subarray_with_indices(nums):
+    current_sum = max_sum = nums[0]
+    start = end = temp_start = 0
+
+    for i in range(1, len(nums)):
+        if nums[i] &gt; current_sum + nums[i]:
+            current_sum = nums[i]
+            temp_start = i         # New subarray starts here
+        else:
+            current_sum += nums[i]
+
+        if current_sum &gt; max_sum:
+            max_sum = current_sum
+            start = temp_start
+            end = i
+
+    return max_sum, nums[start:end + 1]
+
+
+# Variant 2: Maximum CIRCULAR subarray (LeetCode #918)
+# Key insight: max circular = max(regular Kadane, total_sum - min_subarray)
+def max_circular_subarray(nums):
+    total = sum(nums)
+    max_kadane = kadane_max(nums)
+    min_kadane = kadane_min(nums)
+
+    # Edge case: all negative (min_kadane == total means empty max)
+    if min_kadane == total:
+        return max_kadane
+
+    return max(max_kadane, total - min_kadane)</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Product of Array Except Self (LeetCode #238)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given an array nums, return an array where each element is the product of all elements except itself. No division allowed.</p>
+                <p><strong>Why interviewers love it:</strong> It tests prefix/suffix thinking, space optimization, and whether you can avoid the naive O(n^2) approach.</p>
+
+                <h4>The Trick: Left Products and Right Products</h4>
+                <p>For position i, the answer is <code>(product of everything left of i) * (product of everything right of i)</code>. We can compute these as prefix and suffix products.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def product_except_self(nums):
+    """
+    LeetCode #238 - Product of Array Except Self
+    Time: O(n), Space: O(1) extra (output array doesn't count)
+
+    Two passes:
+    Pass 1 (left to right): result[i] = product of all elements to the left
+    Pass 2 (right to left): multiply by product of all elements to the right
+    """
+    n = len(nums)
+    result = [1] * n
+
+    # Pass 1: left prefix products
+    # result[i] = nums[0] * nums[1] * ... * nums[i-1]
+    left_product = 1
+    for i in range(n):
+        result[i] = left_product
+        left_product *= nums[i]
+
+    # Pass 2: right suffix products
+    # multiply result[i] by nums[i+1] * nums[i+2] * ... * nums[n-1]
+    right_product = 1
+    for i in range(n - 1, -1, -1):
+        result[i] *= right_product
+        right_product *= nums[i]
+
+    return result
+
+# Example: [1, 2, 3, 4]
+# After pass 1: [1, 1, 2, 6]    (left products)
+# After pass 2: [24, 12, 8, 6]  (multiply by right products)
+
+# Follow-up: What if there are zeros?
+# Works naturally! If one zero: only that position has non-zero product.
+# If two+ zeros: all products are 0.</code></pre>
+                </div>
+
+                <div class="code-block">
+                    <pre><code class="language-go">// Go version -- shows the pattern transfers cleanly across languages
+func productExceptSelf(nums []int) []int {
+    n := len(nums)
+    result := make([]int, n)
+
+    // Left pass
+    result[0] = 1
+    for i := 1; i &lt; n; i++ {
+        result[i] = result[i-1] * nums[i-1]
+    }
+
+    // Right pass
+    rightProduct := 1
+    for i := n - 1; i &gt;= 0; i-- {
+        result[i] *= rightProduct
+        rightProduct *= nums[i]
+    }
+
+    return result
+}</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Next Permutation (LeetCode #31)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Rearrange numbers into the lexicographically next greater permutation. If impossible (descending order), rearrange to the lowest (ascending).</p>
+                <p><strong>Why it matters:</strong> Tests careful array manipulation and algorithmic thinking. A favorite at Google and Amazon.</p>
+
+                <h4>The Algorithm (3 Steps)</h4>
+                <ol>
+                    <li><strong>Find the pivot:</strong> Scan right to left for the first element that is smaller than its right neighbor. Call it <code>i</code>.</li>
+                    <li><strong>Find the swap target:</strong> Scan right to left for the smallest element larger than <code>nums[i]</code>. Call it <code>j</code>.</li>
+                    <li><strong>Swap and reverse:</strong> Swap <code>nums[i]</code> and <code>nums[j]</code>, then reverse everything after position <code>i</code>.</li>
+                </ol>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def next_permutation(nums):
+    """
+    LeetCode #31 - Next Permutation. In-place, O(n) time, O(1) space.
+
+    Example: [1,2,3] -> [1,3,2] -> [2,1,3] -> [2,3,1] -> [3,1,2] -> [3,2,1] -> [1,2,3]
+    """
+    n = len(nums)
+
+    # Step 1: Find largest i such that nums[i] &lt; nums[i+1]
+    # (rightmost ascending pair)
+    i = n - 2
+    while i &gt;= 0 and nums[i] &gt;= nums[i + 1]:
+        i -= 1
+
+    if i &gt;= 0:  # Array is not entirely descending
+        # Step 2: Find largest j such that nums[j] &gt; nums[i]
+        j = n - 1
+        while nums[j] &lt;= nums[i]:
+            j -= 1
+        # Step 3a: Swap
+        nums[i], nums[j] = nums[j], nums[i]
+
+    # Step 3b: Reverse suffix after position i
+    left, right = i + 1, n - 1
+    while left &lt; right:
+        nums[left], nums[right] = nums[right], nums[left]
+        left += 1
+        right -= 1
+
+# Trace: [1, 5, 8, 4, 7, 6, 5, 3, 1]
+# Step 1: i=3 (nums[3]=4 &lt; nums[4]=7)
+# Step 2: j=6 (nums[6]=5 &gt; 4, and it's the rightmost such)
+# Swap:   [1, 5, 8, 5, 7, 6, 4, 3, 1]
+# Reverse after i=3: [1, 5, 8, 5, 1, 3, 4, 6, 7]</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Trapping Rain Water &mdash; Two Pointer Approach (LeetCode #42)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p><strong>Problem:</strong> Given elevation map (non-negative integers), compute how much water is trapped after raining.</p>
+                <p><strong>Why it's a top interview problem:</strong> There are multiple valid approaches (brute force, DP, stack, two-pointer). Interviewers want to see you derive the O(n) time O(1) space two-pointer solution.</p>
+
+                <h4>Key Insight</h4>
+                <p>Water at position <code>i</code> = <code>min(max_left, max_right) - height[i]</code>. The two-pointer approach avoids precomputing max_left and max_right arrays by observing: if <code>max_left &lt; max_right</code>, the water at the left pointer is determined by <code>max_left</code> regardless of what's between the pointers.</p>
+
+                <div class="code-block">
+                    <pre><code class="language-python">def trap(height):
+    """
+    LeetCode #42 - Trapping Rain Water (Two Pointer)
+    Time: O(n), Space: O(1)
+
+    Invariant: at each step, we process the side with the
+    smaller max height, because THAT side is the bottleneck.
+    """
+    if not height:
+        return 0
+
+    left, right = 0, len(height) - 1
+    max_left, max_right = height[left], height[right]
+    water = 0
+
+    while left &lt; right:
+        if max_left &lt;= max_right:
+            left += 1
+            max_left = max(max_left, height[left])
+            water += max_left - height[left]  # Always >= 0
+        else:
+            right -= 1
+            max_right = max(max_right, height[right])
+            water += max_right - height[right]
+
+    return water
+
+# Example: [0,1,0,2,1,0,1,3,2,1,2,1]
+# Answer: 6
+#
+# Visual:
+#          #
+#    # . . # # . #
+# .# # # # # # # # # .
+# 0 1 0 2 1 0 1 3 2 1 2 1</code></pre>
+                </div>
+
+                <h4>All Three Approaches Compared</h4>
+                <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <th style="text-align:left; padding: 8px;">Approach</th>
+                        <th style="text-align:left; padding: 8px;">Time</th>
+                        <th style="text-align:left; padding: 8px;">Space</th>
+                        <th style="text-align:left; padding: 8px;">When to Use</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 8px;">DP (precompute left/right max)</td>
+                        <td style="padding: 8px;">O(n)</td>
+                        <td style="padding: 8px;">O(n)</td>
+                        <td style="padding: 8px;">Easiest to explain in interview</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 8px;">Monotonic stack</td>
+                        <td style="padding: 8px;">O(n)</td>
+                        <td style="padding: 8px;">O(n)</td>
+                        <td style="padding: 8px;">Good if you're comfortable with stacks</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px;">Two pointer</td>
+                        <td style="padding: 8px;">O(n)</td>
+                        <td style="padding: 8px;">O(1)</td>
+                        <td style="padding: 8px;">Optimal; shows deep understanding</td>
+                    </tr>
+                </table>
+
+                <div class="code-block">
+                    <pre><code class="language-python"># DP approach for comparison -- easier to derive in an interview
+def trap_dp(height):
+    """O(n) time, O(n) space -- build max arrays first."""
+    n = len(height)
+    if n == 0:
+        return 0
+
+    max_left = [0] * n
+    max_right = [0] * n
+
+    max_left[0] = height[0]
+    for i in range(1, n):
+        max_left[i] = max(max_left[i-1], height[i])
+
+    max_right[n-1] = height[n-1]
+    for i in range(n-2, -1, -1):
+        max_right[i] = max(max_right[i+1], height[i])
+
+    return sum(
+        min(max_left[i], max_right[i]) - height[i]
+        for i in range(n)
+    )</code></pre>
+                </div>
+            </div>
+        </div>
+
         <!-- Prefix Sum Section -->
         <h2 class="mt-4">Prefix Sum</h2>
 
@@ -1286,7 +2279,8 @@ def range_sum(prefix, left, right):
 # Example
 arr = [1, 2, 3, 4, 5]
 prefix = [0, 1, 3, 6, 10, 15]
-# Sum of arr[1:3] = prefix[4] - prefix[1] = 10 - 1 = 9</code></pre>
+# Sum of arr[1..3] (inclusive) = prefix[4] - prefix[1] = 10 - 1 = 9
+# i.e., arr[1] + arr[2] + arr[3] = 2 + 3 + 4 = 9</code></pre>
                 </div>
 
                 <h4>Use Cases</h4>
@@ -1307,7 +2301,7 @@ prefix = [0, 1, 3, 6, 10, 15]
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>Netflix processes 400 billion events per day from 230 million subscribers. Their real-time analytics use sliding window algorithms extensively:</p>
+                <p>Netflix processes hundreds of billions of events per day from over 300 million subscribers. Their real-time analytics use sliding window algorithms extensively:</p>
 
                 <h4>Use Case: Quality of Experience (QoE) Monitoring</h4>
                 <ul>
@@ -1358,7 +2352,7 @@ class StreamHealthMonitor:
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <p>Spotify generates personalized playlists for 515 million users. Their "Discover Weekly" algorithm merges sorted preference lists using two-pointer techniques:</p>
+                <p>Spotify generates personalized playlists for over 675 million monthly active users. Their "Discover Weekly" algorithm merges sorted preference lists using two-pointer techniques:</p>
 
                 <div class="code-block">
                     <pre><code class="language-python"># Spotify-style playlist merging
@@ -1529,27 +2523,206 @@ class DemandGrid:
         </div>
 
         <!-- Practice Problems -->
-        <h2 class="mt-4">Practice Problems</h2>
-        <div class="card">
-            <h4>Easy</h4>
-            <ul>
-                <li><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank">Two Sum II (LeetCode #167)</a></li>
-                <li><a href="https://leetcode.com/problems/valid-palindrome/" target="_blank">Valid Palindrome (LeetCode #125)</a></li>
-                <li><a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank">Remove Duplicates (LeetCode #26)</a></li>
-            </ul>
+        <h2 class="mt-4">Comprehensive Problem Map</h2>
 
-            <h4 class="mt-3">Medium</h4>
-            <ul>
-                <li><a href="https://leetcode.com/problems/3sum/" target="_blank">3Sum (LeetCode #15)</a></li>
-                <li><a href="https://leetcode.com/problems/container-with-most-water/" target="_blank">Container With Most Water (LeetCode #11)</a></li>
-                <li><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank">Longest Substring Without Repeating (LeetCode #3)</a></li>
-            </ul>
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Arrays &amp; Two Pointers &mdash; LeetCode Problem Table</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Problems ordered by pattern, then difficulty. Solve at least the starred problems before interviews.</p>
 
-            <h4 class="mt-3">Hard</h4>
-            <ul>
-                <li><a href="https://leetcode.com/problems/minimum-window-substring/" target="_blank">Minimum Window Substring (LeetCode #76)</a></li>
-                <li><a href="https://leetcode.com/problems/trapping-rain-water/" target="_blank">Trapping Rain Water (LeetCode #42)</a></li>
-            </ul>
+                <h4>Two Pointers (Opposite Ends)</h4>
+                <table style="width:100%; border-collapse: collapse; margin: 10px 0 20px;">
+                    <tr style="border-bottom: 2px solid rgba(255,255,255,0.15);">
+                        <th style="text-align:left; padding: 8px;">#</th>
+                        <th style="text-align:left; padding: 8px;">Problem</th>
+                        <th style="text-align:left; padding: 8px;">Difficulty</th>
+                        <th style="text-align:left; padding: 8px;">Key Technique</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">125</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/valid-palindrome/" target="_blank">Valid Palindrome</a></td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Converging pointers, char filtering</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">167</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/two-sum-ii-input-array-is-sorted/" target="_blank">Two Sum II - Sorted</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Classic converging two-pointer</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">15</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/3sum/" target="_blank">3Sum</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Sort + fix one, two-pointer on rest</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">11</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/container-with-most-water/" target="_blank">Container With Most Water</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Greedy + two pointer</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">42</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/trapping-rain-water/" target="_blank">Trapping Rain Water</a> &#11088;</td>
+                        <td style="padding: 8px; color: #ef4444;">Hard</td>
+                        <td style="padding: 8px;">Two pointer with running max</td>
+                    </tr>
+                </table>
+
+                <h4>Two Pointers (Same Direction / Fast-Slow)</h4>
+                <table style="width:100%; border-collapse: collapse; margin: 10px 0 20px;">
+                    <tr style="border-bottom: 2px solid rgba(255,255,255,0.15);">
+                        <th style="text-align:left; padding: 8px;">#</th>
+                        <th style="text-align:left; padding: 8px;">Problem</th>
+                        <th style="text-align:left; padding: 8px;">Difficulty</th>
+                        <th style="text-align:left; padding: 8px;">Key Technique</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">26</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/remove-duplicates-from-sorted-array/" target="_blank">Remove Duplicates from Sorted Array</a></td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Write pointer + read pointer</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">283</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/move-zeroes/" target="_blank">Move Zeroes</a></td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Partition with write pointer</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">876</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/middle-of-the-linked-list/" target="_blank">Middle of Linked List</a></td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Fast/slow pointer</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">141</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/linked-list-cycle/" target="_blank">Linked List Cycle</a> &#11088;</td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Floyd's cycle detection</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">142</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/linked-list-cycle-ii/" target="_blank">Linked List Cycle II</a></td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Floyd's + math to find start</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">19</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/remove-nth-node-from-end-of-list/" target="_blank">Remove Nth Node from End</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Gap technique with dummy node</td>
+                    </tr>
+                </table>
+
+                <h4>Sliding Window</h4>
+                <table style="width:100%; border-collapse: collapse; margin: 10px 0 20px;">
+                    <tr style="border-bottom: 2px solid rgba(255,255,255,0.15);">
+                        <th style="text-align:left; padding: 8px;">#</th>
+                        <th style="text-align:left; padding: 8px;">Problem</th>
+                        <th style="text-align:left; padding: 8px;">Difficulty</th>
+                        <th style="text-align:left; padding: 8px;">Key Technique</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">643</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/maximum-average-subarray-i/" target="_blank">Maximum Average Subarray I</a></td>
+                        <td style="padding: 8px; color: #10b981;">Easy</td>
+                        <td style="padding: 8px;">Fixed window</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">209</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/minimum-size-subarray-sum/" target="_blank">Minimum Size Subarray Sum</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Variable window, shrink while valid</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">3</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/longest-substring-without-repeating-characters/" target="_blank">Longest Substring No Repeating</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Variable window + hashmap</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">424</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/longest-repeating-character-replacement/" target="_blank">Longest Repeating Character Replacement</a></td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Window + max frequency trick</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">567</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/permutation-in-string/" target="_blank">Permutation in String</a></td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Fixed window + frequency match</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">76</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/minimum-window-substring/" target="_blank">Minimum Window Substring</a> &#11088;</td>
+                        <td style="padding: 8px; color: #ef4444;">Hard</td>
+                        <td style="padding: 8px;">Variable window + formed count</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">239</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/sliding-window-maximum/" target="_blank">Sliding Window Maximum</a></td>
+                        <td style="padding: 8px; color: #ef4444;">Hard</td>
+                        <td style="padding: 8px;">Monotonic deque</td>
+                    </tr>
+                </table>
+
+                <h4>Array Manipulation</h4>
+                <table style="width:100%; border-collapse: collapse; margin: 10px 0 20px;">
+                    <tr style="border-bottom: 2px solid rgba(255,255,255,0.15);">
+                        <th style="text-align:left; padding: 8px;">#</th>
+                        <th style="text-align:left; padding: 8px;">Problem</th>
+                        <th style="text-align:left; padding: 8px;">Difficulty</th>
+                        <th style="text-align:left; padding: 8px;">Key Technique</th>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">53</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/maximum-subarray/" target="_blank">Maximum Subarray</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Kadane's algorithm</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">238</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/product-of-array-except-self/" target="_blank">Product of Array Except Self</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Prefix/suffix products</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">75</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/sort-colors/" target="_blank">Sort Colors</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Dutch National Flag / 3-way partition</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">31</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/next-permutation/" target="_blank">Next Permutation</a></td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Scan + swap + reverse</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">560</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/subarray-sum-equals-k/" target="_blank">Subarray Sum Equals K</a> &#11088;</td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Prefix sum + hashmap</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">918</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/maximum-sum-circular-subarray/" target="_blank">Max Sum Circular Subarray</a></td>
+                        <td style="padding: 8px; color: #f59e0b;">Medium</td>
+                        <td style="padding: 8px;">Kadane's + circular trick</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.07);">
+                        <td style="padding: 8px;">41</td>
+                        <td style="padding: 8px;"><a href="https://leetcode.com/problems/first-missing-positive/" target="_blank">First Missing Positive</a></td>
+                        <td style="padding: 8px; color: #ef4444;">Hard</td>
+                        <td style="padding: 8px;">Cyclic sort / index as hash</td>
+                    </tr>
+                </table>
+            </div>
         </div>
 
         <!-- Navigation -->
@@ -1560,6 +2733,10 @@ class DemandGrid:
         </main>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
     <script src="../assets/js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -1604,6 +2781,30 @@ class DemandGrid:
                     options: ["Maximum element", "Range sum", "Sorted order", "Unique elements"],
                     correct: 1,
                     explanation: "prefix[right+1] - prefix[left] gives sum of range [left, right] in O(1)."
+                },
+                {
+                    question: "In the Dutch National Flag algorithm, why don't we advance mid after swapping with high?",
+                    options: ["It's a bug in the algorithm", "The swapped value hasn't been examined yet", "We always advance mid", "high might equal mid"],
+                    correct: 1,
+                    explanation: "The element swapped from the right side hasn't been classified yet (could be 0, 1, or 2), so mid must stay to inspect it."
+                },
+                {
+                    question: "In Kadane's algorithm, what decision is made at each position?",
+                    options: ["Sort the subarray", "Extend current subarray or start fresh", "Compare with prefix sum", "Swap adjacent elements"],
+                    correct: 1,
+                    explanation: "At each position i, we choose max(nums[i], current_sum + nums[i]) — either start a new subarray or extend the existing one."
+                },
+                {
+                    question: "For the Minimum Window Substring problem, what does the 'formed' variable track?",
+                    options: ["Total characters matched", "Window length", "Number of unique chars meeting required frequency", "Number of unique chars in the window"],
+                    correct: 2,
+                    explanation: "formed counts how many unique characters in the window have met their required frequency from string t. When formed == required, the window is valid."
+                },
+                {
+                    question: "Why does the sliding window approach fail for Minimum Size Subarray Sum when numbers can be negative?",
+                    options: ["Negative numbers cause overflow", "The sum is no longer monotonic with window size", "We can't use a hash map", "The algorithm becomes O(n²)"],
+                    correct: 1,
+                    explanation: "With negatives, expanding the window can decrease the sum and shrinking can increase it. The monotonic property (expand = increase sum) that makes sliding window correct no longer holds."
                 }
             ];
 

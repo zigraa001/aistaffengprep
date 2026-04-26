@@ -8,40 +8,10 @@
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="nav-container">
-            <a href="../../index.html" class="logo">StaffEngPrep</a>
-            <ul class="nav-links">
-                <li><a href="../../coding-rounds/index.html">Coding</a></li>
-                <li><a href="../index.html" style="color: var(--primary-color);">System Design</a></li>
-                <li><a href="../../company-specific/index.html">Companies</a></li>
-                <li><a href="../../behavioral/index.html">Behavioral</a></li>
-                <li><a href="../../generative-ai/index.html">Gen AI</a></li>
-                <li><a href="../../harness-engineering/index.html">Harness</a></li>
-            </ul>
-        </div>
-    </nav>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Problem Breakdowns</div>
-                    <a href="url-shortener.html" class="sidebar-link">URL Shortener</a>
-                    <a href="news-feed.html" class="sidebar-link">News Feed</a>
-                    <a href="chat-system.html" class="sidebar-link">Chat System</a>
-                    <a href="video-streaming.html" class="sidebar-link">Video Streaming</a>
-                    <a href="vector-storage.html" class="sidebar-link active">Vector Storage</a>
-                    <a href="airbnb-booking.html" class="sidebar-link">Airbnb Booking</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Back to Course</div>
-                    <a href="../index.html" class="sidebar-link">System Design Home</a>
-                    <a href="../module-06.html" class="sidebar-link">Common Problems</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sd-sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -114,7 +84,7 @@
                     <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
                         <strong>Assumptions:</strong><br>
                         - 10,000 tenants, 1B total vectors<br>
-                        - Average dimension: 1536 (OpenAI text-embedding-3-large)<br>
+                        - Average dimension: 1536 (OpenAI text-embedding-ada-002 or text-embedding-3-small)<br>
                         - Vector stored as float32 &rarr; 1536 &times; 4 bytes = 6 KB per vector<br>
                         - Average metadata: 500 bytes per vector<br>
                         - 80/20 distribution: 20% of tenants hold 80% of vectors<br><br>
@@ -123,15 +93,14 @@
                         1B &times; 6 KB = 6 TB (raw vectors alone)<br><br>
 
                         <strong>HNSW Index Overhead:</strong><br>
-                        ~1.5&times; raw vector size (graph edges + metadata) &asymp; 9 TB index memory<br>
-                        With M=16, ef_construction=200: each vector stores ~32 edges &times; 8 bytes = 256 bytes overhead<br>
-                        Total index: 6 TB + 256 GB (edges) &asymp; 6.25 TB<br><br>
+                        With M=16: each vector stores ~32 edges &times; 8 bytes = 256 bytes graph overhead + ~64 bytes node metadata<br>
+                        Total index: 6 TB (vectors) + 320 GB (graph + metadata) &asymp; 6.3 TB<br><br>
 
                         <strong>Metadata Storage:</strong><br>
                         1B &times; 500 bytes = 500 GB<br><br>
 
                         <strong>Total Working Set:</strong><br>
-                        ~7 TB must be memory-resident for low-latency queries<br><br>
+                        ~6.8 TB must be memory-resident for low-latency queries<br><br>
 
                         <strong>Query QPS:</strong><br>
                         - Peak: 50,000 queries/second across all tenants<br>
@@ -143,8 +112,8 @@
                         - Burst: 100,000/sec during batch loads<br><br>
 
                         <strong>Cluster Size (memory-optimized nodes):</strong><br>
-                        Using r6g.8xlarge (256 GB RAM): 7 TB / 200 GB usable = ~35 nodes<br>
-                        With replication factor 2: ~70 nodes
+                        Using r7g.8xlarge (256 GB RAM): 6.8 TB / 200 GB usable = ~34 nodes<br>
+                        With replication factor 2: ~68 nodes
                     </div>
 
                     <div class="card mt-2" style="background: var(--success-bg);">
@@ -575,13 +544,17 @@ flowchart TB
                         </tr>
                         <tr>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best for</td>
-                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency-critical, &lt;100M vectors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency-critical, &lt;100M vectors per shard (shard for larger)</td>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost-sensitive, &gt;100M vectors</td>
                         </tr>
                     </table>
 
+                    <div class="card mt-2" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Also consider: DiskANN (Vamana graph)</strong> &mdash; Microsoft's graph-based algorithm designed for SSD-resident indexes. Keeps a compressed (PQ) representation in memory for graph traversal and fetches full vectors from SSD only for final re-ranking. Achieves HNSW-like recall at a fraction of the memory cost. Used in Azure AI Search and increasingly adopted in open-source (e.g., LanceDB, Turbopuffer). A strong alternative to IVF-PQ for billion-scale workloads where latency requirements are moderate (5-15ms).
+                    </div>
+
                     <div class="card mt-2" style="background: var(--success-bg);">
-                        <strong>Staff-Level Answer:</strong> Use a <em>tiered approach</em>. Hot tenants (paying for performance SLA) get HNSW on memory-optimized instances. Smaller or free-tier tenants get IVF-PQ on storage-optimized instances with NVMe. This is exactly what Pinecone does with "serverless" vs "pod" indexes.
+                        <strong>Staff-Level Answer:</strong> Use a <em>tiered approach</em>. Hot tenants (paying for performance SLA) get HNSW on memory-optimized instances. Smaller or free-tier tenants get IVF-PQ or DiskANN on storage-optimized instances with NVMe. Pinecone's serverless architecture uses a similar tiered storage approach internally, keeping hot data in memory and colder data on disk with quantized representations.
                     </div>
                 </div>
             </div>
@@ -1431,7 +1404,7 @@ class MutableBuffer:
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Matryoshka Embeddings</strong></td>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Use first N dimensions of embedding (e.g., 256 of 1536)</td>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);">6x memory reduction</td>
-                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-5% recall loss; model must support it (OpenAI does)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-5% recall loss; model must support it (OpenAI, Cohere, Nomic, and most modern embedding models do)</td>
                         </tr>
                         <tr>
                             <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Disk-based ANN</strong></td>
@@ -1610,7 +1583,7 @@ class ScalarQuantizer:
                     </tr>
                     <tr>
                         <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Memory footprint</strong></td>
-                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~7 TB (HNSW, d=1536, M=16)</td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~6.8 TB (HNSW, d=1536, M=16)</td>
                     </tr>
                     <tr>
                         <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Query latency</strong></td>
@@ -1634,7 +1607,7 @@ class ScalarQuantizer:
                     </tr>
                     <tr>
                         <td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Cluster size</strong></td>
-                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~70 nodes (r6g.8xlarge with replication)</td>
+                        <td style="padding: 0.5rem; border: 1px solid var(--border-color);">~68 nodes (r7g.8xlarge with replication)</td>
                     </tr>
                 </table>
             </div>
@@ -1707,7 +1680,7 @@ class ScalarQuantizer:
     <script src="../../assets/js/app.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
+            const sidebar = document.getElementById('sd-sidebar');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
 
@@ -1722,5 +1695,7 @@ class ScalarQuantizer:
             });
         });
     </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
 </body>
 </html>
