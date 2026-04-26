@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 3: Tool Design &amp; Execution - Harness Engineering</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        /* ── Themed boxes ──────────────────────────────────────────── */
+        .math-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-left: 4px solid rgba(6, 182, 212, 0.8);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+            font-family: 'Georgia', serif;
+        }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+            border-left: 4px solid rgba(59, 130, 246, 0.7);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(72, 187, 120, 0.1) 0%, rgba(56, 161, 105, 0.1) 100%);
+            border-left: 4px solid #48bb78;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(237, 137, 54, 0.1) 0%, rgba(221, 107, 32, 0.1) 100%);
+            border-left: 4px solid #ed8936;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+
+        /* ── Quiz ──────────────────────────────────────────────────── */
+        .quiz-question {
+            background: rgba(6, 182, 212, 0.08);
+            border: 1px solid rgba(6, 182, 212, 0.25);
+            padding: 1rem 1.25rem;
+            margin: 0.75rem 0;
+            border-radius: 0.5rem;
+        }
+        .quiz-question p { margin: 0 0 0.75rem 0; font-weight: 600; }
+        .quiz-answer {
+            display: none;
+            padding: 0.75rem 1rem;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 0.4rem;
+            margin-top: 0.5rem;
+            font-size: 0.93rem;
+            line-height: 1.6;
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.7), rgba(59, 130, 246, 0.7));
+            border: none;
+            color: #fff;
+            padding: 0.35rem 1rem;
+            border-radius: 0.4rem;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        .reveal-btn:hover { opacity: 0.85; }
+
+        /* ── Checkpoint summary ────────────────────────────────────── */
+        .checkpoint-summary {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+            border: 2px solid rgba(6, 182, 212, 0.4);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin: 2rem 0;
+        }
+        .checkpoint-summary h3 { margin-top: 0; color: #06b6d4; }
+
+        /* ── Mini project ──────────────────────────────────────────── */
+        .mini-project {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+            border: 2px solid rgba(59, 130, 246, 0.35);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin: 2rem 0;
+        }
+        .mini-project h3 { margin-top: 0; color: #3b82f6; }
+
+        /* ── Side-by-side code comparison ──────────────────────────── */
+        .code-compare {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .code-compare-bad  { border: 2px solid rgba(245, 101, 101, 0.5); border-radius: 0.5rem; overflow: hidden; }
+        .code-compare-good { border: 2px solid rgba(72, 187, 120, 0.5);  border-radius: 0.5rem; overflow: hidden; }
+        .code-compare-label {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .code-compare-bad  .code-compare-label { background: rgba(245, 101, 101, 0.2); color: #fc8181; }
+        .code-compare-good .code-compare-label { background: rgba(72, 187, 120, 0.2);  color: #68d391; }
+        .code-compare pre  { margin: 0; border-radius: 0; }
+
+        @media (max-width: 768px) {
+            .code-compare { grid-template-columns: 1fr; }
+        }
+
+        /* ── Inline badges ─────────────────────────────────────────── */
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+        .badge-cyan  { background: rgba(6, 182, 212, 0.2);  color: #06b6d4; }
+        .badge-blue  { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .badge-green { background: rgba(72, 187, 120, 0.2); color: #48bb78; }
+        .badge-red   { background: rgba(245, 101, 101, 0.2);color: #fc8181; }
+
+        /* ── Comparison table nicety ───────────────────────────────── */
+        .comp-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.93rem; }
+        .comp-table th { background: rgba(6, 182, 212, 0.15); padding: 0.6rem 0.9rem; text-align: left; }
+        .comp-table td { padding: 0.55rem 0.9rem; border-bottom: 1px solid rgba(255,255,255,0.07); }
+        .comp-table tr:hover td { background: rgba(6, 182, 212, 0.05); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Harness</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <!-- Left Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Loop</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Harness Architecture
+                    </a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Context Engineering
+                    </a>
+                    <a href="module-03.html" class="sidebar-link active" data-module="3">
+                        <span class="sidebar-link-number">3</span>Tool Design &amp; Execution
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Infrastructure</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Sandbox Engineering
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>Permission Systems
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Human-in-the-Loop
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Operations</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Model Routing
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Observability
+                    </a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Scaling
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10">
+                        <span class="sidebar-link-number">10</span>State Management
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Streaming
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Testing
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Mastery</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Case Studies
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Multi-Agent
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Mobile sidebar toggle -->
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <h1>Module 3: Tool Design &amp; Execution</h1>
+            <p class="text-muted">Build tools the model will actually use correctly — schema design, execution engines, result formatting, error recovery, and parallel dispatch.</p>
+
+            <!-- Learning Objectives -->
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%); border: 1px solid rgba(6, 182, 212, 0.25);">
+                <h3 style="margin-top: 0; color: #06b6d4;">What You'll Learn</h3>
+                <ul>
+                    <li>How JSON Schema fields in a tool definition map to model behaviour — and why the <em>description</em> is a prompt</li>
+                    <li>Differences in how Claude, GPT-4, and Gemini interpret tool schemas</li>
+                    <li>The four execution engine archetypes and when to use each</li>
+                    <li>Smart truncation strategies that keep tool results useful without burning context</li>
+                    <li>Error classification: retryable vs fatal, and how to present failures to the model</li>
+                    <li>Dependency-aware parallel tool execution and how Claude Code implements it</li>
+                    <li>Deferred / lazy tool loading and the cost of large tool schemas</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: TOOL SCHEMA DESIGN                                -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">1. Tool Schema Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>JSON Schema Anatomy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every tool exposed to an LLM is serialised as a JSON object that follows a fixed structure. All major APIs (Anthropic, OpenAI, Google) share the same high-level shape, though they differ in edge cases:</p>
+
+                    <pre><code class="language-json">{
+  "name": "read_file",
+  "description": "Read the contents of a file at the given path. Use this when you need to examine source code, configuration files, or any text file. Returns the file content as a string with line numbers prepended.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "Absolute path to the file. Must start with /."
+      },
+      "limit": {
+        "type": "integer",
+        "description": "Maximum number of lines to return. Defaults to 200 if omitted.",
+        "minimum": 1,
+        "maximum": 2000
+      },
+      "offset": {
+        "type": "integer",
+        "description": "Line number to start reading from (1-indexed). Use with limit for pagination.",
+        "minimum": 1
+      }
+    },
+    "required": ["path"]
+  }
+}</code></pre>
+
+                    <p>The four load-bearing parts are:</p>
+                    <table class="comp-table">
+                        <thead>
+                            <tr>
+                                <th>Field</th>
+                                <th>Purpose</th>
+                                <th>Common Mistakes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>name</code></td>
+                                <td>Unique identifier the model emits verbatim when calling the tool</td>
+                                <td>Spaces or hyphens (some APIs reject them); names longer than ~30 chars hurt recall</td>
+                            </tr>
+                            <tr>
+                                <td><code>description</code></td>
+                                <td>The model's primary guide on <em>when</em> and <em>how</em> to use the tool</td>
+                                <td>Vague one-liners; no mention of failure modes; too long (wastes tokens every turn)</td>
+                            </tr>
+                            <tr>
+                                <td><code>input_schema</code></td>
+                                <td>Validates the model's argument structure and provides per-parameter guidance</td>
+                                <td>All params optional (model guesses); missing <code>minimum</code>/<code>maximum</code> constraints</td>
+                            </tr>
+                            <tr>
+                                <td>Parameter <code>description</code></td>
+                                <td>Micro-prompt telling the model what value to supply</td>
+                                <td>Repeating the param name; not specifying format (e.g., absolute vs relative path)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="insight-box">
+                        <strong>Key Insight:</strong> The model never reads your code. It only reads the schema. Every behavioural expectation you have must be expressed as text in <code>description</code> fields. The schema is a contract written in natural language, not a type system.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How Claude, GPT-4, and Gemini Differ</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>All three providers accept a broadly similar schema format, but the models were trained differently and exhibit distinct behaviours:</p>
+
+                    <table class="comp-table">
+                        <thead>
+                            <tr><th>Behaviour</th><th>Claude 3.x / Sonnet 4</th><th>GPT-4o</th><th>Gemini 1.5 Pro</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Parallel tool calls in one response</td>
+                                <td>Yes — emits multiple <code>tool_use</code> blocks</td>
+                                <td>Yes — <code>tool_calls</code> array</td>
+                                <td>Yes — <code>functionCall</code> parts</td>
+                            </tr>
+                            <tr>
+                                <td>Strict schema adherence</td>
+                                <td>High; rarely emits extra fields</td>
+                                <td>High with <code>strict: true</code>; lax otherwise</td>
+                                <td>Medium; may omit optional params</td>
+                            </tr>
+                            <tr>
+                                <td>Handling unknown enum values</td>
+                                <td>Defaults to first listed value or asks</td>
+                                <td>May hallucinate a plausible value</td>
+                                <td>Often omits the param entirely</td>
+                            </tr>
+                            <tr>
+                                <td>Max tools in a single schema</td>
+                                <td>Tested up to 200+; quality degrades ~50+</td>
+                                <td>Quality degrades noticeably ~64+</td>
+                                <td>Documented limit 64 tools</td>
+                            </tr>
+                            <tr>
+                                <td>Tool choice forcing</td>
+                                <td><code>tool_choice: {type: "tool", name: "..."}</code></td>
+                                <td><code>tool_choice: {type: "function", function: {name: "..."}}</code></td>
+                                <td><code>tool_config: {mode: "ANY", allowed_function_names: [...]}</code></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Production tip:</strong> If you target multiple providers, write an adapter layer that translates your internal tool definitions to each provider's wire format. The schema shapes are similar but not identical — Anthropic uses <code>input_schema</code>, OpenAI uses <code>parameters</code>, Gemini uses <code>parameters</code> under <code>function_declarations</code>.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Real Examples: Claude Code's Core Tools</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Claude Code ships a small, carefully designed tool set. Studying them reveals deliberate schema engineering choices:</p>
+
+                    <pre><code class="language-json">// Read - minimal required surface, pagination built in
+{
+  "name": "Read",
+  "description": "Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.\n\nUsage:\n- The file_path parameter must be an absolute path, not a relative path\n- By default, it reads up to 2000 lines starting from the beginning of the file\n- When you already know which part of the file you need, only read that part.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "file_path": { "type": "string", "description": "The absolute path to the file to read" },
+      "limit":     { "type": "number", "description": "The number of lines to read." },
+      "offset":    { "type": "number", "description": "The line number to start reading from." }
+    },
+    "required": ["file_path"]
+  }
+}
+
+// Bash - power tool with explicit safety rails in the description
+{
+  "name": "Bash",
+  "description": "Executes a bash command in a persistent shell session. Use for running tests, build commands, git operations, or any shell task. Avoid commands that produce unbounded output — pipe through head/tail. Do NOT use for file reads when the Read tool suffices.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "command":     { "type": "string", "description": "The bash command to run." },
+      "description": { "type": "string", "description": "Clear description of what this command does and why." },
+      "timeout":     { "type": "number", "description": "Timeout in milliseconds. Default 120000." }
+    },
+    "required": ["command", "description"]
+  }
+}
+
+// Glob - scoped file discovery
+{
+  "name": "Glob",
+  "description": "Fast file pattern matching tool. Supports glob patterns like '**/*.js'. Returns matching file paths sorted by modification time. Use this to find files by name pattern, not to read their contents.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "pattern": { "type": "string", "description": "The glob pattern to match files against" },
+      "path":    { "type": "string", "description": "Directory to search in. Omit to use current working directory." }
+    },
+    "required": ["pattern"]
+  }
+}</code></pre>
+
+                    <p>Notice the patterns:</p>
+                    <ul>
+                        <li><strong>One required param, rest optional</strong> — reduces friction; the model can call the tool with minimal arguments</li>
+                        <li><strong>Negative instructions in descriptions</strong> — "Do NOT use for file reads when the Read tool suffices" prevents tool overuse</li>
+                        <li><strong>Usage bullets in description</strong> — concise, scannable rules the model re-reads every turn</li>
+                        <li><strong>No enum for path</strong> — dynamic values are never constrained with enums; only finite static sets should use <code>enum</code></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: DESCRIPTION OPTIMIZATION                          -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">2. Description Optimization</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Description Is a Prompt, Not Documentation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="analogy-box">
+                        <strong>Mental Model:</strong> Tool descriptions are exactly like system prompt instructions except they live inside the tool schema. The model reads all descriptions on every inference pass. A 500-token description for a rarely-used tool is always in context, even when it's irrelevant. Treat each token as expensive.
+                    </div>
+
+                    <p>The description must answer three questions a model asks (implicitly) before selecting a tool:</p>
+                    <ol>
+                        <li><strong>What does this tool do?</strong> — action + side effects</li>
+                        <li><strong>When should I use it?</strong> — triggering conditions</li>
+                        <li><strong>When should I NOT use it?</strong> — disambiguation from similar tools</li>
+                    </ol>
+
+                    <p>The brevity vs clarity tradeoff resolves differently for different tool categories:</p>
+                    <table class="comp-table">
+                        <thead><tr><th>Tool Category</th><th>Ideal Description Length</th><th>Reasoning</th></tr></thead>
+                        <tbody>
+                            <tr><td>Utility (read_file, list_dir)</td><td>2-4 sentences</td><td>Action is obvious; spend tokens on constraints and format</td></tr>
+                            <tr><td>Domain-specific API (send_email, create_issue)</td><td>4-8 sentences</td><td>Side effects must be explicit; rate limits and auth notes help</td></tr>
+                            <tr><td>Dangerous / irreversible (delete, deploy)</td><td>6-10 sentences</td><td>Model needs enough context to avoid accidents; negative instructions critical</td></tr>
+                            <tr><td>Disambiguation pair (search_web vs search_codebase)</td><td>Add 1-2 contrast sentences</td><td>Model confuses similar tools without explicit "use X for Y, not Z"</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>A/B Testing Tool Descriptions &amp; the ToolDescriptionBuilder Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Small wording changes cause measurable shifts in tool call accuracy. Treat description copy as a tunable hyperparameter.</p>
+
+                    <div class="code-compare">
+                        <div class="code-compare-bad">
+                            <div class="code-compare-label">Before — vague, no rails</div>
+                            <pre><code class="language-json">{
+  "name": "search_files",
+  "description": "Search for content in files.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string" },
+      "path":  { "type": "string" }
+    },
+    "required": ["query"]
+  }
+}</code></pre>
+                        </div>
+                        <div class="code-compare-good">
+                            <div class="code-compare-label">After — specific, with negative instruction</div>
+                            <pre><code class="language-json">{
+  "name": "Grep",
+  "description": "Search for a regex pattern in file contents using ripgrep. Returns matching lines with surrounding context and file paths.\n\nUse for: finding symbol definitions, locating usages, scanning config values.\nDo NOT use to read an entire file — use Read instead.\nDo NOT use for filename matching — use Glob instead.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "pattern": {
+        "type": "string",
+        "description": "Regex pattern to search for (ripgrep syntax)."
+      },
+      "path": {
+        "type": "string",
+        "description": "File or directory to search. Defaults to current working directory."
+      },
+      "context_lines": {
+        "type": "integer",
+        "description": "Lines of context before and after each match. Default 2.",
+        "minimum": 0,
+        "maximum": 10
+      }
+    },
+    "required": ["pattern"]
+  }
+}</code></pre>
+                        </div>
+                    </div>
+
+                    <p>The <code>ToolDescriptionBuilder</code> pattern lets you version, test, and iterate descriptions systematically:</p>
+
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Optional
+import hashlib, json
+
+@dataclass
+class ToolDescriptionBuilder:
+    """
+    Builds and versions tool descriptions for A/B testing.
+    Tracks which description variant is active so you can correlate
+    with task success metrics in your observability layer.
+    """
+    name: str
+    action: str                        # "Reads a file from the filesystem."
+    when_to_use: list[str] = field(default_factory=list)
+    do_not_use_for: list[str] = field(default_factory=list)
+    format_notes: list[str] = field(default_factory=list)
+    examples: list[str] = field(default_factory=list)
+    max_tokens: int = 200              # soft budget
+
+    def build(self) -> str:
+        parts = [self.action]
+
+        if self.when_to_use:
+            parts.append("Use for: " + "; ".join(self.when_to_use) + ".")
+        if self.do_not_use_for:
+            parts.append("Do NOT use for: " + "; ".join(self.do_not_use_for) + ".")
+        if self.format_notes:
+            parts.append("\n".join(self.format_notes))
+        if self.examples:
+            parts.append("Examples:\n" + "\n".join(f"  - {e}" for e in self.examples))
+
+        description = "\n\n".join(parts)
+        # warn if over budget (approximate token count)
+        approx_tokens = len(description.split())
+        if approx_tokens > self.max_tokens:
+            import warnings
+            warnings.warn(
+                f"Tool '{self.name}' description ~{approx_tokens} words, "
+                f"exceeds budget of {self.max_tokens}. Consider trimming."
+            )
+        return description
+
+    def fingerprint(self) -> str:
+        """Stable hash for logging which description variant was active."""
+        return hashlib.sha1(self.build().encode()).hexdigest()[:8]
+
+
+# Usage
+read_desc = ToolDescriptionBuilder(
+    name="Read",
+    action="Reads a file from the local filesystem and returns its content with line numbers.",
+    when_to_use=["examining source code", "reading config files", "inspecting any text file"],
+    do_not_use_for=["finding files by name (use Glob)", "searching content by pattern (use Grep)"],
+    format_notes=["file_path must be absolute.", "Use limit + offset for large files."],
+)
+print(read_desc.build())
+print("Variant:", read_desc.fingerprint())  # e.g. "a3f8c12b"</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Measurement tip:</strong> Log the description fingerprint alongside each tool call in your traces. When you change a description, you can query "did tool call accuracy improve on task type X after switching from fingerprint a3f8c12b to 7bd29e44?"
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: EXECUTION ENGINES                                 -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">3. Execution Engines</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Four Archetypes of Tool Execution</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Once the model emits a tool call your harness must decide how to run it. The choice of execution engine determines isolation, latency, and resource control:</p>
+
+                    <table class="comp-table">
+                        <thead>
+                            <tr><th>Engine Type</th><th>How It Works</th><th>Isolation</th><th>Latency</th><th>Use For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-blue">In-process</span></td>
+                                <td>Direct function call in the harness process</td>
+                                <td>None</td>
+                                <td>&lt;1 ms</td>
+                                <td>File reads, in-memory lookups, pure computations</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">Subprocess</span></td>
+                                <td><code>subprocess.run()</code> / <code>exec()</code></td>
+                                <td>OS process boundary</td>
+                                <td>5–50 ms startup</td>
+                                <td>Shell commands, CLI tools, build systems</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-green">Network call</span></td>
+                                <td>HTTP/gRPC to external service</td>
+                                <td>Network + auth boundary</td>
+                                <td>10–500 ms</td>
+                                <td>External APIs, databases, search engines</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Sandboxed</span></td>
+                                <td>Docker container, gVisor, Firecracker VM</td>
+                                <td>Full kernel isolation</td>
+                                <td>100 ms–2 s cold start</td>
+                                <td>Arbitrary code execution, untrusted inputs</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    MC["Model emits tool_use block"]
+    RO["Tool Router\n(name → executor)"]
+    MC --> RO
+
+    RO -->|"read_file, list_dir"| IP["In-Process Executor\nDirect Python call"]
+    RO -->|"bash, git, npm"| SP["Subprocess Executor\nsubprocess.run()"]
+    RO -->|"web_search, github_api"| NC["Network Executor\nhttpx.AsyncClient"]
+    RO -->|"run_code, eval"| SB["Sandbox Executor\nDocker / gVisor"]
+
+    IP --> TF["Tool Result Formatter"]
+    SP --> TF
+    NC --> TF
+    SB --> TF
+
+    TF --> TC["Truncator\n(context budget)"]
+    TC --> MR["tool_result message\n→ next model turn"]
+
+    style MC fill:#0e7490,color:#fff
+    style MR fill:#1d4ed8,color:#fff
+    style SB fill:#dc2626,color:#fff
+        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>ToolExecutor Class with Timeout &amp; Resource Management</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">import asyncio
+import subprocess
+import resource
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Awaitable, Optional
+
+@dataclass
+class ExecutionConfig:
+    timeout_seconds: float = 30.0
+    max_output_bytes: int = 1_000_000   # 1 MB
+    max_memory_mb:   int = 512
+    working_dir:     Optional[str] = None
+
+@dataclass
+class ExecutionResult:
+    stdout:       str
+    stderr:       str
+    exit_code:    int
+    duration_ms:  float
+    truncated:    bool = False
+
+class ToolExecutor:
+    """
+    Unified executor that wraps subprocess execution with
+    timeout enforcement, output capping, and resource limits.
+    """
+
+    def __init__(self, config: ExecutionConfig):
+        self.config = config
+
+    async def run_bash(self, command: str) -> ExecutionResult:
+        start = time.monotonic()
+
+        try:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.config.working_dir,
+                # Apply memory limit via preexec_fn on Linux
+                preexec_fn=self._apply_resource_limits,
+            )
+
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=self.config.timeout_seconds,
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                return ExecutionResult(
+                    stdout="",
+                    stderr=f"Command timed out after {self.config.timeout_seconds}s",
+                    exit_code=124,
+                    duration_ms=(time.monotonic() - start) * 1000,
+                )
+
+        except Exception as e:
+            return ExecutionResult(
+                stdout="",
+                stderr=f"Execution error: {e}",
+                exit_code=1,
+                duration_ms=(time.monotonic() - start) * 1000,
+            )
+
+        truncated = False
+        stdout = stdout_b.decode("utf-8", errors="replace")
+        stderr = stderr_b.decode("utf-8", errors="replace")
+
+        if len(stdout_b) > self.config.max_output_bytes:
+            stdout = stdout[: self.config.max_output_bytes].rsplit("\n", 1)[0]
+            stdout += f"\n[... output truncated at {self.config.max_output_bytes} bytes ...]"
+            truncated = True
+
+        return ExecutionResult(
+            stdout=stdout,
+            stderr=stderr[:4096],       # cap stderr separately
+            exit_code=proc.returncode,
+            duration_ms=(time.monotonic() - start) * 1000,
+            truncated=truncated,
+        )
+
+    def _apply_resource_limits(self):
+        """Called in child process before exec (Linux only)."""
+        try:
+            mem_bytes = self.config.max_memory_mb * 1024 * 1024
+            resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
+            # Prevent core dumps
+            resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        except Exception:
+            pass  # Windows / macOS: silently skip
+
+    async def run_in_process(
+        self,
+        fn: Callable[..., Awaitable[Any]],
+        *args,
+        **kwargs,
+    ) -> ExecutionResult:
+        """Run a coroutine as a tool, wrapping exceptions."""
+        start = time.monotonic()
+        try:
+            result = await asyncio.wait_for(
+                fn(*args, **kwargs),
+                timeout=self.config.timeout_seconds,
+            )
+            return ExecutionResult(
+                stdout=str(result),
+                stderr="",
+                exit_code=0,
+                duration_ms=(time.monotonic() - start) * 1000,
+            )
+        except asyncio.TimeoutError:
+            return ExecutionResult(
+                stdout="",
+                stderr=f"Function timed out after {self.config.timeout_seconds}s",
+                exit_code=124,
+                duration_ms=(time.monotonic() - start) * 1000,
+            )
+        except Exception as e:
+            return ExecutionResult(
+                stdout="",
+                stderr=f"{type(e).__name__}: {e}",
+                exit_code=1,
+                duration_ms=(time.monotonic() - start) * 1000,
+            )</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: RESULT FORMATTING & TRUNCATION                    -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">4. Result Formatting &amp; Truncation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Truncation Is an Engineering Problem, Not a Detail</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="math-box">
+                        <strong>Context budget math:</strong> Suppose you have a 200 k-token window. Your system prompt costs 2 k tokens. Each tool result from a file read averages 500 tokens when untruncated. After just 25 sequential tool calls, you've spent 12.5 k tokens on results — and you haven't even included the model's reasoning or the conversation history. At 200 tool calls, you've blown the window even if every file was tiny.
+                    </div>
+
+                    <p>Smart truncation must be <em>content-aware</em>. The right strategy differs by tool type:</p>
+
+                    <table class="comp-table">
+                        <thead><tr><th>Tool Type</th><th>Truncation Strategy</th><th>Rationale</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td>File read</td>
+                                <td>First N lines + last M lines with a gap marker; always include line numbers</td>
+                                <td>Imports/headers at top, main logic near bottom; middle is often boilerplate</td>
+                            </tr>
+                            <tr>
+                                <td>Grep / search results</td>
+                                <td>First K matches; show ±2 lines context per match; total lines capped</td>
+                                <td>First match is usually the most relevant; the model can re-search with refined pattern</td>
+                            </tr>
+                            <tr>
+                                <td>Bash output</td>
+                                <td>First N lines; append last M lines if exit_code != 0</td>
+                                <td>Errors appear at the end; always surface them even if body is truncated</td>
+                            </tr>
+                            <tr>
+                                <td>JSON API response</td>
+                                <td>Trim arrays &gt; K items; omit null/empty fields; add truncation annotation</td>
+                                <td>LLMs parse structure, not raw JSON; compact is easier to read</td>
+                            </tr>
+                            <tr>
+                                <td>Directory listing</td>
+                                <td>Sort by modification time; cap at 50 entries; group by extension</td>
+                                <td>Most-recently-modified files are usually most relevant</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>ResultFormatter with Truncation Policies</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">from dataclasses import dataclass
+from typing import Optional
+import json
+
+@dataclass
+class TruncationPolicy:
+    max_lines:       int = 200
+    head_lines:      int = 100   # lines from top
+    tail_lines:      int = 50    # lines from bottom (errors, return stmts)
+    max_chars:       int = 20_000
+    include_numbers: bool = True
+
+class ResultFormatter:
+    """
+    Converts raw tool execution output into model-ready strings
+    that respect context budgets while preserving information density.
+    """
+
+    def __init__(self, policy: TruncationPolicy = TruncationPolicy()):
+        self.policy = policy
+
+    # ── File content ──────────────────────────────────────────────────
+    def format_file(
+        self,
+        content: str,
+        path: str,
+        offset: int = 1,
+    ) -> str:
+        lines = content.splitlines()
+        total = len(lines)
+
+        if total &lt;= self.policy.max_lines:
+            numbered = self._number_lines(lines, start=offset)
+            return f"&lt;file path='{path}' lines='{offset}-{offset+total-1}'&gt;\n{numbered}\n&lt;/file&gt;"
+
+        head = lines[: self.policy.head_lines]
+        tail = lines[-self.policy.tail_lines :]
+        omitted = total - self.policy.head_lines - self.policy.tail_lines
+
+        head_str = self._number_lines(head, start=offset)
+        tail_start = offset + total - self.policy.tail_lines
+        tail_str  = self._number_lines(tail, start=tail_start)
+
+        return (
+            f"&lt;file path='{path}' total_lines='{total}' truncated='true'&gt;\n"
+            f"{head_str}\n"
+            f"... [{omitted} lines omitted — use offset={offset + self.policy.head_lines} to read more] ...\n"
+            f"{tail_str}\n"
+            f"&lt;/file&gt;"
+        )
+
+    # ── Grep results ──────────────────────────────────────────────────
+    def format_grep(
+        self,
+        matches: list[dict],   # [{file, line_no, content, context_before, context_after}]
+        pattern: str,
+        max_matches: int = 20,
+    ) -> str:
+        if not matches:
+            return f"No matches found for pattern: {pattern!r}"
+
+        truncated = len(matches) &gt; max_matches
+        shown = matches[:max_matches]
+        parts = [f"Found {len(matches)} match(es) for {pattern!r}" +
+                 (f" (showing first {max_matches})" if truncated else "") + ":"]
+
+        for m in shown:
+            header = f"\n{m['file']}:{m['line_no']}"
+            ctx = "\n".join(
+                f"  {m['line_no'] - len(m.get('context_before', [])) + i} | {l}"
+                for i, l in enumerate(m.get("context_before", []))
+            )
+            match_line = f"&gt; {m['line_no']} | {m['content']}"
+            ctx_after = "\n".join(
+                f"  {m['line_no'] + i + 1} | {l}"
+                for i, l in enumerate(m.get("context_after", []))
+            )
+            parts.append(header + "\n" + "\n".join(filter(None, [ctx, match_line, ctx_after])))
+
+        return "\n".join(parts)
+
+    # ── JSON API responses ────────────────────────────────────────────
+    def format_json(
+        self,
+        data: Any,
+        max_array_items: int = 10,
+        max_depth: int = 5,
+    ) -> str:
+        pruned = self._prune_json(data, max_array_items, max_depth, 0)
+        return json.dumps(pruned, indent=2, default=str)
+
+    def _prune_json(self, obj, max_items, max_depth, depth):
+        if depth &gt;= max_depth:
+            return "&lt;max depth reached&gt;"
+        if isinstance(obj, dict):
+            return {
+                k: self._prune_json(v, max_items, max_depth, depth + 1)
+                for k, v in obj.items()
+                if v not in (None, "", [], {})
+            }
+        if isinstance(obj, list):
+            truncated = len(obj) &gt; max_items
+            pruned = [self._prune_json(i, max_items, max_depth, depth + 1)
+                      for i in obj[:max_items]]
+            if truncated:
+                pruned.append(f"... [{len(obj) - max_items} more items]")
+            return pruned
+        return obj
+
+    # ── Helpers ───────────────────────────────────────────────────────
+    def _number_lines(self, lines: list[str], start: int = 1) -> str:
+        width = len(str(start + len(lines)))
+        return "\n".join(
+            f"{str(start + i).rjust(width)}\t{line}"
+            for i, line in enumerate(lines)
+        )</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Why XML-style wrappers?</strong> Wrapping results in <code>&lt;file&gt;</code> / <code>&lt;/file&gt;</code> tags trains the model to treat tool results as distinct data regions, not as part of the conversation. It reduces hallucination where the model confuses prior tool output with its own prior responses. Claude is particularly responsive to this pattern.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: ERROR RECOVERY                                    -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">5. Error Recovery</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Error Categorization: Not All Failures Are Equal</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The harness, not the model, should classify errors. Give the model a rich enough error message to decide its next action, but don't expose raw stack traces that waste tokens.</p>
+
+                    <table class="comp-table">
+                        <thead><tr><th>Error Class</th><th>Examples</th><th>Harness Action</th><th>Message to Model</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge badge-green">Retryable / Transient</span></td>
+                                <td>Network timeout, rate limit (429), disk I/O spike</td>
+                                <td>Retry with exponential backoff (max 3 attempts)</td>
+                                <td>If all retries fail, surface with "temporarily unavailable, try again"</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-cyan">User Fixable</span></td>
+                                <td>File not found, permission denied, invalid path</td>
+                                <td>Return immediately; no retry</td>
+                                <td>Specific: "File /foo/bar.py does not exist. Use Glob to find the correct path."</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-blue">Schema / Usage Error</span></td>
+                                <td>Missing required param, wrong type, enum mismatch</td>
+                                <td>Validate before execution; return early</td>
+                                <td>"Invalid arguments: 'path' is required but was not provided."</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge badge-red">Fatal / System Error</span></td>
+                                <td>Sandbox crash, OOM, unrecoverable DB failure</td>
+                                <td>Log + alert; return graceful degradation message</td>
+                                <td>"Tool unavailable due to internal error. Proceed without this tool or ask user for help."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Anti-pattern:</strong> Returning an empty string or <code>null</code> on error. The model will often re-call the same tool with the same arguments, entering an infinite loop. Always return a non-empty error message that explains what happened and, where possible, suggests a corrective action.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Error Handling Middleware &amp; Retry Decorator</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">import asyncio
+import functools
+import logging
+from typing import Callable, TypeVar, Awaitable
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
+
+# ── Retry decorator ───────────────────────────────────────────────────
+def retryable(
+    max_attempts: int = 3,
+    base_delay: float = 0.5,
+    retryable_exceptions: tuple = (TimeoutError, ConnectionError, OSError),
+):
+    """
+    Decorator that retries async tool functions on transient errors.
+    Uses exponential backoff with full jitter.
+    """
+    def decorator(fn: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+        @functools.wraps(fn)
+        async def wrapper(*args, **kwargs) -> T:
+            import random
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return await fn(*args, **kwargs)
+                except retryable_exceptions as exc:
+                    if attempt == max_attempts:
+                        raise
+                    delay = base_delay * (2 ** (attempt - 1)) * random.uniform(0.5, 1.5)
+                    logger.warning(
+                        "Tool %s attempt %d/%d failed: %s. Retrying in %.2fs",
+                        fn.__name__, attempt, max_attempts, exc, delay,
+                    )
+                    await asyncio.sleep(delay)
+        return wrapper
+    return decorator
+
+
+# ── Error middleware ──────────────────────────────────────────────────
+class ToolErrorMiddleware:
+    """
+    Wraps tool execution to produce model-friendly error messages
+    regardless of what exception was thrown.
+    """
+
+    RETRYABLE = (TimeoutError, ConnectionError, OSError)
+    USAGE     = (ValueError, TypeError, KeyError)
+
+    def __init__(self, tool_name: str):
+        self.tool_name = tool_name
+
+    async def execute(self, coro: Awaitable[str]) -> str:
+        try:
+            return await coro
+
+        except self.RETRYABLE as exc:
+            logger.error("Transient error in tool '%s': %s", self.tool_name, exc, exc_info=True)
+            return (
+                f"[Tool error — transient] {self.tool_name} failed due to a temporary issue: "
+                f"{type(exc).__name__}: {exc}. "
+                f"You may retry this tool call. If it persists, try an alternative approach."
+            )
+
+        except PermissionError as exc:
+            return (
+                f"[Tool error — permission] Cannot access resource: {exc}. "
+                f"Check that the path exists and you have read permission."
+            )
+
+        except FileNotFoundError as exc:
+            return (
+                f"[Tool error — not found] {exc}. "
+                f"Use Glob to verify the file path before reading."
+            )
+
+        except self.USAGE as exc:
+            return (
+                f"[Tool error — bad arguments] {type(exc).__name__}: {exc}. "
+                f"Review the tool schema and correct the arguments."
+            )
+
+        except Exception as exc:
+            logger.critical(
+                "Unhandled exception in tool '%s'", self.tool_name, exc_info=True
+            )
+            return (
+                f"[Tool error — internal] {self.tool_name} encountered an unexpected error. "
+                f"Proceed without this tool result or ask the user for help."
+            )
+
+
+# ── Usage example ────────────────────────────────────────────────────
+async def handle_tool_call(tool_name: str, tool_fn, args: dict) -> str:
+    middleware = ToolErrorMiddleware(tool_name)
+    return await middleware.execute(tool_fn(**args))</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: PARALLEL VS SEQUENTIAL EXECUTION                  -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">6. Parallel vs Sequential Execution</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>When Parallel Execution Matters</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="analogy-box">
+                        <strong>Engineering analogy:</strong> Tool calls are like database queries. You wouldn't execute <code>SELECT * FROM users</code> and <code>SELECT * FROM orders</code> sequentially when they're independent. The same applies to tool calls — parallel dispatch cuts total wall-clock latency by the number of independent calls in a batch.
+                    </div>
+
+                    <p>Claude Code (and many modern agents) emit multiple tool calls in a single response when the model determines they're independent. The harness must:</p>
+                    <ol>
+                        <li>Detect that a response contains multiple <code>tool_use</code> blocks</li>
+                        <li>Identify dependencies between them (can call B before A finishes?)</li>
+                        <li>Execute independent groups in parallel; dependent calls in sequence</li>
+                        <li>Collect all results and return them as a batch in the next message</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Sequential (naive)"
+        S1["Read file A"] --> S2["Read file B"] --> S3["Grep pattern"] --> S4["Model turn 2"]
+        T1["⏱ 3 × 50ms = 150ms"]
+    end
+    subgraph "Parallel (smart)"
+        P1["Read file A"]
+        P2["Read file B"]
+        P3["Grep pattern"]
+        PG["Gather results"] --> P4["Model turn 2"]
+        P1 --> PG
+        P2 --> PG
+        P3 --> PG
+        T2["⏱ max(50ms) = 50ms"]
+    end
+    style T1 fill:#dc2626,color:#fff
+    style T2 fill:#16a34a,color:#fff
+        </div>
+                    </div>
+
+                    <p>The 3x latency reduction compounds over a long task. A 50-step coding task with average 3 parallel tool calls per step goes from ~7.5 s (sequential) to ~2.5 s (parallel) for tool execution alone — before model inference time.</p>
+
+                    <div class="warning-box">
+                        <strong>Race conditions to watch for:</strong> Two parallel Bash calls that both write to the same file, or two Edit calls targeting overlapping regions. The dependency detector must flag these as sequential. A simple heuristic: if any two calls touch the same file path, serialize them.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>ParallelToolExecutor with Dependency Graph</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">import asyncio
+from dataclasses import dataclass, field
+from typing import Any
+
+@dataclass
+class ToolCall:
+    id:        str
+    name:      str
+    arguments: dict[str, Any]
+
+@dataclass
+class ToolResult:
+    tool_use_id: str
+    content:     str
+
+class DependencyDetector:
+    """
+    Heuristic dependency detection between tool calls.
+    Conservative: when in doubt, serialize.
+    """
+
+    WRITE_TOOLS = {"Edit", "Write", "Bash"}
+    READ_TOOLS  = {"Read", "Glob", "Grep"}
+
+    def extract_paths(self, call: ToolCall) -> set[str]:
+        """Best-effort path extraction from tool arguments."""
+        paths = set()
+        for key in ("path", "file_path", "command"):
+            val = call.arguments.get(key, "")
+            if isinstance(val, str) and val.startswith("/"):
+                # crude: first token that looks like a path
+                for token in val.split():
+                    if token.startswith("/"):
+                        paths.add(token)
+        return paths
+
+    def depends_on(self, a: ToolCall, b: ToolCall) -> bool:
+        """Return True if b must run after a."""
+        # Write-after-write or write-after-read on same path
+        paths_a = self.extract_paths(a)
+        paths_b = self.extract_paths(b)
+        shared  = paths_a & paths_b
+
+        if not shared:
+            return False
+
+        # If either is a write tool, enforce ordering
+        return a.name in self.WRITE_TOOLS or b.name in self.WRITE_TOOLS
+
+
+class ParallelToolExecutor:
+    """
+    Executes a batch of tool calls with dependency-aware parallelism.
+
+    Algorithm:
+    1. Build dependency graph (DAG)
+    2. Topological sort into levels
+    3. Execute each level in parallel, next level waits for previous
+    """
+
+    def __init__(self, tool_registry: dict[str, Any], detector: DependencyDetector = None):
+        self.registry = tool_registry
+        self.detector = detector or DependencyDetector()
+
+    async def execute_batch(self, calls: list[ToolCall]) -> list[ToolResult]:
+        if not calls:
+            return []
+
+        # Build adjacency list: call_id -> set of call_ids that must come BEFORE it
+        n = len(calls)
+        in_edges: dict[str, set[str]] = {c.id: set() for c in calls}
+
+        for i in range(n):
+            for j in range(n):
+                if i != j and self.detector.depends_on(calls[i], calls[j]):
+                    # calls[j] depends on calls[i]
+                    in_edges[calls[j].id].add(calls[i].id)
+
+        # Kahn's topological sort into levels
+        levels: list[list[ToolCall]] = []
+        remaining = {c.id: c for c in calls}
+        completed: set[str] = set()
+
+        while remaining:
+            # Find calls with all dependencies satisfied
+            ready = [
+                c for c in remaining.values()
+                if in_edges[c.id].issubset(completed)
+            ]
+            if not ready:
+                # Cycle detected — fall back to sequential
+                ready = list(remaining.values())[:1]
+            levels.append(ready)
+            for c in ready:
+                del remaining[c.id]
+                completed.add(c.id)
+
+        # Execute level by level
+        all_results: list[ToolResult] = []
+        for level in levels:
+            level_results = await asyncio.gather(
+                *[self._execute_one(call) for call in level],
+                return_exceptions=False,
+            )
+            all_results.extend(level_results)
+
+        return all_results
+
+    async def _execute_one(self, call: ToolCall) -> ToolResult:
+        fn = self.registry.get(call.name)
+        if fn is None:
+            return ToolResult(
+                tool_use_id=call.id,
+                content=f"[Error] Unknown tool: {call.name!r}",
+            )
+        try:
+            result = await fn(**call.arguments)
+            return ToolResult(tool_use_id=call.id, content=str(result))
+        except Exception as exc:
+            return ToolResult(
+                tool_use_id=call.id,
+                content=f"[Tool error] {type(exc).__name__}: {exc}",
+            )</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: TOOL ROUTING & DEFERRED LOADING                   -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">7. Tool Routing &amp; Deferred Loading</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Cost of Large Tool Schemas</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every tool definition is serialised into the API request, consuming input tokens before the model generates a single output token. This has three cascading effects:</p>
+
+                    <div class="math-box">
+                        <strong>Token cost of a naive "dump all tools" approach:</strong><br>
+                        If each tool schema averages 150 tokens and you register 100 tools:<br>
+                        150 × 100 = <strong>15,000 tokens consumed per turn</strong> regardless of which tools are used.<br>
+                        At $15 / M input tokens (Sonnet 4), that's $0.225 per turn just in tool overhead.
+                    </div>
+
+                    <p>Beyond cost, there's a quality degradation effect. With &gt;~50 tools in context:</p>
+                    <ul>
+                        <li>The model's tool selection accuracy drops — it starts picking semantically similar but wrong tools</li>
+                        <li>"Lost in the middle" attention effects mean tools defined in the middle of the list are selected less frequently</li>
+                        <li>The model occasionally hallucinates tool names not in the schema</li>
+                    </ul>
+
+                    <p>Three mitigation strategies:</p>
+
+                    <table class="comp-table">
+                        <thead><tr><th>Strategy</th><th>How It Works</th><th>Tradeoff</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Context-sensitive filtering</strong></td>
+                                <td>Inspect conversation context; inject only tools relevant to the current task phase</td>
+                                <td>Requires a router heuristic; wrong filter = tool unavailable when needed</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Deferred / lazy loading</strong></td>
+                                <td>Register a stub "fetch_tool_schema" tool; model calls it to discover and load specific tools on demand</td>
+                                <td>Adds one extra turn per tool discovery; no quality degradation</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tool namespacing</strong></td>
+                                <td>Group tools into namespaces (file_*, git_*, web_*); expose only one namespace at a time</td>
+                                <td>Model must know which namespace to request; works well with a task-planning step</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p>This is exactly what <strong>Claude Code's <code>ToolSearch</code> tool</strong> implements: at startup only a minimal set of tools is loaded; a <code>ToolSearch</code> tool is always available that lets the model discover and fetch the full schema for deferred tools. This keeps the default tool payload small while preserving access to the full toolset.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Tool Registry with Context-Sensitive Filtering</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from enum import Enum, auto
+from typing import Optional, Callable, Awaitable, Any
+import re
+
+class ToolPhase(Enum):
+    """Coarse task phase — used for context-sensitive tool filtering."""
+    EXPLORATION = auto()   # Reading, listing, searching
+    EDITING     = auto()   # Writing, editing files
+    EXECUTION   = auto()   # Running commands, tests
+    VALIDATION  = auto()   # Reviewing, diffing, linting
+    ANY         = auto()   # Always available
+
+@dataclass
+class RegisteredTool:
+    schema:      dict                    # Full JSON schema
+    handler:     Callable               # Async callable
+    phases:      list[ToolPhase] = field(default_factory=lambda: [ToolPhase.ANY])
+    tags:        list[str]       = field(default_factory=list)
+    deferred:    bool            = False  # Only load on explicit request
+
+class ToolRegistry:
+    """
+    Central registry for all tools.
+    Supports phase-based filtering and deferred (lazy) tool loading.
+    """
+
+    def __init__(self):
+        self._tools: dict[str, RegisteredTool] = {}
+
+    def register(
+        self,
+        schema: dict,
+        handler: Callable,
+        phases: list[ToolPhase] = None,
+        tags: list[str] = None,
+        deferred: bool = False,
+    ):
+        name = schema["name"]
+        self._tools[name] = RegisteredTool(
+            schema=schema,
+            handler=handler,
+            phases=phases or [ToolPhase.ANY],
+            tags=tags or [],
+            deferred=deferred,
+        )
+
+    def get_schemas_for_phase(
+        self,
+        phase: ToolPhase,
+        include_deferred: bool = False,
+    ) -> list[dict]:
+        """Return tool schemas relevant for the given phase."""
+        result = []
+        for tool in self._tools.values():
+            if tool.deferred and not include_deferred:
+                continue
+            if ToolPhase.ANY in tool.phases or phase in tool.phases:
+                result.append(tool.schema)
+        return result
+
+    def get_handler(self, name: str) -> Optional[Callable]:
+        t = self._tools.get(name)
+        return t.handler if t else None
+
+    def get_deferred_stub_schema(self) -> dict:
+        """
+        Schema for the ToolSearch tool — lets the model discover
+        and fetch deferred tool definitions on demand.
+        """
+        deferred_names = [
+            name for name, t in self._tools.items() if t.deferred
+        ]
+        return {
+            "name": "ToolSearch",
+            "description": (
+                "Fetches full schema definitions for deferred tools so they can be called. "
+                "Deferred tools appear by name only until fetched — there is no parameter schema. "
+                "Use this when you need a tool that is not yet in your schema. "
+                f"Available deferred tools: {', '.join(deferred_names)}"
+            ),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Tool name or keyword. "
+                            "Use 'select:ToolName' to fetch a specific tool by name."
+                        ),
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of tool schemas to return.",
+                        "default": 3,
+                    },
+                },
+                "required": ["query"],
+            },
+        }
+
+    async def handle_tool_search(self, query: str, max_results: int = 3) -> str:
+        """Handler for the ToolSearch meta-tool."""
+        import json
+
+        if query.startswith("select:"):
+            names = [n.strip() for n in query[7:].split(",")]
+        else:
+            # Keyword search against name and description
+            words = query.lower().split()
+            names = [
+                name for name, t in self._tools.items()
+                if any(w in name.lower() or w in t.schema.get("description", "").lower()
+                       for w in words)
+            ][:max_results]
+
+        schemas = []
+        for name in names[:max_results]:
+            if name in self._tools:
+                schemas.append(self._tools[name].schema)
+
+        if not schemas:
+            return f"No tools found matching: {query!r}"
+
+        return (
+            "Fetched tool schemas (now callable):\n"
+            + "\n".join(f"&lt;function&gt;{json.dumps(s)}&lt;/function&gt;" for s in schemas)
+        )
+
+
+# ── Example setup ─────────────────────────────────────────────────────
+async def example_setup():
+    registry = ToolRegistry()
+
+    registry.register(
+        schema={"name": "Read", "description": "...", "input_schema": {}},
+        handler=lambda file_path, **kw: open(file_path).read(),
+        phases=[ToolPhase.EXPLORATION, ToolPhase.VALIDATION],
+    )
+    registry.register(
+        schema={"name": "Bash", "description": "...", "input_schema": {}},
+        handler=lambda command, **kw: __import__("subprocess").getoutput(command),
+        phases=[ToolPhase.EXECUTION],
+    )
+    # Deferred — not sent until model explicitly calls ToolSearch
+    registry.register(
+        schema={"name": "WebFetch", "description": "Fetches a URL...", "input_schema": {}},
+        handler=lambda url, **kw: None,
+        phases=[ToolPhase.EXPLORATION],
+        deferred=True,
+    )
+
+    # What you'd send for an exploration-phase turn:
+    schemas = registry.get_schemas_for_phase(ToolPhase.EXPLORATION)
+    schemas.append(registry.get_deferred_stub_schema())
+    return schemas</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: INTERVIEW TIPS                                    -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">8. Interview Tips</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Interviewers Are Testing</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Tool design questions at staff-level interviews probe three competencies simultaneously:</p>
+
+                    <ol>
+                        <li>
+                            <strong>Systems thinking:</strong> Can you reason about the full data flow — from model output, through execution, through result formatting, back into context — as a system with latency, cost, and reliability properties?
+                        </li>
+                        <li>
+                            <strong>ML product intuition:</strong> Do you understand that the model is a consumer of your schemas and that schema quality directly affects product quality? Interviewers look for candidates who treat the description as a first-class engineering artefact.
+                        </li>
+                        <li>
+                            <strong>Production engineering depth:</strong> Do you know about timeouts, sandboxing, context budgets, retry strategies, and graceful degradation — not just the happy path?
+                        </li>
+                    </ol>
+
+                    <div class="insight-box">
+                        <strong>Strong signal phrases to use:</strong>
+                        "The description is a prompt the model reads every turn, so I treat it as a hyperparameter and A/B test it."
+                        "I classify errors before surfacing them to the model — retryable vs fatal — because an empty error response causes the model to loop."
+                        "Deferred tool loading keeps the base schema small, which matters both for cost and for tool selection quality with 50+ tools."
+                    </div>
+
+                    <h4>Common Follow-up Questions</h4>
+                    <ul>
+                        <li><em>"How would you prevent a model from using a dangerous tool like 'delete_file' accidentally?"</em> — Discuss: description negative instructions, permission system, confirmation gates (Module 6)</li>
+                        <li><em>"If tool call latency is 200 ms and you have 100 turns, what's the impact?"</em> — Calculate: 100 × 200 ms = 20 s. Discuss parallel execution, caching, eager tool pre-execution</li>
+                        <li><em>"How do you handle a tool that returns 50,000 tokens of output?"</em> — Truncation policies, head+tail strategy, streaming results, pagination via follow-up calls</li>
+                        <li><em>"What happens if the model hallucinates a tool name that doesn't exist?"</em> — Discuss: registry validation, returning explicit "Unknown tool" message (not raising an exception), logging for schema debugging</li>
+                    </ul>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Treating tool schemas as "just JSON config" with no engineering investment</li>
+                        <li>No mention of timeouts, resource limits, or output size caps</li>
+                        <li>Proposing to return raw exceptions / stack traces to the model</li>
+                        <li>Not considering context budget when designing tool result formats</li>
+                        <li>Assuming all tools execute sequentially without considering parallelism</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 9: QUIZ                                              -->
+            <!-- ============================================================ -->
+            <h2 class="mt-4">9. Knowledge Check</h2>
+
+            <div class="quiz-question">
+                <p>Q1. A model is calling <code>search_codebase</code> when it should be calling <code>search_web</code>. Both tools have similar names. What is the most targeted fix?</p>
+                <button class="reveal-btn" onclick="revealAnswer(this)">Reveal Answer</button>
+                <div class="quiz-answer">
+                    Add a mutual disambiguation line to <em>both</em> descriptions. In <code>search_codebase</code>: "Do NOT use to search the internet or external documentation — use <code>search_web</code> for that." In <code>search_web</code>: "Do NOT use to search local files or source code — use <code>search_codebase</code> for that." Explicit negative instructions outperform relying on the model to infer the distinction from the tool name alone.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <p>Q2. Your agent executes 4 tool calls per turn on average, each taking 80 ms. The task takes 40 turns. What is the minimum possible time spent on tool execution, assuming optimal parallelism?</p>
+                <button class="reveal-btn" onclick="revealAnswer(this)">Reveal Answer</button>
+                <div class="quiz-answer">
+                    With optimal parallelism, all calls within a turn execute concurrently. The wall-clock cost per turn is <code>max(call latencies)</code> = 80 ms (since all calls take the same time). Over 40 turns: 40 × 80 ms = <strong>3,200 ms (3.2 seconds)</strong>. Naively sequential: 40 × 4 × 80 ms = 12,800 ms. The parallel gain is 4x here. In practice, dependency constraints reduce this gain somewhat.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <p>Q3. A file read tool returns the full 10,000-line output of a minified JavaScript file. What truncation strategy preserves the most signal for a "find the bug" task?</p>
+                <button class="reveal-btn" onclick="revealAnswer(this)">Reveal Answer</button>
+                <div class="quiz-answer">
+                    For a minified file, head+tail truncation gives little value since the file has no semantic structure at line boundaries. Better strategies: (1) ask the model to search with Grep for specific patterns rather than reading the whole file, (2) return only the first N characters with a hint to use <code>offset</code>+<code>limit</code> for pagination, or (3) pre-process the file through a formatter/prettifier and then truncate. The key insight is that truncation policy should be <em>content-aware</em>, not uniform.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <p>Q4. Your tool executor receives a <code>429 Too Many Requests</code> response from an external API. How should the harness handle this, and what should the model receive?</p>
+                <button class="reveal-btn" onclick="revealAnswer(this)">Reveal Answer</button>
+                <div class="quiz-answer">
+                    A 429 is a retryable / transient error. The harness should: (1) read the <code>Retry-After</code> header if present and wait that duration, otherwise use exponential backoff; (2) retry up to 3 times; (3) only surface the error to the model if all retries exhaust. The message to the model should read: "Tool temporarily unavailable: rate limit exceeded. Retry after a short wait, or try an alternative approach." The model should never receive a raw HTTP 429 response — it adds no actionable information.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <p>Q5. You have 120 tools registered. Tool selection accuracy is dropping. What are two orthogonal mitigations?</p>
+                <button class="reveal-btn" onclick="revealAnswer(this)">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Mitigation 1 — Deferred loading:</strong> Move rarely-used tools to a deferred list and expose a <code>ToolSearch</code> meta-tool. The model sees only the 20-30 most relevant tools by default and fetches others on demand. Keeps schema small, preserves accuracy.<br><br>
+                    <strong>Mitigation 2 — Phase-based filtering:</strong> Detect the current task phase (exploration, editing, execution) and inject only the tool subset appropriate for that phase. A model in "editing" mode doesn't need web search tools, and a model in "exploration" mode doesn't need deployment tools. Reduces both token cost and selection confusion.
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- MINI PROJECT                                                  -->
+            <!-- ============================================================ -->
+            <div class="mini-project">
+                <h3>Mini-Project: Build a Tool Registry and Executor</h3>
+                <p><strong>Goal:</strong> Implement a production-grade tool harness from scratch that demonstrates all the concepts in this module.</p>
+
+                <h4>Milestones</h4>
+                <ol>
+                    <li>
+                        <strong>Schema Layer (30 min)</strong><br>
+                        Implement <code>ToolDescriptionBuilder</code> and use it to define 4 tools: <code>read_file</code>, <code>write_file</code>, <code>bash</code>, <code>web_search</code>. Include negative instructions for disambiguation. Verify the built descriptions are under 150 tokens each.
+                    </li>
+                    <li>
+                        <strong>Execution Layer (45 min)</strong><br>
+                        Implement <code>ToolExecutor</code> with a 30-second timeout for subprocess commands and a 10 MB output cap. Test it against: (a) a command that runs forever (<code>sleep 9999</code>), (b) a command that produces huge output (<code>yes</code>), (c) a normal command.
+                    </li>
+                    <li>
+                        <strong>Result Formatting (30 min)</strong><br>
+                        Implement <code>ResultFormatter</code>. Test <code>format_file</code> with a 500-line Python file — confirm head+tail output is under 200 lines with a gap marker. Test <code>format_json</code> with a nested response containing arrays of 100 items.
+                    </li>
+                    <li>
+                        <strong>Error Middleware (20 min)</strong><br>
+                        Wrap your executor in <code>ToolErrorMiddleware</code>. Test all four error categories. Confirm that even a raw <code>RuntimeError("segfault");</code> produces a model-friendly string, not a Python traceback.
+                    </li>
+                    <li>
+                        <strong>Parallel Executor (45 min)</strong><br>
+                        Implement <code>ParallelToolExecutor</code>. Create a test case with 5 tool calls: 3 independent reads, 1 write, 1 read of the same file the write touches. Verify that the 3 reads run in parallel, the write runs after (or before) the conflicting read, and the total wall-clock time is roughly <code>max(read_latency, write_latency)</code> rather than the sum.
+                    </li>
+                    <li>
+                        <strong>Registry with Deferred Loading (30 min)</strong><br>
+                        Implement <code>ToolRegistry</code> with phase-based filtering and the <code>ToolSearch</code> stub. Register <code>web_search</code> as deferred. Simulate a model turn: verify the base schema does not include <code>web_search</code> but <code>ToolSearch</code> is present. Simulate the model calling <code>ToolSearch</code> with <code>query="web"</code> and verify the full <code>web_search</code> schema is returned.
+                    </li>
+                </ol>
+
+                <h4>Stretch Goal</h4>
+                <p>Connect your harness to the Anthropic API. Use Claude to complete a simple task — "list all Python files in this directory and tell me how many lines each has" — and observe which tools it calls, in what order, and whether it batches read calls in parallel. Log the description fingerprints and total tokens consumed by tool schemas each turn.</p>
+
+                <h4>Evaluation Criteria</h4>
+                <ul>
+                    <li>Timeout enforcement: a <code>sleep 9999</code> command must return within 31 seconds with a clear timeout message</li>
+                    <li>Parallel speedup: 3 concurrent reads must complete in roughly 1x single-read latency, not 3x</li>
+                    <li>No raw exceptions: every tool call path must produce a string, never raise to the caller</li>
+                    <li>Context hygiene: no tool result should exceed the configured <code>max_lines</code> in the formatter</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- CHECKPOINT SUMMARY                                            -->
+            <!-- ============================================================ -->
+            <div class="checkpoint-summary">
+                <h3>Module 3 Checkpoint</h3>
+                <p><strong>tl;dr:</strong> Tools are the interface between the model and the world. The description is a prompt, not documentation — every token is re-read every turn. Execution engines come in four flavours (in-process, subprocess, network, sandboxed); always enforce timeouts and output caps. Smart truncation preserves information density within context budgets. Errors must be classified and formatted for the model, never surfaced as raw exceptions. Parallel execution is a 3-5x latency win for multi-tool turns. Deferred loading solves the quality degradation problem when you have more than ~50 tools.</p>
+
+                <h4>Key Takeaways</h4>
+                <ul>
+                    <li>JSON Schema fields are your only communication channel with the model — invest in them</li>
+                    <li>Negative instructions ("Do NOT use for...") resolve ambiguity between similar tools</li>
+                    <li>A/B test descriptions using a fingerprint hash logged alongside tool call outcomes</li>
+                    <li>Classify errors before surfacing to the model: retryable, user-fixable, usage error, fatal</li>
+                    <li>Parallel tool execution: use a dependency graph; serialize only calls that share a write path</li>
+                    <li>Head+tail truncation for files; first-K truncation for search results; always preserve error lines</li>
+                    <li>Deferred tool loading keeps schemas small; expose a <code>ToolSearch</code> meta-tool for discovery</li>
+                </ul>
+
+                <h4>Suggested Flashcards (Anki / CSV)</h4>
+                <ol>
+                    <li>Q: What is the "tool description as prompt" principle? A: The description is read by the model every inference turn; it must explain when to use the tool, when not to, and what format to expect — it is not documentation for humans.</li>
+                    <li>Q: Name the four tool execution engine archetypes. A: In-process, subprocess, network call, sandboxed (Docker/gVisor).</li>
+                    <li>Q: What truncation strategy should a file-read tool use on a 5,000-line file? A: Head N lines + tail M lines with a gap marker; preserve line numbers; surface tail on errors.</li>
+                    <li>Q: What message should the harness return on an unhandled exception from a tool? A: A human-readable string explaining the tool is unavailable due to an internal error, never a Python traceback.</li>
+                    <li>Q: Why does having 100+ tools in a schema degrade quality? A: "Lost in the middle" attention effects reduce tool selection accuracy; the model may hallucinate tool names; every turn pays the full token cost of all schemas regardless of relevance.</li>
+                </ol>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-02.html" class="btn btn-secondary">&larr; Module 2: Context Engineering</a>
+                <a href="module-04.html" class="btn btn-primary">Module 4: Sandbox Engineering &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        // ── Mermaid init ──────────────────────────────────────────────
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#0e7490',
+                primaryTextColor: '#f0f9ff',
+                primaryBorderColor: '#06b6d4',
+                lineColor:    '#3b82f6',
+                background:   '#0f172a',
+                mainBkg:      '#1e293b',
+                nodeBorder:   '#06b6d4',
+            },
+        });
+
+        // ── Quiz reveal ───────────────────────────────────────────────
+        function revealAnswer(btn) {
+            const answer = btn.nextElementSibling;
+            const isHidden = answer.style.display !== 'block';
+            answer.style.display = isHidden ? 'block' : 'none';
+            btn.textContent = isHidden ? 'Hide Answer' : 'Reveal Answer';
+        }
+
+        // ── Mobile sidebar toggle ─────────────────────────────────────
+        const sidebarToggle  = document.getElementById('sidebarToggle');
+        const sidebar        = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('visible');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('visible');
+            });
+        }
+    </script>
+</body>
+</html>

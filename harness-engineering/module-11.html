@@ -1,0 +1,1856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 11: Streaming & Real-time Patterns - Harness Engineering</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        /* ── Themed boxes ── */
+        .math-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 1px solid rgba(6, 182, 212, 0.35);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+        }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-left: 4px solid #22c55e;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-left: 4px solid #06b6d4;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        /* ── Quiz ── */
+        .quiz-question {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .quiz-question h4 {
+            margin-bottom: 0.5rem;
+        }
+        .quiz-answer {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.5rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-radius: 0.25rem;
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.8) 0%, rgba(59, 130, 246, 0.8) 100%);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        .reveal-btn:hover { opacity: 0.9; }
+        /* ── Checkpoint & mini-project ── */
+        .checkpoint-summary {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+            border: 2px solid rgba(6, 182, 212, 0.4);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .mini-project {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.12) 100%);
+            border: 2px dashed rgba(6, 182, 212, 0.5);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        /* ── Event-type badge table ── */
+        .event-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        .event-table th, .event-table td { border: 1px solid var(--border-color); padding: 0.5rem 0.75rem; }
+        .event-table th { background: rgba(6, 182, 212, 0.15); text-align: left; }
+        .event-table tr:hover td { background: rgba(6, 182, 212, 0.05); }
+        /* ── Timeline strip ── */
+        .timeline { display: flex; gap: 0; margin: 1rem 0; border-radius: 0.5rem; overflow: hidden; }
+        .timeline-step {
+            flex: 1;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        /* ── Animated streaming indicator ── */
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.2; }
+        }
+        .stream-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #06b6d4;
+            animation: pulse-dot 1s ease-in-out infinite;
+            margin: 0 2px;
+        }
+        .stream-dot:nth-child(2) { animation-delay: 0.2s; }
+        .stream-dot:nth-child(3) { animation-delay: 0.4s; }
+        @media (prefers-reduced-motion: reduce) {
+            .stream-dot { animation: none; opacity: 1; }
+        }
+        /* ── Comparison grid ── */
+        .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1rem 0; }
+        @media (max-width: 640px) { .compare-grid { grid-template-columns: 1fr; } }
+        .compare-card {
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        .compare-sse  { background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.3); }
+        .compare-ws   { background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); }
+        .compare-card h4 { margin-top: 0; }
+        /* ── Metric bar ── */
+        .metric-bar-wrap { margin: 0.4rem 0; }
+        .metric-label { font-size: 0.82rem; margin-bottom: 0.2rem; }
+        .metric-bar { height: 10px; border-radius: 5px; background: linear-gradient(90deg, #06b6d4, #3b82f6); }
+    </style>
+</head>
+<body>
+    <!-- ═══════════════════════════════ NAVBAR ═══════════════════════════════ -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Harness</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <!-- ═══════════════════════ SIDEBAR ═══════════════════════ -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Loop</div>
+                    <a href="module-01.html" class="sidebar-link"><span class="sidebar-link-number">1</span>Harness Architecture</a>
+                    <a href="module-02.html" class="sidebar-link"><span class="sidebar-link-number">2</span>Context Engineering</a>
+                    <a href="module-03.html" class="sidebar-link"><span class="sidebar-link-number">3</span>Tool Design</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Infrastructure</div>
+                    <a href="module-04.html" class="sidebar-link"><span class="sidebar-link-number">4</span>Sandbox Engineering</a>
+                    <a href="module-05.html" class="sidebar-link"><span class="sidebar-link-number">5</span>Permission Systems</a>
+                    <a href="module-06.html" class="sidebar-link"><span class="sidebar-link-number">6</span>Human-in-the-Loop</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Operations</div>
+                    <a href="module-07.html" class="sidebar-link"><span class="sidebar-link-number">7</span>Model Routing</a>
+                    <a href="module-08.html" class="sidebar-link"><span class="sidebar-link-number">8</span>Observability</a>
+                    <a href="module-09.html" class="sidebar-link"><span class="sidebar-link-number">9</span>Scaling</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced</div>
+                    <a href="module-10.html" class="sidebar-link"><span class="sidebar-link-number">10</span>State Management</a>
+                    <a href="module-11.html" class="sidebar-link active"><span class="sidebar-link-number">11</span>Streaming &amp; Real-time</a>
+                    <a href="module-12.html" class="sidebar-link"><span class="sidebar-link-number">12</span>Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Mastery</div>
+                    <a href="module-13.html" class="sidebar-link"><span class="sidebar-link-number">13</span>Case Studies</a>
+                    <a href="module-14.html" class="sidebar-link"><span class="sidebar-link-number">14</span>Multi-Agent</a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- ═══════════════════════ MAIN CONTENT ═══════════════════════ -->
+        <main class="main-content">
+            <h1>Module 11: Streaming &amp; Real-time Patterns
+                <span style="margin-left:0.5rem;">
+                    <span class="stream-dot"></span>
+                    <span class="stream-dot"></span>
+                    <span class="stream-dot"></span>
+                </span>
+            </h1>
+            <p class="text-muted">Build agent UX that feels instantaneous — even when tool calls interrupt the stream, clients drop behind, or multiple agents run in parallel.</p>
+
+            <!-- ── Learning Objectives ── -->
+            <div class="card" style="background: linear-gradient(135deg, rgba(6,182,212,0.1) 0%, rgba(59,130,246,0.1) 100%); border: 2px solid rgba(6,182,212,0.3);">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why TTFT (time to first token) is the single most important streaming UX metric</li>
+                    <li>When to choose SSE vs WebSocket for different agent communication patterns</li>
+                    <li>How to handle the hard problem: tool calls that interrupt the token stream</li>
+                    <li>Progressive rendering strategies for partial markdown, code, and diagrams</li>
+                    <li>AbortController patterns for clean agent cancellation without orphaned processes</li>
+                    <li>Backpressure handling when clients can't keep up with token production</li>
+                    <li>Multiplexing multiple agent streams over a single connection</li>
+                </ul>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 1: WHY STREAMING MATTERS
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>1. Why Streaming Matters for Agent UX</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>The Psychology of Perceived Latency</span></div>
+                <div class="collapsible-content">
+
+                    <p>Non-streaming agents return a wall of text after a 15–45 second delay. Users click away, assume it's broken, or interrupt it. Streaming changes the interaction model completely: users see progress, they read ahead, they decide earlier whether the output is going in the right direction.</p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> Think of a taxi vs. watching your Uber approach on a map. Both take the same time, but the live map eliminates anxiety. Streaming tokens is the live map for your AI response.
+                    </div>
+
+                    <h4>Key UX Metrics</h4>
+                    <table class="event-table">
+                        <thead>
+                            <tr><th>Metric</th><th>Definition</th><th>Target</th><th>Why It Matters</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>TTFT</strong></td><td>Time to First Token</td><td>&lt; 300 ms</td><td>Eliminates blank-screen anxiety; most impactful</td></tr>
+                            <tr><td><strong>ITL</strong></td><td>Inter-Token Latency</td><td>&lt; 30 ms</td><td>Smooth reading experience; feels like typing</td></tr>
+                            <tr><td><strong>TTFC</strong></td><td>Time to First Chunk (tool result)</td><td>&lt; 1 s</td><td>Shows the agent is "doing work", not frozen</td></tr>
+                            <tr><td><strong>E2E</strong></td><td>End-to-End Latency</td><td>Context-dependent</td><td>Matters less when TTFT is good</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="math-box">
+                        <strong>Perceived Latency Formula (Nielsen's model):</strong><br><br>
+                        perceived_latency ≈ TTFT + (token_count × ITL)<br><br>
+                        With TTFT=200ms, ITL=20ms, 500 tokens:<br>
+                        perceived = 200ms + (500 × 20ms) = 10.2 s total<br>
+                        but user is reading by token 10 (t = 400ms)<br><br>
+                        Non-streaming: user stares at spinner for 10.2 s, THEN gets all 500 tokens.
+                    </div>
+
+                    <h4>The Tool-Call Interruption Problem</h4>
+                    <p>Streaming works perfectly until the model emits a tool call. At that point the token stream stops, the harness must execute the tool (potentially taking seconds), and then resume streaming. From the user's perspective the spinner returns unexpectedly. This is the central engineering challenge of streaming agent UX.</p>
+
+                    <div class="timeline">
+                        <div class="timeline-step" style="background: rgba(6,182,212,0.2);">Tokens stream</div>
+                        <div class="timeline-step" style="background: rgba(245,158,11,0.2);">Tool call emitted</div>
+                        <div class="timeline-step" style="background: rgba(239,68,68,0.2);">Stream paused</div>
+                        <div class="timeline-step" style="background: rgba(59,130,246,0.2);">Tool executes</div>
+                        <div class="timeline-step" style="background: rgba(34,197,94,0.2);">Result injected</div>
+                        <div class="timeline-step" style="background: rgba(6,182,212,0.2);">Tokens resume</div>
+                    </div>
+
+                    <p>The rest of this module shows exactly how to handle each phase of that timeline.</p>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 2: SSE vs WebSocket
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>2. SSE vs WebSocket Patterns</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Choosing the Right Transport</span></div>
+                <div class="collapsible-content">
+
+                    <div class="compare-grid">
+                        <div class="compare-card compare-sse">
+                            <h4 style="color:#06b6d4;">Server-Sent Events (SSE)</h4>
+                            <ul>
+                                <li>One-way: server → client only</li>
+                                <li>Standard HTTP/1.1 or HTTP/2</li>
+                                <li>Auto-reconnect built in</li>
+                                <li>Works through most proxies/CDNs</li>
+                                <li>EventSource API in every browser</li>
+                                <li>Text-only (UTF-8)</li>
+                                <li>No custom framing needed</li>
+                            </ul>
+                        </div>
+                        <div class="compare-card compare-ws">
+                            <h4 style="color:#3b82f6;">WebSockets</h4>
+                            <ul>
+                                <li>Bidirectional: full duplex</li>
+                                <li>Upgraded HTTP connection</li>
+                                <li>Manual reconnect logic required</li>
+                                <li>May be blocked by strict proxies</li>
+                                <li>Binary or text frames</li>
+                                <li>Lower per-message overhead after handshake</li>
+                                <li>Client can send messages mid-stream</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <h4>Decision Matrix for Agent Systems</h4>
+                    <table class="event-table">
+                        <thead><tr><th>Use Case</th><th>Preferred Transport</th><th>Reason</th></tr></thead>
+                        <tbody>
+                            <tr><td>Model token streaming to browser</td><td>SSE</td><td>One-way, trivial proxy compat, EventSource auto-reconnect</td></tr>
+                            <tr><td>User can interrupt / cancel mid-stream</td><td>WebSocket or HTTP DELETE</td><td>Client needs to send signal while stream is open</td></tr>
+                            <tr><td>Multi-agent orchestration dashboard</td><td>WebSocket</td><td>Multiple bidirectional channels, binary telemetry</td></tr>
+                            <tr><td>Serverless / Cloudflare Workers</td><td>SSE</td><td>No persistent socket support in many edge runtimes</td></tr>
+                            <tr><td>Mobile app with unreliable network</td><td>SSE</td><td>HTTP/2 multiplexing + auto-reconnect handles flaky connections better</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="insight-box">
+                        <strong>Anthropic's choice:</strong> The Messages API uses SSE for token streaming. Claude Code uses SSE from the cloud API, then forwards over a local IPC channel to the terminal renderer. The bidirectional control (abort, input) goes through a separate HTTP DELETE or signal channel — not the same SSE stream.
+                    </div>
+
+                    <h4>SSE Server — Python (FastAPI)</h4>
+                    <pre><code class="language-python">"""
+SSE streaming endpoint for an agent harness.
+POST /chat returns a text/event-stream with typed events.
+"""
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+import anthropic, asyncio, json
+
+app = FastAPI()
+client = anthropic.AsyncAnthropic()
+
+async def _sse_event(event_type: str, data: dict) -> str:
+    """Format a single SSE event."""
+    payload = json.dumps(data, ensure_ascii=False)
+    return f"event: {event_type}\ndata: {payload}\n\n"
+
+async def agent_stream(messages: list, session_id: str):
+    """
+    Yield SSE-formatted events from an Anthropic streaming call.
+    Handles text deltas, tool calls, and stream lifecycle.
+    """
+    tools = [
+        {
+            "name": "run_bash",
+            "description": "Execute a bash command and return output",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "command": {"type": "string"}
+                },
+                "required": ["command"]
+            }
+        }
+    ]
+
+    yield await _sse_event("stream_start", {"session_id": session_id})
+
+    async with client.messages.stream(
+        model="claude-opus-4-5",
+        max_tokens=4096,
+        messages=messages,
+        tools=tools,
+    ) as stream:
+        async for event in stream:
+            if event.type == "content_block_delta":
+                if hasattr(event.delta, "text"):
+                    # Pure text token — forward immediately
+                    yield await _sse_event("text_delta", {
+                        "text": event.delta.text,
+                        "index": event.index,
+                    })
+                elif hasattr(event.delta, "partial_json"):
+                    # Tool-call argument accumulating
+                    yield await _sse_event("tool_input_delta", {
+                        "partial_json": event.delta.partial_json,
+                        "index": event.index,
+                    })
+
+            elif event.type == "content_block_start":
+                if event.content_block.type == "tool_use":
+                    yield await _sse_event("tool_use_start", {
+                        "tool_name": event.content_block.name,
+                        "tool_use_id": event.content_block.id,
+                        "index": event.index,
+                    })
+
+            elif event.type == "content_block_stop":
+                yield await _sse_event("content_block_stop", {"index": event.index})
+
+            elif event.type == "message_stop":
+                yield await _sse_event("message_stop", {
+                    "stop_reason": (await stream.get_final_message()).stop_reason
+                })
+
+    yield await _sse_event("stream_end", {"session_id": session_id})
+
+
+@app.post("/chat/{session_id}")
+async def chat_stream(session_id: str, request: Request):
+    body = await request.json()
+    messages = body.get("messages", [])
+    return StreamingResponse(
+        agent_stream(messages, session_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # Disable nginx buffering
+            "Connection": "keep-alive",
+        }
+    )
+</code></pre>
+
+                    <h4>WebSocket Server — TypeScript (Node.js)</h4>
+                    <pre><code class="language-typescript">/**
+ * WebSocket agent server — bidirectional:
+ *   client → server: { type: "message", content: string }
+ *                    { type: "abort" }
+ *   server → client: { type: "text_delta", text: string }
+ *                    { type: "tool_start", toolName: string }
+ *                    { type: "tool_result", toolName: string, output: string }
+ *                    { type: "done" }
+ *                    { type: "error", message: string }
+ */
+import { WebSocketServer, WebSocket } from "ws";
+import Anthropic from "@anthropic-ai/sdk";
+
+const wss = new WebSocketServer({ port: 8080 });
+const anthropic = new Anthropic();
+
+interface SessionState {
+  abortController: AbortController;
+  messages: Anthropic.MessageParam[];
+}
+
+const sessions = new Map&lt;WebSocket, SessionState&gt;();
+
+wss.on("connection", (ws: WebSocket) => {
+  const state: SessionState = {
+    abortController: new AbortController(),
+    messages: [],
+  };
+  sessions.set(ws, state);
+
+  ws.on("message", async (raw: Buffer) => {
+    const msg = JSON.parse(raw.toString());
+
+    if (msg.type === "abort") {
+      state.abortController.abort();
+      state.abortController = new AbortController(); // reset for next turn
+      ws.send(JSON.stringify({ type: "aborted" }));
+      return;
+    }
+
+    if (msg.type === "message") {
+      state.messages.push({ role: "user", content: msg.content });
+      await streamAgentTurn(ws, state);
+    }
+  });
+
+  ws.on("close", () => {
+    state.abortController.abort();
+    sessions.delete(ws);
+  });
+});
+
+async function streamAgentTurn(
+  ws: WebSocket,
+  state: SessionState
+): Promise&lt;void&gt; {
+  try {
+    const stream = anthropic.messages.stream(
+      {
+        model: "claude-opus-4-5",
+        max_tokens: 4096,
+        messages: state.messages,
+      },
+      { signal: state.abortController.signal }
+    );
+
+    for await (const event of stream) {
+      if (ws.readyState !== WebSocket.OPEN) break;
+
+      if (
+        event.type === "content_block_delta" &&
+        event.delta.type === "text_delta"
+      ) {
+        ws.send(JSON.stringify({ type: "text_delta", text: event.delta.text }));
+      }
+    }
+
+    ws.send(JSON.stringify({ type: "done" }));
+  } catch (err: any) {
+    if (err.name !== "AbortError") {
+      ws.send(JSON.stringify({ type: "error", message: err.message }));
+    }
+  }
+}
+</code></pre>
+
+                    <h4>Sequence Diagrams</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant B as Browser
+    participant S as FastAPI Server
+    participant A as Anthropic API
+
+    B->>S: POST /chat/session-1 (messages[])
+    Note over S: Opens EventSource<br>on client side
+    S->>A: anthropic.messages.stream(...)
+    A-->>S: content_block_delta (text)
+    S-->>B: event: text_delta\ndata: {"text":"Hello"}
+    A-->>S: content_block_delta (text)
+    S-->>B: event: text_delta\ndata: {"text":" world"}
+    A-->>S: content_block_start (tool_use)
+    S-->>B: event: tool_use_start\ndata: {"tool_name":"run_bash"}
+    A-->>S: content_block_stop
+    S-->>B: event: content_block_stop
+    A-->>S: message_stop
+    S-->>B: event: message_stop
+    S-->>B: event: stream_end
+                        </div>
+                    </div>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant B as Browser
+    participant WS as WebSocket Server
+    participant A as Anthropic API
+
+    B->>WS: WS connect
+    WS-->>B: connected
+    B->>WS: {type:"message", content:"Fix the bug"}
+    WS->>A: messages.stream(...)
+    A-->>WS: text_delta "I'll"
+    WS-->>B: {type:"text_delta", text:"I'll"}
+    A-->>WS: text_delta " check"
+    WS-->>B: {type:"text_delta", text:" check"}
+    B->>WS: {type:"abort"}
+    Note over WS: abortController.abort()
+    WS-->>B: {type:"aborted"}
+    B->>WS: {type:"message", content:"Actually, explain first"}
+    WS->>A: new stream...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 3: STREAMING WITH TOOL CALL INTERLEAVING
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>3. Streaming with Tool Call Interleaving</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>The Hard Problem of Interrupted Streams</span></div>
+                <div class="collapsible-content">
+
+                    <p>A model turn is not a single token stream — it is a sequence of <em>content blocks</em>. Each block is either a text block or a tool-use block. Both can be partially streamed. The client must accumulate, render, and act on them in order.</p>
+
+                    <h4>Anthropic Streaming Event Taxonomy</h4>
+                    <table class="event-table">
+                        <thead><tr><th>Event Type</th><th>Payload</th><th>Client Action</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>message_start</code></td><td>model, usage (input tokens)</td><td>Initialize message state, show usage</td></tr>
+                            <tr><td><code>content_block_start</code></td><td>index, type ("text" or "tool_use"), id, name</td><td>Open new render slot</td></tr>
+                            <tr><td><code>content_block_delta</code> (text)</td><td>delta.text</td><td>Append to current text block, re-render markdown</td></tr>
+                            <tr><td><code>content_block_delta</code> (tool_input)</td><td>delta.partial_json</td><td>Accumulate JSON string; don't execute yet</td></tr>
+                            <tr><td><code>content_block_stop</code></td><td>index</td><td>If tool_use block: parse JSON, execute tool</td></tr>
+                            <tr><td><code>message_delta</code></td><td>stop_reason, usage (output tokens)</td><td>Update token counters</td></tr>
+                            <tr><td><code>message_stop</code></td><td>—</td><td>Finalize render; inject tool results for next turn</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Critical:</strong> Never execute a tool call while its <code>content_block_delta</code> events are still arriving. The JSON input is streamed in fragments; executing on a partial JSON string will cause a parse error. Wait for <code>content_block_stop</code> to signal the block is complete.
+                    </div>
+
+                    <h4>StreamProcessor — Handles Interleaved Events</h4>
+                    <pre><code class="language-python">"""
+StreamProcessor: accumulates streaming events, executes tool calls,
+and emits a unified render stream to the frontend.
+"""
+import json, asyncio
+from dataclasses import dataclass, field
+from typing import AsyncIterator, Callable, Awaitable
+import anthropic
+
+@dataclass
+class ContentBlock:
+    block_type: str          # "text" or "tool_use"
+    index: int
+    text: str = ""
+    tool_id: str = ""
+    tool_name: str = ""
+    tool_input_raw: str = ""
+    tool_input: dict = field(default_factory=dict)
+
+
+class StreamProcessor:
+    """
+    Wraps an Anthropic message stream and yields render-ready events,
+    executing tool calls inline and continuing the stream.
+    """
+
+    def __init__(
+        self,
+        client: anthropic.AsyncAnthropic,
+        tool_executor: Callable[[str, dict], Awaitable[str]],
+        model: str = "claude-opus-4-5",
+        max_iterations: int = 10,
+    ):
+        self._client = client
+        self._execute_tool = tool_executor
+        self._model = model
+        self._max_iterations = max_iterations
+
+    async def run(
+        self,
+        messages: list,
+        tools: list,
+        on_event: Callable[[str, dict], Awaitable[None]],
+    ) -> list:
+        """
+        Run agentic loop with streaming. Calls on_event for each render event.
+        Returns the final messages list (including assistant turns + tool results).
+        """
+        msgs = list(messages)
+
+        for iteration in range(self._max_iterations):
+            blocks: list[ContentBlock] = []
+            current_block: ContentBlock | None = None
+
+            await on_event("turn_start", {"iteration": iteration})
+
+            async with self._client.messages.stream(
+                model=self._model,
+                max_tokens=8192,
+                messages=msgs,
+                tools=tools,
+            ) as stream:
+                async for event in stream:
+
+                    if event.type == "content_block_start":
+                        cb = event.content_block
+                        if cb.type == "text":
+                            current_block = ContentBlock("text", event.index)
+                        elif cb.type == "tool_use":
+                            current_block = ContentBlock(
+                                "tool_use", event.index,
+                                tool_id=cb.id, tool_name=cb.name
+                            )
+                            await on_event("tool_use_start", {
+                                "index": event.index,
+                                "tool_name": cb.name,
+                                "tool_use_id": cb.id,
+                            })
+                        blocks.append(current_block)
+
+                    elif event.type == "content_block_delta":
+                        cb = blocks[event.index]
+                        if event.delta.type == "text_delta":
+                            cb.text += event.delta.text
+                            await on_event("text_delta", {
+                                "index": event.index,
+                                "text": event.delta.text,
+                            })
+                        elif event.delta.type == "input_json_delta":
+                            cb.tool_input_raw += event.delta.partial_json
+                            # Show the user the tool input is being formed
+                            await on_event("tool_input_delta", {
+                                "index": event.index,
+                                "partial_json": event.delta.partial_json,
+                            })
+
+                    elif event.type == "content_block_stop":
+                        cb = blocks[event.index]
+                        if cb.block_type == "tool_use":
+                            # Safe to parse — block is complete
+                            try:
+                                cb.tool_input = json.loads(cb.tool_input_raw or "{}")
+                            except json.JSONDecodeError as e:
+                                await on_event("error", {"message": f"Tool JSON parse error: {e}"})
+                                cb.tool_input = {}
+
+                    elif event.type == "message_stop":
+                        final = await stream.get_final_message()
+                        stop_reason = final.stop_reason
+                        usage = final.usage
+                        await on_event("message_stop", {
+                            "stop_reason": stop_reason,
+                            "input_tokens": usage.input_tokens,
+                            "output_tokens": usage.output_tokens,
+                        })
+
+            # Build assistant message from accumulated blocks
+            assistant_content = []
+            for blk in blocks:
+                if blk.block_type == "text" and blk.text:
+                    assistant_content.append({"type": "text", "text": blk.text})
+                elif blk.block_type == "tool_use":
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": blk.tool_id,
+                        "name": blk.tool_name,
+                        "input": blk.tool_input,
+                    })
+
+            msgs.append({"role": "assistant", "content": assistant_content})
+
+            # Execute all tool calls, collect results
+            tool_result_content = []
+            for blk in blocks:
+                if blk.block_type == "tool_use":
+                    await on_event("tool_executing", {
+                        "tool_name": blk.tool_name,
+                        "tool_use_id": blk.tool_id,
+                        "input": blk.tool_input,
+                    })
+                    try:
+                        output = await self._execute_tool(blk.tool_name, blk.tool_input)
+                        is_error = False
+                    except Exception as exc:
+                        output = str(exc)
+                        is_error = True
+
+                    await on_event("tool_result", {
+                        "tool_name": blk.tool_name,
+                        "tool_use_id": blk.tool_id,
+                        "output": output,
+                        "is_error": is_error,
+                    })
+                    tool_result_content.append({
+                        "type": "tool_result",
+                        "tool_use_id": blk.tool_id,
+                        "content": output,
+                        "is_error": is_error,
+                    })
+
+            if not tool_result_content:
+                # No tool calls → agent is done
+                await on_event("agent_done", {"iterations": iteration + 1})
+                break
+
+            msgs.append({"role": "user", "content": tool_result_content})
+
+        return msgs
+</code></pre>
+
+                    <h4>Agent Loop Flow</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Start Turn] --> B[Open Anthropic Stream]
+    B --> C{Event Type?}
+    C -->|content_block_start text| D[Open text render slot]
+    C -->|content_block_start tool_use| E[Emit tool_use_start to client]
+    C -->|content_block_delta text| F[Append to text slot + re-render]
+    C -->|content_block_delta input_json| G[Accumulate JSON string]
+    C -->|content_block_stop text| H[Finalize text block]
+    C -->|content_block_stop tool_use| I[Parse complete JSON safely]
+    C -->|message_stop| J{Any tool calls?}
+    D --> C
+    E --> C
+    F --> C
+    G --> C
+    H --> C
+    I --> C
+    J -->|Yes| K[Execute all tool calls]
+    K --> L[Inject tool_result messages]
+    L --> B
+    J -->|No| M[Agent Done]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 4: PROGRESSIVE RENDERING
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>4. Progressive Rendering</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Rendering Partial Output as Tokens Arrive</span></div>
+                <div class="collapsible-content">
+
+                    <p>Raw markdown rendered mid-stream produces ugly flickering — incomplete headings, broken code fences, half-rendered tables. Progressive rendering requires detecting what type of content is being streamed and applying the right rendering strategy per block type.</p>
+
+                    <h4>Progressive Rendering Strategies by Content Type</h4>
+                    <table class="event-table">
+                        <thead><tr><th>Content Type</th><th>Detection</th><th>Strategy</th></tr></thead>
+                        <tbody>
+                            <tr><td>Plain prose</td><td>No special prefix</td><td>Render markdown inline; safe to show partial sentences</td></tr>
+                            <tr><td>Code block</td><td>Starts with <code>```lang</code></td><td>Buffer until <code>```</code> close OR show raw text with code font while incomplete</td></tr>
+                            <tr><td>Table</td><td>Line starts with <code>|</code></td><td>Buffer entire table; render on <code>\n\n</code> or block end</td></tr>
+                            <tr><td>Mermaid diagram</td><td><code>```mermaid</code></td><td>Buffer until closing fence; call <code>mermaid.render()</code> post-stream</td></tr>
+                            <tr><td>JSON / XML</td><td>Starts with <code>{</code> or <code>&lt;</code></td><td>Show as monospace text; syntax-highlight on complete</td></tr>
+                            <tr><td>Tool execution progress</td><td>tool_executing event</td><td>Show spinner with tool name + input preview</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>ProgressiveRenderer (TypeScript/DOM)</h4>
+                    <pre><code class="language-typescript">/**
+ * ProgressiveRenderer: manages the DOM rendering of a streaming agent response.
+ * Handles text deltas, code blocks, tables, and tool call display.
+ */
+export class ProgressiveRenderer {
+  private container: HTMLElement;
+  private currentTextEl: HTMLElement | null = null;
+  private blocks: Map&lt;number, RenderBlock&gt; = new Map();
+  private markdownParser: (md: string) =&gt; string; // e.g., marked.parse
+
+  constructor(container: HTMLElement, markdownParser: (s: string) =&gt; string) {
+    this.container = container;
+    this.markdownParser = markdownParser;
+  }
+
+  onTextDelta(index: number, text: string): void {
+    let block = this.blocks.get(index);
+    if (!block) {
+      block = new TextRenderBlock(this.container);
+      this.blocks.set(index, block);
+    }
+    (block as TextRenderBlock).appendText(text);
+  }
+
+  onToolUseStart(index: number, toolName: string, toolUseId: string): void {
+    const block = new ToolRenderBlock(this.container, toolName, toolUseId);
+    this.blocks.set(index, block);
+  }
+
+  onToolInputDelta(index: number, partialJson: string): void {
+    const block = this.blocks.get(index) as ToolRenderBlock | undefined;
+    block?.appendInputJson(partialJson);
+  }
+
+  onToolExecuting(toolName: string, toolUseId: string, input: unknown): void {
+    for (const block of this.blocks.values()) {
+      if (block instanceof ToolRenderBlock &amp;&amp; block.toolUseId === toolUseId) {
+        block.showExecuting(input);
+      }
+    }
+  }
+
+  onToolResult(toolUseId: string, output: string, isError: boolean): void {
+    for (const block of this.blocks.values()) {
+      if (block instanceof ToolRenderBlock &amp;&amp; block.toolUseId === toolUseId) {
+        block.showResult(output, isError);
+      }
+    }
+  }
+
+  finalizeAll(): void {
+    for (const block of this.blocks.values()) {
+      block.finalize(this.markdownParser);
+    }
+    // Trigger Mermaid rendering for any diagram blocks
+    if (typeof (window as any).mermaid !== "undefined") {
+      (window as any).mermaid.run({ querySelector: ".mermaid" });
+    }
+  }
+}
+
+abstract class RenderBlock {
+  abstract finalize(markdownParser: (s: string) =&gt; string): void;
+}
+
+class TextRenderBlock extends RenderBlock {
+  private el: HTMLElement;
+  private rawText: string = "";
+  private inCodeFence = false;
+  private codeFenceBuffer = "";
+
+  constructor(container: HTMLElement) {
+    super();
+    this.el = document.createElement("div");
+    this.el.className = "prose-block";
+    container.appendChild(this.el);
+  }
+
+  appendText(text: string): void {
+    this.rawText += text;
+    this._render();
+  }
+
+  private _render(): void {
+    // Detect incomplete code fence — buffer it to avoid flicker
+    const lines = this.rawText.split("\n");
+    let safeText = "";
+    let pendingFence = "";
+    let insideFence = false;
+    let fenceStart = -1;
+
+    for (let i = 0; i &lt; lines.length; i++) {
+      const line = lines[i];
+      if (!insideFence &amp;&amp; line.startsWith("```")) {
+        insideFence = true;
+        fenceStart = i;
+        pendingFence = line + "\n";
+      } else if (insideFence) {
+        pendingFence += line + "\n";
+        if (line.trimEnd() === "```") {
+          // Complete fence — safe to render
+          safeText += pendingFence;
+          pendingFence = "";
+          insideFence = false;
+        }
+      } else {
+        safeText += line + (i &lt; lines.length - 1 ? "\n" : "");
+      }
+    }
+
+    if (safeText.trim()) {
+      this.el.innerHTML = this._safeParse(safeText);
+    }
+
+    if (pendingFence) {
+      // Show incomplete code block as preformatted text
+      const pre = this.el.querySelector(".pending-code") as HTMLPreElement
+        || (() =&gt; {
+          const p = document.createElement("pre");
+          p.className = "pending-code code-block";
+          this.el.appendChild(p);
+          return p;
+        })();
+      pre.textContent = pendingFence;
+    }
+  }
+
+  private _safeParse(md: string): string {
+    try {
+      return (window as any).marked.parse(md);
+    } catch {
+      return `&lt;p&gt;${md}&lt;/p&gt;`;
+    }
+  }
+
+  finalize(markdownParser: (s: string) =&gt; string): void {
+    this.el.innerHTML = markdownParser(this.rawText);
+    // Apply Prism.js to all code elements
+    this.el.querySelectorAll("pre code").forEach((el) =&gt; {
+      (window as any).Prism?.highlightElement(el);
+    });
+  }
+}
+
+class ToolRenderBlock extends RenderBlock {
+  public toolUseId: string;
+  private el: HTMLElement;
+  private statusEl: HTMLElement;
+  private inputEl: HTMLElement;
+  private inputBuffer: string = "";
+
+  constructor(container: HTMLElement, toolName: string, toolUseId: string) {
+    super();
+    this.toolUseId = toolUseId;
+    this.el = document.createElement("div");
+    this.el.className = "tool-call-block";
+    this.el.innerHTML = `
+      &lt;div class="tool-header"&gt;
+        &lt;span class="tool-icon"&gt;⚙&lt;/span&gt;
+        &lt;strong class="tool-name"&gt;${toolName}&lt;/strong&gt;
+        &lt;span class="tool-status" data-status="building"&gt;building input...&lt;/span&gt;
+      &lt;/div&gt;
+      &lt;pre class="tool-input-preview code-block"&gt;&lt;code&gt;&lt;/code&gt;&lt;/pre&gt;
+      &lt;div class="tool-result" hidden&gt;&lt;/div&gt;
+    `;
+    container.appendChild(this.el);
+    this.statusEl = this.el.querySelector(".tool-status")!;
+    this.inputEl = this.el.querySelector(".tool-input-preview code")!;
+  }
+
+  appendInputJson(partial: string): void {
+    this.inputBuffer += partial;
+    this.inputEl.textContent = this.inputBuffer;
+  }
+
+  showExecuting(input: unknown): void {
+    this.statusEl.textContent = "executing...";
+    this.statusEl.setAttribute("data-status", "executing");
+  }
+
+  showResult(output: string, isError: boolean): void {
+    const resultEl = this.el.querySelector(".tool-result") as HTMLElement;
+    resultEl.removeAttribute("hidden");
+    resultEl.innerHTML = `
+      &lt;div class="result-label ${isError ? "error" : "success"}"&gt;
+        ${isError ? "Error" : "Output"}
+      &lt;/div&gt;
+      &lt;pre class="code-block"&gt;&lt;code&gt;${output}&lt;/code&gt;&lt;/pre&gt;
+    `;
+    this.statusEl.textContent = isError ? "failed" : "completed";
+    this.statusEl.setAttribute("data-status", isError ? "error" : "done");
+  }
+
+  finalize(_: (s: string) =&gt; string): void {
+    // Tool blocks are finalized via showResult
+  }
+}
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Mermaid diagrams:</strong> Never attempt to render a Mermaid diagram while tokens are still arriving. Buffer the entire <code>```mermaid ... ```</code> block, then call <code>mermaid.run()</code> exactly once after stream end. Calling it on partial diagrams produces parse errors that prevent later rendering.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 5: CANCELLATION AND ABORT
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>5. Cancellation and Abort</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Stopping an Agent Mid-Stream Without Orphaned Processes</span></div>
+                <div class="collapsible-content">
+
+                    <p>Users frequently want to interrupt agents. Maybe the output is wrong, maybe they see the agent is going down a bad path, maybe they just changed their mind. Clean cancellation is deceptively complex in agentic systems because work may be happening at multiple layers simultaneously:</p>
+
+                    <ul>
+                        <li>An in-flight HTTP call to the LLM API</li>
+                        <li>A running subprocess (bash command, compiler, test runner)</li>
+                        <li>A pending database transaction</li>
+                        <li>An async queue of future tool calls already scheduled</li>
+                    </ul>
+
+                    <h4>The AbortController Pattern</h4>
+                    <pre><code class="language-typescript">/**
+ * CancellableAgentLoop: wraps StreamProcessor with a clean abort mechanism.
+ * Cancelling stops the LLM stream AND any in-flight tool subprocesses.
+ */
+import { spawn, ChildProcess } from "child_process";
+import Anthropic from "@anthropic-ai/sdk";
+
+interface RunningTool {
+  toolUseId: string;
+  process?: ChildProcess;
+  promise: Promise&lt;string&gt;;
+  reject: (reason: Error) =&gt; void;
+}
+
+export class CancellableAgentLoop {
+  private abortController = new AbortController();
+  private runningTools = new Map&lt;string, RunningTool&gt;();
+  private client: Anthropic;
+
+  constructor(apiKey: string) {
+    this.client = new Anthropic({ apiKey });
+  }
+
+  /** Call this to stop everything. Safe to call multiple times. */
+  abort(): void {
+    if (this.abortController.signal.aborted) return;
+    this.abortController.abort();
+    this._killAllTools();
+  }
+
+  /** Reset for a new conversation turn. */
+  reset(): void {
+    this.abortController = new AbortController();
+  }
+
+  private _killAllTools(): void {
+    for (const [id, tool] of this.runningTools) {
+      tool.process?.kill("SIGTERM");
+      // Give it 500ms then SIGKILL
+      setTimeout(() =&gt; tool.process?.kill("SIGKILL"), 500);
+      tool.reject(new Error("Aborted by user"));
+    }
+    this.runningTools.clear();
+  }
+
+  async executeTool(toolName: string, input: Record&lt;string, unknown&gt;, toolUseId: string): Promise&lt;string&gt; {
+    if (this.abortController.signal.aborted) {
+      throw new Error("Agent is aborted");
+    }
+
+    if (toolName === "run_bash") {
+      return this._runBash(input.command as string, toolUseId);
+    }
+    // Add other tools here
+    throw new Error(`Unknown tool: ${toolName}`);
+  }
+
+  private _runBash(command: string, toolUseId: string): Promise&lt;string&gt; {
+    let rejectFn!: (reason: Error) =&gt; void;
+
+    const promise = new Promise&lt;string&gt;((resolve, reject) =&gt; {
+      rejectFn = reject;
+
+      const child = spawn("bash", ["-c", command], {
+        timeout: 30_000,
+        env: {
+          ...process.env,
+          // Restrict environment for safety
+          PATH: "/usr/local/bin:/usr/bin:/bin",
+        },
+      });
+
+      const runningTool: RunningTool = {
+        toolUseId,
+        process: child,
+        promise,
+        reject,
+      };
+      this.runningTools.set(toolUseId, runningTool);
+
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (d) =&gt; (stdout += d.toString()));
+      child.stderr.on("data", (d) =&gt; (stderr += d.toString()));
+
+      child.on("close", (code) =&gt; {
+        this.runningTools.delete(toolUseId);
+        if (code === 0) {
+          resolve(stdout || "(no output)");
+        } else {
+          resolve(`Exit ${code}\n${stderr || stdout}`);
+        }
+      });
+
+      child.on("error", (err) =&gt; {
+        this.runningTools.delete(toolUseId);
+        reject(err);
+      });
+    });
+
+    return promise;
+  }
+
+  async run(
+    messages: Anthropic.MessageParam[],
+    tools: Anthropic.Tool[],
+    onEvent: (type: string, data: unknown) =&gt; void
+  ): Promise&lt;void&gt; {
+    const signal = this.abortController.signal;
+
+    try {
+      const stream = this.client.messages.stream(
+        {
+          model: "claude-opus-4-5",
+          max_tokens: 8192,
+          messages,
+          tools,
+        },
+        { signal }
+      );
+
+      for await (const event of stream) {
+        if (signal.aborted) {
+          onEvent("aborted", {});
+          return;
+        }
+        onEvent(event.type, event);
+      }
+    } catch (err: any) {
+      if (err.name === "AbortError" || signal.aborted) {
+        onEvent("aborted", {});
+      } else {
+        onEvent("error", { message: err.message });
+      }
+    } finally {
+      this._killAllTools();
+    }
+  }
+}
+</code></pre>
+
+                    <div class="warning-box">
+                        <strong>Orphaned processes:</strong> If your tool executor spawns child processes, make sure <code>abort()</code> reaches them. A common bug is aborting the HTTP stream but leaving a <code>bash</code> subprocess still running a database migration or a long test suite. Always store a reference to the child process and SIGTERM/SIGKILL it explicitly.
+                    </div>
+
+                    <h4>Cancellation Flow</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant U as User (Browser)
+    participant H as Harness
+    participant A as Anthropic API
+    participant T as Tool Process
+
+    U->>H: User clicks "Stop"
+    H->>H: abortController.abort()
+    H->>A: HTTP connection closed (AbortSignal)
+    Note over A: API call abandoned
+    H->>T: child.kill("SIGTERM")
+    T-->>H: process exits
+    H->>U: {type:"aborted"}
+    Note over U: UI shows "Stopped"
+    U->>H: New message (fresh turn)
+    H->>H: reset() — new AbortController
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 6: BACKPRESSURE IN STREAMING
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>6. Backpressure in Streaming</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>When Clients Can't Keep Up</span></div>
+                <div class="collapsible-content">
+
+                    <p>Modern LLMs can produce tokens faster than slow client connections can consume them. When the server-side buffer fills up, you have a backpressure problem. Unhandled backpressure causes connection drops, missed tokens, or unbounded memory usage on the server.</p>
+
+                    <div class="math-box">
+                        <strong>Token Production vs Consumption:</strong><br><br>
+                        Claude Opus: ~50-80 tokens/sec<br>
+                        Average token size: ~4 bytes<br>
+                        Token production rate: ~200-320 bytes/sec<br><br>
+                        Mobile 3G uplink: 384 kbps ÷ 8 = 48 KB/sec<br><br>
+                        Conclusion: 3G is fast enough for token streaming.<br>
+                        But on a 2G connection (14.4 kbps = 1.8 KB/sec),<br>
+                        a server buffering aggressively can accumulate<br>
+                        tokens faster than they drain, growing the buffer<br>
+                        unboundedly over a long response.
+                    </div>
+
+                    <h4>Backpressure Strategies</h4>
+                    <table class="event-table">
+                        <thead><tr><th>Strategy</th><th>Mechanism</th><th>Trade-off</th></tr></thead>
+                        <tbody>
+                            <tr><td>Yield-based</td><td>Python async generator naturally pauses when consumer awaits</td><td>Zero extra code; works automatically with proper async</td></tr>
+                            <tr><td>Bounded queue</td><td>asyncio.Queue(maxsize=N); producer blocks when full</td><td>Explicit flow control; prevents buffer overflow</td></tr>
+                            <tr><td>Client ack</td><td>Client sends "ready for more" signal; server waits</td><td>Precise; requires bidirectional channel (WebSocket)</td></tr>
+                            <tr><td>Drop + summary</td><td>When buffer is full, drop tokens and add "[...]"</td><td>Lossy; only for non-critical streams (logs, telemetry)</td></tr>
+                            <tr><td>Rate limiting</td><td>Token bucket on server; delay sending chunks</td><td>Predictable; adds artificial latency</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>BackpressureAwareStream — Python</h4>
+                    <pre><code class="language-python">"""
+BackpressureAwareStream: wraps an async generator with a bounded
+asyncio.Queue to enforce flow control between the Anthropic API
+consumer and the SSE sender.
+"""
+import asyncio
+from typing import AsyncIterator, Optional
+import anthropic
+
+_SENTINEL = object()  # Signals end of stream
+
+class BackpressureAwareStream:
+    """
+    Decouples the fast Anthropic stream reader from the potentially
+    slow HTTP response writer via a bounded async queue.
+    """
+
+    def __init__(self, max_buffer: int = 256):
+        self._queue: asyncio.Queue = asyncio.Queue(maxsize=max_buffer)
+        self._producer_task: Optional[asyncio.Task] = None
+        self._closed = False
+
+    async def start(
+        self,
+        client: anthropic.AsyncAnthropic,
+        messages: list,
+        model: str = "claude-opus-4-5",
+        max_tokens: int = 4096,
+    ) -> None:
+        """Start the background producer task."""
+        self._producer_task = asyncio.create_task(
+            self._produce(client, messages, model, max_tokens)
+        )
+
+    async def _produce(self, client, messages, model, max_tokens):
+        """
+        Reads from Anthropic stream as fast as possible, but blocks
+        when the queue is full — naturally applying backpressure back
+        to the SDK's async iterator.
+        """
+        try:
+            async with client.messages.stream(
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+            ) as stream:
+                async for event in stream:
+                    # This put() will block if queue is full —
+                    # that's the backpressure mechanism!
+                    await self._queue.put(event)
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            await self._queue.put(exc)  # Propagate error to consumer
+        finally:
+            await self._queue.put(_SENTINEL)
+
+    async def events(self) -> AsyncIterator:
+        """Consume events. Will pause naturally when queue is empty."""
+        while True:
+            item = await self._queue.get()
+            if item is _SENTINEL:
+                break
+            if isinstance(item, Exception):
+                raise item
+            yield item
+            self._queue.task_done()
+
+    async def close(self):
+        """Cancel the producer and drain the queue."""
+        if self._producer_task:
+            self._producer_task.cancel()
+            try:
+                await self._producer_task
+            except asyncio.CancelledError:
+                pass
+        self._closed = True
+
+    @property
+    def buffer_fill_ratio(self) -> float:
+        """Returns 0.0 (empty) to 1.0 (full). Use for monitoring."""
+        if self._queue.maxsize == 0:
+            return 0.0
+        return self._queue.qsize() / self._queue.maxsize
+
+    @property
+    def is_healthy(self) -> bool:
+        """Stream is healthy if buffer is not more than 80% full."""
+        return self.buffer_fill_ratio &lt; 0.8
+
+
+# ── Usage in FastAPI endpoint ──────────────────────────────────────────
+async def sse_with_backpressure(messages: list, client):
+    stream = BackpressureAwareStream(max_buffer=128)
+    await stream.start(client, messages)
+
+    try:
+        async for event in stream.events():
+            # Log buffer health for observability
+            if not stream.is_healthy:
+                # Optionally pause or alert
+                pass
+
+            if event.type == "content_block_delta" and hasattr(event.delta, "text"):
+                payload = json.dumps({"text": event.delta.text})
+                yield f"event: text_delta\ndata: {payload}\n\n"
+
+            elif event.type == "message_stop":
+                yield f"event: done\ndata: {{}}\n\n"
+    finally:
+        await stream.close()
+</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Python async generators ARE backpressure:</strong> If your SSE generator is a Python <code>async def</code> with <code>yield</code>, and the FastAPI/Starlette response writer is awaiting each chunk, then when the network is slow, the writer awaits longer, the generator pauses at the next <code>yield</code>, and the Anthropic SDK's <code>async for</code> pauses at its next iteration. Backpressure propagates automatically through the async chain — no queue needed for the simple case. The queue pattern above is needed when you have a fanout (one stream, multiple consumers) or when the producer and consumer run in truly separate tasks.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 7: MULTI-STREAM COORDINATION
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>7. Multi-Stream Coordination</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Multiple Agents Streaming Simultaneously</span></div>
+                <div class="collapsible-content">
+
+                    <p>Multi-agent systems (like a planner + executor + verifier running in parallel) produce multiple concurrent streams. The frontend needs to display all of them clearly and efficiently. Opening a separate SSE connection per agent works but is wasteful. A multiplexed stream over a single WebSocket is far more efficient.</p>
+
+                    <h4>Stream Multiplexing Architecture</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    A1[Agent 1\nPlanner] -->|stream events| MUX
+    A2[Agent 2\nExecutor] -->|stream events| MUX
+    A3[Agent 3\nVerifier] -->|stream events| MUX
+    MUX[StreamMultiplexer\nserver-side] -->|multiplexed WS| C[Client\nBrowser]
+    C -->|demux by agent_id| P1[Planner Panel]
+    C -->|demux by agent_id| P2[Executor Panel]
+    C -->|demux by agent_id| P3[Verifier Panel]
+                        </div>
+                    </div>
+
+                    <h4>StreamMultiplexer — TypeScript</h4>
+                    <pre><code class="language-typescript">/**
+ * StreamMultiplexer: fans in multiple agent streams and forwards them
+ * over a single WebSocket connection, tagged by agent ID.
+ *
+ * Protocol (server → client):
+ * { agent_id: string, seq: number, type: string, data: unknown }
+ *
+ * Protocol (client → server):
+ * { type: "abort", agent_id: string }
+ * { type: "pause", agent_id: string }
+ * { type: "resume", agent_id: string }
+ */
+import { WebSocket } from "ws";
+import Anthropic from "@anthropic-ai/sdk";
+
+interface AgentStream {
+  agentId: string;
+  label: string;
+  abortController: AbortController;
+  paused: boolean;
+  seq: number;
+}
+
+export class StreamMultiplexer {
+  private ws: WebSocket;
+  private client: Anthropic;
+  private agents = new Map&lt;string, AgentStream&gt;();
+  private pauseQueues = new Map&lt;string, unknown[]&gt;();
+
+  constructor(ws: WebSocket, client: Anthropic) {
+    this.ws = ws;
+    this.client = client;
+
+    ws.on("message", (raw: Buffer) =&gt; {
+      const msg = JSON.parse(raw.toString());
+      this._handleClientMessage(msg);
+    });
+  }
+
+  async spawnAgent(
+    agentId: string,
+    label: string,
+    messages: Anthropic.MessageParam[]
+  ): Promise&lt;void&gt; {
+    const agentStream: AgentStream = {
+      agentId,
+      label,
+      abortController: new AbortController(),
+      paused: false,
+      seq: 0,
+    };
+    this.agents.set(agentId, agentStream);
+    this.pauseQueues.set(agentId, []);
+
+    this._send(agentId, "agent_start", { label });
+
+    try {
+      const stream = this.client.messages.stream(
+        {
+          model: "claude-opus-4-5",
+          max_tokens: 4096,
+          messages,
+        },
+        { signal: agentStream.abortController.signal }
+      );
+
+      for await (const event of stream) {
+        if (agentStream.paused) {
+          // Buffer events while paused
+          this.pauseQueues.get(agentId)!.push(event);
+          continue;
+        }
+        this._forwardEvent(agentId, event);
+      }
+
+      this._send(agentId, "agent_done", {});
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        this._send(agentId, "agent_error", { message: err.message });
+      } else {
+        this._send(agentId, "agent_aborted", {});
+      }
+    } finally {
+      this.agents.delete(agentId);
+      this.pauseQueues.delete(agentId);
+    }
+  }
+
+  private _forwardEvent(agentId: string, event: unknown): void {
+    const agent = this.agents.get(agentId);
+    if (!agent) return;
+    this._send(agentId, (event as any).type, event);
+  }
+
+  private _send(agentId: string, type: string, data: unknown): void {
+    const agent = this.agents.get(agentId);
+    const seq = agent ? agent.seq++ : 0;
+
+    if (this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(
+      JSON.stringify({ agent_id: agentId, seq, type, data })
+    );
+  }
+
+  private _handleClientMessage(msg: { type: string; agent_id: string }): void {
+    const agent = this.agents.get(msg.agent_id);
+    if (!agent) return;
+
+    if (msg.type === "abort") {
+      agent.abortController.abort();
+    } else if (msg.type === "pause") {
+      agent.paused = true;
+    } else if (msg.type === "resume") {
+      agent.paused = false;
+      // Drain buffered events
+      const queue = this.pauseQueues.get(msg.agent_id) ?? [];
+      for (const event of queue) {
+        this._forwardEvent(msg.agent_id, event);
+      }
+      this.pauseQueues.set(msg.agent_id, []);
+    }
+  }
+
+  /** Priority ordering: give high-priority agents more CPU budget */
+  setPriority(_agentId: string, _priority: "high" | "normal" | "low"): void {
+    // In Node.js, we can use setImmediate vs setTimeout(0) vs setTimeout(100)
+    // for different agent event processing priorities. Implementation omitted
+    // for brevity — the key concept is interleaving event processing.
+  }
+}
+</code></pre>
+
+                    <h4>Client-Side Demultiplexer (TypeScript)</h4>
+                    <pre><code class="language-typescript">/**
+ * Client-side demultiplexer: routes multiplexed WS messages to
+ * per-agent ProgressiveRenderer instances.
+ */
+export class StreamDemultiplexer {
+  private ws: WebSocket;
+  private renderers = new Map&lt;string, ProgressiveRenderer&gt;();
+
+  constructor(wsUrl: string) {
+    this.ws = new WebSocket(wsUrl);
+    this.ws.onmessage = (evt) =&gt; {
+      const msg = JSON.parse(evt.data);
+      this._route(msg);
+    };
+  }
+
+  registerAgent(agentId: string, container: HTMLElement, md: (s: string) =&gt; string): void {
+    this.renderers.set(agentId, new ProgressiveRenderer(container, md));
+  }
+
+  private _route(msg: { agent_id: string; type: string; data: any }): void {
+    const renderer = this.renderers.get(msg.agent_id);
+    if (!renderer) return;
+
+    switch (msg.type) {
+      case "content_block_delta":
+        if (msg.data?.delta?.type === "text_delta") {
+          renderer.onTextDelta(msg.data.index, msg.data.delta.text);
+        }
+        break;
+      case "content_block_start":
+        if (msg.data?.content_block?.type === "tool_use") {
+          renderer.onToolUseStart(
+            msg.data.index,
+            msg.data.content_block.name,
+            msg.data.content_block.id
+          );
+        }
+        break;
+      case "agent_done":
+        renderer.finalizeAll();
+        break;
+    }
+  }
+
+  abortAgent(agentId: string): void {
+    this.ws.send(JSON.stringify({ type: "abort", agent_id: agentId }));
+  }
+
+  pauseAgent(agentId: string): void {
+    this.ws.send(JSON.stringify({ type: "pause", agent_id: agentId }));
+  }
+
+  resumeAgent(agentId: string): void {
+    this.ws.send(JSON.stringify({ type: "resume", agent_id: agentId }));
+  }
+}
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 8: INTERVIEW TIPS
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>8. Interview Tips</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>What Interviewers Look For</span></div>
+                <div class="collapsible-content">
+
+                    <div class="insight-box">
+                        <strong>The key signal:</strong> Candidates who understand streaming at this level have clearly built production agent systems, not just tutorial chatbots.
+                    </div>
+
+                    <h4>Common Questions &amp; Strong Answers</h4>
+                    <table class="event-table">
+                        <thead><tr><th>Question</th><th>Strong Answer Points</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td>"How would you design the streaming layer for an AI coding assistant?"</td>
+                                <td>SSE for model output; separate cancel endpoint; TTFT as primary metric; tool-call interleaving with progress display; AbortController for clean shutdown</td>
+                            </tr>
+                            <tr>
+                                <td>"What's the hardest part of streaming with tool calls?"</td>
+                                <td>JSON fragmentation — tool inputs arrive as partial_json chunks; must buffer until content_block_stop; attempting to parse early causes errors; need to visually show "building input" state</td>
+                            </tr>
+                            <tr>
+                                <td>"How do you handle a user cancelling a running agent?"</td>
+                                <td>AbortController for the HTTP/SDK call; store child process references; SIGTERM then SIGKILL; remove from active map; prevent orphaned processes; reset controller for next turn</td>
+                            </tr>
+                            <tr>
+                                <td>"How would you scale this to 10,000 concurrent streaming sessions?"</td>
+                                <td>HTTP/2 multiplexing reduces connection overhead; horizontal scaling with sticky sessions or Redis pub/sub for fan-out; bounded queues prevent memory blow-up; monitor buffer fill ratio; circuit break on unhealthy connections</td>
+                            </tr>
+                            <tr>
+                                <td>"When would you use WebSocket instead of SSE?"</td>
+                                <td>When you need bidirectional messages on the same channel (abort, pause, user input while streaming); when running multiple agents and want multiplexed streams; SSE is simpler and sufficient for pure output streaming</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Saying "just use polling" for real-time UX — shows unfamiliarity with modern streaming</li>
+                        <li>Not knowing what TTFT stands for or why it matters more than E2E latency</li>
+                        <li>Treating tool calls as a simple interrupt — not addressing JSON fragmentation</li>
+                        <li>Ignoring process cleanup — leaving child processes running after abort</li>
+                        <li>Not mentioning backpressure when discussing long responses to slow clients</li>
+                        <li>Conflating SSE and WebSocket — not knowing when to use each</li>
+                    </ul>
+
+                    <h4>Metric bar: Streaming System Maturity</h4>
+                    <div class="metric-bar-wrap"><div class="metric-label">Token streaming (text only)</div><div class="metric-bar" style="width:20%"></div></div>
+                    <div class="metric-bar-wrap"><div class="metric-label">Tool call interleaving with buffering</div><div class="metric-bar" style="width:50%"></div></div>
+                    <div class="metric-bar-wrap"><div class="metric-label">Progressive rendering + cancellation</div><div class="metric-bar" style="width:70%"></div></div>
+                    <div class="metric-bar-wrap"><div class="metric-label">Backpressure-aware with monitoring</div><div class="metric-bar" style="width:85%"></div></div>
+                    <div class="metric-bar-wrap"><div class="metric-label">Multi-agent multiplexed with pause/resume</div><div class="metric-bar" style="width:100%"></div></div>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 9: QUIZ
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>9. Knowledge Check</h2>
+
+            <div class="quiz-question">
+                <h4>Q1. What is TTFT and why is it the most important streaming UX metric?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>TTFT = Time to First Token.</strong> It is the delay between the user submitting a message and the first visible character appearing on screen. It is the most important metric because it eliminates the "blank screen" anxiety period. Once tokens are flowing, users read along and the remaining wait feels productive rather than unresponsive. A 15-second E2E latency with a 200ms TTFT feels far better than a 5-second E2E with no streaming at all.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q2. Why is it dangerous to execute a tool call as soon as you see a <code>content_block_start</code> event with type "tool_use"?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    The tool's input JSON is streamed in fragments via subsequent <code>content_block_delta</code> events with <code>delta.type = "input_json_delta"</code>. At the moment of <code>content_block_start</code> the input is empty or incomplete. Attempting to parse it produces a JSON parse error. The tool must be executed only after the corresponding <code>content_block_stop</code> event, which signals the JSON is fully accumulated.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q3. You have a streaming agent and the user clicks "Stop". List three layers where cleanup must happen.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <ol>
+                        <li><strong>LLM API call:</strong> Call <code>abortController.abort()</code>; the SDK will close the HTTP connection and stop token generation.</li>
+                        <li><strong>In-flight tool processes:</strong> Any <code>ChildProcess</code> (bash, python, etc.) spawned by tool executors must be SIGTERM'd (then SIGKILL after timeout) to prevent orphaned processes consuming CPU.</li>
+                        <li><strong>Queued/pending work:</strong> Any tool calls that were scheduled but not yet started (e.g., in an async queue) must be discarded and their promises rejected.</li>
+                    </ol>
+                    Bonus: Reset the <code>AbortController</code> to a fresh instance so the next turn can be cleanly started.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q4. When should you choose WebSocket over SSE for an agent system?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    Choose WebSocket when:
+                    <ul>
+                        <li>You need the <em>client</em> to send messages while the stream is active (e.g., abort signals, user clarifications)</li>
+                        <li>You want to multiplex multiple agent streams over a single connection</li>
+                        <li>You need binary data or lower per-message overhead for high-frequency telemetry</li>
+                        <li>You need pause/resume control signals</li>
+                    </ul>
+                    SSE is sufficient (and simpler) when the stream is purely server-to-client and cancellation can be handled via a separate HTTP DELETE or signal endpoint.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q5. Explain how Python async generators naturally solve backpressure without an explicit queue.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    Python <code>async for</code> / <code>yield</code> generators are cooperative: a generator resumes only when the consumer <code>await</code>s the next value. If the HTTP response writer is slow (awaiting a network write), it does not call <code>__anext__()</code> on the upstream generator, which therefore does not call <code>__anext__()</code> on the Anthropic SDK's async iterator, which in turn does not read the next bytes from the TCP socket. The TCP receive window fills up, the OS signals the server to stop sending, and the Anthropic API's TCP sender backs off. Backpressure propagates all the way from the slow client's network to the LLM API without any explicit buffer or queue.
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 SECTION 10: MINI PROJECT
+            ════════════════════════════════════════════════════════════════ -->
+            <h2>10. Mini-Project: Streaming Agent with Tool Call Interleaving</h2>
+            <div class="mini-project">
+                <h3>Build a Streaming Agent with Full Tool Call Interleaving</h3>
+                <p>Implement a complete streaming agent harness that handles text tokens, tool calls, and real-time UI updates in a browser. The agent should feel responsive and informative at every stage of execution.</p>
+
+                <h4>Requirements</h4>
+                <ol>
+                    <li><strong>Backend (Python / FastAPI):</strong>
+                        <ul>
+                            <li>SSE endpoint <code>POST /chat/{session_id}</code> accepting <code>{"messages": [...]}</code></li>
+                            <li>Full agentic loop: stream → tool calls → inject results → continue streaming</li>
+                            <li>At minimum 2 tools: <code>run_bash</code> (sandboxed) and <code>read_file</code></li>
+                            <li>Emit typed events: <code>text_delta</code>, <code>tool_use_start</code>, <code>tool_input_delta</code>, <code>tool_executing</code>, <code>tool_result</code>, <code>message_stop</code>, <code>agent_done</code></li>
+                        </ul>
+                    </li>
+                    <li><strong>Frontend (HTML/TypeScript):</strong>
+                        <ul>
+                            <li>Connect via <code>EventSource</code></li>
+                            <li>Render text deltas progressively — handle incomplete markdown without flicker</li>
+                            <li>Show tool call blocks with: tool name, input (as it accumulates), "executing..." spinner, result</li>
+                            <li>"Stop" button that sends <code>DELETE /chat/{session_id}</code> and resets UI</li>
+                        </ul>
+                    </li>
+                    <li><strong>Cancellation:</strong>
+                        <ul>
+                            <li>Backend must kill any running subprocesses on DELETE</li>
+                            <li>Frontend must handle <code>aborted</code> event gracefully</li>
+                        </ul>
+                    </li>
+                    <li><strong>Stretch goals:</strong>
+                        <ul>
+                            <li>Add <code>BackpressureAwareStream</code> with a bounded queue of 64 events; expose buffer fill ratio in a health endpoint</li>
+                            <li>Add a second agent (code reviewer) and multiplex both over a single WebSocket</li>
+                            <li>Add a Mermaid diagram render step that fires after stream completion</li>
+                        </ul>
+                    </li>
+                </ol>
+
+                <h4>Evaluation Criteria</h4>
+                <table class="event-table">
+                    <thead><tr><th>Criterion</th><th>Points</th></tr></thead>
+                    <tbody>
+                        <tr><td>TTFT under 500ms for first token</td><td>10</td></tr>
+                        <tr><td>No flicker / broken markdown mid-stream</td><td>15</td></tr>
+                        <tr><td>Tool call input renders incrementally</td><td>15</td></tr>
+                        <tr><td>Executing spinner and result display</td><td>10</td></tr>
+                        <tr><td>Clean abort with no orphaned processes</td><td>20</td></tr>
+                        <tr><td>Multi-turn conversation (results injected correctly)</td><td>15</td></tr>
+                        <tr><td>Stretch: backpressure + health endpoint</td><td>15</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Starter Test</h4>
+                <pre><code class="language-python">"""
+Test: verify event sequence for a streaming response with one tool call.
+"""
+import asyncio, json
+import httpx
+
+async def test_stream_event_sequence():
+    events = []
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        async with client.stream(
+            "POST",
+            "http://localhost:8000/chat/test-session",
+            json={"messages": [{"role": "user", "content": "Run: echo hello"}]},
+            headers={"Accept": "text/event-stream"},
+        ) as response:
+            async for line in response.aiter_lines():
+                if line.startswith("event:"):
+                    events.append(line[7:].strip())
+                elif line.startswith("data:"):
+                    pass  # collect data if needed
+
+    # Assert minimum expected event sequence
+    assert "stream_start" in events
+    assert "tool_use_start" in events
+    assert "tool_executing" in events
+    assert "tool_result" in events
+    assert "agent_done" in events
+
+    # tool_use_start must come before tool_result
+    idx_start = events.index("tool_use_start")
+    idx_result = events.index("tool_result")
+    assert idx_start &lt; idx_result, "tool_use_start must precede tool_result"
+
+    print("All assertions passed!")
+
+asyncio.run(test_stream_event_sequence())
+</code></pre>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════════════
+                 CHECKPOINT SUMMARY
+            ════════════════════════════════════════════════════════════════ -->
+            <div class="checkpoint-summary">
+                <h3>Checkpoint Summary — Module 11</h3>
+                <p><strong>tl;dr:</strong> Streaming agent UX is not just "forward tokens to the browser." It requires careful handling of tool-call interruption, progressive rendering, clean cancellation, backpressure, and (for multi-agent systems) stream multiplexing.</p>
+                <ul>
+                    <li><strong>TTFT is king.</strong> Streaming reduces perceived latency from E2E to TTFT. Target &lt;300ms.</li>
+                    <li><strong>SSE for output, WebSocket for control.</strong> SSE is simpler and more proxy-compatible. Add a separate cancel endpoint or use WebSocket when the client must send signals mid-stream.</li>
+                    <li><strong>Never execute tool calls on partial JSON.</strong> Wait for <code>content_block_stop</code>. Buffer <code>input_json_delta</code> fragments into a string before parsing.</li>
+                    <li><strong>Progressive rendering needs fence detection.</strong> Buffer incomplete code fences and Mermaid blocks. Render prose incrementally. Call <code>Prism.highlightElement()</code> and <code>mermaid.run()</code> post-stream.</li>
+                    <li><strong>Cancellation is layered.</strong> Abort the HTTP call. Kill child processes. Drain async queues. Reset the <code>AbortController</code> for the next turn.</li>
+                    <li><strong>Backpressure is implicit in async generators</strong> but needs an explicit bounded queue when producer and consumer are in separate tasks.</li>
+                    <li><strong>Multi-agent multiplexing</strong> reduces connection count and enables per-agent pause/resume/abort over a single WebSocket.</li>
+                </ul>
+
+                <h4>Suggested Flashcard Q&amp;A Pairs</h4>
+                <ol>
+                    <li><strong>Q:</strong> What does TTFT stand for and what is a good target? <strong>A:</strong> Time to First Token; target &lt;300ms.</li>
+                    <li><strong>Q:</strong> When is it safe to execute an Anthropic tool call during streaming? <strong>A:</strong> Only after receiving <code>content_block_stop</code> for that block's index.</li>
+                    <li><strong>Q:</strong> What JS API enables clean cancellation of fetch/HTTP calls? <strong>A:</strong> <code>AbortController</code> — pass <code>signal</code> to <code>fetch()</code> or the SDK stream call.</li>
+                    <li><strong>Q:</strong> In Python async generators, how does backpressure propagate to the upstream source? <strong>A:</strong> The generator only advances when the consumer <code>await</code>s the next value; slow consumers naturally slow producers.</li>
+                    <li><strong>Q:</strong> Name two reasons to use WebSocket over SSE in an agent system. <strong>A:</strong> Bidirectional control (abort mid-stream) and multi-stream multiplexing over one connection.</li>
+                </ol>
+            </div>
+
+            <!-- ── Navigation ── -->
+            <div class="flex flex-between mt-4">
+                <a href="module-10.html" class="btn btn-secondary">&larr; Module 10: State Management</a>
+                <a href="module-12.html" class="btn btn-primary">Module 12: Testing &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <!-- ═══════════════ SCRIPTS ═══════════════ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        // ── Mermaid init ──────────────────────────────────────────────────
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: "dark",
+            themeVariables: {
+                primaryColor: "#06b6d4",
+                primaryTextColor: "#e2e8f0",
+                primaryBorderColor: "#3b82f6",
+                lineColor: "#94a3b8",
+                secondaryColor: "#1e293b",
+                tertiaryColor: "#0f172a",
+            },
+        });
+
+        // ── Sidebar toggle (mobile) ───────────────────────────────────────
+        const sidebarToggle = document.getElementById("sidebarToggle");
+        const sidebar = document.getElementById("sidebar");
+        const overlay = document.getElementById("sidebarOverlay");
+        sidebarToggle?.addEventListener("click", () => {
+            sidebar?.classList.toggle("open");
+            overlay?.classList.toggle("active");
+        });
+        overlay?.addEventListener("click", () => {
+            sidebar?.classList.remove("open");
+            overlay.classList.remove("active");
+        });
+
+        // ── Collapsible sections ──────────────────────────────────────────
+        document.querySelectorAll(".collapsible-header").forEach((header) => {
+            header.addEventListener("click", () => {
+                const section = header.closest(".collapsible");
+                section?.classList.toggle("open");
+            });
+        });
+    </script>
+</body>
+</html>

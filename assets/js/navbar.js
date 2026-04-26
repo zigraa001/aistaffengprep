@@ -10,6 +10,7 @@
         { href: 'company-specific/index.html', text: 'Companies' },
         { href: 'behavioral/index.html', text: 'Behavioral' },
         { href: 'generative-ai/index.html', text: 'Gen AI' },
+        { href: 'harness-engineering/index.html', text: 'Harness' },
         { href: 'metrics-tradeoffs/index.html', text: 'Metrics' },
         { href: 'platform-engineering/index.html', text: 'Platform Eng' }
     ];
@@ -30,6 +31,7 @@
         else if (path.includes('/company-specific')) activeCourse = 'company-specific';
         else if (path.includes('/behavioral')) activeCourse = 'behavioral';
         else if (path.includes('/generative-ai')) activeCourse = 'generative-ai';
+        else if (path.includes('/harness-engineering')) activeCourse = 'harness-engineering';
         else if (path.includes('/metrics-tradeoffs')) activeCourse = 'metrics-tradeoffs';
         else if (path.includes('/platform-engineering')) activeCourse = 'platform-engineering';
 

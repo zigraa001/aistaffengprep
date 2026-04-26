@@ -1,0 +1,1873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 10: State Management &amp; Persistence - Harness Engineering</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .math-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            font-family: 'Courier New', monospace;
+        }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-left: 4px solid #22c55e;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%);
+            border-left: 4px solid #f59e0b;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-left: 4px solid rgba(6, 182, 212, 0.9);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .quiz-question {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .quiz-question h4 {
+            margin-bottom: 0.5rem;
+        }
+        .quiz-answer {
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: rgba(6, 182, 212, 0.08);
+            border-radius: 0.25rem;
+            border-left: 3px solid rgba(6, 182, 212, 0.6);
+        }
+        .reveal-btn {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.9), rgba(59, 130, 246, 0.9));
+            color: white;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+        }
+        .reveal-btn:hover {
+            opacity: 0.85;
+        }
+        .checkpoint-summary {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.12) 100%);
+            border: 2px solid rgba(6, 182, 212, 0.4);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+        .mini-project {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+            border: 2px dashed rgba(6, 182, 212, 0.5);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        .state-badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            margin: 0.15rem;
+        }
+        .state-idle    { background: rgba(100,116,139,0.2); color: #94a3b8; }
+        .state-think   { background: rgba(6,182,212,0.2);  color: #22d3ee; }
+        .state-exec    { background: rgba(245,158,11,0.2); color: #fbbf24; }
+        .state-wait    { background: rgba(139,92,246,0.2); color: #c084fc; }
+        .state-resp    { background: rgba(34,197,94,0.2);  color: #4ade80; }
+        .state-err     { background: rgba(239,68,68,0.2);  color: #f87171; }
+        .comparison-table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+        .comparison-table th {
+            background: linear-gradient(135deg, rgba(6,182,212,0.2), rgba(59,130,246,0.2));
+            padding: 0.6rem 0.8rem;
+            text-align: left;
+            border: 1px solid var(--border-color);
+        }
+        .comparison-table td {
+            padding: 0.55rem 0.8rem;
+            border: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        .comparison-table tr:nth-child(even) td {
+            background: rgba(6,182,212,0.03);
+        }
+        .check-green { color: #4ade80; font-weight: bold; }
+        .check-red   { color: #f87171; font-weight: bold; }
+        .check-yellow { color: #fbbf24; font-weight: bold; }
+        .section-header-gradient {
+            background: linear-gradient(135deg, rgba(6,182,212,0.15), rgba(59,130,246,0.15));
+            border-left: 4px solid rgba(6,182,212,0.8);
+            padding: 0.6rem 1rem;
+            border-radius: 0 0.4rem 0.4rem 0;
+            margin-bottom: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="../index.html" class="logo">StaffEngPrep</a>
+            <ul class="nav-links">
+                <li><a href="../coding-rounds/index.html">Coding</a></li>
+                <li><a href="../system-design/index.html">System Design</a></li>
+                <li><a href="../low-level-design/index.html">LLD</a></li>
+                <li><a href="../company-specific/index.html">Companies</a></li>
+                <li><a href="../behavioral/index.html">Behavioral</a></li>
+                <li><a href="../generative-ai/index.html">Gen AI</a></li>
+                <li><a href="index.html" style="color: var(--primary-color);">Harness</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Core Loop</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1">
+                        <span class="sidebar-link-number">1</span>Harness Architecture
+                    </a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2">
+                        <span class="sidebar-link-number">2</span>Context Engineering
+                    </a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3">
+                        <span class="sidebar-link-number">3</span>Tool Design
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Infrastructure</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4">
+                        <span class="sidebar-link-number">4</span>Sandbox Engineering
+                    </a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5">
+                        <span class="sidebar-link-number">5</span>Permission Systems
+                    </a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6">
+                        <span class="sidebar-link-number">6</span>Human-in-the-Loop
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Operations</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7">
+                        <span class="sidebar-link-number">7</span>Model Routing
+                    </a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8">
+                        <span class="sidebar-link-number">8</span>Observability
+                    </a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9">
+                        <span class="sidebar-link-number">9</span>Scaling
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Advanced</div>
+                    <a href="module-10.html" class="sidebar-link active" data-module="10">
+                        <span class="sidebar-link-number">10</span>State Management
+                    </a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11">
+                        <span class="sidebar-link-number">11</span>Streaming
+                    </a>
+                    <a href="module-12.html" class="sidebar-link" data-module="12">
+                        <span class="sidebar-link-number">12</span>Testing
+                    </a>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Mastery</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13">
+                        <span class="sidebar-link-number">13</span>Case Studies
+                    </a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14">
+                        <span class="sidebar-link-number">14</span>Multi-Agent
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 10: State Management &amp; Persistence</h1>
+            <p class="text-muted">Master how agent harnesses store, checkpoint, and recover state across tool calls, crashes, and sessions — the infrastructure that makes long-running agents reliable.</p>
+
+            <!-- Learning Objectives -->
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(59,130,246,0.08) 100%); border: 2px solid rgba(6,182,212,0.3);">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why state management is the hardest unsolved problem in production agent systems</li>
+                    <li>Model agent conversations as formal state machines with typed transitions</li>
+                    <li>Design and implement checkpoint/resume systems for crash recovery</li>
+                    <li>Distinguish short-term context state from long-term persistent memory</li>
+                    <li>Choose between file-based and database-backed state storage with clear trade-off reasoning</li>
+                    <li>Implement crash recovery with write-ahead logging and idempotent tool execution</li>
+                    <li>Build an idempotency middleware layer that protects every tool call</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 1: The State Problem                                 -->
+            <!-- ============================================================ -->
+            <h2>1. The State Problem in Agent Systems</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why State Is Fundamentally Hard for Agents</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A stateless web request completes in milliseconds and forgets everything. An agent task runs for minutes, hours, or even days — invoking dozens of tools, modifying files, calling external APIs, and awaiting human approval. Every one of those steps accumulates state that must be tracked, persisted, and recoverable.</p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> Think of an agent like a surgeon mid-operation. A surgeon cannot "restart from scratch" if they drop a tool. They need to know exactly what has been cut, what is sutured, and what still needs doing. Agent state is the surgical notes that make continuity possible.
+                    </div>
+
+                    <h4>Where Agent State Lives</h4>
+                    <p>State is not in one place — it is distributed across four layers:</p>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Layer</th>
+                                <th>What Lives There</th>
+                                <th>Lifetime</th>
+                                <th>Lost On Crash?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Context Window</strong></td>
+                                <td>Current conversation messages, tool results, reasoning</td>
+                                <td>Single API call</td>
+                                <td><span class="check-red">Yes — always</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Process Memory</strong></td>
+                                <td>In-memory variables, caches, pending tool queues</td>
+                                <td>Process lifetime</td>
+                                <td><span class="check-red">Yes</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Filesystem</strong></td>
+                                <td>Modified files, generated code, downloaded artifacts</td>
+                                <td>Persistent (if durable volume)</td>
+                                <td><span class="check-yellow">Only if ephemeral</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>External Systems</strong></td>
+                                <td>DB rows written, APIs called, PRs opened</td>
+                                <td>Permanent side effects</td>
+                                <td><span class="check-green">No — but untracked</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>The Fundamental Tension:</strong> The model only sees the context window. The real world only sees external systems. Your harness must bridge these two by serializing and replaying state across the gap — and doing so safely when crashes occur between any two tool calls.
+                    </div>
+
+                    <h4>How Claude Code Handles State</h4>
+                    <p>Claude Code uses a pragmatic approach: the filesystem <em>is</em> the state. Conversation turns are written as JSONL to <code>~/.claude/projects/&lt;project-hash&gt;/conversations/&lt;session-id&gt;.jsonl</code>. Each line is an atomic message record appended in real time. This means:</p>
+                    <ul>
+                        <li>A crash mid-conversation leaves a partial JSONL file — recovery simply reads up to the last complete line</li>
+                        <li>The git repository records file-level state — <code>git diff</code> shows exactly what the agent changed</li>
+                        <li>CLAUDE.md files act as persistent cross-session memory injected at the start of every turn</li>
+                        <li>No database required — the project directory itself is the source of truth</li>
+                    </ul>
+
+                    <div class="insight-box">
+                        <strong>Key Insight:</strong> Claude Code's file-first state model means any developer can inspect, diff, and understand agent state using standard Unix tools. Opacity is the enemy of trust in agent systems.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 2: Conversation State Machines                       -->
+            <!-- ============================================================ -->
+            <h2>2. Conversation State Machines</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Modeling Agent Conversations as Formal State Machines</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Every agent conversation follows a deterministic cycle of states. Formalizing this as a state machine gives you three powerful properties: (1) you can serialize and restore the machine at any state, (2) you can validate that every transition is legal, and (3) you can emit structured events for observability.</p>
+
+                    <h4>The Six Core Agent States</h4>
+                    <p>
+                        <span class="state-badge state-idle">IDLE</span>
+                        <span class="state-badge state-think">THINKING</span>
+                        <span class="state-badge state-exec">EXECUTING_TOOL</span>
+                        <span class="state-badge state-wait">AWAITING_APPROVAL</span>
+                        <span class="state-badge state-resp">RESPONDING</span>
+                        <span class="state-badge state-err">ERROR</span>
+                    </p>
+                    <ul>
+                        <li><strong>IDLE</strong> — Waiting for a user message. No compute running.</li>
+                        <li><strong>THINKING</strong> — Model API call in flight. Streaming tokens from LLM.</li>
+                        <li><strong>EXECUTING_TOOL</strong> — A tool_use block was returned; tool is running in sandbox.</li>
+                        <li><strong>AWAITING_APPROVAL</strong> — Tool requires human confirmation before execution continues.</li>
+                        <li><strong>RESPONDING</strong> — Final assistant text message being streamed to user.</li>
+                        <li><strong>ERROR</strong> — Unrecoverable failure. Agent paused pending operator intervention.</li>
+                    </ul>
+
+                    <h4>State Transition Diagram</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> THINKING : user_message_received
+    THINKING --> EXECUTING_TOOL : tool_use_block_emitted
+    THINKING --> RESPONDING : text_only_response
+    THINKING --> ERROR : api_error / timeout
+    EXECUTING_TOOL --> AWAITING_APPROVAL : tool_requires_approval
+    EXECUTING_TOOL --> THINKING : tool_result_ready
+    EXECUTING_TOOL --> ERROR : tool_exception / sandbox_crash
+    AWAITING_APPROVAL --> EXECUTING_TOOL : user_approved
+    AWAITING_APPROVAL --> IDLE : user_denied
+    RESPONDING --> IDLE : response_complete
+    ERROR --> IDLE : operator_reset
+    ERROR --> THINKING : operator_retry
+                        </div>
+                    </div>
+
+                    <h4>Implementing a ConversationStateMachine</h4>
+                    <pre><code class="language-python">from enum import Enum, auto
+from dataclasses import dataclass, field
+from typing import Optional, Callable, Dict, List
+import time
+import json
+
+
+class AgentState(str, Enum):
+    IDLE              = "IDLE"
+    THINKING          = "THINKING"
+    EXECUTING_TOOL    = "EXECUTING_TOOL"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+    RESPONDING        = "RESPONDING"
+    ERROR             = "ERROR"
+
+
+@dataclass
+class StateTransition:
+    from_state: AgentState
+    to_state: AgentState
+    trigger: str
+    timestamp: float = field(default_factory=time.time)
+    metadata: dict = field(default_factory=dict)
+
+
+# Legal transitions: (from_state, trigger) -> to_state
+TRANSITION_TABLE: Dict[tuple, AgentState] = {
+    (AgentState.IDLE,              "user_message_received"):   AgentState.THINKING,
+    (AgentState.THINKING,          "tool_use_block_emitted"):  AgentState.EXECUTING_TOOL,
+    (AgentState.THINKING,          "text_only_response"):      AgentState.RESPONDING,
+    (AgentState.THINKING,          "api_error"):               AgentState.ERROR,
+    (AgentState.THINKING,          "timeout"):                 AgentState.ERROR,
+    (AgentState.EXECUTING_TOOL,    "tool_requires_approval"):  AgentState.AWAITING_APPROVAL,
+    (AgentState.EXECUTING_TOOL,    "tool_result_ready"):       AgentState.THINKING,
+    (AgentState.EXECUTING_TOOL,    "tool_exception"):          AgentState.ERROR,
+    (AgentState.EXECUTING_TOOL,    "sandbox_crash"):           AgentState.ERROR,
+    (AgentState.AWAITING_APPROVAL, "user_approved"):           AgentState.EXECUTING_TOOL,
+    (AgentState.AWAITING_APPROVAL, "user_denied"):             AgentState.IDLE,
+    (AgentState.RESPONDING,        "response_complete"):       AgentState.IDLE,
+    (AgentState.ERROR,             "operator_reset"):          AgentState.IDLE,
+    (AgentState.ERROR,             "operator_retry"):          AgentState.THINKING,
+}
+
+
+class ConversationStateMachine:
+    """
+    Manages agent state transitions with full audit trail.
+    Serializable to/from dict for checkpoint/resume.
+    """
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.current_state = AgentState.IDLE
+        self.history: List[StateTransition] = []
+        self._listeners: Dict[AgentState, List[Callable]] = {}
+
+    def transition(self, trigger: str, metadata: dict = None) -> AgentState:
+        """
+        Apply a trigger and move to the next state.
+        Raises ValueError on illegal transition.
+        """
+        key = (self.current_state, trigger)
+        next_state = TRANSITION_TABLE.get(key)
+        if next_state is None:
+            raise ValueError(
+                f"Illegal transition: {self.current_state} --[{trigger}]--> ?"
+                f"\nLegal triggers from {self.current_state}: "
+                f"{[t for (s, t) in TRANSITION_TABLE if s == self.current_state]}"
+            )
+
+        record = StateTransition(
+            from_state=self.current_state,
+            to_state=next_state,
+            trigger=trigger,
+            metadata=metadata or {},
+        )
+        self.history.append(record)
+        self.current_state = next_state
+
+        # Notify listeners
+        for cb in self._listeners.get(next_state, []):
+            cb(record)
+
+        return next_state
+
+    def on_enter(self, state: AgentState, callback: Callable):
+        """Register a callback invoked whenever state is entered."""
+        self._listeners.setdefault(state, []).append(callback)
+
+    def to_dict(self) -> dict:
+        """Serialize for checkpoint storage."""
+        return {
+            "session_id": self.session_id,
+            "current_state": self.current_state.value,
+            "history": [
+                {
+                    "from": t.from_state.value,
+                    "to": t.to_state.value,
+                    "trigger": t.trigger,
+                    "ts": t.timestamp,
+                    "meta": t.metadata,
+                }
+                for t in self.history
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConversationStateMachine":
+        """Reconstruct from checkpoint data."""
+        sm = cls(data["session_id"])
+        sm.current_state = AgentState(data["current_state"])
+        for t in data["history"]:
+            sm.history.append(StateTransition(
+                from_state=AgentState(t["from"]),
+                to_state=AgentState(t["to"]),
+                trigger=t["trigger"],
+                timestamp=t["ts"],
+                metadata=t.get("meta", {}),
+            ))
+        return sm
+
+
+# Usage example
+sm = ConversationStateMachine(session_id="sess_abc123")
+sm.on_enter(AgentState.ERROR, lambda t: print(f"ALERT: Agent entered ERROR via {t.trigger}"))
+
+sm.transition("user_message_received")          # IDLE -> THINKING
+sm.transition("tool_use_block_emitted",         # THINKING -> EXECUTING_TOOL
+              metadata={"tool": "bash", "id": "tool_xyz"})
+sm.transition("tool_result_ready")              # EXECUTING_TOOL -> THINKING
+sm.transition("text_only_response")             # THINKING -> RESPONDING
+sm.transition("response_complete")              # RESPONDING -> IDLE
+print(sm.current_state)                         # AgentState.IDLE</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Why a formal state machine?</strong> Ad-hoc boolean flags like <code>is_running</code> and <code>waiting_for_tool</code> become inconsistent under concurrent access and crashes. A state machine has a single authoritative field (<code>current_state</code>) that is trivially serializable and auditable.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 3: Checkpoint and Resume                             -->
+            <!-- ============================================================ -->
+            <h2>3. Checkpoint and Resume</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Designing a Robust Checkpoint System</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A checkpoint is a point-in-time snapshot of all recoverable state. Resume means reading that snapshot and reconstructing the agent's context so it can continue as if the crash never happened — without re-executing side effects that already succeeded.</p>
+
+                    <h4>What to Checkpoint</h4>
+                    <div class="math-box">
+checkpoint = {<br>
+&nbsp;&nbsp;session_id,<br>
+&nbsp;&nbsp;state_machine_snapshot,      # current state + history<br>
+&nbsp;&nbsp;messages[],                  # full conversation so far<br>
+&nbsp;&nbsp;tool_call_log[],             # each call: id, name, args, result, status<br>
+&nbsp;&nbsp;file_snapshot_refs[],        # git commit hash or content hashes<br>
+&nbsp;&nbsp;cursor_position,             # which tool call we're at in the plan<br>
+&nbsp;&nbsp;pending_approval_queue[],    # tools awaiting human sign-off<br>
+&nbsp;&nbsp;metadata { created_at, version, harness_version }<br>
+}
+                    </div>
+
+                    <h4>Checkpoint Storage Options</h4>
+                    <ul>
+                        <li><strong>Local JSONL file</strong> (Claude Code model) — each message appended atomically. Crash-safe because partial writes are detected by JSON parse failure on the last line.</li>
+                        <li><strong>SQLite</strong> — single-file embedded DB, great for structured queries over tool call history. Useful for analytics.</li>
+                        <li><strong>Object storage (S3, GCS)</strong> — required for distributed/cloud agents where the process may resume on a different machine.</li>
+                    </ul>
+
+                    <h4>CheckpointManager Implementation</h4>
+                    <pre><code class="language-python">import json
+import os
+import hashlib
+from pathlib import Path
+from dataclasses import dataclass, asdict, field
+from typing import List, Optional, Any
+import time
+
+
+@dataclass
+class ToolCallRecord:
+    call_id: str           # idempotency key
+    tool_name: str
+    arguments: dict
+    result: Optional[Any]  # None if not yet completed
+    status: str            # "pending" | "success" | "error"
+    started_at: float
+    completed_at: Optional[float] = None
+    error_msg: Optional[str] = None
+
+
+@dataclass
+class Checkpoint:
+    session_id: str
+    version: int
+    created_at: float
+    state_machine: dict
+    messages: list
+    tool_call_log: List[ToolCallRecord]
+    file_hashes: dict          # path -> sha256 of file content at checkpoint time
+    cursor: int                # index into tool_call_log of next pending call
+    pending_approvals: list
+    harness_version: str = "1.0"
+
+    def to_json(self) -> str:
+        def _serial(obj):
+            if isinstance(obj, ToolCallRecord):
+                return asdict(obj)
+            raise TypeError(f"Unserializable: {type(obj)}")
+        return json.dumps(asdict(self), default=_serial, indent=2)
+
+    @classmethod
+    def from_json(cls, raw: str) -> "Checkpoint":
+        data = json.loads(raw)
+        data["tool_call_log"] = [
+            ToolCallRecord(**t) for t in data["tool_call_log"]
+        ]
+        return cls(**data)
+
+
+class CheckpointManager:
+    """
+    Atomically writes checkpoints to disk.
+    Uses write-then-rename for crash-safe updates (POSIX rename is atomic).
+    """
+
+    def __init__(self, checkpoint_dir: str):
+        self.dir = Path(checkpoint_dir)
+        self.dir.mkdir(parents=True, exist_ok=True)
+
+    def _path(self, session_id: str) -> Path:
+        return self.dir / f"{session_id}.checkpoint.json"
+
+    def _tmp_path(self, session_id: str) -> Path:
+        return self.dir / f"{session_id}.checkpoint.json.tmp"
+
+    def save(self, checkpoint: Checkpoint) -> None:
+        """
+        Atomic write: write to .tmp, then rename over the real file.
+        This guarantees the checkpoint file is always either the old
+        complete version or the new complete version — never corrupted.
+        """
+        tmp = self._tmp_path(checkpoint.session_id)
+        final = self._path(checkpoint.session_id)
+
+        tmp.write_text(checkpoint.to_json(), encoding="utf-8")
+        tmp.replace(final)  # atomic on POSIX, near-atomic on Windows
+
+    def load(self, session_id: str) -> Optional[Checkpoint]:
+        """Load the most recent valid checkpoint for a session."""
+        path = self._path(session_id)
+        if not path.exists():
+            return None
+        try:
+            return Checkpoint.from_json(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            # Checkpoint corrupted — try .tmp backup
+            tmp = self._tmp_path(session_id)
+            if tmp.exists():
+                return Checkpoint.from_json(tmp.read_text(encoding="utf-8"))
+            raise RuntimeError(f"Checkpoint unreadable for {session_id}: {e}") from e
+
+    def delete(self, session_id: str) -> None:
+        """Remove checkpoint after successful completion."""
+        for p in [self._path(session_id), self._tmp_path(session_id)]:
+            p.unlink(missing_ok=True)
+
+    def list_sessions(self) -> List[str]:
+        return [p.stem.replace(".checkpoint", "")
+                for p in self.dir.glob("*.checkpoint.json")]
+
+    @staticmethod
+    def hash_file(path: str) -> str:
+        """SHA-256 of file content for change detection."""
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+
+# Resume protocol
+def resume_from_checkpoint(
+    checkpoint: Checkpoint,
+    sm: "ConversationStateMachine",
+) -> dict:
+    """
+    Reconstruct agent context from a checkpoint.
+    Returns a dict with everything the agent loop needs.
+    """
+    # 1. Restore state machine
+    sm_restored = ConversationStateMachine.from_dict(checkpoint.state_machine)
+
+    # 2. Find the last SUCCESSFUL tool call (replay point)
+    completed = [t for t in checkpoint.tool_call_log if t.status == "success"]
+    pending   = [t for t in checkpoint.tool_call_log if t.status == "pending"]
+
+    # 3. Build messages context (full history up to checkpoint)
+    messages = checkpoint.messages
+
+    return {
+        "state_machine":    sm_restored,
+        "messages":         messages,
+        "completed_calls":  completed,
+        "pending_calls":    pending,
+        "replay_from":      checkpoint.cursor,
+    }</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Atomic rename pattern:</strong> Writing to a <code>.tmp</code> file then renaming is the standard Unix crash-safety idiom. It guarantees readers always see either the old checkpoint or the new one, never a partial write. SQLite uses a similar approach with its WAL journal.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 4: Short-Term vs Long-Term Memory                    -->
+            <!-- ============================================================ -->
+            <h2>4. Short-Term vs Long-Term Memory</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Memory Architecture for Agent Systems</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Agents need two fundamentally different kinds of memory, just like humans do. Confusing them leads to either bloated context windows (short-term overload) or forgotten knowledge (long-term neglect).</p>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Short-Term Memory</th>
+                                <th>Long-Term Memory</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Location</strong></td>
+                                <td>Context window (messages array)</td>
+                                <td>CLAUDE.md files, vector DB, key-value store</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Scope</strong></td>
+                                <td>Current session / task</td>
+                                <td>Across sessions, all tasks</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Retrieval</strong></td>
+                                <td>Always present (attention over all tokens)</td>
+                                <td>Explicit load: read file, semantic search, key lookup</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cost</strong></td>
+                                <td>Token cost per API call (linear)</td>
+                                <td>Storage cost + retrieval latency</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Update</strong></td>
+                                <td>Append new messages</td>
+                                <td>Write/upsert to persistent store</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Example</strong></td>
+                                <td>"You asked me to use Python 3.11 earlier"</td>
+                                <td>"This project always uses Black formatter"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Memory Consolidation: When to Promote</h4>
+                    <p>Not every short-term fact deserves long-term storage. Promotion criteria:</p>
+                    <ul>
+                        <li><strong>Repeated access</strong> — If a fact was referenced 3+ times in the session, it should be in long-term memory.</li>
+                        <li><strong>Cross-session relevance</strong> — Preferences about coding style, project structure, API keys format.</li>
+                        <li><strong>High-value corrections</strong> — When the user corrects the agent, that correction is worth persisting.</li>
+                        <li><strong>Reference material</strong> — File paths, API endpoints, build commands that won't change.</li>
+                    </ul>
+
+                    <h4>How Claude Code's Memory System Works</h4>
+                    <p>Claude Code uses a layered CLAUDE.md hierarchy as its long-term memory:</p>
+                    <ol>
+                        <li><code>~/.claude/CLAUDE.md</code> — Global user preferences, always loaded</li>
+                        <li><code>/project-root/CLAUDE.md</code> — Project-level conventions, loaded when in project</li>
+                        <li><code>/project-root/src/CLAUDE.md</code> — Directory-level notes, loaded when working in <code>src/</code></li>
+                    </ol>
+                    <p>This means memory retrieval is purely filesystem-based: the harness reads the relevant CLAUDE.md files at session start and injects them into the system prompt. No vector search, no embeddings — just structured text files that developers can read, edit, and version control.</p>
+
+                    <h4>MemoryManager Implementation</h4>
+                    <pre><code class="language-python">import os
+import json
+import time
+from pathlib import Path
+from dataclasses import dataclass, field, asdict
+from typing import List, Optional, Dict
+from enum import Enum
+
+
+class MemoryTier(str, Enum):
+    SHORT_TERM = "short_term"   # current session only
+    LONG_TERM  = "long_term"    # persists across sessions
+
+
+@dataclass
+class MemoryEntry:
+    key: str
+    content: str
+    tier: MemoryTier
+    created_at: float = field(default_factory=time.time)
+    accessed_at: float = field(default_factory=time.time)
+    access_count: int = 0
+    tags: List[str] = field(default_factory=list)
+    source: str = ""           # "user_correction" | "inferred" | "explicit"
+
+
+class MemoryManager:
+    """
+    Dual-tier memory manager.
+    Short-term: in-memory dict (lost on crash, that's fine).
+    Long-term: persisted to .claude/memory.json in project root.
+    """
+
+    PROMOTE_AFTER_ACCESSES = 3    # auto-promote if accessed this many times
+    MAX_SHORT_TERM_ENTRIES = 100  # evict LRU after this limit
+
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        self.memory_file = self.project_root / ".claude" / "memory.json"
+        self.memory_file.parent.mkdir(parents=True, exist_ok=True)
+
+        self._short_term: Dict[str, MemoryEntry] = {}
+        self._long_term: Dict[str, MemoryEntry] = {}
+        self._load_long_term()
+
+    # ---- Write -------------------------------------------------------
+
+    def write(self, key: str, content: str,
+              tier: MemoryTier = MemoryTier.SHORT_TERM,
+              tags: List[str] = None,
+              source: str = "inferred") -> MemoryEntry:
+        entry = MemoryEntry(
+            key=key, content=content, tier=tier,
+            tags=tags or [], source=source,
+        )
+        if tier == MemoryTier.SHORT_TERM:
+            self._evict_if_needed()
+            self._short_term[key] = entry
+        else:
+            self._long_term[key] = entry
+            self._persist_long_term()
+        return entry
+
+    # ---- Read --------------------------------------------------------
+
+    def read(self, key: str) -> Optional[str]:
+        """Read from short-term first, then long-term."""
+        entry = self._short_term.get(key) or self._long_term.get(key)
+        if entry:
+            entry.accessed_at = time.time()
+            entry.access_count += 1
+            self._maybe_promote(entry)
+            return entry.content
+        return None
+
+    def search(self, query_tags: List[str]) -> List[MemoryEntry]:
+        """Retrieve all entries matching ANY of the given tags."""
+        tag_set = set(query_tags)
+        results = []
+        for store in (self._short_term, self._long_term):
+            for entry in store.values():
+                if tag_set & set(entry.tags):
+                    results.append(entry)
+        return sorted(results, key=lambda e: e.accessed_at, reverse=True)
+
+    # ---- Consolidation -----------------------------------------------
+
+    def consolidate_session(self) -> int:
+        """
+        At end of session: promote frequently-accessed short-term entries.
+        Returns number of entries promoted.
+        """
+        promoted = 0
+        for key, entry in list(self._short_term.items()):
+            if entry.access_count >= self.PROMOTE_AFTER_ACCESSES:
+                self._long_term[key] = entry
+                self._long_term[key].tier = MemoryTier.LONG_TERM
+                del self._short_term[key]
+                promoted += 1
+        if promoted:
+            self._persist_long_term()
+        return promoted
+
+    # ---- CLAUDE.md Integration ---------------------------------------
+
+    def load_from_claude_md(self, path: str) -> None:
+        """
+        Parse a CLAUDE.md file and load its sections as long-term memories.
+        Each H2 heading becomes a memory key.
+        """
+        content = Path(path).read_text(encoding="utf-8")
+        sections = content.split("\n## ")
+        for section in sections[1:]:  # skip text before first H2
+            lines = section.strip().split("\n")
+            key = lines[0].strip().lower().replace(" ", "_")
+            body = "\n".join(lines[1:]).strip()
+            self.write(key, body, tier=MemoryTier.LONG_TERM, source="claude_md")
+
+    def render_for_system_prompt(self, max_chars: int = 4000) -> str:
+        """Format long-term memory as a system prompt injection."""
+        lines = ["## Persistent Memory\n"]
+        total = 0
+        for entry in sorted(self._long_term.values(),
+                             key=lambda e: e.accessed_at, reverse=True):
+            snippet = f"- [{entry.key}]: {entry.content}\n"
+            if total + len(snippet) > max_chars:
+                break
+            lines.append(snippet)
+            total += len(snippet)
+        return "".join(lines)
+
+    # ---- Private helpers ---------------------------------------------
+
+    def _maybe_promote(self, entry: MemoryEntry) -> None:
+        if (entry.tier == MemoryTier.SHORT_TERM
+                and entry.access_count >= self.PROMOTE_AFTER_ACCESSES):
+            entry.tier = MemoryTier.LONG_TERM
+            self._long_term[entry.key] = entry
+            self._short_term.pop(entry.key, None)
+            self._persist_long_term()
+
+    def _evict_if_needed(self) -> None:
+        if len(self._short_term) >= self.MAX_SHORT_TERM_ENTRIES:
+            lru_key = min(self._short_term,
+                          key=lambda k: self._short_term[k].accessed_at)
+            del self._short_term[lru_key]
+
+    def _persist_long_term(self) -> None:
+        data = {k: asdict(v) for k, v in self._long_term.items()}
+        tmp = self.memory_file.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(self.memory_file)
+
+    def _load_long_term(self) -> None:
+        if not self.memory_file.exists():
+            return
+        try:
+            data = json.loads(self.memory_file.read_text(encoding="utf-8"))
+            self._long_term = {
+                k: MemoryEntry(**v) for k, v in data.items()
+            }
+        except (json.JSONDecodeError, TypeError):
+            pass  # corrupt file — start fresh</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 5: File vs Database State                            -->
+            <!-- ============================================================ -->
+            <h2>5. File vs Database State</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Choosing Your State Backend</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>There is no universally correct answer. The choice depends on whether you need queryability, concurrent access, or simplicity. Let's examine both ends of the spectrum and the hybrid middle.</p>
+
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>File-Based (Claude Code)</th>
+                                <th>Database-Backed (OpenAI Assistants)</th>
+                                <th>Hybrid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Simplicity</strong></td>
+                                <td><span class="check-green">Excellent</span> — ls, cat, grep</td>
+                                <td><span class="check-red">More complex</span> — schema, migrations</td>
+                                <td><span class="check-yellow">Moderate</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Query capability</strong></td>
+                                <td><span class="check-red">Limited</span> — grep/jq only</td>
+                                <td><span class="check-green">Full SQL / NoSQL</span></td>
+                                <td><span class="check-yellow">SQL for metadata</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Concurrent access</strong></td>
+                                <td><span class="check-red">Dangerous</span> — file locks needed</td>
+                                <td><span class="check-green">Native with transactions</span></td>
+                                <td><span class="check-green">DB handles concurrency</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Git integration</strong></td>
+                                <td><span class="check-green">Native</span> — diff, history, blame</td>
+                                <td><span class="check-red">Not applicable</span></td>
+                                <td><span class="check-yellow">File parts only</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Portability</strong></td>
+                                <td><span class="check-green">Copy directory = copy state</span></td>
+                                <td><span class="check-red">Dump/restore required</span></td>
+                                <td><span class="check-yellow">Mixed</span></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Scale</strong></td>
+                                <td>Breaks &gt;10K sessions on one filesystem</td>
+                                <td>Scales to millions of sessions</td>
+                                <td>Files per session, DB for index</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Multi-machine resume</strong></td>
+                                <td><span class="check-red">Requires shared filesystem or S3</span></td>
+                                <td><span class="check-green">Any machine with DB access</span></td>
+                                <td><span class="check-green">DB coordinates, files replicated</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>File-Based State (Claude Code Approach)</h4>
+                    <pre><code class="language-python">import json
+import fcntl  # POSIX file locking
+from pathlib import Path
+from typing import List
+from datetime import datetime
+
+
+class FileStateStore:
+    """
+    JSONL-based state store.
+    Each session is a directory containing:
+      - conversation.jsonl   (append-only message log)
+      - tool_calls.jsonl     (append-only tool call log)
+      - metadata.json        (session-level metadata)
+    """
+
+    def __init__(self, base_dir: str):
+        self.base = Path(base_dir)
+
+    def _session_dir(self, session_id: str) -> Path:
+        d = self.base / session_id
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def append_message(self, session_id: str, message: dict) -> None:
+        """Append a single message atomically to the conversation log."""
+        log_path = self._session_dir(session_id) / "conversation.jsonl"
+        line = json.dumps(message) + "\n"
+        with open(log_path, "a", encoding="utf-8") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)  # exclusive write lock
+            f.write(line)
+            f.flush()
+            os.fsync(f.fileno())            # ensure durability on crash
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    def read_messages(self, session_id: str) -> List[dict]:
+        """Read all valid messages; skip any partial/corrupt final line."""
+        log_path = self._session_dir(session_id) / "conversation.jsonl"
+        if not log_path.exists():
+            return []
+        messages = []
+        with open(log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    messages.append(json.loads(line))
+                except json.JSONDecodeError:
+                    pass  # skip corrupt tail line from crash
+        return messages
+
+    def list_sessions(self, limit: int = 100) -> List[dict]:
+        """List recent sessions sorted by modification time."""
+        sessions = []
+        for d in sorted(self.base.iterdir(),
+                         key=lambda p: p.stat().st_mtime, reverse=True):
+            if d.is_dir():
+                meta_path = d / "metadata.json"
+                meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
+                sessions.append({"session_id": d.name, **meta})
+        return sessions[:limit]</code></pre>
+
+                    <h4>Database-Backed State (Production SaaS Approach)</h4>
+                    <pre><code class="language-python">import sqlite3
+import json
+from contextlib import contextmanager
+from typing import List, Optional
+from pathlib import Path
+
+
+class SQLiteStateStore:
+    """
+    SQLite-backed state store for structured queries and concurrent access.
+    Uses WAL mode for better read concurrency.
+    Suitable for a single-machine deployment with multiple agent workers.
+    """
+
+    SCHEMA = """
+    CREATE TABLE IF NOT EXISTS sessions (
+        session_id   TEXT PRIMARY KEY,
+        created_at   REAL NOT NULL,
+        updated_at   REAL NOT NULL,
+        state        TEXT NOT NULL DEFAULT 'IDLE',
+        metadata     TEXT NOT NULL DEFAULT '{}'
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id   TEXT NOT NULL,
+        role         TEXT NOT NULL,
+        content      TEXT NOT NULL,
+        created_at   REAL NOT NULL,
+        token_count  INTEGER DEFAULT 0,
+        FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS tool_calls (
+        call_id      TEXT PRIMARY KEY,
+        session_id   TEXT NOT NULL,
+        tool_name    TEXT NOT NULL,
+        arguments    TEXT NOT NULL,
+        result       TEXT,
+        status       TEXT NOT NULL DEFAULT 'pending',
+        started_at   REAL NOT NULL,
+        completed_at REAL,
+        FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_messages_session
+        ON messages(session_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tool_calls_session
+        ON tool_calls(session_id, started_at);
+    """
+
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        with self._conn() as conn:
+            conn.executescript(self.SCHEMA)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+
+    @contextmanager
+    def _conn(self):
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def upsert_tool_call(self, call: dict) -> None:
+        with self._conn() as conn:
+            conn.execute("""
+                INSERT INTO tool_calls
+                    (call_id, session_id, tool_name, arguments,
+                     result, status, started_at, completed_at)
+                VALUES (:call_id, :session_id, :tool_name, :arguments,
+                        :result, :status, :started_at, :completed_at)
+                ON CONFLICT(call_id) DO UPDATE SET
+                    result=excluded.result,
+                    status=excluded.status,
+                    completed_at=excluded.completed_at
+            """, call)
+
+    def get_failed_sessions(self, since_ts: float) -> List[dict]:
+        """Example of a query that's trivial in SQL, painful with files."""
+        with self._conn() as conn:
+            rows = conn.execute("""
+                SELECT s.session_id, s.state, s.updated_at,
+                       COUNT(tc.call_id) as failed_tools
+                FROM sessions s
+                JOIN tool_calls tc ON tc.session_id = s.session_id
+                WHERE s.state = 'ERROR'
+                  AND s.updated_at > ?
+                  AND tc.status = 'error'
+                GROUP BY s.session_id
+                ORDER BY s.updated_at DESC
+            """, (since_ts,)).fetchall()
+            return [dict(r) for r in rows]</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 6: Crash Recovery                                    -->
+            <!-- ============================================================ -->
+            <h2>6. Crash Recovery</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Building a Crash-Resilient Agent Loop</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Agents fail in ways that web servers don't. The failure surface includes: process OOM kill, LLM API timeout mid-stream, sandbox container crash, network partition, and host VM rescheduling in Kubernetes. Each failure mode requires a different recovery strategy.</p>
+
+                    <h4>Failure Taxonomy</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Failure Mode</th>
+                                <th>State Lost</th>
+                                <th>Recovery Strategy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Process OOM / SIGKILL</td>
+                                <td>All in-memory state</td>
+                                <td>Load checkpoint; replay from cursor</td>
+                            </tr>
+                            <tr>
+                                <td>LLM API timeout mid-stream</td>
+                                <td>Partial assistant message</td>
+                                <td>Discard partial; re-issue API call with same messages</td>
+                            </tr>
+                            <tr>
+                                <td>Sandbox crash during tool execution</td>
+                                <td>Tool result not written</td>
+                                <td>Re-execute tool (must be idempotent)</td>
+                            </tr>
+                            <tr>
+                                <td>Network partition to LLM API</td>
+                                <td>None (call not sent)</td>
+                                <td>Retry with exponential backoff</td>
+                            </tr>
+                            <tr>
+                                <td>Harness bug / exception</td>
+                                <td>Varies</td>
+                                <td>Catch at outer loop; persist error state; alert ops</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Crash Recovery Sequence</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Supervisor
+    participant Harness
+    participant Checkpoint
+    participant LLM
+    participant Sandbox
+
+    Note over Harness: Process crashes mid-tool-execution
+    Supervisor->>Supervisor: Detect crash (healthcheck timeout)
+    Supervisor->>Harness: Restart process
+    Harness->>Checkpoint: load(session_id)
+    Checkpoint-->>Harness: Checkpoint { cursor=5, messages=[...], tool_log=[...] }
+    Harness->>Harness: Reconstruct state machine (-> EXECUTING_TOOL)
+    Note over Harness: Check idempotency: was tool_call_id already run?
+    Harness->>Sandbox: re_execute(tool_call[5]) with same call_id
+    Sandbox-->>Harness: tool_result (idempotent — same as before)
+    Harness->>Checkpoint: save(cursor=6, tool_log updated)
+    Harness->>LLM: Continue with tool_result in messages
+    LLM-->>Harness: Next response
+    Note over Harness: Normal loop resumes
+                        </div>
+                    </div>
+
+                    <h4>CrashRecoveryManager Implementation</h4>
+                    <pre><code class="language-python">import signal
+import atexit
+import logging
+from typing import Optional, Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+logger = logging.getLogger("crash_recovery")
+
+
+@dataclass
+class RecoveryContext:
+    session_id: str
+    checkpoint: "Checkpoint"
+    resume_from_cursor: int
+    messages: list
+    is_recovery: bool = True
+
+
+class CrashRecoveryManager:
+    """
+    Manages crash detection and recovery for an agent session.
+
+    Usage:
+        mgr = CrashRecoveryManager(session_id, checkpoint_manager)
+        ctx = mgr.start_or_resume()
+        # if ctx.is_recovery: replay from ctx.resume_from_cursor
+        try:
+            run_agent_loop(ctx)
+            mgr.complete()
+        except Exception as e:
+            mgr.record_error(e)
+            raise
+    """
+
+    def __init__(self, session_id: str, ckpt_mgr: "CheckpointManager"):
+        self.session_id = session_id
+        self.ckpt_mgr = ckpt_mgr
+        self._checkpoint: Optional["Checkpoint"] = None
+        self._setup_signal_handlers()
+
+    def _setup_signal_handlers(self):
+        """Flush checkpoint on SIGTERM (graceful pod shutdown)."""
+        def handler(signum, frame):
+            logger.warning("SIGTERM received — flushing checkpoint before exit")
+            if self._checkpoint:
+                self.ckpt_mgr.save(self._checkpoint)
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGTERM, handler)
+        atexit.register(self._on_exit)
+
+    def _on_exit(self):
+        if self._checkpoint and self._checkpoint.state_machine.get("current_state") not in ("IDLE",):
+            logger.warning("Abnormal exit — checkpoint preserved for recovery")
+            self.ckpt_mgr.save(self._checkpoint)
+
+    def start_or_resume(self) -> RecoveryContext:
+        """
+        Check for an existing checkpoint.
+        If found, this is a recovery; otherwise start fresh.
+        """
+        existing = self.ckpt_mgr.load(self.session_id)
+        if existing:
+            logger.info(
+                "Recovery: resuming session %s from cursor=%d",
+                self.session_id, existing.cursor
+            )
+            return RecoveryContext(
+                session_id=self.session_id,
+                checkpoint=existing,
+                resume_from_cursor=existing.cursor,
+                messages=existing.messages,
+                is_recovery=True,
+            )
+        else:
+            import time
+            from dataclasses import field
+            fresh = Checkpoint(
+                session_id=self.session_id,
+                version=1,
+                created_at=time.time(),
+                state_machine={"current_state": "IDLE", "history": []},
+                messages=[],
+                tool_call_log=[],
+                file_hashes={},
+                cursor=0,
+                pending_approvals=[],
+            )
+            self._checkpoint = fresh
+            return RecoveryContext(
+                session_id=self.session_id,
+                checkpoint=fresh,
+                resume_from_cursor=0,
+                messages=[],
+                is_recovery=False,
+            )
+
+    def update_checkpoint(self, checkpoint: "Checkpoint") -> None:
+        """Call after each successful tool execution to advance the cursor."""
+        self._checkpoint = checkpoint
+        self.ckpt_mgr.save(checkpoint)
+
+    def record_error(self, error: Exception) -> None:
+        if self._checkpoint:
+            self._checkpoint.state_machine["current_state"] = "ERROR"
+            self._checkpoint.state_machine.setdefault("errors", []).append(str(error))
+            self.ckpt_mgr.save(self._checkpoint)
+
+    def complete(self) -> None:
+        """Called on successful session completion — remove checkpoint."""
+        self.ckpt_mgr.delete(self.session_id)
+        self._checkpoint = None
+        logger.info("Session %s completed; checkpoint deleted", self.session_id)</code></pre>
+
+                    <div class="warning-box">
+                        <strong>Write-Ahead Logging for Tool Operations:</strong> Before executing any irreversible tool (file write, API call, DB mutation), write an intent record to a WAL file. On recovery, check the WAL to determine which operations were started but not confirmed complete. This prevents silent data loss where a tool executed but its result was never written to the checkpoint.
+                    </div>
+
+                    <pre><code class="language-python">class WriteAheadLog:
+    """
+    Simple append-only WAL for tool operation intent.
+    Pattern: WRITE intent -> EXECUTE tool -> WRITE completion -> EXECUTE next
+    """
+
+    def __init__(self, wal_path: str):
+        self.path = Path(wal_path)
+
+    def write_intent(self, call_id: str, tool_name: str, args: dict) -> None:
+        entry = {"type": "intent", "call_id": call_id,
+                 "tool": tool_name, "args": args, "ts": time.time()}
+        self._append(entry)
+
+    def write_completion(self, call_id: str, result: any, success: bool) -> None:
+        entry = {"type": "completion", "call_id": call_id,
+                 "success": success, "result": str(result)[:500], "ts": time.time()}
+        self._append(entry)
+
+    def get_incomplete_calls(self) -> list:
+        """Return call_ids that have an intent but no completion record."""
+        intents = {}
+        completions = set()
+        for entry in self._read_all():
+            if entry["type"] == "intent":
+                intents[entry["call_id"]] = entry
+            elif entry["type"] == "completion":
+                completions.add(entry["call_id"])
+        return [v for k, v in intents.items() if k not in completions]
+
+    def _append(self, entry: dict) -> None:
+        with open(self.path, "a") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            f.write(json.dumps(entry) + "\n")
+            f.flush()
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    def _read_all(self) -> list:
+        if not self.path.exists():
+            return []
+        records = []
+        for line in self.path.read_text().splitlines():
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
+        return records</code></pre>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 7: Idempotent Tool Execution                         -->
+            <!-- ============================================================ -->
+            <h2>7. Idempotent Tool Execution</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Making Every Tool Call Safe to Retry</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Idempotency means executing a tool call multiple times with the same inputs produces the same outcome as executing it once. This is the critical enabler of crash recovery: if you cannot safely re-execute a tool, you cannot safely recover from a crash that happened during its execution.</p>
+
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> "Press the elevator button N times" is idempotent — the elevator arrives once. "Add $10 to your account N times" is not idempotent — you get $10N. Agent tool calls must behave like the elevator button.
+                    </div>
+
+                    <h4>Idempotency Key Strategy</h4>
+                    <p>Each tool call gets a deterministic idempotency key derived from:</p>
+                    <div class="math-box">
+call_id = sha256(session_id + ":" + turn_number + ":" + tool_name + ":" + canonical_json(args))
+                    </div>
+                    <p>This means the same logical operation always generates the same key. On crash recovery, we check whether the key already exists in the completed-calls log before re-executing.</p>
+
+                    <h4>IdempotencyLayer Middleware</h4>
+                    <pre><code class="language-python">import hashlib
+import json
+import time
+import functools
+from typing import Any, Callable, Dict, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class CachedResult:
+    call_id: str
+    result: Any
+    executed_at: float
+    hit_count: int = 0
+
+
+class IdempotencyLayer:
+    """
+    Middleware that wraps tool executors with idempotency guarantees.
+
+    Tools are registered with a type hint:
+      - "readonly"     -> never cache, always re-execute
+      - "write_once"   -> cache result after first success, return cached on retry
+      - "idempotent"   -> re-execute is safe but cache anyway for speed
+    """
+
+    def __init__(self, store: "CheckpointManager", wal: "WriteAheadLog"):
+        self.store = store
+        self.wal = wal
+        self._cache: Dict[str, CachedResult] = {}
+        self._tool_types: Dict[str, str] = {}
+
+    def register_tool(self, name: str, tool_type: str = "write_once"):
+        """Register a tool with its idempotency type."""
+        assert tool_type in ("readonly", "write_once", "idempotent")
+        self._tool_types[name] = tool_type
+
+    def make_call_id(self, session_id: str, turn: int,
+                     tool_name: str, args: dict) -> str:
+        canonical = json.dumps(args, sort_keys=True)
+        raw = f"{session_id}:{turn}:{tool_name}:{canonical}"
+        return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+    def execute(self,
+                executor: Callable,
+                call_id: str,
+                tool_name: str,
+                args: dict) -> Any:
+        """
+        Execute a tool with idempotency protection.
+        1. Check cache for existing result
+        2. Write WAL intent
+        3. Execute
+        4. Write WAL completion
+        5. Cache result
+        """
+        tool_type = self._tool_types.get(tool_name, "write_once")
+
+        # Readonly tools always re-execute (no side effects)
+        if tool_type == "readonly":
+            return executor(**args)
+
+        # Check if already executed
+        cached = self._cache.get(call_id)
+        if cached:
+            cached.hit_count += 1
+            return cached.result
+
+        # Write intent to WAL before execution
+        self.wal.write_intent(call_id, tool_name, args)
+
+        try:
+            result = executor(**args)
+            success = True
+        except Exception as e:
+            self.wal.write_completion(call_id, str(e), success=False)
+            raise
+
+        # Record completion
+        self.wal.write_completion(call_id, result, success=True)
+
+        # Cache result for future retries
+        self._cache[call_id] = CachedResult(
+            call_id=call_id,
+            result=result,
+            executed_at=time.time(),
+        )
+        return result
+
+    def load_from_checkpoint(self, tool_log: list) -> None:
+        """
+        Rebuild in-memory cache from a checkpoint's tool log.
+        Called during crash recovery so already-completed calls are not re-run.
+        """
+        for record in tool_log:
+            if record.get("status") == "success":
+                self._cache[record["call_id"]] = CachedResult(
+                    call_id=record["call_id"],
+                    result=record.get("result"),
+                    executed_at=record.get("completed_at", 0),
+                )
+
+
+# Making file operations idempotent
+class IdempotentFileOps:
+    """
+    Idempotent wrappers for common file operations.
+    These are safe to call multiple times with the same arguments.
+    """
+
+    @staticmethod
+    def write_file(path: str, content: str) -> dict:
+        """Write file atomically. Re-running produces same result."""
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(content, encoding="utf-8")
+        tmp.replace(p)
+        return {"path": str(p), "bytes": len(content.encode()), "ok": True}
+
+    @staticmethod
+    def create_directory(path: str) -> dict:
+        """mkdir -p — idempotent by definition."""
+        Path(path).mkdir(parents=True, exist_ok=True)
+        return {"path": path, "ok": True}
+
+    @staticmethod
+    def delete_file_if_exists(path: str) -> dict:
+        """Idempotent delete — no error if already gone."""
+        p = Path(path)
+        existed = p.exists()
+        p.unlink(missing_ok=True)
+        return {"path": path, "existed": existed, "ok": True}
+
+
+# Making API calls idempotent
+class IdempotentAPIClient:
+    """
+    Wraps HTTP API calls with idempotency headers.
+    Many APIs (Stripe, GitHub) honor Idempotency-Key headers.
+    """
+
+    def __init__(self, session: "requests.Session"):
+        self.session = session
+
+    def post(self, url: str, call_id: str, payload: dict) -> dict:
+        """POST with Idempotency-Key header — safe to retry."""
+        resp = self.session.post(
+            url,
+            json=payload,
+            headers={
+                "Idempotency-Key": call_id,
+                "Content-Type": "application/json",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()</code></pre>
+
+                    <div class="insight-box">
+                        <strong>Non-Idempotent Operations:</strong> Some operations are inherently non-idempotent: sending an email, posting a tweet, charging a credit card. For these, the correct pattern is: (1) generate an idempotency key before the call, (2) record "intent to call" in the WAL, (3) make the call with the idempotency key as a header, (4) record completion. The API server deduplicates on its end.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 8: Interview Tips                                    -->
+            <!-- ============================================================ -->
+            <h2>8. Interview Tips</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(6,182,212,0.08) 0%, rgba(59,130,246,0.08) 100%); border: 1px solid rgba(6,182,212,0.3);">
+                <h3>What Senior Interviewers Look For</h3>
+
+                <h4>State Serialization Questions</h4>
+                <ul>
+                    <li><strong>"How would you design crash recovery for an agent that runs for 30 minutes?"</strong> — Talk about checkpointing after each tool call, atomic writes (rename pattern), WAL for intent logging, and idempotency keys. Show you understand the difference between "checkpoint written" and "tool effect committed."</li>
+                    <li><strong>"What's in a checkpoint?"</strong> — Enumerate all four layers: context window state (messages), state machine position, tool call log with results, and filesystem state (file hashes or git commit). Interviewers who ask this want to see you think systematically about all the places state lives.</li>
+                    <li><strong>"How do you avoid double-executing a tool after crash recovery?"</strong> — Idempotency keys + result cache loaded from checkpoint. Distinguish readonly (always safe to re-run) vs. write_once (must deduplicate).</li>
+                </ul>
+
+                <h4>Memory Architecture Questions</h4>
+                <ul>
+                    <li><strong>"How does an agent remember things across sessions?"</strong> — Distinguish short-term (context window) from long-term (persistent store). Describe promotion criteria: access frequency, cross-session relevance, user corrections. Mention Claude Code's CLAUDE.md hierarchy as a concrete example.</li>
+                    <li><strong>"When would you use a database instead of files for agent state?"</strong> — Key signals: concurrent multi-agent access (DB wins), need for ad-hoc analytics queries (DB wins), developer transparency/git integration (files win), single-developer local tool (files win).</li>
+                </ul>
+
+                <h4>Red Flags to Avoid</h4>
+                <ul>
+                    <li>Saying "just restart from scratch" — shows you haven't thought about long-running tasks</li>
+                    <li>No mention of atomicity in file writes — partial writes corrupt checkpoints</li>
+                    <li>Treating all tools as idempotent without distinguishing read vs. write operations</li>
+                    <li>Forgetting that external side effects (API calls, emails) cannot be "undone" — must be idempotent or tracked via WAL</li>
+                    <li>Over-engineering memory to require vector search when file-based CLAUDE.md is often sufficient</li>
+                </ul>
+
+                <h4>Architectural Trade-off Questions</h4>
+                <ul>
+                    <li><strong>"State machine vs. ad-hoc booleans?"</strong> — State machine gives you: serializable state, illegal-transition detection, audit trail, listener hooks. Booleans give you: initial simplicity, nothing else.</li>
+                    <li><strong>"How granular should checkpoints be?"</strong> — After each tool call is the right granularity. Before API calls is too early (no result yet). After full turns is too coarse (a 10-tool turn may take minutes — losing it is expensive).</li>
+                </ul>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 9: Quiz                                              -->
+            <!-- ============================================================ -->
+            <h2>Knowledge Check</h2>
+
+            <div class="quiz-question">
+                <h4>Q1. An agent process is killed by OOM mid-way through executing the 7th tool call in a session. The checkpoint was last saved after the 6th tool call completed. What is the correct recovery sequence?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Correct sequence:</strong>
+                    <ol>
+                        <li>Load checkpoint (cursor = 6, messages include results of calls 1-6)</li>
+                        <li>Reconstruct state machine — state should be EXECUTING_TOOL (or advance to it from the saved state)</li>
+                        <li>Check WAL for tool call 7: was an "intent" record written? Was a "completion" record written?</li>
+                        <li>If intent-only (no completion): the tool may or may not have fully executed. Re-execute using the same call_id (idempotency key). The tool must be idempotent or the API must honor the idempotency key header.</li>
+                        <li>Write the tool result back to the checkpoint and advance cursor to 7</li>
+                        <li>Continue the agent loop normally from turn 7 onward</li>
+                    </ol>
+                    <p><em>Key insight: the WAL tells you what was <em>started</em>; the checkpoint tells you what was <em>completed</em>. The gap between them is the recovery window.</em></p>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q2. What is the "atomic rename" pattern and why does checkpoint writing use it?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Pattern:</strong> Write new content to a temporary file (<code>checkpoint.json.tmp</code>), then call <code>os.rename(tmp, final)</code>. On POSIX systems, rename is atomic at the filesystem level — readers see either the old complete file or the new complete file, never a partial write.<br><br>
+                    <strong>Why it matters for checkpoints:</strong> If a process crashes while writing a checkpoint file directly, the file may be half-written and unparseable. A half-written checkpoint is worse than no checkpoint (it blocks recovery). The rename pattern eliminates this risk: the tmp file may be partial, but the final checkpoint file is always a valid complete snapshot.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q3. Describe the difference between short-term and long-term agent memory, and give a concrete trigger for promoting a fact from short-term to long-term.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Short-term memory</strong> lives in the context window — it is the messages array passed to the LLM on each API call. It is lost when the session ends (or when context compression evicts old messages). It has no retrieval cost but has a hard token limit.<br><br>
+                    <strong>Long-term memory</strong> is persisted to disk (CLAUDE.md files, a key-value store, a vector DB). It survives process restarts and session boundaries. It requires explicit retrieval: loading a file, semantic search, or key lookup.<br><br>
+                    <strong>Promotion triggers:</strong>
+                    <ul>
+                        <li>The fact was accessed 3+ times in the current session (high utility signal)</li>
+                        <li>The user explicitly corrected the agent (high-value ground truth)</li>
+                        <li>The fact is project-wide (coding style, build commands) — not task-specific</li>
+                        <li>The session is ending and the fact is marked as "sticky" by the agent's reasoning</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q4. You are building a harness for an agent that sends Slack messages as a tool. How do you make this tool idempotent for crash recovery purposes?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Approach 1 — API-level idempotency:</strong> Generate a deterministic <code>call_id = sha256(session+turn+tool+args)</code> before calling. Pass it as a custom header or query parameter. Build (or use an existing) deduplication layer server-side that ignores duplicate calls with the same key within a time window (e.g., 24 hours).<br><br>
+                    <strong>Approach 2 — WAL + result cache:</strong> Write intent to WAL before calling. After successful send, write the Slack <code>message_ts</code> to the checkpoint's tool log. On crash recovery, check the log: if <code>call_id</code> has a result, return the cached result without re-calling Slack.<br><br>
+                    <strong>Approach 3 — Check-before-send:</strong> Before sending, query Slack's history for a message with your unique <code>call_id</code> in the text or metadata. If found, skip. This works but adds latency.<br><br>
+                    <em>Best practice is Approach 2 (WAL + result cache) for most cases, with Approach 1 as a belt-and-suspenders addition for critical messages.</em>
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q5. When would you choose a SQLite-backed state store over a file-based JSONL store for an agent harness? Give three concrete scenarios.</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'; this.style.display='none';">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Choose SQLite (database) when:</strong>
+                    <ol>
+                        <li><strong>Multiple concurrent agent workers share the same session.</strong> SQLite's WAL mode allows multiple readers and one writer concurrently without file-lock conflicts. JSONL requires external coordination (advisory locks) for concurrent writes.</li>
+                        <li><strong>You need operational analytics over agent runs.</strong> Example: "Show me all sessions that entered ERROR state in the last hour with a failed bash tool call." This is trivial SQL but painful with grep over thousands of JSONL files.</li>
+                        <li><strong>You need to enforce referential integrity between state entities.</strong> Example: every tool_call must reference a valid session, and every message must reference a valid turn. FK constraints in SQLite catch bugs at write time; JSONL files have no such enforcement.</li>
+                    </ol>
+                    <strong>Stick with JSONL when:</strong> Single-user local tool, git-based audit trail is important, developer transparency over raw state is a priority, or simplicity of deployment matters (no DB dependency).
+                </div>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- SECTION 10: Mini Project                                     -->
+            <!-- ============================================================ -->
+            <h2>Mini-Project: Build a Checkpoint/Resume System</h2>
+
+            <div class="mini-project">
+                <h3>Project: AgentCheckpointer</h3>
+                <p>Build a self-contained checkpoint/resume system for a simulated agent session. The system must survive a simulated crash and resume correctly without re-executing any already-completed tool calls.</p>
+
+                <h4>Requirements</h4>
+                <ol>
+                    <li><strong>ConversationStateMachine</strong> — Implement the 6-state FSM with all transitions from Section 2. Include <code>to_dict()</code> / <code>from_dict()</code> serialization.</li>
+                    <li><strong>CheckpointManager</strong> — Atomic write-then-rename to disk. Load must tolerate a corrupt/partial final file by falling back to the .tmp backup.</li>
+                    <li><strong>WriteAheadLog</strong> — Append-only intent/completion log. Expose <code>get_incomplete_calls()</code> for recovery.</li>
+                    <li><strong>IdempotencyLayer</strong> — Cache tool results by <code>call_id</code>. On recovery, load cache from checkpoint so already-run tools are not re-executed.</li>
+                    <li><strong>Simulated crash</strong> — Run a 10-step agent loop. At step 5, call <code>os.kill(os.getpid(), signal.SIGTERM)</code>. Verify the checkpoint has cursor=4. Then restart and verify the loop continues from step 5 without re-running steps 1-4.</li>
+                </ol>
+
+                <h4>Verification Checklist</h4>
+                <ul>
+                    <li>After crash at step 5: <code>checkpoint.cursor == 4</code></li>
+                    <li>After resume: tool calls 1-4 return cached results (zero re-execution)</li>
+                    <li>WAL shows intent records 1-5 and completion records 1-4 (step 5 incomplete)</li>
+                    <li>Tool call 5 is re-executed once and completes; WAL completion written</li>
+                    <li>Steps 6-10 execute normally; final checkpoint deleted on completion</li>
+                    <li>State machine history covers all 10 transitions in correct order</li>
+                </ul>
+
+                <h4>Bonus Challenges</h4>
+                <ul>
+                    <li>Add a <code>MemoryManager</code>: write 5 facts during the session, verify 3 (accessed 3+ times) are promoted to long-term on <code>consolidate_session()</code></li>
+                    <li>Replace the in-memory idempotency cache with a SQLite backend so the cache survives process restarts without reading the full checkpoint</li>
+                    <li>Implement a <code>CheckpointDiff</code> utility that shows what changed between two checkpoint versions (useful for debugging)</li>
+                </ul>
+
+                <h4>Sample Test Harness</h4>
+                <pre><code class="language-python">import time, signal, os, tempfile
+
+def simulate_crash_and_recover():
+    with tempfile.TemporaryDirectory() as tmp:
+        ckpt_mgr = CheckpointManager(tmp + "/checkpoints")
+        wal      = WriteAheadLog(tmp + "/wal.jsonl")
+        idp      = IdempotencyLayer(ckpt_mgr, wal)
+
+        execution_log = []
+
+        def mock_tool(step: int) -> str:
+            execution_log.append(step)
+            return f"result_step_{step}"
+
+        # Simulate 10-step agent loop with crash at step 5
+        session_id = "test_session_001"
+        checkpoint = Checkpoint(
+            session_id=session_id, version=1, created_at=time.time(),
+            state_machine={"current_state": "IDLE", "history": []},
+            messages=[], tool_call_log=[], file_hashes={}, cursor=0,
+            pending_approvals=[],
+        )
+
+        crashed_at = None
+        for step in range(1, 11):
+            call_id = idp.make_call_id(session_id, step, "mock_tool", {"step": step})
+            idp.register_tool("mock_tool", "write_once")
+
+            if step == 5 and crashed_at is None:
+                crashed_at = step
+                ckpt_mgr.save(checkpoint)
+                # Simulate crash: reset execution log, reload checkpoint
+                execution_log_before_crash = execution_log.copy()
+                execution_log.clear()
+
+                # Recovery
+                recovered = ckpt_mgr.load(session_id)
+                idp.load_from_checkpoint(
+                    [{"call_id": t.call_id, "status": t.status,
+                      "result": t.result, "completed_at": t.completed_at}
+                     for t in recovered.tool_call_log]
+                )
+                checkpoint = recovered
+
+            result = idp.execute(
+                lambda step=step: mock_tool(step),
+                call_id, "mock_tool", {"step": step}
+            )
+            # Update tool log
+            checkpoint.tool_call_log.append(ToolCallRecord(
+                call_id=call_id, tool_name="mock_tool",
+                arguments={"step": step}, result=result,
+                status="success", started_at=time.time(),
+                completed_at=time.time(),
+            ))
+            checkpoint.cursor = step
+            ckpt_mgr.save(checkpoint)
+
+        # Assertions
+        assert set(execution_log) == {5, 6, 7, 8, 9, 10}, \
+            f"Should only re-run from step 5, got: {execution_log}"
+        assert len(execution_log) == 6, "Steps 1-4 must use cache"
+        print("All assertions passed!")
+
+simulate_crash_and_recover()</code></pre>
+            </div>
+
+            <!-- ============================================================ -->
+            <!-- Checkpoint Summary                                           -->
+            <!-- ============================================================ -->
+            <div class="checkpoint-summary">
+                <h3>Module Summary</h3>
+                <p>State management is the invisible backbone of reliable agent systems. You now understand:</p>
+                <ul>
+                    <li><strong>State distribution</strong> — Agent state lives in four layers (context, process memory, filesystem, external systems). Your harness must bridge them all.</li>
+                    <li><strong>State machines</strong> — Formalizing agent conversations as 6-state FSMs gives you serializable, auditable, and recoverable control flow.</li>
+                    <li><strong>Checkpointing</strong> — Atomic write-then-rename pattern, checkpoint after each tool call, and the WAL for intent tracking are the three pillars of crash-safe persistence.</li>
+                    <li><strong>Memory tiers</strong> — Short-term lives in the context window; long-term lives in files or a store. Promote based on access frequency, correction signals, and cross-session utility.</li>
+                    <li><strong>File vs. DB</strong> — Files win on simplicity, transparency, and git integration. Databases win on concurrency, queryability, and multi-machine scenarios. Hybrids use files per session with a DB index.</li>
+                    <li><strong>Idempotency</strong> — Deterministic call_ids + result cache + WAL make crash recovery safe. Non-idempotent external calls require API-level idempotency keys.</li>
+                </ul>
+
+                <div class="math-box" style="margin-top: 1rem;">
+Reliability formula for agent state:<br><br>
+P(successful recovery) = P(checkpoint valid) &times; P(tool idempotent | retry) &times; P(WAL complete)<br><br>
+Maximize each factor independently:<br>
+- Atomic writes for checkpoint validity<br>
+- Idempotency keys + result cache for tool safety<br>
+- Sync-after-write (fsync) for WAL completeness
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-09.html" class="btn btn-secondary">&larr; Module 9: Scaling</a>
+                <a href="module-11.html" class="btn btn-primary">Module 11: Streaming &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#06b6d4',
+                primaryTextColor: '#e2e8f0',
+                primaryBorderColor: '#3b82f6',
+                lineColor: '#64748b',
+                secondaryColor: '#1e293b',
+                tertiaryColor: '#0f172a',
+            }
+        });
+
+        // Sidebar toggle
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                overlay.classList.toggle('active');
+            });
+        }
+        if (overlay) {
+            overlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+            });
+        }
+    </script>
+</body>
+</html>
