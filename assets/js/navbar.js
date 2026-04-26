@@ -22,6 +22,10 @@
         // Detect base path from data attribute or auto-detect
         var basePath = container.getAttribute('data-base') || '';
 
+        // Apply extra CSS classes if specified
+        var extraClass = container.getAttribute('data-class');
+        if (extraClass) container.className += ' ' + extraClass;
+
         // Detect active course from current path
         var path = window.location.pathname.toLowerCase();
         var activeCourse = '';
