@@ -2237,6 +2237,474 @@ print(f"Hit Rate@3: {hit_rate_at_k([q['retrieved_relevances'] for q in queries],
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION: RAG EVAL DEEP DIVE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">RAG Evaluation Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Diagnostic Workflow: Score Is Low — What Do You Fix?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The power of separating retrieval metrics from generation metrics is that each tells you <em>where</em> to focus your debugging effort. Here is the diagnostic decision tree every staff engineer should know:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    Start[RAG Quality Issue Detected] --> F{Faithfulness<br/>score low?}
+    F -->|Yes| FC{Context Recall<br/>also low?}
+    FC -->|Yes| Fix1["Retrieval problem<br/>Fix: better chunking, reranking,<br/>increase k, hybrid search"]
+    FC -->|No| Fix2["Generation problem<br/>Fix: stronger system prompt,<br/>add 'only use provided context',<br/>lower temperature"]
+    F -->|No| AR{Answer Relevancy<br/>low?}
+    AR -->|Yes| Fix3["Generation problem<br/>Fix: prompt engineering,<br/>few-shot examples,<br/>constrained output format"]
+    AR -->|No| CP{Context Precision<br/>low?}
+    CP -->|Yes| Fix4["Ranking problem<br/>Fix: add reranker,<br/>tune BM25/dense weights,<br/>filter by metadata"]
+    CP -->|No| Fix5["System is healthy<br/>Monitor for drift"]
+
+    style Fix1 fill:#e74c3c,color:#fff
+    style Fix2 fill:#f39c12,color:#fff
+    style Fix3 fill:#f39c12,color:#fff
+    style Fix4 fill:#3498db,color:#fff
+    style Fix5 fill:#2ecc71,color:#fff
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Metric-to-Fix Mapping</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Symptom</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric(s) Affected</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Root Cause</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Fix</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LLM makes claims not in context</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Faithfulness &lt; 0.8</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LLM relying on parametric knowledge</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add "answer ONLY from context" instruction; lower temperature to 0.1-0.3; add citations</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Correct info exists but LLM misses it</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Faithfulness OK, Answer Relevancy &lt; 0.7</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">"Lost in the middle" or context too long</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Reduce k; reorder chunks by relevance; use smaller, focused chunks</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Top chunks are irrelevant</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Context Precision &lt; 0.6</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Weak retrieval ranking</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add cross-encoder reranker; tune hybrid search weights; add metadata filters</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Ground-truth info not retrieved at all</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Context Recall &lt; 0.7</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Chunking splits key info; embedding model weak for domain</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Increase k; use hybrid search; try domain-specific embedding model; adjust chunk size</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Query phrasing mismatch</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hit Rate@5 &lt; 0.8</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Query-document vocabulary gap</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add query rewriting (HyDE, multi-query); hybrid search with BM25</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Staff-Level Insight:</strong> In an interview, don't just say "I'd run RAGAS." Walk through the diagnostic: "First I'd check faithfulness to separate retrieval vs generation failures, then I'd look at context precision to understand if it's a ranking problem, and context recall to see if we're missing documents entirely. Each failure mode has a different fix."
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Building Synthetic Eval Datasets</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The biggest blocker for RAG evaluation is not having an eval dataset. You need <code>(question, ground_truth_answer, relevant_chunks)</code> triples. Manually creating these is expensive. The solution: <strong>use an LLM to generate synthetic eval data from your own documents</strong>.</p>
+
+                    <h4>The Synthetic Generation Pipeline</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Your Document<br/>Corpus"] --> B["Sample Chunks<br/>(stratified)"]
+    B --> C["LLM generates<br/>Q&A pairs<br/>per chunk"]
+    C --> D["Human reviews<br/>~10% sample"]
+    D --> E["Filter low-quality<br/>pairs"]
+    E --> F["Eval Dataset<br/>(100-500 pairs)"]
+                        </div>
+                    </div>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import json
+from openai import OpenAI
+
+client = OpenAI()
+
+def generate_eval_pairs(chunks: list[str], pairs_per_chunk: int = 2) -&gt; list[dict]:
+    """Generate synthetic (question, answer, context) triples from document chunks."""
+    eval_pairs = []
+
+    for chunk in chunks:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            temperature=0.7,
+            messages=[{
+                "role": "system",
+                "content": """You are an eval dataset generator. Given a document chunk,
+generate question-answer pairs that a user might ask.
+
+Rules:
+- Questions should be diverse: factual, comparative, procedural, edge-case
+- Answers must be FULLY answerable from the chunk alone
+- Include one 'hard' question that requires synthesis across the chunk
+- Output JSON array: [{"question": "...", "answer": "..."}]"""
+            }, {
+                "role": "user",
+                "content": f"Generate {pairs_per_chunk} Q&amp;A pairs from this chunk:\n\n{chunk}"
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        pairs = json.loads(response.choices[0].message.content)
+        for pair in pairs.get("pairs", pairs.get("qa_pairs", [])):
+            eval_pairs.append({
+                "question": pair["question"],
+                "ground_truth": pair["answer"],
+                "relevant_context": chunk
+            })
+
+    return eval_pairs
+
+# Stratified sampling: pick chunks from different sections/topics
+sampled_chunks = stratified_sample(all_chunks, n=50, by="section")
+eval_dataset = generate_eval_pairs(sampled_chunks, pairs_per_chunk=3)
+print(f"Generated {len(eval_dataset)} eval pairs from {len(sampled_chunks)} chunks")</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Quality Control for Synthetic Datasets</h4>
+                    <ul>
+                        <li><strong>Self-consistency filter</strong>: Run the generated question through your RAG pipeline. If it retrieves the source chunk in top-3, the question is well-formed. If not, discard it.</li>
+                        <li><strong>Difficulty stratification</strong>: Tag each pair as easy (single fact lookup), medium (requires combining two sentences), or hard (requires reasoning across the chunk). Ensure your eval set has all three.</li>
+                        <li><strong>Human review 10-20%</strong>: Have a domain expert review a random sample. Check that answers are correct and questions are realistic. Calculate inter-annotator agreement if using multiple reviewers.</li>
+                        <li><strong>Adversarial pairs</strong>: Add questions that should NOT be answerable from your corpus (expected answer: "I don't have information about that"). This tests hallucination resistance.</li>
+                    </ul>
+
+                    <div class="key-insight">
+                        <strong>How many eval pairs?</strong> Start with <strong>100-200 pairs</strong> for initial development. Scale to <strong>500+</strong> for production eval gates. Update the dataset quarterly as your corpus evolves. Track coverage: what % of your document sections have at least one eval pair?
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Running RAGAS + DeepEval for RAG Systems</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The custom <code>RAGEvaluator</code> class above is good for understanding the mechanics. In production, use established frameworks that handle edge cases, provide better LLM-as-judge prompts, and integrate with CI/CD.</p>
+
+                    <h4>RAGAS: End-to-End RAG Evaluation</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python">from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall,
+    answer_correctness,   # NEW: compares to ground truth
+    answer_similarity,    # NEW: semantic similarity to reference
+)
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from datasets import Dataset
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# Configure evaluator LLM (use a strong model for judging)
+evaluator_llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o"))
+evaluator_embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings())
+
+# Prepare your data - run each question through your RAG pipeline first
+eval_data = {
+    "question": [],
+    "answer": [],            # Your RAG pipeline's actual output
+    "contexts": [],          # The chunks your retriever returned
+    "ground_truth": [],      # Reference answers from eval dataset
+}
+
+for item in eval_dataset:
+    # Run your actual RAG pipeline
+    result = my_rag_pipeline.query(item["question"])
+
+    eval_data["question"].append(item["question"])
+    eval_data["answer"].append(result["answer"])
+    eval_data["contexts"].append(result["retrieved_chunks"])
+    eval_data["ground_truth"].append(item["ground_truth"])
+
+dataset = Dataset.from_dict(eval_data)
+
+# Run evaluation
+results = evaluate(
+    dataset=dataset,
+    metrics=[
+        faithfulness,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+        answer_correctness,
+    ],
+    llm=evaluator_llm,
+    embeddings=evaluator_embeddings,
+)
+
+print(results)
+# {'faithfulness': 0.87, 'answer_relevancy': 0.91,
+#  'context_precision': 0.78, 'context_recall': 0.72,
+#  'answer_correctness': 0.83}
+
+# Per-question breakdown for debugging
+df = results.to_pandas()
+# Find worst-performing questions
+worst = df.nsmallest(10, 'faithfulness')
+print("Lowest faithfulness questions:")
+print(worst[['question', 'faithfulness', 'context_precision']])</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">DeepEval: pytest-style RAG Evals</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python"># test_rag.py — run with: deepeval test run test_rag.py
+import pytest
+from deepeval import assert_test
+from deepeval.test_case import LLMTestCase
+from deepeval.metrics import (
+    FaithfulnessMetric,
+    AnswerRelevancyMetric,
+    ContextualPrecisionMetric,
+    ContextualRecallMetric,
+    HallucinationMetric,
+)
+
+faithfulness = FaithfulnessMetric(threshold=0.8, model="gpt-4o")
+relevancy = AnswerRelevancyMetric(threshold=0.7, model="gpt-4o")
+precision = ContextualPrecisionMetric(threshold=0.6, model="gpt-4o")
+recall = ContextualRecallMetric(threshold=0.7, model="gpt-4o")
+hallucination = HallucinationMetric(threshold=0.5, model="gpt-4o")
+
+@pytest.mark.parametrize("eval_case", load_eval_dataset("eval_data.json"))
+def test_rag_quality(eval_case):
+    """Test RAG quality for each eval case — fails if any metric below threshold."""
+    # Run your RAG pipeline
+    result = my_rag_pipeline.query(eval_case["question"])
+
+    test_case = LLMTestCase(
+        input=eval_case["question"],
+        actual_output=result["answer"],
+        retrieval_context=result["retrieved_chunks"],
+        expected_output=eval_case["ground_truth"],
+    )
+
+    assert_test(test_case, [faithfulness, relevancy, precision, recall, hallucination])
+
+def test_rag_no_hallucination_on_unknown():
+    """Test that RAG refuses to answer questions outside its knowledge."""
+    result = my_rag_pipeline.query("What is the airspeed velocity of a swallow?")
+    test_case = LLMTestCase(
+        input="What is the airspeed velocity of a swallow?",
+        actual_output=result["answer"],
+        retrieval_context=result["retrieved_chunks"],
+    )
+    # Should score HIGH on hallucination metric (= detected hallucination)
+    # because it shouldn't answer this from context
+    metric = HallucinationMetric(threshold=0.3, model="gpt-4o")
+    metric.measure(test_case)
+    assert "don't have" in result["answer"].lower() or metric.score &lt; 0.3</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Promptfoo: YAML-based RAG Eval</h4>
+                    <div class="code-block">
+                        <pre><code class="language-yaml"># promptfoo_rag_eval.yaml
+# Run with: promptfoo eval -c promptfoo_rag_eval.yaml
+description: RAG Pipeline Evaluation
+
+providers:
+  - id: python:rag_provider.py  # Your RAG pipeline wrapper
+
+tests:
+  - vars:
+      question: "What is the refund policy?"
+    assert:
+      - type: contains
+        value: "5 business days"
+      - type: llm-rubric
+        value: "Answer is grounded in the provided context and does not hallucinate"
+      - type: similar
+        value: "Refunds are processed within 5 business days of request"
+        threshold: 0.8
+
+  - vars:
+      question: "How do I contact support?"
+    assert:
+      - type: contains-any
+        value: ["email", "phone", "chat"]
+      - type: llm-rubric
+        value: "Answer provides specific contact methods mentioned in the documents"
+
+  - vars:
+      question: "What is the meaning of life?"  # Out-of-scope
+    assert:
+      - type: llm-rubric
+        value: "Answer acknowledges it cannot answer this from the available documents"
+      - type: not-contains
+        value: "42"  # Should not hallucinate</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Production RAG Monitoring &amp; CI/CD Eval Gates</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Evals aren't a one-time activity. RAG quality degrades over time as documents change, embeddings drift, and LLM providers update models. You need continuous monitoring and automated gates.</p>
+
+                    <h4>Continuous Production Monitoring</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Production<br/>RAG Traffic"] --> B["Sample 1-5%<br/>of requests"]
+    B --> C["Run async<br/>RAGAS eval"]
+    C --> D["Log scores<br/>to dashboard"]
+    D --> E{Score drops<br/>&gt;5%?}
+    E -->|Yes| F["Alert on-call<br/>+ auto-triage"]
+    E -->|No| G["Continue<br/>monitoring"]
+                        </div>
+                    </div>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import random
+import asyncio
+from datetime import datetime
+
+class RAGProductionMonitor:
+    """Sample and evaluate production RAG requests continuously."""
+
+    def __init__(self, sample_rate: float = 0.02, alert_threshold: float = 0.05):
+        self.sample_rate = sample_rate  # 2% of traffic
+        self.alert_threshold = alert_threshold
+        self.baseline_scores = {}  # Loaded from last eval run
+        self.scores_buffer = []
+
+    async def maybe_evaluate(self, question: str, answer: str,
+                              contexts: list[str]) -&gt; dict | None:
+        """Probabilistically evaluate a production request."""
+        if random.random() &gt; self.sample_rate:
+            return None
+
+        # Run lightweight eval (faithfulness + relevancy only for speed)
+        scores = await self._run_eval(question, answer, contexts)
+        self.scores_buffer.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "question": question[:200],
+            "scores": scores,
+        })
+
+        # Check for degradation every 100 samples
+        if len(self.scores_buffer) &gt;= 100:
+            await self._check_degradation()
+            self.scores_buffer = []
+
+        return scores
+
+    async def _check_degradation(self):
+        """Compare current window to baseline. Alert if significant drop."""
+        import numpy as np
+        current = {
+            metric: np.mean([s["scores"][metric] for s in self.scores_buffer])
+            for metric in ["faithfulness", "answer_relevancy"]
+        }
+        for metric, current_score in current.items():
+            baseline = self.baseline_scores.get(metric, 0.85)
+            drop = baseline - current_score
+            if drop &gt; self.alert_threshold:
+                await self._send_alert(metric, baseline, current_score)</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">CI/CD Eval Gate for RAG Changes</h4>
+                    <p>Any change to your RAG pipeline — new chunking strategy, different embedding model, prompt update, k value change — should be gated by evals.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-yaml"># .github/workflows/rag-eval.yml
+name: RAG Eval Gate
+on:
+  pull_request:
+    paths:
+      - 'rag/**'              # RAG pipeline code
+      - 'prompts/**'          # System prompts
+      - 'config/rag.yaml'     # RAG configuration
+
+jobs:
+  rag-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Install dependencies
+        run: pip install ragas deepeval openai
+
+      - name: Run RAG eval suite
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/run_rag_eval.py \
+            --dataset eval/rag_golden_dataset.json \
+            --output eval_results.json
+
+      - name: Check regression
+        run: |
+          python scripts/check_regression.py \
+            --current eval_results.json \
+            --baseline eval/baseline_scores.json \
+            --max-drop 0.03  # Fail if any metric drops &gt;3%
+
+      - name: Comment PR with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('eval_results.json'));
+            const body = `## RAG Eval Results\n` +
+              `| Metric | Score | Baseline | Delta |\n` +
+              `|--------|-------|----------|-------|\n` +
+              Object.entries(results.scores).map(([k,v]) =&gt;
+                `| ${k} | ${v.toFixed(3)} | ${results.baseline[k].toFixed(3)} | ${(v - results.baseline[k]).toFixed(3)} |`
+              ).join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });</code></pre>
+                    </div>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Cost of RAG Evals</div>
+                        <p>Running RAGAS with LLM-as-judge costs ~$0.01-0.05 per eval pair (using GPT-4o). A 200-pair eval suite costs ~$2-10 per run. Budget for 2-4 runs per PR + daily production monitoring. This is cheap compared to shipping a broken RAG pipeline.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- SECTION 4: ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">4. Active Recall Questions</h2>
@@ -2294,6 +2762,30 @@ print(f"Hit Rate@3: {hit_rate_at_k([q['retrieved_relevances'] for q in queries],
                 <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
                 <div class="quiz-answer">
                     <strong>Answer:</strong> Avoid GPU batching when: (1) Latency is critical and you can't wait to accumulate a batch - single queries should process immediately, (2) Query volume is too low to form meaningful batches, (3) GPU memory is constrained and large batches cause OOM errors, (4) Queries have highly variable lengths causing padding inefficiency. In these cases, process queries individually or use smaller batch sizes with shorter timeouts.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q8: Your RAGAS faithfulness score is 0.72 but context recall is 0.91. What's the root cause and fix?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> High context recall (0.91) means the retriever IS finding the right documents. Low faithfulness (0.72) means the LLM is making claims not supported by those documents — a generation problem, not a retrieval problem. Fixes: (1) Add explicit "only use the provided context" instructions, (2) Lower temperature to 0.1-0.3, (3) Add citation requirements so the LLM must reference specific chunks, (4) Use a more instruction-following model, (5) Add a faithfulness check as a post-processing guardrail.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q9: How do you create an eval dataset for a RAG system when you have no labeled data?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> Use synthetic generation: (1) Sample chunks from your corpus stratified by topic/section, (2) Use a strong LLM (GPT-4o) to generate question-answer pairs from each chunk, (3) Filter with self-consistency — run generated questions through your pipeline and keep only those where the source chunk is retrieved in top-3, (4) Have a domain expert review 10-20% for quality control, (5) Add adversarial questions that should NOT be answerable. Start with 100-200 pairs for development, scale to 500+ for CI/CD gates.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q10: What should trigger a re-evaluation of your RAG pipeline in production?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> Triggers include: (1) Document corpus update (new/modified/deleted documents), (2) Embedding model change or version update, (3) LLM provider model update (e.g., GPT-4o version bump), (4) Chunking strategy or k-value change, (5) System prompt modification, (6) Production monitoring shows score drop >5% from baseline, (7) User feedback shows increased thumbs-down rate. Any of these should trigger the CI/CD eval gate. For provider model updates you may have no control over, use continuous monitoring to detect silent degradation.
                 </div>
             </div>
 
