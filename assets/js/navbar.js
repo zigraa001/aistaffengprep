@@ -9,7 +9,7 @@
         { href: 'low-level-design/index.html', text: 'LLD' },
         { href: 'company-specific/index.html', text: 'Companies' },
         { href: 'behavioral/index.html', text: 'Behavioral' },
-        { href: 'generative-ai/index.html', text: 'Gen AI' },
+        { href: 'generative-ai/index.html', text: 'AI Eng' },
         { href: 'harness-engineering/index.html', text: 'Harness' },
         { href: 'metrics-tradeoffs/index.html', text: 'Metrics' },
         { href: 'platform-engineering/index.html', text: 'Platform Eng' }

@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 19: Multi-modal Models - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        /* Multi-modal Demo Styles */
+        .modal-demo {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 1.5rem 0;
+        }
+
+        .modality-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .modality-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            color: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .modality-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .modality-card.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .modality-card .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modality-card .label {
+            font-weight: 600;
+        }
+
+        /* CLIP Visualization */
+        .clip-container {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2rem;
+            padding: 1.5rem;
+        }
+
+        .clip-encoder {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            color: white;
+            min-width: 180px;
+        }
+
+        .clip-encoder .icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .clip-encoder .name {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .clip-encoder .arrow {
+            font-size: 1.5rem;
+            color: #667eea;
+            margin-top: 0.5rem;
+        }
+
+        .clip-space {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            width: 150px;
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            box-shadow: 0 10px 40px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Diffusion Process */
+        .diffusion-steps {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+        }
+
+        .diffusion-step {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            text-align: center;
+            color: white;
+            min-width: 80px;
+            transition: all 0.3s ease;
+        }
+
+        .diffusion-step.noise {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        }
+
+        .diffusion-step.intermediate {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .diffusion-step.final {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        .diffusion-arrow {
+            color: #667eea;
+            font-size: 1.5rem;
+        }
+
+        /* Architecture Diagram */
+        .arch-component {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            margin: 0.5rem;
+            color: white;
+            text-align: center;
+        }
+
+        .arch-component.vae {
+            background: linear-gradient(135deg, #f6ad55 0%, #ed8936 100%);
+        }
+
+        .arch-component.unet {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .arch-component.clip {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        /* Similarity Matrix */
+        .similarity-matrix {
+            display: grid;
+            gap: 2px;
+            margin: 1rem auto;
+            max-width: 300px;
+        }
+
+        .matrix-cell {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+            border-radius: 4px;
+        }
+
+        .matrix-header {
+            background: rgba(255, 255, 255, 0.2);
+            font-weight: 700;
+        }
+
+        /* Video Timeline */
+        .video-timeline {
+            display: flex;
+            gap: 0.25rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+        }
+
+        .frame {
+            min-width: 60px;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.7rem;
+            transition: all 0.3s ease;
+        }
+
+        .frame.key-frame {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 2px solid #ffd700;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 19: Multi-modal Models</h1>
+            <p class="text-muted">Images, Video, CLIP, and Diffusion Models</p>
+
+            <div class="card mt-3">
+                <h3>Learning Objectives</h3>
+                <ul>
+                    <li>Understand how multi-modal AI combines text, images, video, and audio</li>
+                    <li>Learn Vision Transformers (ViT) and how images become sequences</li>
+                    <li>Master CLIP for connecting images and text in a shared embedding space</li>
+                    <li>Understand diffusion models and the Stable Diffusion architecture</li>
+                    <li>Use GPT-4V, Claude Vision, and Gemini for visual understanding</li>
+                    <li>Build practical multi-modal applications</li>
+                </ul>
+            </div>
+
+            <!-- Section 1: Multi-modal AI Overview -->
+            <h2 class="mt-4">Multi-modal AI: The Big Picture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Universal Translator</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Engineering Analogy</h4>
+                    <p>Think of multi-modal AI like a universal translator that speaks multiple "languages":</p>
+                    <ul>
+                        <li><strong>Text:</strong> Natural language (the language models speak natively)</li>
+                        <li><strong>Images:</strong> A 2D grid of pixels (like a foreign alphabet)</li>
+                        <li><strong>Audio:</strong> Waveforms over time (like tonal languages)</li>
+                        <li><strong>Video:</strong> Images over time (like animated text)</li>
+                    </ul>
+
+                    <p>The key insight: <strong>Convert everything to the same representation</strong> (embeddings/tokens) so one model can process all modalities.</p>
+
+                    <div class="modal-demo">
+                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Modalities in AI</h4>
+                        <div class="modality-grid">
+                            <div class="modality-card active">
+                                <div class="icon">T</div>
+                                <div class="label">Text</div>
+                                <div style="font-size: 0.75rem; color: #a0aec0;">Tokens</div>
+                            </div>
+                            <div class="modality-card">
+                                <div class="icon">I</div>
+                                <div class="label">Image</div>
+                                <div style="font-size: 0.75rem; color: #a0aec0;">Patches</div>
+                            </div>
+                            <div class="modality-card">
+                                <div class="icon">A</div>
+                                <div class="label">Audio</div>
+                                <div style="font-size: 0.75rem; color: #a0aec0;">Spectrograms</div>
+                            </div>
+                            <div class="modality-card">
+                                <div class="icon">V</div>
+                                <div class="label">Video</div>
+                                <div style="font-size: 0.75rem; color: #a0aec0;">Frame sequences</div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; color: #a0aec0; margin-top: 1rem;">
+                            All modalities convert to <span style="color: #667eea; font-weight: 600;">embeddings</span> that transformers can process
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Core Concepts: Why Multi-modal?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The World is Multi-modal</h4>
+                    <p>Humans don't experience the world through text alone. Real applications need:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use Case</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Modalities</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Document Understanding</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Text + Image</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extract data from receipts, forms, charts</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Content Creation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Text to Image/Video</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Generate marketing assets, illustrations</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Visual Search</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Image + Text</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Find products like this photo"</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Video Analysis</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Video + Audio + Text</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Summarize meetings, extract highlights</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Accessibility</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Image to Text/Audio</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Describe images for visually impaired</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Architecture Approaches</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    subgraph "Approach 1: Separate Encoders"
+        A1[Image Encoder] --> C1[Fusion Layer]
+        B1[Text Encoder] --> C1
+        C1 --> D1[Output]
+    end
+
+    subgraph "Approach 2: Unified Model"
+        A2[Image Patches] --> E2[Single Transformer]
+        B2[Text Tokens] --> E2
+        E2 --> D2[Output]
+    end
+
+    subgraph "Approach 3: Cross-Attention"
+        A3[Vision Model] --> F3[Cross-Attention]
+        B3[Language Model] --> F3
+        F3 --> D3[Output]
+    end
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Vision Transformers -->
+            <h2 class="mt-4">Vision Transformers (ViT): Images as Sequences</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Puzzle Analogy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>How ViT Sees Images</h4>
+                    <p>Transformers are designed for sequences (like text). How do we turn a 2D image into a sequence?</p>
+
+                    <p><strong>The Insight:</strong> Cut the image into patches, flatten each patch, and treat them like tokens!</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Image 224x224"] --> B["Split into 16x16 patches"]
+    B --> C["14x14 = 196 patches"]
+    C --> D["Flatten each patch"]
+    D --> E["Linear projection"]
+    E --> F["+ Position embeddings"]
+    F --> G["Transformer Encoder"]
+    G --> H["Classification/Output"]
+                        </div>
+                    </div>
+
+                    <h4>The Math (Intuitive)</h4>
+                    <ul>
+                        <li><strong>Input image:</strong> 224 x 224 pixels x 3 channels (RGB)</li>
+                        <li><strong>Patch size:</strong> 16 x 16 pixels</li>
+                        <li><strong>Number of patches:</strong> (224/16) x (224/16) = 14 x 14 = 196 patches</li>
+                        <li><strong>Each patch flattened:</strong> 16 x 16 x 3 = 768 values</li>
+                        <li><strong>Linear projection:</strong> 768 values to d-dimensional embedding</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Key Insight:</strong> After this transformation, the Transformer sees 196 "tokens" - exactly like processing a 196-word sentence. Self-attention lets every patch attend to every other patch.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code: Vision Transformer from Scratch</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class PatchEmbedding(nn.Module):
+    """Convert image to sequence of patch embeddings."""
+
+    def __init__(self, img_size=224, patch_size=16, in_channels=3, embed_dim=768):
+        super().__init__()
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.n_patches = (img_size // patch_size) ** 2  # 196 for 224/16
+
+        # Linear projection of flattened patches
+        # Conv2d with kernel_size=patch_size and stride=patch_size
+        # is equivalent to splitting into patches and projecting
+        self.proj = nn.Conv2d(
+            in_channels,
+            embed_dim,
+            kernel_size=patch_size,
+            stride=patch_size
+        )
+
+    def forward(self, x):
+        # x: (batch, channels, height, width)
+        # Output: (batch, n_patches, embed_dim)
+        x = self.proj(x)  # (batch, embed_dim, n_patches_h, n_patches_w)
+        x = x.flatten(2)   # (batch, embed_dim, n_patches)
+        x = x.transpose(1, 2)  # (batch, n_patches, embed_dim)
+        return x
+
+class MultiHeadAttention(nn.Module):
+    """Multi-head self-attention."""
+
+    def __init__(self, embed_dim, n_heads, dropout=0.0):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.n_heads = n_heads
+        self.head_dim = embed_dim // n_heads
+
+        self.qkv = nn.Linear(embed_dim, embed_dim * 3)
+        self.proj = nn.Linear(embed_dim, embed_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        batch_size, n_tokens, embed_dim = x.shape
+
+        # Compute Q, K, V
+        qkv = self.qkv(x)  # (batch, n_tokens, 3 * embed_dim)
+        qkv = qkv.reshape(batch_size, n_tokens, 3, self.n_heads, self.head_dim)
+        qkv = qkv.permute(2, 0, 3, 1, 4)  # (3, batch, n_heads, n_tokens, head_dim)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        # Scaled dot-product attention
+        scale = self.head_dim ** -0.5
+        attn = (q @ k.transpose(-2, -1)) * scale  # (batch, n_heads, n_tokens, n_tokens)
+        attn = attn.softmax(dim=-1)
+        attn = self.dropout(attn)
+
+        # Apply attention to values
+        x = attn @ v  # (batch, n_heads, n_tokens, head_dim)
+        x = x.transpose(1, 2).reshape(batch_size, n_tokens, embed_dim)
+        x = self.proj(x)
+        return x
+
+class TransformerBlock(nn.Module):
+    """A single transformer encoder block."""
+
+    def __init__(self, embed_dim, n_heads, mlp_ratio=4.0, dropout=0.0):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.attn = MultiHeadAttention(embed_dim, n_heads, dropout)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.mlp = nn.Sequential(
+            nn.Linear(embed_dim, int(embed_dim * mlp_ratio)),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(int(embed_dim * mlp_ratio), embed_dim),
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x):
+        x = x + self.attn(self.norm1(x))  # Attention + residual
+        x = x + self.mlp(self.norm2(x))   # MLP + residual
+        return x
+
+class VisionTransformer(nn.Module):
+    """
+    Vision Transformer for image classification.
+
+    Based on "An Image is Worth 16x16 Words" (Dosovitskiy et al., 2020)
+    """
+
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_channels=3,
+        n_classes=1000,
+        embed_dim=768,
+        depth=12,
+        n_heads=12,
+        mlp_ratio=4.0,
+        dropout=0.0
+    ):
+        super().__init__()
+
+        # Patch embedding
+        self.patch_embed = PatchEmbedding(img_size, patch_size, in_channels, embed_dim)
+        n_patches = self.patch_embed.n_patches
+
+        # Class token (prepended to patch sequence)
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+
+        # Position embeddings (learnable)
+        self.pos_embed = nn.Parameter(torch.zeros(1, n_patches + 1, embed_dim))
+
+        self.dropout = nn.Dropout(dropout)
+
+        # Transformer encoder blocks
+        self.blocks = nn.ModuleList([
+            TransformerBlock(embed_dim, n_heads, mlp_ratio, dropout)
+            for _ in range(depth)
+        ])
+
+        self.norm = nn.LayerNorm(embed_dim)
+
+        # Classification head
+        self.head = nn.Linear(embed_dim, n_classes)
+
+        # Initialize weights
+        nn.init.trunc_normal_(self.pos_embed, std=0.02)
+        nn.init.trunc_normal_(self.cls_token, std=0.02)
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+
+        # Patch embedding
+        x = self.patch_embed(x)  # (batch, n_patches, embed_dim)
+
+        # Prepend class token
+        cls_tokens = self.cls_token.expand(batch_size, -1, -1)
+        x = torch.cat([cls_tokens, x], dim=1)  # (batch, n_patches + 1, embed_dim)
+
+        # Add position embeddings
+        x = x + self.pos_embed
+        x = self.dropout(x)
+
+        # Transformer blocks
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.norm(x)
+
+        # Use class token for classification
+        cls_output = x[:, 0]  # (batch, embed_dim)
+        return self.head(cls_output)
+
+# Create a ViT-Base model
+model = VisionTransformer(
+    img_size=224,
+    patch_size=16,
+    embed_dim=768,
+    depth=12,
+    n_heads=12,
+    n_classes=1000
+)
+
+# Test with random image
+img = torch.randn(2, 3, 224, 224)  # Batch of 2 images
+output = model(img)
+print(f"Output shape: {output.shape}")  # (2, 1000)
+
+# Count parameters
+params = sum(p.numel() for p in model.parameters())
+print(f"Parameters: {params / 1e6:.1f}M")  # ~86M for ViT-Base</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: CLIP -->
+            <h2 class="mt-4">CLIP: Connecting Images and Text</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Shared Language</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Key Insight</h4>
+                    <p>CLIP (Contrastive Language-Image Pre-training) learns to understand both images and text by training them to "speak the same language" - a shared embedding space.</p>
+
+                    <div class="modal-demo">
+                        <div class="clip-container">
+                            <div class="clip-encoder">
+                                <div class="icon">I</div>
+                                <div class="name">Image Encoder</div>
+                                <div style="font-size: 0.8rem; color: #a0aec0;">(ViT or ResNet)</div>
+                                <div class="arrow">to embedding</div>
+                            </div>
+
+                            <div class="clip-space">
+                                <div>Shared</div>
+                                <div>Embedding</div>
+                                <div>Space</div>
+                            </div>
+
+                            <div class="clip-encoder">
+                                <div class="icon">T</div>
+                                <div class="name">Text Encoder</div>
+                                <div style="font-size: 0.8rem; color: #a0aec0;">(Transformer)</div>
+                                <div class="arrow">to embedding</div>
+                            </div>
+                        </div>
+
+                        <div style="text-align: center; color: white; margin-top: 1rem;">
+                            Similar images and text descriptions end up <span style="color: #48bb78;">close together</span> in embedding space
+                        </div>
+                    </div>
+
+                    <h4>Contrastive Learning Explained</h4>
+                    <p>CLIP is trained on 400M image-text pairs from the internet. The training objective is simple:</p>
+                    <ol>
+                        <li><strong>For each batch:</strong> Take N image-text pairs</li>
+                        <li><strong>Encode:</strong> Get embeddings for all N images and N texts</li>
+                        <li><strong>Compute similarity:</strong> Create an N x N matrix of cosine similarities</li>
+                        <li><strong>Train:</strong> Matching pairs should have high similarity, non-matching should have low</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    subgraph "Training Batch"
+        I1["Img 1: dog photo"] --> E1["Embed 1"]
+        I2["Img 2: cat photo"] --> E2["Embed 2"]
+        I3["Img 3: car photo"] --> E3["Embed 3"]
+
+        T1["Text 1: a dog"] --> F1["Embed 1"]
+        T2["Text 2: a cat"] --> F2["Embed 2"]
+        T3["Text 3: a car"] --> F3["Embed 3"]
+    end
+
+    subgraph "Similarity Matrix"
+        M["Diagonal = High (matches)\nOff-diagonal = Low"]
+    end
+
+    E1 --> M
+    E2 --> M
+    E3 --> M
+    F1 --> M
+    F2 --> M
+    F3 --> M
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code: Using CLIP for Image Search</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import torch
+from PIL import Image
+import requests
+from transformers import CLIPProcessor, CLIPModel
+
+# Load CLIP model and processor
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+# Example: Zero-shot image classification
+def classify_image_zero_shot(image_path, labels):
+    """
+    Classify an image without any training examples.
+    Just compare image embedding to text embeddings of labels.
+    """
+    # Load image
+    if image_path.startswith('http'):
+        image = Image.open(requests.get(image_path, stream=True).raw)
+    else:
+        image = Image.open(image_path)
+
+    # Create text prompts
+    text_prompts = [f"a photo of a {label}" for label in labels]
+
+    # Encode image and text
+    inputs = processor(
+        text=text_prompts,
+        images=image,
+        return_tensors="pt",
+        padding=True
+    )
+
+    outputs = model(**inputs)
+
+    # Get similarity scores
+    logits_per_image = outputs.logits_per_image  # (1, num_labels)
+    probs = logits_per_image.softmax(dim=1)  # Convert to probabilities
+
+    # Return predictions
+    results = {label: prob.item() for label, prob in zip(labels, probs[0])}
+    return dict(sorted(results.items(), key=lambda x: x[1], reverse=True))
+
+# Test zero-shot classification
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+labels = ["cat", "dog", "bird", "car", "person"]
+
+predictions = classify_image_zero_shot(url, labels)
+print("Zero-shot classification:")
+for label, prob in predictions.items():
+    print(f"  {label}: {prob:.2%}")
+
+# Example: Semantic Image Search
+class CLIPImageSearch:
+    """Build a simple image search engine with CLIP."""
+
+    def __init__(self):
+        self.model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+        self.image_embeddings = []
+        self.image_paths = []
+
+    def index_images(self, image_paths):
+        """Pre-compute embeddings for all images."""
+        self.image_paths = image_paths
+        self.image_embeddings = []
+
+        for path in image_paths:
+            if path.startswith('http'):
+                image = Image.open(requests.get(path, stream=True).raw)
+            else:
+                image = Image.open(path)
+
+            inputs = self.processor(images=image, return_tensors="pt")
+
+            with torch.no_grad():
+                embedding = self.model.get_image_features(**inputs)
+                # Normalize for cosine similarity
+                embedding = embedding / embedding.norm(dim=-1, keepdim=True)
+                self.image_embeddings.append(embedding)
+
+        self.image_embeddings = torch.cat(self.image_embeddings, dim=0)
+        print(f"Indexed {len(image_paths)} images")
+
+    def search(self, query, top_k=5):
+        """Search images by text query."""
+        # Encode query
+        inputs = self.processor(text=[query], return_tensors="pt", padding=True)
+
+        with torch.no_grad():
+            text_embedding = self.model.get_text_features(**inputs)
+            text_embedding = text_embedding / text_embedding.norm(dim=-1, keepdim=True)
+
+        # Compute similarities
+        similarities = (text_embedding @ self.image_embeddings.T).squeeze(0)
+
+        # Get top-k results
+        top_indices = similarities.argsort(descending=True)[:top_k]
+
+        results = []
+        for idx in top_indices:
+            results.append({
+                'path': self.image_paths[idx],
+                'similarity': similarities[idx].item()
+            })
+
+        return results
+
+# Example usage
+search_engine = CLIPImageSearch()
+image_urls = [
+    "http://images.cocodataset.org/val2017/000000039769.jpg",  # cats
+    "http://images.cocodataset.org/val2017/000000037777.jpg",  # baseball
+    "http://images.cocodataset.org/val2017/000000252219.jpg",  # food
+]
+search_engine.index_images(image_urls)
+
+results = search_engine.search("two cats sitting on a couch")
+print("\nSearch results for 'two cats sitting on a couch':")
+for r in results:
+    print(f"  {r['path']}: {r['similarity']:.3f}")</code></pre>
+                    </div>
+
+                    <h4>CLIP Use Cases</h4>
+                    <ul>
+                        <li><strong>Zero-shot classification:</strong> Classify images into categories never seen during training</li>
+                        <li><strong>Image search:</strong> Find images matching a text query</li>
+                        <li><strong>Image-to-text retrieval:</strong> Find captions for images</li>
+                        <li><strong>Content moderation:</strong> Detect inappropriate content without labeled data</li>
+                        <li><strong>Guiding image generation:</strong> CLIP embeddings guide diffusion models</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Section 4: Diffusion Models -->
+            <h2 class="mt-4">Diffusion Models: Image Generation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: Noise to Signal</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Core Idea</h4>
+                    <p>Diffusion models learn to reverse a gradual noising process:</p>
+                    <ol>
+                        <li><strong>Forward process (training):</strong> Gradually add noise to images until they become pure noise</li>
+                        <li><strong>Reverse process (generation):</strong> Learn to predict and remove noise step by step</li>
+                    </ol>
+
+                    <div class="modal-demo">
+                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Diffusion Process</h4>
+
+                        <div style="color: #a0aec0; text-align: center; margin-bottom: 0.5rem;">Forward Process (Training)</div>
+                        <div class="diffusion-steps">
+                            <div class="diffusion-step final">Clean Image</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">+noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">+noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">+noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step noise">Pure Noise</div>
+                        </div>
+
+                        <div style="color: #a0aec0; text-align: center; margin: 1rem 0 0.5rem;">Reverse Process (Generation)</div>
+                        <div class="diffusion-steps">
+                            <div class="diffusion-step noise">Pure Noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">-noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">-noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step intermediate">-noise</div>
+                            <div class="diffusion-arrow">-></div>
+                            <div class="diffusion-step final">Generated!</div>
+                        </div>
+
+                        <div style="text-align: center; color: white; margin-top: 1rem;">
+                            The model learns to predict <span style="color: #f6ad55;">what noise was added</span> at each step
+                        </div>
+                    </div>
+
+                    <h4>Why Does This Work?</h4>
+                    <p>The key insight is that predicting noise is easier than predicting images directly:</p>
+                    <ul>
+                        <li><strong>Each denoising step is a small task:</strong> Just remove a little bit of noise</li>
+                        <li><strong>Gradual refinement:</strong> First get the rough structure, then add details</li>
+                        <li><strong>Well-defined training objective:</strong> Minimize the difference between predicted and actual noise</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>The Math Behind Diffusion (Intuitive)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Forward Process</h4>
+                    <p>At each timestep t, we add a small amount of Gaussian noise:</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python"># Forward process: add noise
+# x_t = sqrt(alpha_t) * x_{t-1} + sqrt(1 - alpha_t) * noise
+
+# We can also jump directly to any timestep:
+# x_t = sqrt(alpha_bar_t) * x_0 + sqrt(1 - alpha_bar_t) * noise
+
+# alpha_bar_t is the cumulative product of all alphas up to t
+# As t -> T, alpha_bar_t -> 0, so x_T is nearly pure noise
+
+import torch
+
+def forward_diffusion(x_0, t, alpha_bar):
+    """
+    Add noise to image according to diffusion schedule.
+
+    Args:
+        x_0: Original image (batch, channels, height, width)
+        t: Timestep (batch,) - which noise level
+        alpha_bar: Cumulative noise schedule (T,)
+
+    Returns:
+        x_t: Noised image
+        noise: The noise that was added
+    """
+    # Sample random noise
+    noise = torch.randn_like(x_0)
+
+    # Get alpha_bar for this timestep
+    alpha_bar_t = alpha_bar[t].view(-1, 1, 1, 1)  # Broadcast shape
+
+    # Add noise according to schedule
+    x_t = torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * noise
+
+    return x_t, noise</code></pre>
+                    </div>
+
+                    <h4>Reverse Process (What the Model Learns)</h4>
+                    <p>The model learns to predict the noise added at each step:</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python"># Training objective: predict the noise
+# Loss = MSE(predicted_noise, actual_noise)
+
+def training_step(model, x_0, alpha_bar, timesteps=1000):
+    """
+    One training step for a diffusion model.
+    """
+    batch_size = x_0.shape[0]
+
+    # Sample random timesteps
+    t = torch.randint(0, timesteps, (batch_size,))
+
+    # Add noise to images
+    x_t, noise = forward_diffusion(x_0, t, alpha_bar)
+
+    # Predict noise
+    predicted_noise = model(x_t, t)
+
+    # Compute loss
+    loss = torch.nn.functional.mse_loss(predicted_noise, noise)
+
+    return loss
+
+# Sampling (generation)
+def sample(model, shape, alpha, alpha_bar, timesteps=1000):
+    """
+    Generate an image by iteratively denoising.
+    """
+    # Start with pure noise
+    x_t = torch.randn(shape)
+
+    for t in reversed(range(timesteps)):
+        # Predict noise
+        predicted_noise = model(x_t, torch.tensor([t]))
+
+        # Remove predicted noise (simplified)
+        alpha_t = alpha[t]
+        alpha_bar_t = alpha_bar[t]
+        beta_t = 1 - alpha_t
+
+        # Denoise step
+        x_t = (1 / torch.sqrt(alpha_t)) * (
+            x_t - (beta_t / torch.sqrt(1 - alpha_bar_t)) * predicted_noise
+        )
+
+        # Add small noise (except for last step)
+        if t > 0:
+            noise = torch.randn_like(x_t)
+            x_t = x_t + torch.sqrt(beta_t) * noise
+
+    return x_t</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Stable Diffusion Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Three Components</h4>
+                    <p>Stable Diffusion combines three models to enable text-to-image generation:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Text Prompt"] --> B["CLIP Text Encoder"]
+    B --> C["Text Embeddings"]
+
+    D["Random Noise\n(Latent Space)"] --> E["U-Net\n(Denoiser)"]
+    C --> E
+    E --> F["Denoised Latent"]
+
+    F --> G["VAE Decoder"]
+    G --> H["Generated Image"]
+
+    style B fill:#48bb78
+    style E fill:#667eea
+    style G fill:#f6ad55
+                        </div>
+                    </div>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Component</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Role</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>CLIP Text Encoder</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Convert text prompt to embeddings</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">77 tokens max, guides the generation</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>VAE (Variational Autoencoder)</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Compress/decompress images</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">512x512 image -> 64x64 latent (8x compression)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>U-Net</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Predict noise to remove</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~860M parameters, cross-attention with text</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Why Latent Space?</h4>
+                    <p>Operating in latent space (the VAE's compressed representation) is the key innovation:</p>
+                    <ul>
+                        <li><strong>Efficiency:</strong> 64x64 latent vs 512x512 pixels = 64x fewer computations</li>
+                        <li><strong>Semantic meaning:</strong> Latent space captures high-level features</li>
+                        <li><strong>Quality:</strong> VAE ensures the final image looks realistic</li>
+                    </ul>
+
+                    <div class="callout callout-info mt-3">
+                        <div class="callout-title">Baseten Inference Book: Image Gen Models Are Composable Pipelines</div>
+                        <p>Philip Kiely emphasizes: <strong>every image generation system is a pipeline</strong> of a text encoder, denoising model, and VAE &mdash; and each component is independently optimizable. This is fundamentally different from LLM inference:</p>
+                        <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                            <thead>
+                                <tr style="background:rgba(102,126,234,0.2);">
+                                    <th style="padding:0.6rem; border:1px solid var(--border-color);">Dimension</th>
+                                    <th style="padding:0.6rem; border:1px solid var(--border-color);">LLM Inference</th>
+                                    <th style="padding:0.6rem; border:1px solid var(--border-color);">Image Generation</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr><td style="padding:0.5rem; border:1px solid var(--border-color);">Bottleneck</td><td style="padding:0.5rem; border:1px solid var(--border-color);">Memory-bandwidth bound (decode)</td><td style="padding:0.5rem; border:1px solid var(--border-color);"><strong>Compute-bound</strong> (denoising)</td></tr>
+                                <tr><td style="padding:0.5rem; border:1px solid var(--border-color);">Quality-speed tradeoff</td><td style="padding:0.5rem; border:1px solid var(--border-color);">Speculative decoding, quantization</td><td style="padding:0.5rem; border:1px solid var(--border-color);"><strong>Fewer denoising steps = faster but worse output</strong></td></tr>
+                                <tr><td style="padding:0.5rem; border:1px solid var(--border-color);">Optimization approach</td><td style="padding:0.5rem; border:1px solid var(--border-color);">Reduce memory movement</td><td style="padding:0.5rem; border:1px solid var(--border-color);">Optimize each pipeline stage independently</td></tr>
+                            </tbody>
+                        </table>
+                        <p><strong>Optimization strategies by component:</strong></p>
+                        <ul>
+                            <li><strong>Text Encoder (CLIP):</strong> Smallest component &mdash; compile with TorchScript, quantize to INT8</li>
+                            <li><strong>U-Net / DiT (Denoiser):</strong> Largest component &mdash; use fewer steps (SDXL Turbo: 1-4 steps), distillation, FP16/INT8</li>
+                            <li><strong>VAE Decoder:</strong> Fixed cost per image &mdash; TensorRT compilation, tiling for high-res</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code: Using Stable Diffusion</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
+import torch
+
+# Load the model
+pipe = StableDiffusionPipeline.from_pretrained(
+    "stabilityai/stable-diffusion-2-1",
+    torch_dtype=torch.float16
+)
+
+# Use a faster scheduler (DPM++ for fewer steps)
+pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config)
+
+# Move to GPU
+pipe = pipe.to("cuda")
+
+# Enable memory optimizations
+pipe.enable_attention_slicing()  # Reduce VRAM usage
+
+# Generate an image
+prompt = "A serene Japanese garden with cherry blossoms, koi pond, traditional wooden bridge, golden hour lighting, highly detailed, 8k"
+negative_prompt = "blurry, low quality, distorted, ugly"
+
+image = pipe(
+    prompt=prompt,
+    negative_prompt=negative_prompt,
+    num_inference_steps=25,  # More steps = higher quality (but slower)
+    guidance_scale=7.5,      # How closely to follow the prompt (higher = more literal)
+    width=768,
+    height=512
+).images[0]
+
+image.save("japanese_garden.png")
+
+# ============================================
+# Advanced: Img2Img (Image-to-Image)
+# ============================================
+from diffusers import StableDiffusionImg2ImgPipeline
+from PIL import Image
+
+img2img_pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+    "stabilityai/stable-diffusion-2-1",
+    torch_dtype=torch.float16
+)
+img2img_pipe = img2img_pipe.to("cuda")
+
+# Load a source image
+init_image = Image.open("sketch.png").convert("RGB")
+init_image = init_image.resize((768, 512))
+
+# Transform the image
+result = img2img_pipe(
+    prompt="A detailed oil painting of a mountain landscape, dramatic lighting",
+    image=init_image,
+    strength=0.75,  # How much to change (0=nothing, 1=complete regeneration)
+    guidance_scale=7.5
+).images[0]
+
+result.save("painting.png")
+
+# ============================================
+# Using ControlNet for precise control
+# ============================================
+from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
+import cv2
+import numpy as np
+
+# Load ControlNet (e.g., canny edge detector)
+controlnet = ControlNetModel.from_pretrained(
+    "lllyasviel/sd-controlnet-canny",
+    torch_dtype=torch.float16
+)
+
+control_pipe = StableDiffusionControlNetPipeline.from_pretrained(
+    "runwayml/stable-diffusion-v1-5",
+    controlnet=controlnet,
+    torch_dtype=torch.float16
+)
+control_pipe = control_pipe.to("cuda")
+
+# Prepare control image (edge detection)
+image = np.array(Image.open("input.png"))
+low_threshold = 100
+high_threshold = 200
+edges = cv2.Canny(image, low_threshold, high_threshold)
+control_image = Image.fromarray(edges)
+
+# Generate with edge control
+result = control_pipe(
+    prompt="A futuristic city at night, neon lights, cyberpunk style",
+    image=control_image,
+    num_inference_steps=30
+).images[0]
+
+result.save("controlled_generation.png")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Prompt Engineering for Images -->
+            <h2 class="mt-4">Prompt Engineering for Image Generation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Effective Prompting Techniques</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Prompt Structure</h4>
+                    <p>Good image prompts typically follow this structure:</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-text">[Subject], [Medium/Style], [Additional Details], [Quality Modifiers], [Lighting/Mood]
+
+Examples:
+
+1. Portrait:
+   "A wise elderly wizard with a long silver beard, digital painting,
+   intricate details, fantasy art style, dramatic rim lighting,
+   highly detailed, 4k, artstation"
+
+2. Landscape:
+   "Vast alien desert with purple sand dunes, two moons in the sky,
+   cinematic composition, sci-fi concept art, matte painting,
+   volumetric lighting, unreal engine render"
+
+3. Product:
+   "Sleek modern smartwatch on marble surface, minimalist design,
+   product photography, soft studio lighting, depth of field,
+   8k, commercial quality"
+
+4. Character:
+   "Female cyberpunk hacker with neon blue hair, leather jacket,
+   holographic interface floating around her, anime style,
+   detailed illustration, dynamic pose, vibrant colors"</code></pre>
+                    </div>
+
+                    <h4>Quality Modifiers That Work</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Category</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Keywords</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Resolution</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">4k, 8k, highly detailed, sharp focus, intricate</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Style</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">digital art, oil painting, watercolor, photorealistic, anime</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Platforms</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">artstation, deviantart, behance, trending on X</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lighting</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">cinematic, dramatic, soft, volumetric, rim lighting, golden hour</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Render</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">unreal engine, octane render, ray tracing, CGI</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Negative Prompts</h4>
+                    <p>Tell the model what to avoid:</p>
+                    <div class="code-block">
+                        <pre><code class="language-text"># Common negative prompts
+negative = """
+blurry, low quality, distorted, ugly, bad anatomy, wrong proportions,
+extra limbs, deformed hands, missing fingers, watermark, signature,
+text, logo, cropped, out of frame, worst quality, low resolution,
+grainy, noisy, oversaturated, underexposed
+"""</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 6: Vision Language Models -->
+            <h2 class="mt-4">Vision Language Models: GPT-4V and Claude Vision</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Understanding Images with LLMs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>How Vision LLMs Work</h4>
+                    <p>Modern vision-language models like GPT-4V, Claude Vision, and Gemini process images by:</p>
+                    <ol>
+                        <li><strong>Encoding the image:</strong> Convert to embeddings (like ViT)</li>
+                        <li><strong>Integrating with text:</strong> Interleave image tokens with text tokens</li>
+                        <li><strong>Reasoning:</strong> Use the full LLM for understanding and generation</li>
+                    </ol>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+import base64
+import httpx
+
+client = anthropic.Anthropic()
+
+# Example 1: Analyze an image from URL
+def analyze_image_url(image_url: str, question: str) -> str:
+    """Analyze an image using Claude Vision."""
+
+    # Fetch and encode the image
+    image_data = base64.standard_b64encode(httpx.get(image_url).content).decode("utf-8")
+
+    # Determine media type from URL
+    if image_url.endswith('.png'):
+        media_type = "image/png"
+    elif image_url.endswith('.gif'):
+        media_type = "image/gif"
+    elif image_url.endswith('.webp'):
+        media_type = "image/webp"
+    else:
+        media_type = "image/jpeg"
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_data
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": question
+                }
+            ]
+        }]
+    )
+
+    return response.content[0].text
+
+# Example usage
+url = "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/1200px-Cat03.jpg"
+result = analyze_image_url(url, "Describe this image in detail. What breed might this cat be?")
+print(result)
+
+# Example 2: Document understanding
+def extract_from_document(image_path: str) -> dict:
+    """Extract structured data from a document image."""
+
+    with open(image_path, "rb") as f:
+        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2048,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": image_data
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": """Extract all information from this receipt/invoice and return as JSON:
+{
+    "vendor": "...",
+    "date": "...",
+    "items": [{"name": "...", "quantity": ..., "price": ...}],
+    "subtotal": ...,
+    "tax": ...,
+    "total": ...
+}"""
+                }
+            ]
+        }]
+    )
+
+    # Parse JSON from response
+    import json
+    text = response.content[0].text
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    return json.loads(text[start:end])
+
+# Example 3: Compare multiple images
+def compare_images(image_paths: list, comparison_prompt: str) -> str:
+    """Compare multiple images."""
+
+    content = []
+    for path in image_paths:
+        with open(path, "rb") as f:
+            image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": image_data
+            }
+        })
+
+    content.append({
+        "type": "text",
+        "text": comparison_prompt
+    })
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": content}]
+    )
+
+    return response.content[0].text</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Using GPT-4V and Gemini</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python"># GPT-4V Example
+from openai import OpenAI
+import base64
+
+client = OpenAI()
+
+def analyze_with_gpt4v(image_path: str, prompt: str) -> str:
+    """Analyze image with GPT-4 Vision."""
+
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("utf-8")
+
+    response = client.chat.completions.create(
+        model="gpt-4-vision-preview",
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": prompt
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_data}",
+                        "detail": "high"  # or "low" for faster/cheaper
+                    }
+                }
+            ]
+        }],
+        max_tokens=1024
+    )
+
+    return response.choices[0].message.content
+
+# Gemini Example
+import google.generativeai as genai
+from PIL import Image
+
+genai.configure(api_key="YOUR_API_KEY")
+model = genai.GenerativeModel('gemini-pro-vision')
+
+def analyze_with_gemini(image_path: str, prompt: str) -> str:
+    """Analyze image with Gemini."""
+    image = Image.open(image_path)
+
+    response = model.generate_content([prompt, image])
+    return response.text
+
+# Comparison: Which model to use?
+"""
+| Feature          | GPT-4V          | Claude Vision   | Gemini Pro Vision |
+|------------------|-----------------|-----------------|-------------------|
+| Detail level     | Excellent       | Excellent       | Good              |
+| Document OCR     | Excellent       | Excellent       | Good              |
+| Chart/graph      | Excellent       | Good            | Good              |
+| Speed            | Slow            | Medium          | Fast              |
+| Cost             | High            | Medium          | Low               |
+| Multi-image      | Yes             | Yes             | Limited           |
+| Context window   | 128K            | 200K            | 32K               |
+"""</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 7: Video Understanding -->
+            <h2 class="mt-4">Video Understanding: Temporal Modeling</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: Video as Image Sequences</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Challenge</h4>
+                    <p>Video adds a new dimension: time. Key challenges include:</p>
+                    <ul>
+                        <li><strong>Temporal coherence:</strong> Understanding what's happening over time</li>
+                        <li><strong>Computational cost:</strong> Video = many frames = huge data</li>
+                        <li><strong>Memory:</strong> Long videos don't fit in context</li>
+                    </ul>
+
+                    <div class="modal-demo">
+                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Video Processing Strategies</h4>
+                        <div class="video-timeline">
+                            <div class="frame key-frame">F1</div>
+                            <div class="frame">f2</div>
+                            <div class="frame">f3</div>
+                            <div class="frame">f4</div>
+                            <div class="frame key-frame">F5</div>
+                            <div class="frame">f6</div>
+                            <div class="frame">f7</div>
+                            <div class="frame">f8</div>
+                            <div class="frame key-frame">F9</div>
+                            <div class="frame">f10</div>
+                            <div class="frame">f11</div>
+                            <div class="frame">f12</div>
+                            <div class="frame key-frame">F13</div>
+                        </div>
+                        <div style="text-align: center; color: #a0aec0; margin-top: 0.5rem;">
+                            Key frames (F) capture major changes, intermediate frames (f) for details
+                        </div>
+                    </div>
+
+                    <h4>Approaches to Video Understanding</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Approach</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Description</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Frame Sampling</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extract frames at regular intervals (e.g., 1 fps)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Long videos, general understanding</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Scene Detection</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extract key frames at scene changes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Movies, edited content</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dense Processing</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Process all frames with temporal attention</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Action recognition, short clips</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hierarchical</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Summarize segments, then combine</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Very long videos</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code: Video Analysis Pipeline</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import cv2
+import base64
+import anthropic
+from dataclasses import dataclass
+from typing import List
+
+@dataclass
+class VideoFrame:
+    index: int
+    timestamp: float
+    image_data: str  # Base64 encoded
+
+class VideoAnalyzer:
+    """Analyze videos using vision language models."""
+
+    def __init__(self):
+        self.client = anthropic.Anthropic()
+
+    def extract_frames(
+        self,
+        video_path: str,
+        fps: float = 1.0,
+        max_frames: int = 20
+    ) -> List[VideoFrame]:
+        """
+        Extract frames from video at specified FPS.
+
+        Args:
+            video_path: Path to video file
+            fps: Frames per second to extract
+            max_frames: Maximum number of frames
+
+        Returns:
+            List of VideoFrame objects
+        """
+        cap = cv2.VideoCapture(video_path)
+        video_fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / video_fps
+
+        # Calculate frame interval
+        frame_interval = int(video_fps / fps)
+        frames = []
+
+        frame_idx = 0
+        while cap.isOpened() and len(frames) < max_frames:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if frame_idx % frame_interval == 0:
+                # Resize for efficiency
+                frame = cv2.resize(frame, (512, 512))
+
+                # Convert to base64
+                _, buffer = cv2.imencode('.jpg', frame)
+                image_data = base64.b64encode(buffer).decode('utf-8')
+
+                frames.append(VideoFrame(
+                    index=len(frames),
+                    timestamp=frame_idx / video_fps,
+                    image_data=image_data
+                ))
+
+            frame_idx += 1
+
+        cap.release()
+        return frames
+
+    def analyze_video(
+        self,
+        video_path: str,
+        prompt: str,
+        fps: float = 0.5
+    ) -> str:
+        """
+        Analyze a video with a custom prompt.
+
+        Args:
+            video_path: Path to video file
+            prompt: What to analyze/extract
+            fps: Frames per second to sample
+
+        Returns:
+            Analysis result
+        """
+        frames = self.extract_frames(video_path, fps=fps, max_frames=10)
+
+        # Build message content with all frames
+        content = []
+
+        # Add timestamp context
+        content.append({
+            "type": "text",
+            "text": f"This video has {len(frames)} key frames. I'll show them in order with timestamps."
+        })
+
+        for frame in frames:
+            content.append({
+                "type": "text",
+                "text": f"\n[Frame at {frame.timestamp:.1f}s]"
+            })
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": frame.image_data
+                }
+            })
+
+        content.append({
+            "type": "text",
+            "text": f"\n\nBased on these frames from the video:\n{prompt}"
+        })
+
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": content}]
+        )
+
+        return response.content[0].text
+
+    def summarize_video(self, video_path: str) -> dict:
+        """Generate a comprehensive video summary."""
+        prompt = """
+Analyze this video and provide:
+1. A brief summary of what happens (2-3 sentences)
+2. Key objects/people visible
+3. The main action or activity
+4. The setting/environment
+5. Any text visible in the video
+6. The overall mood/tone
+
+Format as JSON.
+"""
+        result = self.analyze_video(video_path, prompt)
+
+        # Parse JSON from response
+        import json
+        start = result.find('{')
+        end = result.rfind('}') + 1
+        if start != -1 and end > start:
+            return json.loads(result[start:end])
+        return {"raw_analysis": result}
+
+    def detect_scenes(self, video_path: str) -> List[dict]:
+        """Detect and describe scene changes."""
+        prompt = """
+Identify distinct scenes in this video. For each scene:
+1. Start frame number
+2. Description of the scene
+3. Key elements that changed from previous scene
+
+Return as JSON array.
+"""
+        result = self.analyze_video(video_path, prompt, fps=1.0)
+
+        import json
+        start = result.find('[')
+        end = result.rfind(']') + 1
+        if start != -1 and end > start:
+            return json.loads(result[start:end])
+        return []
+
+# Example usage
+analyzer = VideoAnalyzer()
+
+# Summarize a video
+summary = analyzer.summarize_video("meeting_recording.mp4")
+print("Video Summary:", summary)
+
+# Custom analysis
+transcript_analysis = analyzer.analyze_video(
+    "presentation.mp4",
+    "Extract all text visible on slides and summarize the key points presented."
+)
+print("Presentation Content:", transcript_analysis)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 8: Building Multi-modal Applications -->
+            <h2 class="mt-4">Building Multi-modal Applications</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mini Project: Visual Search Engine</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Architecture</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Image Upload] --> B[CLIP Encoder]
+    B --> C[Image Embedding]
+    C --> D[(Vector Database)]
+
+    E[Text Query] --> F[CLIP Text Encoder]
+    F --> G[Query Embedding]
+    G --> H{Similarity Search}
+    D --> H
+    H --> I[Top K Results]
+
+    J[Image Query] --> B
+
+    style D fill:#f6ad55
+    style H fill:#667eea
+                        </div>
+                    </div>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import torch
+from transformers import CLIPProcessor, CLIPModel
+from PIL import Image
+import numpy as np
+from typing import List, Union
+import chromadb
+from chromadb.utils import embedding_functions
+
+class MultiModalSearchEngine:
+    """
+    A visual search engine supporting:
+    - Text-to-image search
+    - Image-to-image search (reverse image search)
+    - Combined queries
+    """
+
+    def __init__(self, collection_name: str = "images"):
+        # Load CLIP
+        self.model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
+        self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+
+        # Initialize ChromaDB
+        self.client = chromadb.PersistentClient(path="./image_db")
+
+        # Create custom embedding function for CLIP
+        self.collection = self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}
+        )
+
+    def _encode_image(self, image: Union[str, Image.Image]) -> np.ndarray:
+        """Encode an image to CLIP embedding."""
+        if isinstance(image, str):
+            image = Image.open(image)
+
+        inputs = self.processor(images=image, return_tensors="pt")
+
+        with torch.no_grad():
+            embedding = self.model.get_image_features(**inputs)
+            embedding = embedding / embedding.norm(dim=-1, keepdim=True)
+
+        return embedding.numpy().flatten()
+
+    def _encode_text(self, text: str) -> np.ndarray:
+        """Encode text to CLIP embedding."""
+        inputs = self.processor(text=[text], return_tensors="pt", padding=True)
+
+        with torch.no_grad():
+            embedding = self.model.get_text_features(**inputs)
+            embedding = embedding / embedding.norm(dim=-1, keepdim=True)
+
+        return embedding.numpy().flatten()
+
+    def index_images(
+        self,
+        image_paths: List[str],
+        metadata: List[dict] = None
+    ):
+        """
+        Index a batch of images.
+
+        Args:
+            image_paths: Paths to images
+            metadata: Optional metadata for each image
+        """
+        embeddings = []
+        ids = []
+        metadatas = []
+
+        for i, path in enumerate(image_paths):
+            try:
+                embedding = self._encode_image(path)
+                embeddings.append(embedding.tolist())
+                ids.append(f"img_{i}_{hash(path)}")
+                metadatas.append(
+                    metadata[i] if metadata else {"path": path}
+                )
+            except Exception as e:
+                print(f"Error processing {path}: {e}")
+
+        if embeddings:
+            self.collection.add(
+                embeddings=embeddings,
+                ids=ids,
+                metadatas=metadatas
+            )
+            print(f"Indexed {len(embeddings)} images")
+
+    def search_by_text(
+        self,
+        query: str,
+        top_k: int = 10
+    ) -> List[dict]:
+        """Search images by text description."""
+        query_embedding = self._encode_text(query)
+
+        results = self.collection.query(
+            query_embeddings=[query_embedding.tolist()],
+            n_results=top_k
+        )
+
+        return self._format_results(results)
+
+    def search_by_image(
+        self,
+        image: Union[str, Image.Image],
+        top_k: int = 10
+    ) -> List[dict]:
+        """Find similar images (reverse image search)."""
+        query_embedding = self._encode_image(image)
+
+        results = self.collection.query(
+            query_embeddings=[query_embedding.tolist()],
+            n_results=top_k
+        )
+
+        return self._format_results(results)
+
+    def search_combined(
+        self,
+        image: Union[str, Image.Image],
+        text: str,
+        image_weight: float = 0.5,
+        top_k: int = 10
+    ) -> List[dict]:
+        """
+        Combined image + text search.
+
+        Example: "like this image but in blue"
+        """
+        image_embedding = self._encode_image(image)
+        text_embedding = self._encode_text(text)
+
+        # Weighted combination
+        combined = (
+            image_weight * image_embedding +
+            (1 - image_weight) * text_embedding
+        )
+        combined = combined / np.linalg.norm(combined)
+
+        results = self.collection.query(
+            query_embeddings=[combined.tolist()],
+            n_results=top_k
+        )
+
+        return self._format_results(results)
+
+    def _format_results(self, results: dict) -> List[dict]:
+        """Format ChromaDB results."""
+        formatted = []
+        for i in range(len(results['ids'][0])):
+            formatted.append({
+                'id': results['ids'][0][i],
+                'metadata': results['metadatas'][0][i],
+                'distance': results['distances'][0][i] if results['distances'] else None
+            })
+        return formatted
+
+# Example usage
+engine = MultiModalSearchEngine()
+
+# Index your image collection
+import glob
+image_paths = glob.glob("./product_images/*.jpg")
+engine.index_images(image_paths)
+
+# Text search
+results = engine.search_by_text("red running shoes")
+print("Text search results:", results[:3])
+
+# Image search (find similar)
+results = engine.search_by_image("./query_shoe.jpg")
+print("Similar images:", results[:3])
+
+# Combined search
+results = engine.search_combined(
+    "./blue_dress.jpg",
+    "similar style but in red",
+    image_weight=0.6
+)
+print("Combined search:", results[:3])</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Engineering Insights -->
+            <h2 class="mt-4">Engineering Insights</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How Big Companies Use Multi-modal AI</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Company</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Application</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Technology</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pinterest</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Visual search, similar pins</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CLIP-based embeddings + vector search</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Canva</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Magic Design, text-to-image</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stable Diffusion fine-tuned</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adobe</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Firefly, Generative Fill</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Custom diffusion + inpainting</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Google</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Google Lens, image search</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ViT + contrastive learning</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Midjourney</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Art generation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Custom diffusion architecture</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Production Considerations</h4>
+                    <ul>
+                        <li><strong>Latency:</strong> Image generation takes 5-30s; use async/queues</li>
+                        <li><strong>Cost:</strong> GPU inference is expensive; batch when possible</li>
+                        <li><strong>Caching:</strong> Cache embeddings, not raw images</li>
+                        <li><strong>Content moderation:</strong> Filter inputs AND outputs</li>
+                        <li><strong>Rate limiting:</strong> Protect against abuse</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Common Mistakes -->
+            <h2 class="mt-4">Common Mistakes</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What Engineers Misunderstand</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>1. Ignoring Image Preprocessing</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Feeding arbitrary resolution images to models<br>
+                        <strong>Right:</strong> Resize to expected dimensions (e.g., 224x224 for ViT, 512x512 for SD)
+                    </div>
+
+                    <h4 class="mt-3">2. Not Normalizing Embeddings</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Using raw CLIP embeddings for similarity search<br>
+                        <strong>Right:</strong> L2-normalize embeddings before cosine similarity
+                    </div>
+
+                    <h4 class="mt-3">3. Overloading Context with Video Frames</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Sending 100 frames to a vision LLM<br>
+                        <strong>Right:</strong> Sample key frames (1-2 fps) and limit to 10-20 frames
+                    </div>
+
+                    <h4 class="mt-3">4. Trusting Generation Output</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Auto-publishing generated images without review<br>
+                        <strong>Right:</strong> Always include human review or automated safety checks
+                    </div>
+
+                    <h4 class="mt-3">5. Ignoring Prompt Engineering for Images</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Simple prompts like "a cat"<br>
+                        <strong>Right:</strong> Detailed prompts with style, lighting, quality modifiers
+                    </div>
+                </div>
+            </div>
+
+            <!-- Staff-Level Metrics Reference -->
+            <h2 class="mt-4">Staff-Level Metrics Reference</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Image Generation Quality Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">What It Measures</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Range</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Good Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>FID</strong><br><small>Fréchet Inception Distance</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Distance between feature distributions of generated vs real images. Lower = more realistic distribution.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0 = perfect (identical distributions)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">SDXL: ~15–25; DALL-E 3: ~12–20</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>IS</strong><br><small>Inception Score</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Images should be recognizable (high confidence) AND diverse (varied classes). Higher = better.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">1–∞; ImageNet real images ≈ 233</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Good models: IS &gt; 50 on ImageNet classes</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>CLIP Score</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Cosine similarity between CLIP text embedding (prompt) and CLIP image embedding (output). Measures text–image alignment.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0–100 (higher = better alignment)</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&gt;25 acceptable; &gt;30 good; DALL-E 3 ≈ 33</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>LPIPS</strong><br><small>Learned Perceptual Image Patch Similarity</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Perceptual similarity between two images using deep features. Used for image editing/reconstruction quality.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">0–1; 0 = identical</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;0.1 excellent; &lt;0.3 acceptable</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="key-insight">
+                        <strong>FID is the most cited metric</strong> for generative image models. It uses Inception v3 features to compare the statistical distribution of generated images against real images. The lower the FID, the closer the generated images are to real images in terms of distribution. However, FID doesn't measure text-image alignment — use CLIP Score for that.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Image-Text Retrieval Metrics (CLIP, VLMs)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>For retrieval tasks (find image given text query, or find text given image), the standard metrics are:</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Definition</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">CLIP ViT-L/14 on MS-COCO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Recall@1 (R@1)</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Is the correct match in the top 1 result?</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Image→Text: 65.4%; Text→Image: 45.4%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Recall@5 (R@5)</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Is the correct match in the top 5 results?</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Image→Text: 86.2%; Text→Image: 71.3%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>Recall@10 (R@10)</strong></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Is the correct match in the top 10 results?</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Image→Text: 91.0%; Text→Image: 80.8%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);"><strong>MRR</strong><br><small>Mean Reciprocal Rank</small></td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Average of 1/rank for the first correct result. Good for single-answer retrieval.</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Typical strong model: MRR &gt; 0.7</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>CLIP Zero-Shot Classification Benchmarks</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Model</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">ImageNet Zero-Shot Acc.</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Params</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">CLIP ViT-B/32</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">63.3%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">151M</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">CLIP ViT-L/14</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">75.5%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">427M</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OpenCLIP ViT-H/14</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">78.0%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">986M</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">SigLIP (Google)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">84.5%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">400M</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Supervised ResNet-50 (baseline)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">76.2%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">25M</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Interview Tip:</strong> When evaluating multimodal systems, always separate retrieval quality (R@k, MRR) from generation quality (FID, CLIP Score) from understanding quality (VQA accuracy). They test different capabilities and fail differently.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>VQA &amp; Document Understanding Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Task</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">GPT-4V</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Claude 3.5 Sonnet</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Human</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">VQAv2 (visual Q&A)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">VQA Accuracy</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">77.2%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~78%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">83%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">DocVQA (document Q&A)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">ANLS (fuzzy match)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">88.4%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">89.2%</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">98.0%</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">OCR (text extraction)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Character Error Rate (CER)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;5% CER</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">&lt;5% CER</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~0.5% CER</td></tr>
+                            <tr><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Image captioning (COCO)</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">CIDEr score</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~148</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~145</td><td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">~100 (human agreement)</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Active Recall Questions -->
+            <h2 class="mt-4">Active Recall Questions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ol>
+                        <li class="mb-2"><strong>How does a Vision Transformer convert a 224x224 image into a sequence?</strong>
+                            <details><summary>Answer</summary>Split into 16x16 patches (196 patches total), flatten each patch to 768 values, project to embedding dimension, add positional embeddings.</details>
+                        </li>
+                        <li class="mb-2"><strong>What is contrastive learning and how does CLIP use it?</strong>
+                            <details><summary>Answer</summary>Contrastive learning trains by pushing matching pairs close and non-matching pairs apart in embedding space. CLIP uses image-text pairs, making matching images and captions have similar embeddings.</details>
+                        </li>
+                        <li class="mb-2"><strong>Why does Stable Diffusion operate in latent space instead of pixel space?</strong>
+                            <details><summary>Answer</summary>Efficiency (64x64 vs 512x512 = 64x fewer computations), semantic meaning in latent space, and the VAE ensures realistic output images.</details>
+                        </li>
+                        <li class="mb-2"><strong>What are the three main components of Stable Diffusion?</strong>
+                            <details><summary>Answer</summary>CLIP text encoder (converts prompt to embeddings), U-Net (predicts noise to remove), and VAE (compresses/decompresses to/from latent space).</details>
+                        </li>
+                        <li class="mb-2"><strong>How can you use CLIP for zero-shot image classification?</strong>
+                            <details><summary>Answer</summary>Encode the image and all possible class labels as text ("a photo of a [class]"). The class with highest cosine similarity to the image embedding wins.</details>
+                        </li>
+                        <li class="mb-2"><strong>What strategies work for processing long videos with vision LLMs?</strong>
+                            <details><summary>Answer</summary>Frame sampling at low FPS, scene detection for key frames, hierarchical summarization (summarize segments then combine), temporal attention for short clips.</details>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Mini Project -->
+            <h2 class="mt-4">Mini Project: Document Understanding Pipeline</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Project: Receipt/Invoice Extractor</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Goal</h4>
+                    <p>Build a document understanding system that:</p>
+                    <ol>
+                        <li>Takes images of receipts, invoices, or forms</li>
+                        <li>Extracts structured data (vendor, date, items, totals)</li>
+                        <li>Validates the extracted data</li>
+                        <li>Returns clean JSON output</li>
+                    </ol>
+
+                    <h4>Starter Code</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+import base64
+from dataclasses import dataclass
+from typing import List, Optional
+import json
+
+@dataclass
+class LineItem:
+    description: str
+    quantity: Optional[float]
+    unit_price: Optional[float]
+    total: float
+
+@dataclass
+class ExtractedDocument:
+    document_type: str  # "receipt", "invoice", "form"
+    vendor: str
+    date: Optional[str]
+    items: List[LineItem]
+    subtotal: Optional[float]
+    tax: Optional[float]
+    total: float
+    confidence: float
+
+class DocumentExtractor:
+    """
+    Multi-modal document extraction system that:
+    1. Classifies the document type (receipt, invoice, form)
+    2. Extracts relevant fields based on document type
+    3. Validates the data (e.g., items sum to total)
+    4. Returns structured output with confidence scores
+    """
+
+    def __init__(self):
+        self.client = anthropic.Anthropic()
+        # Supported document types and their expected fields
+        self.doc_schemas = {
+            "receipt": ["vendor", "date", "items", "subtotal", "tax", "total"],
+            "invoice": ["vendor", "date", "invoice_number", "items", "subtotal", "tax", "total", "due_date"],
+            "form": ["form_type", "fields", "date"]
+        }
+
+    def _encode_image(self, image_path: str) -> tuple[str, str]:
+        """Encode image to base64 and detect media type."""
+        import mimetypes
+
+        # Detect media type from file extension
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if mime_type is None:
+            # Default to JPEG if unknown
+            mime_type = "image/jpeg"
+
+        # Read and encode the image
+        with open(image_path, "rb") as f:
+            image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+        return image_data, mime_type
+
+    def extract(self, image_path: str) -> ExtractedDocument:
+        """Extract structured data from a document image."""
+        # Step 1: Encode the image
+        image_data, media_type = self._encode_image(image_path)
+
+        # Step 2: Classify the document type
+        doc_type = self._classify_document(image_data, media_type)
+
+        # Step 3: Extract fields based on document type
+        extracted_data = self._extract_fields(image_data, media_type, doc_type)
+
+        # Step 4: Validate the extracted data
+        is_valid, issues = self._validate(extracted_data)
+
+        # Adjust confidence based on validation results
+        confidence = extracted_data.get("confidence", 0.8)
+        if not is_valid:
+            # Reduce confidence for each validation issue
+            confidence = max(0.1, confidence - (0.1 * len(issues)))
+            print(f"Validation issues found: {issues}")
+
+        # Step 5: Parse line items
+        items = []
+        for item_data in extracted_data.get("items", []):
+            items.append(LineItem(
+                description=item_data.get("description", "Unknown item"),
+                quantity=item_data.get("quantity"),
+                unit_price=item_data.get("unit_price"),
+                total=item_data.get("total", 0.0)
+            ))
+
+        # Step 6: Return structured document
+        return ExtractedDocument(
+            document_type=doc_type,
+            vendor=extracted_data.get("vendor", "Unknown"),
+            date=extracted_data.get("date"),
+            items=items,
+            subtotal=extracted_data.get("subtotal"),
+            tax=extracted_data.get("tax"),
+            total=extracted_data.get("total", 0.0),
+            confidence=confidence
+        )
+
+    def _classify_document(self, image_data: str, media_type: str) -> str:
+        """Determine what type of document this is using vision AI."""
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=100,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": """Classify this document into exactly ONE of these categories:
+- receipt (store receipts, restaurant bills, purchase confirmations)
+- invoice (business invoices, bills for services)
+- form (tax forms, application forms, official documents)
+
+Respond with ONLY the category name, nothing else."""
+                        }
+                    ],
+                }
+            ],
+        )
+
+        doc_type = response.content[0].text.strip().lower()
+
+        # Validate response is a known type
+        if doc_type not in self.doc_schemas:
+            doc_type = "receipt"  # Default fallback
+
+        return doc_type
+
+    def _extract_fields(self, image_data: str, media_type: str, doc_type: str) -> dict:
+        """Extract fields based on document type using structured prompting."""
+
+        # Build extraction prompt based on document type
+        if doc_type == "receipt":
+            extraction_prompt = """Extract the following information from this receipt image.
+Return a JSON object with these fields:
+{
+    "vendor": "store/restaurant name",
+    "date": "YYYY-MM-DD format if visible, null otherwise",
+    "items": [
+        {
+            "description": "item name",
+            "quantity": number or null,
+            "unit_price": number or null,
+            "total": number (line total)
+        }
+    ],
+    "subtotal": number or null,
+    "tax": number or null,
+    "total": number (final total),
+    "confidence": number between 0 and 1 indicating extraction confidence
+}
+
+Rules:
+- All monetary values should be numbers (e.g., 12.99 not "$12.99")
+- If a field is unclear or not visible, use null
+- For items, extract as many line items as clearly visible
+- Confidence should reflect how clearly the data was readable
+
+Return ONLY the JSON object, no additional text."""
+
+        elif doc_type == "invoice":
+            extraction_prompt = """Extract the following information from this invoice image.
+Return a JSON object with these fields:
+{
+    "vendor": "company/business name",
+    "date": "YYYY-MM-DD format (invoice date)",
+    "invoice_number": "invoice ID/number if visible",
+    "due_date": "YYYY-MM-DD format if visible, null otherwise",
+    "items": [
+        {
+            "description": "item/service description",
+            "quantity": number or null,
+            "unit_price": number or null,
+            "total": number (line total)
+        }
+    ],
+    "subtotal": number or null,
+    "tax": number or null,
+    "total": number (final total),
+    "confidence": number between 0 and 1 indicating extraction confidence
+}
+
+Rules:
+- All monetary values should be numbers
+- If a field is unclear or not visible, use null
+- Confidence should reflect how clearly the data was readable
+
+Return ONLY the JSON object, no additional text."""
+
+        else:  # form
+            extraction_prompt = """Extract the following information from this form/document image.
+Return a JSON object with these fields:
+{
+    "vendor": "organization/issuer name",
+    "form_type": "type of form (e.g., W-2, 1099, application)",
+    "date": "YYYY-MM-DD format if visible, null otherwise",
+    "items": [],
+    "subtotal": null,
+    "tax": null,
+    "total": 0,
+    "fields": {
+        "field_name": "field_value"
+    },
+    "confidence": number between 0 and 1 indicating extraction confidence
+}
+
+Extract key fields visible on the form into the "fields" object.
+Return ONLY the JSON object, no additional text."""
+
+        response = self.client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": image_data,
+                            },
+                        },
+                        {
+                            "type": "text",
+                            "text": extraction_prompt
+                        }
+                    ],
+                }
+            ],
+        )
+
+        # Parse JSON response
+        response_text = response.content[0].text.strip()
+
+        # Handle potential markdown code blocks in response
+        if response_text.startswith("```"):
+            # Extract JSON from code block
+            lines = response_text.split("\n")
+            json_lines = []
+            in_json = False
+            for line in lines:
+                if line.startswith("```") and not in_json:
+                    in_json = True
+                    continue
+                elif line.startswith("```") and in_json:
+                    break
+                elif in_json:
+                    json_lines.append(line)
+            response_text = "\n".join(json_lines)
+
+        try:
+            return json.loads(response_text)
+        except json.JSONDecodeError:
+            # Return minimal valid structure on parse failure
+            return {
+                "vendor": "Parse Error",
+                "date": None,
+                "items": [],
+                "subtotal": None,
+                "tax": None,
+                "total": 0.0,
+                "confidence": 0.1
+            }
+
+    def _validate(self, data: dict) -> tuple[bool, list[str]]:
+        """
+        Validate extracted data for consistency.
+        Returns (is_valid, list of issues found)
+        """
+        issues = []
+
+        # Check 1: Items sum to subtotal (with tolerance for rounding)
+        if data.get("items") and data.get("subtotal") is not None:
+            items_sum = sum(item.get("total", 0) or 0 for item in data["items"])
+            subtotal = data["subtotal"]
+            if abs(items_sum - subtotal) > 0.02:  # Allow 2 cent tolerance
+                issues.append(
+                    f"Items sum ({items_sum:.2f}) doesn't match subtotal ({subtotal:.2f})"
+                )
+
+        # Check 2: Subtotal + tax = total (with tolerance)
+        if data.get("subtotal") is not None and data.get("total") is not None:
+            subtotal = data["subtotal"]
+            tax = data.get("tax") or 0
+            total = data["total"]
+            calculated_total = subtotal + tax
+            if abs(calculated_total - total) > 0.02:
+                issues.append(
+                    f"Subtotal ({subtotal:.2f}) + tax ({tax:.2f}) = {calculated_total:.2f} "
+                    f"doesn't match total ({total:.2f})"
+                )
+
+        # Check 3: Validate date format (YYYY-MM-DD)
+        import re
+        date = data.get("date")
+        if date is not None:
+            date_pattern = r"^\d{4}-\d{2}-\d{2}$"
+            if not re.match(date_pattern, str(date)):
+                issues.append(f"Date format invalid: {date} (expected YYYY-MM-DD)")
+            else:
+                # Validate date values are reasonable
+                try:
+                    year, month, day = map(int, date.split("-"))
+                    if not (1900 <= year <= 2100):
+                        issues.append(f"Year out of range: {year}")
+                    if not (1 <= month <= 12):
+                        issues.append(f"Month out of range: {month}")
+                    if not (1 <= day <= 31):
+                        issues.append(f"Day out of range: {day}")
+                except ValueError:
+                    issues.append(f"Could not parse date: {date}")
+
+        # Check 4: Total should be positive for receipts/invoices
+        total = data.get("total")
+        if total is not None and total < 0:
+            issues.append(f"Total is negative: {total}")
+
+        # Check 5: Confidence should be between 0 and 1
+        confidence = data.get("confidence")
+        if confidence is not None and not (0 <= confidence <= 1):
+            issues.append(f"Confidence out of range: {confidence}")
+
+        # Check 6: Vendor should not be empty
+        vendor = data.get("vendor")
+        if not vendor or vendor.strip() == "":
+            issues.append("Vendor name is empty")
+
+        is_valid = len(issues) == 0
+        return is_valid, issues
+
+# Test your implementation
+extractor = DocumentExtractor()
+
+test_images = [
+    "receipt_1.png",
+    "invoice_1.png",
+    "receipt_2.jpg"
+]
+
+for image in test_images:
+    result = extractor.extract(image)
+    print(f"Document: {image}")
+    print(f"  Type: {result.document_type}")
+    print(f"  Vendor: {result.vendor}")
+    print(f"  Total: ${result.total:.2f}")
+    print(f"  Confidence: {result.confidence:.0%}")
+    print("---")</code></pre>
+                    </div>
+
+                    <h4>Success Criteria</h4>
+                    <ul>
+                        <li>Correctly classifies document types</li>
+                        <li>Extracts vendor, date, and total with >90% accuracy</li>
+                        <li>Line items extraction when visible</li>
+                        <li>Validation catches math errors</li>
+                        <li>Confidence scores reflect actual accuracy</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Checkpoint Summary -->
+            <h2 class="mt-4">Checkpoint Summary</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(72, 187, 120, 0.1) 0%, rgba(56, 161, 105, 0.1) 100%); border: 2px solid rgba(72, 187, 120, 0.3);">
+                <h3 style="color: #48bb78;">Key Takeaways</h3>
+                <ul>
+                    <li><strong>Multi-modal AI</strong> unifies text, images, video, and audio in shared embedding spaces</li>
+                    <li><strong>Vision Transformers (ViT)</strong> treat images as sequences of patches, enabling transformer architectures</li>
+                    <li><strong>CLIP</strong> connects images and text through contrastive learning on 400M image-text pairs</li>
+                    <li><strong>Diffusion models</strong> generate images by learning to reverse a gradual noising process</li>
+                    <li><strong>Stable Diffusion</strong> operates in latent space for efficiency, using VAE + U-Net + CLIP</li>
+                    <li><strong>Vision LLMs</strong> (GPT-4V, Claude Vision, Gemini) enable natural language reasoning about images</li>
+                    <li><strong>Video understanding</strong> requires smart frame sampling and temporal modeling</li>
+                    <li><strong>Production systems</strong> must consider latency, cost, caching, and content safety</li>
+                </ul>
+
+                <h4 class="mt-3">You Should Now Be Able To:</h4>
+                <ol>
+                    <li>Explain how ViT converts images to sequences for transformer processing</li>
+                    <li>Use CLIP for zero-shot classification and semantic image search</li>
+                    <li>Understand the diffusion process and Stable Diffusion architecture</li>
+                    <li>Write effective prompts for image generation</li>
+                    <li>Build applications with vision LLMs for document understanding</li>
+                    <li>Process videos using frame sampling and vision models</li>
+                    <li>Design a multi-modal search engine with vector databases</li>
+                </ol>
+            </div>
+
+            <!-- Quiz -->
+            <h2 class="mt-4">Self-Check Quiz</h2>
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-18.html" class="btn btn-secondary">&larr; Previous: Thinking Models</a>
+                <a href="module-20.html" class="btn btn-primary">Next: Traditional ML &amp; DS Teams &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sidebar toggle
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+
+            // Initialize quiz
+            const quizQuestions = [
+                {
+                    question: "How does a Vision Transformer process a 224x224 image?",
+                    options: [
+                        "Processes pixel by pixel sequentially",
+                        "Splits into 16x16 patches, flattens them, and treats as a sequence of tokens",
+                        "Uses convolutional layers only",
+                        "Compresses to a single embedding directly"
+                    ],
+                    correct: 1,
+                    explanation: "ViT splits the image into patches, flattens each patch, projects to embedding dimension, and adds positional embeddings."
+                },
+                {
+                    question: "What does CLIP learn to do?",
+                    options: [
+                        "Generate images from text",
+                        "Map images and their text descriptions to similar embeddings",
+                        "Classify images into fixed categories",
+                        "Detect objects in images"
+                    ],
+                    correct: 1,
+                    explanation: "CLIP uses contrastive learning to make matching image-text pairs have similar embeddings in a shared space."
+                },
+                {
+                    question: "Why does Stable Diffusion operate in latent space?",
+                    options: [
+                        "Latent space is more colorful",
+                        "It's required by the CLIP model",
+                        "64x64 latent is much more efficient than 512x512 pixels",
+                        "Latent space has better copyright protection"
+                    ],
+                    correct: 2,
+                    explanation: "Operating in compressed latent space (64x64 vs 512x512) reduces computation by ~64x while the VAE preserves quality."
+                },
+                {
+                    question: "What is the key insight of diffusion models?",
+                    options: [
+                        "Images can be generated in one step",
+                        "Learning to remove noise step-by-step is easier than generating directly",
+                        "All images are fundamentally similar",
+                        "Noise is the same as signal"
+                    ],
+                    correct: 1,
+                    explanation: "Diffusion models learn to reverse a gradual noising process, making each denoising step a small, tractable task."
+                },
+                {
+                    question: "What's the best strategy for analyzing long videos with vision LLMs?",
+                    options: [
+                        "Send all frames at once",
+                        "Only analyze the first frame",
+                        "Sample key frames at low FPS (e.g., 1-2 fps) and limit total frames",
+                        "Convert to audio and use speech recognition"
+                    ],
+                    correct: 2,
+                    explanation: "Sample frames at 1-2 fps, use scene detection for key frames, and limit to 10-20 frames to fit context while capturing the content."
+                }
+            ];
+
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+
+            // Interactive modality cards
+            document.querySelectorAll('.modality-card').forEach(card => {
+                card.addEventListener('click', function() {
+                    document.querySelectorAll('.modality-card').forEach(c => c.classList.remove('active'));
+                    this.classList.add('active');
+                });
+            });
+        });
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

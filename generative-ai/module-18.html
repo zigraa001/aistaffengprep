@@ -1,0 +1,2350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 18: Thinking Models - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        /* Thinking Models Interactive Demos */
+        .thinking-demo {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 1.5rem 0;
+        }
+
+        .thought-chain {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .thought-step {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            color: white;
+            border-left: 4px solid #667eea;
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all 0.5s ease;
+        }
+
+        .thought-step.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .thought-step.highlight {
+            background: rgba(102, 126, 234, 0.3);
+            border-left-color: #ffd700;
+        }
+
+        .thought-step .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            text-align: center;
+            line-height: 24px;
+            font-size: 0.8rem;
+            margin-right: 0.5rem;
+        }
+
+        .thought-step .step-content {
+            margin-top: 0.5rem;
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        .reasoning-controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .reasoning-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .reasoning-btn:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .reasoning-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Tree of Thought Visualization */
+        .tree-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            overflow-x: auto;
+        }
+
+        .tree-node {
+            background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            color: white;
+            font-size: 0.85rem;
+            min-width: 120px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .tree-node:hover {
+            transform: scale(1.05);
+        }
+
+        .tree-node.root {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .tree-node.selected {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            box-shadow: 0 5px 20px rgba(72, 187, 120, 0.4);
+        }
+
+        .tree-node.pruned {
+            opacity: 0.4;
+            text-decoration: line-through;
+        }
+
+        .tree-level {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* Cost Comparison */
+        .cost-comparison {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .cost-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            text-align: center;
+            color: white;
+        }
+
+        .cost-card .model-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .cost-card .cost-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #ffd700;
+        }
+
+        .cost-card .cost-unit {
+            font-size: 0.8rem;
+            color: #a0aec0;
+        }
+
+        .cost-card .latency {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: #a0aec0;
+        }
+
+        /* Self-Consistency Voting */
+        .voting-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .vote-path {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .vote-path .answer {
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 0.25rem;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .vote-path.winner {
+            background: rgba(72, 187, 120, 0.2);
+            border: 2px solid #48bb78;
+        }
+
+        .vote-path.winner .answer {
+            background: #48bb78;
+        }
+
+        .vote-count {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .vote-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 18: Thinking Models - Reasoning & Chain of Thought</h1>
+
+            <div class="card mt-3">
+                <h3>Learning Objectives</h3>
+                <ul>
+                    <li>Understand why reasoning matters for complex problem solving</li>
+                    <li>Master Chain of Thought (CoT) prompting techniques</li>
+                    <li>Implement self-consistency and Tree of Thought patterns</li>
+                    <li>Use Claude's extended thinking and OpenAI's o3/o4-mini reasoning models</li>
+                    <li>Make informed decisions about when to use reasoning vs fast models</li>
+                </ul>
+            </div>
+
+            <!-- Section 1: Why Reasoning Matters -->
+            <h2 class="mt-4">Why Reasoning Matters</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Detective vs The Encyclopedia</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Engineering Analogy</h4>
+                    <p>Think of two types of systems:</p>
+                    <ul>
+                        <li><strong>Encyclopedia (Fast LLMs):</strong> Like a lookup table - give it a question, get a cached answer. Great for factual recall, pattern matching, and simple transformations. But ask it to solve a novel multi-step problem and it might hallucinate or give a superficially plausible but wrong answer.</li>
+                        <li><strong>Detective (Reasoning Models):</strong> Like a CPU with working memory - takes time to examine evidence, form hypotheses, test them, and arrive at conclusions. Slower but more reliable for complex reasoning.</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Fast Model (Pattern Match)"
+        A[Input] --> B[Single Forward Pass]
+        B --> C[Output]
+    end
+
+    subgraph "Reasoning Model (Multi-Step)"
+        D[Input] --> E[Think Step 1]
+        E --> F[Think Step 2]
+        F --> G[Think Step 3]
+        G --> H[Verify]
+        H --> I[Output]
+    end
+                        </div>
+                    </div>
+
+                    <h4>Why This Matters for AI Engineering</h4>
+                    <p>Standard transformer inference is a <strong>single forward pass</strong> - the model produces output token by token without any "thinking" between. For problems requiring multiple reasoning steps (math, logic, code debugging), this is fundamentally limited.</p>
+
+                    <div class="card mt-2" style="background: var(--warning-bg); border-left: 4px solid var(--warning-color);">
+                        <strong>Key Insight:</strong> Transformers are trained to predict the next token, not to "think." Chain of Thought effectively turns the model's output stream into a scratchpad for intermediate computations. The model learns to use its own output as working memory.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Core Concepts: Types of Problems That Need Reasoning</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>When Reasoning Helps</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Problem Type</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Example</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why Reasoning Helps</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Multi-step Math</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"If a train travels 60 mph for 2.5 hours, then 45 mph for 1.5 hours..."</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Each step depends on the previous result</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Logical Deduction</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"All engineers are humans. Some humans are tall. Does it follow that some engineers are tall?" (Answer: not necessarily!)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requires symbolic reasoning, not pattern matching</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Code Debugging</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Why does this function return None instead of the expected list?"</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Must trace execution state through multiple lines</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Planning</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Design a system to handle 1M users with these constraints..."</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Must consider interdependencies and tradeoffs</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Constraint Satisfaction</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Schedule 5 meetings with these time preferences and conflicts..."</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Needs to track multiple constraints simultaneously</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>When Reasoning is Overkill</h4>
+                    <ul>
+                        <li><strong>Simple factual questions:</strong> "What is the capital of France?"</li>
+                        <li><strong>Text transformation:</strong> "Translate this to Spanish"</li>
+                        <li><strong>Pattern-based generation:</strong> "Write a haiku about autumn"</li>
+                        <li><strong>Classification:</strong> "Is this email spam or not?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Section 2: Chain of Thought Prompting -->
+            <h2 class="mt-4">Chain of Thought (CoT) Prompting</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Interactive Demo: CoT in Action</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p class="text-muted">Watch how Chain of Thought breaks down a complex problem into steps. Click the buttons to see different approaches.</p>
+
+                    <div class="thinking-demo" id="cot-demo">
+                        <div class="reasoning-controls">
+                            <button class="reasoning-btn active" onclick="showCoTDemo('direct')">Direct Answer</button>
+                            <button class="reasoning-btn" onclick="showCoTDemo('cot')">Chain of Thought</button>
+                        </div>
+
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 0.5rem; padding: 1rem; color: white; margin-bottom: 1rem;">
+                            <strong>Problem:</strong> A store has 47 apples. If 23 are sold in the morning and then a shipment of 18 arrives, but 12 more are sold in the afternoon, how many apples remain?
+                        </div>
+
+                        <div class="thought-chain" id="cot-steps">
+                            <!-- Steps populated by JavaScript -->
+                        </div>
+
+                        <div id="cot-result" style="background: rgba(72, 187, 120, 0.2); border-radius: 0.5rem; padding: 1rem; color: white; text-align: center; margin-top: 1rem;">
+                            <!-- Result populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Zero-Shot CoT: "Let's think step by step"</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Magic Phrase</h4>
+                    <p>The groundbreaking discovery by Kojima et al. (2022) was that simply adding <strong>"Let's think step by step"</strong> to a prompt dramatically improves reasoning performance without any examples.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+
+client = anthropic.Anthropic()
+
+# WITHOUT Chain of Thought - often wrong on complex problems
+prompt_direct = """
+Q: Roger has 5 tennis balls. He buys 2 more cans of tennis balls.
+Each can has 3 tennis balls. How many tennis balls does he have now?
+A:
+"""
+
+# WITH Zero-Shot Chain of Thought - much more reliable
+prompt_cot = """
+Q: Roger has 5 tennis balls. He buys 2 more cans of tennis balls.
+Each can has 3 tennis balls. How many tennis balls does he have now?
+
+Let's think step by step.
+"""
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=1024,
+    messages=[{"role": "user", "content": prompt_cot}]
+)
+
+print(response.content[0].text)
+
+# Expected output with CoT:
+# Step 1: Roger starts with 5 tennis balls.
+# Step 2: He buys 2 cans of tennis balls.
+# Step 3: Each can contains 3 tennis balls, so 2 cans = 2 x 3 = 6 tennis balls.
+# Step 4: Total = 5 + 6 = 11 tennis balls.
+#
+# The answer is 11 tennis balls.</code></pre>
+                    </div>
+
+                    <h4>Why Does This Work?</h4>
+                    <ul>
+                        <li><strong>Decomposition:</strong> Forces the model to break the problem into sub-problems</li>
+                        <li><strong>Working Memory:</strong> Previous generated text provides context for next steps</li>
+                        <li><strong>Error Correction:</strong> Model can spot and fix mistakes in intermediate steps</li>
+                        <li><strong>Training Data:</strong> Models have seen many step-by-step explanations during training</li>
+                    </ul>
+
+                    <h4>Variations That Work</h4>
+                    <ul>
+                        <li>"Let's work through this step by step."</li>
+                        <li>"Let's break this down."</li>
+                        <li>"Let's solve this carefully, showing our work."</li>
+                        <li>"Think through this methodically."</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Few-Shot CoT: Teaching by Example</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Original CoT Technique</h4>
+                    <p>Wei et al. (2022) introduced Chain of Thought prompting by providing examples that demonstrate the reasoning process:</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+
+client = anthropic.Anthropic()
+
+few_shot_cot_prompt = """
+Q: There are 15 trees in the grove. Grove workers will plant trees in the grove today.
+After they are done, there will be 21 trees. How many trees did the workers plant today?
+
+A: Let's think through this step by step.
+1. We start with 15 trees in the grove.
+2. After planting, there will be 21 trees total.
+3. To find how many were planted: 21 - 15 = 6 trees.
+
+The answer is 6.
+
+Q: If there are 3 cars in the parking lot and 2 more cars arrive, how many cars
+are in the parking lot?
+
+A: Let's think through this step by step.
+1. Initially, there are 3 cars in the parking lot.
+2. Then 2 more cars arrive.
+3. Total cars: 3 + 2 = 5 cars.
+
+The answer is 5.
+
+Q: Olivia has $23. She bought five bagels for $3 each. How much money does she
+have left?
+
+A: Let's think through this step by step.
+"""
+
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=512,
+    messages=[{"role": "user", "content": few_shot_cot_prompt}]
+)
+
+print(response.content[0].text)
+
+# Output:
+# 1. Olivia starts with $23.
+# 2. She buys 5 bagels at $3 each.
+# 3. Cost of bagels: 5 x $3 = $15.
+# 4. Money remaining: $23 - $15 = $8.
+#
+# The answer is $8.</code></pre>
+                    </div>
+
+                    <h4>Best Practices for Few-Shot CoT</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Practice</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why It Matters</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Use 3-5 examples</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Enough to establish pattern, not so many it fills context</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Match problem complexity</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Examples should be similar difficulty to actual task</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Vary the examples</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cover different sub-types of the problem</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Consistent formatting</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Same structure helps model learn the pattern</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Show the final answer clearly</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Makes extraction easier for downstream processing</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section 3: Self-Consistency -->
+            <h2 class="mt-4">Self-Consistency: Voting Across Multiple Paths</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Jury System</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Engineering Analogy</h4>
+                    <p>Self-consistency is like a jury deliberation. Instead of trusting one person's judgment, you:</p>
+                    <ol>
+                        <li>Ask multiple "jurors" (model runs with temperature > 0) to reason through the problem</li>
+                        <li>Each may take a different reasoning path</li>
+                        <li>Take a majority vote on the final answer</li>
+                    </ol>
+
+                    <div class="thinking-demo">
+                        <h4 style="color: white; text-align: center;">Self-Consistency Voting Demo</h4>
+                        <p style="color: #a0aec0; text-align: center; margin-bottom: 1rem;">
+                            Problem: "A bat and ball cost $1.10. The bat costs $1 more than the ball. How much does the ball cost?"
+                        </p>
+
+                        <div class="voting-container">
+                            <div class="vote-path winner">
+                                <div>
+                                    <strong style="color: #48bb78;">Path 1:</strong>
+                                    <span style="color: #a0aec0;"> Let x = ball price. Bat = x + 1. Total: x + (x+1) = 1.10. So 2x = 0.10, x = 0.05</span>
+                                </div>
+                                <div class="answer">$0.05</div>
+                            </div>
+                            <div class="vote-path winner">
+                                <div>
+                                    <strong style="color: #48bb78;">Path 2:</strong>
+                                    <span style="color: #a0aec0;"> Ball + Bat = 1.10, Bat - Ball = 1.00. Adding: 2*Bat = 2.10, Bat = 1.05, Ball = 0.05</span>
+                                </div>
+                                <div class="answer">$0.05</div>
+                            </div>
+                            <div class="vote-path">
+                                <div>
+                                    <strong style="color: #f56565;">Path 3:</strong>
+                                    <span style="color: #a0aec0;"> Bat is $1 more, so ball is $0.10 (WRONG - didn't verify!)</span>
+                                </div>
+                                <div class="answer" style="background: rgba(245, 101, 101, 0.3);">$0.10</div>
+                            </div>
+                            <div class="vote-path winner">
+                                <div>
+                                    <strong style="color: #48bb78;">Path 4:</strong>
+                                    <span style="color: #a0aec0;"> Check: 0.05 + 1.05 = 1.10. And 1.05 - 0.05 = 1.00. Correct!</span>
+                                </div>
+                                <div class="answer">$0.05</div>
+                            </div>
+                            <div class="vote-path winner">
+                                <div>
+                                    <strong style="color: #48bb78;">Path 5:</strong>
+                                    <span style="color: #a0aec0;"> Using algebra: b + (b+1) = 1.10 gives b = 0.05</span>
+                                </div>
+                                <div class="answer">$0.05</div>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(72, 187, 120, 0.2); border-radius: 0.5rem; padding: 1rem; color: white; text-align: center; margin-top: 1rem;">
+                            <strong>Final Answer (4/5 votes):</strong> $0.05
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code Implementation: Self-Consistency</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+import re
+from collections import Counter
+from typing import Optional
+import asyncio
+
+client = anthropic.Anthropic()
+
+def extract_answer(response: str) -> Optional[str]:
+    """Extract the final answer from a CoT response."""
+    # Look for common answer patterns
+    patterns = [
+        r"(?:the answer is|answer:)\s*\$?([\d.]+)",
+        r"(?:therefore|thus|so),?\s*(?:the )?\w+\s*(?:is|=|costs?)\s*\$?([\d.]+)",
+        r"\$?([\d.]+)\s*(?:is the answer|dollars?)"
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, response.lower())
+        if match:
+            return match.group(1)
+
+    # Fallback: find the last number mentioned
+    numbers = re.findall(r'\$?([\d.]+)', response)
+    return numbers[-1] if numbers else None
+
+def self_consistency(
+    prompt: str,
+    n_samples: int = 5,
+    temperature: float = 0.7
+) -> dict:
+    """
+    Run self-consistency: sample multiple reasoning paths and vote.
+
+    Args:
+        prompt: The problem to solve (should encourage CoT)
+        n_samples: Number of reasoning paths to generate
+        temperature: Sampling temperature (higher = more diverse paths)
+
+    Returns:
+        Dict with 'answer', 'confidence', 'paths', and 'vote_counts'
+    """
+    paths = []
+    answers = []
+
+    for i in range(n_samples):
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        reasoning = response.content[0].text
+        answer = extract_answer(reasoning)
+
+        paths.append({
+            "reasoning": reasoning,
+            "extracted_answer": answer
+        })
+
+        if answer:
+            answers.append(answer)
+
+    # Vote
+    if not answers:
+        return {
+            "answer": None,
+            "confidence": 0,
+            "paths": paths,
+            "vote_counts": {}
+        }
+
+    vote_counts = Counter(answers)
+    best_answer, best_count = vote_counts.most_common(1)[0]
+    confidence = best_count / len(answers)
+
+    return {
+        "answer": best_answer,
+        "confidence": confidence,
+        "paths": paths,
+        "vote_counts": dict(vote_counts)
+    }
+
+# Example usage
+problem = """
+A bat and ball cost $1.10 in total. The bat costs $1.00 more than the ball.
+How much does the ball cost?
+
+Let's think step by step, then state the final answer.
+"""
+
+result = self_consistency(problem, n_samples=5)
+
+print(f"Answer: ${result['answer']}")
+print(f"Confidence: {result['confidence']:.0%}")
+print(f"Vote distribution: {result['vote_counts']}")
+
+# Output:
+# Answer: $0.05
+# Confidence: 80%
+# Vote distribution: {'0.05': 4, '0.10': 1}</code></pre>
+                    </div>
+
+                    <h4>When to Use Self-Consistency</h4>
+                    <ul>
+                        <li><strong>High-stakes decisions</strong> where accuracy matters more than latency</li>
+                        <li><strong>Math and logic problems</strong> with clear right/wrong answers</li>
+                        <li><strong>Code generation</strong> where you can test outputs</li>
+                        <li><strong>Ambiguous problems</strong> where multiple valid interpretations exist</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--warning-bg); border-left: 4px solid var(--warning-color);">
+                        <strong>Tradeoff Alert:</strong> Self-consistency multiplies your API costs by N (number of samples). For production, consider caching and only using it for problems above a complexity threshold.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: Tree of Thought -->
+            <h2 class="mt-4">Tree of Thought: Exploring Multiple Branches</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: Chess Engine Search</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Engineering Analogy</h4>
+                    <p>Tree of Thought (ToT) is like a chess engine's search algorithm. Instead of committing to one move, it:</p>
+                    <ol>
+                        <li><strong>Generate</strong> multiple possible next moves (thoughts)</li>
+                        <li><strong>Evaluate</strong> each move's promise (using the LLM as a value function)</li>
+                        <li><strong>Prune</strong> unpromising branches</li>
+                        <li><strong>Explore</strong> the most promising paths deeper</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A[Problem] --> B[Thought 1: Try algebra]
+    A --> C[Thought 2: Try guess & check]
+    A --> D[Thought 3: Draw diagram]
+
+    B --> B1[x + y = 10]
+    B --> B2[x - y = 4]
+    B1 --> B1a[Solve: x=7, y=3]
+
+    C --> C1[Try x=5]
+    C1 --> C1a["5+5=10 but 5-5=0 (wrong)"]
+
+    D --> D1[Number line approach]
+
+    style B fill:#48bb78
+    style B1 fill:#48bb78
+    style B1a fill:#48bb78
+    style C1a fill:#f56565
+    style D1 fill:#a0aec0
+                        </div>
+                    </div>
+
+                    <h4>Key Differences from Self-Consistency</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Self-Consistency</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tree of Thought</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Search Type</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Independent parallel paths</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Structured tree exploration</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Intermediate Evaluation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">None (only final answer)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Evaluates each step</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Backtracking</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Not possible</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Can backtrack from dead ends</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Problems with clear answers</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Puzzles, planning, creative tasks</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code Implementation: Tree of Thought</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+from dataclasses import dataclass
+from typing import List, Optional
+import json
+
+client = anthropic.Anthropic()
+
+@dataclass
+class ThoughtNode:
+    """A node in the Tree of Thought."""
+    thought: str
+    evaluation: float  # 0-1 score
+    children: List['ThoughtNode'] = None
+    is_solution: bool = False
+
+    def __post_init__(self):
+        if self.children is None:
+            self.children = []
+
+def generate_thoughts(problem: str, current_state: str, n_thoughts: int = 3) -> List[str]:
+    """Generate possible next steps from current state."""
+    prompt = f"""
+Problem: {problem}
+
+Current progress:
+{current_state if current_state else "No progress yet - this is the first step."}
+
+Generate {n_thoughts} different possible next steps to make progress on this problem.
+Each step should be a distinct approach or continuation.
+
+Format your response as a JSON array of strings, each describing one possible next step.
+Example: ["Step idea 1", "Step idea 2", "Step idea 3"]
+"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    try:
+        # Extract JSON from response
+        text = response.content[0].text
+        # Find JSON array in response
+        start = text.find('[')
+        end = text.rfind(']') + 1
+        if start != -1 and end > start:
+            return json.loads(text[start:end])
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    return [f"Continue with approach {i+1}" for i in range(n_thoughts)]
+
+def evaluate_thought(problem: str, thought_path: str) -> tuple[float, bool]:
+    """
+    Evaluate a thought's promise and check if it's a solution.
+    Returns (score from 0-1, is_solution boolean).
+    """
+    prompt = f"""
+Problem: {problem}
+
+Reasoning so far:
+{thought_path}
+
+Evaluate this reasoning path:
+1. Is this a complete and correct solution? (yes/no)
+2. If not complete, rate the promise of this approach from 0.0 to 1.0
+   - 0.0 = clearly wrong or stuck
+   - 0.5 = unclear, might work
+   - 1.0 = very promising, close to solution
+
+Respond in JSON format: {{"is_solution": true/false, "score": 0.0-1.0, "reasoning": "brief explanation"}}
+"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=256,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    try:
+        text = response.content[0].text
+        start = text.find('{')
+        end = text.rfind('}') + 1
+        if start != -1 and end > start:
+            result = json.loads(text[start:end])
+            return result.get('score', 0.5), result.get('is_solution', False)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    return 0.5, False
+
+def tree_of_thought(
+    problem: str,
+    max_depth: int = 3,
+    n_thoughts: int = 3,
+    beam_width: int = 2
+) -> Optional[str]:
+    """
+    Solve a problem using Tree of Thought search.
+
+    Args:
+        problem: The problem to solve
+        max_depth: Maximum reasoning depth
+        n_thoughts: Number of thoughts to generate at each step
+        beam_width: Number of top paths to keep exploring
+
+    Returns:
+        Solution path if found, None otherwise
+    """
+    # Initialize with root node
+    root = ThoughtNode(thought="", evaluation=1.0)
+    frontier = [(root, "")]  # (node, path_so_far)
+
+    for depth in range(max_depth):
+        print(f"\n--- Depth {depth + 1} ---")
+        next_frontier = []
+
+        for node, path in frontier:
+            # Generate possible next thoughts
+            thoughts = generate_thoughts(problem, path, n_thoughts)
+
+            for thought in thoughts:
+                new_path = f"{path}\n{thought}" if path else thought
+                score, is_solution = evaluate_thought(problem, new_path)
+
+                child = ThoughtNode(
+                    thought=thought,
+                    evaluation=score,
+                    is_solution=is_solution
+                )
+                node.children.append(child)
+
+                print(f"  Thought: {thought[:50]}... Score: {score:.2f}")
+
+                if is_solution:
+                    print(f"\nSolution found!")
+                    return new_path
+
+                if score > 0.3:  # Prune low-scoring paths
+                    next_frontier.append((child, new_path))
+
+        # Keep only top beam_width paths
+        next_frontier.sort(key=lambda x: x[0].evaluation, reverse=True)
+        frontier = next_frontier[:beam_width]
+
+        if not frontier:
+            print("All paths pruned - no solution found")
+            return None
+
+    # Return best path found
+    if frontier:
+        return frontier[0][1]
+    return None
+
+# Example: The Game of 24
+problem = """
+Use the numbers 4, 5, 6, 10 and basic arithmetic operations (+, -, *, /)
+to make exactly 24. Each number must be used exactly once.
+"""
+
+solution = tree_of_thought(problem, max_depth=4, n_thoughts=3, beam_width=2)
+print(f"\nFinal solution path:\n{solution}")</code></pre>
+                    </div>
+
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2)); border-left: 4px solid #667eea;">
+                        <strong>Engineering Insight:</strong> Tree of Thought is expensive (many API calls) but powerful for problems requiring exploration. Production systems often use a hybrid: start with simple CoT, fall back to ToT only when confidence is low.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Reflection and Self-Correction -->
+            <h2 class="mt-4">Reflection and Self-Correction Patterns</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Mental Model: The Code Review Loop</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>The Engineering Analogy</h4>
+                    <p>Think of self-correction like a code review process:</p>
+                    <ol>
+                        <li><strong>Write</strong> the initial solution</li>
+                        <li><strong>Review</strong> critically (look for bugs, edge cases)</li>
+                        <li><strong>Revise</strong> based on feedback</li>
+                        <li><strong>Repeat</strong> until confident</li>
+                    </ol>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Generate Initial Response] --> B[Self-Critique]
+    B --> C{Issues Found?}
+    C -->|Yes| D[Identify Specific Problems]
+    D --> E[Generate Revised Response]
+    E --> B
+    C -->|No| F[Return Final Answer]
+
+    style A fill:#667eea
+    style B fill:#f6ad55
+    style F fill:#48bb78
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Code Implementation: Reflection Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+from dataclasses import dataclass
+from typing import List
+
+client = anthropic.Anthropic()
+
+@dataclass
+class ReflectionResult:
+    final_answer: str
+    iterations: int
+    reflection_history: List[dict]
+
+def reflect_and_correct(
+    task: str,
+    max_iterations: int = 3,
+    model: str = "claude-sonnet-4-20250514"
+) -> ReflectionResult:
+    """
+    Generate a response with iterative self-reflection and correction.
+
+    Args:
+        task: The task to complete
+        max_iterations: Maximum reflection cycles
+        model: Model to use
+
+    Returns:
+        ReflectionResult with final answer and reflection history
+    """
+    history = []
+
+    # Step 1: Generate initial response
+    initial_prompt = f"""
+Task: {task}
+
+Please complete this task to the best of your ability.
+"""
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=2048,
+        messages=[{"role": "user", "content": initial_prompt}]
+    )
+    current_answer = response.content[0].text
+
+    for i in range(max_iterations):
+        # Step 2: Self-critique
+        critique_prompt = f"""
+You previously gave this response to the task:
+
+Task: {task}
+
+Your Response:
+{current_answer}
+
+Now, critically review your response:
+1. Are there any errors, inaccuracies, or logical flaws?
+2. Did you miss any important considerations?
+3. Could the explanation be clearer or more complete?
+4. Are there any edge cases not handled?
+
+If you find issues, list them specifically.
+If the response is good, say "NO ISSUES FOUND".
+"""
+
+        critique_response = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": critique_prompt}]
+        )
+        critique = critique_response.content[0].text
+
+        history.append({
+            "iteration": i + 1,
+            "answer": current_answer,
+            "critique": critique
+        })
+
+        # Check if we're done
+        if "NO ISSUES FOUND" in critique.upper() or "no issues" in critique.lower():
+            break
+
+        # Step 3: Generate improved response
+        revision_prompt = f"""
+Original task: {task}
+
+Your previous response:
+{current_answer}
+
+Issues identified in review:
+{critique}
+
+Please provide an improved response that addresses these issues.
+"""
+
+        revision_response = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": revision_prompt}]
+        )
+        current_answer = revision_response.content[0].text
+
+    return ReflectionResult(
+        final_answer=current_answer,
+        iterations=len(history),
+        reflection_history=history
+    )
+
+# Example usage
+task = """
+Write a Python function that finds the longest palindromic substring
+in a given string. Include time complexity analysis.
+"""
+
+result = reflect_and_correct(task, max_iterations=2)
+
+print(f"Iterations: {result.iterations}")
+print(f"\nFinal Answer:\n{result.final_answer}")
+
+# Show reflection history
+for h in result.reflection_history:
+    print(f"\n--- Iteration {h['iteration']} ---")
+    print(f"Critique: {h['critique'][:200]}...")</code></pre>
+                    </div>
+
+                    <h4>Reflection Prompt Patterns</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python"># Pattern 1: Structured Critique
+CRITIQUE_TEMPLATE = """
+Review your response for:
+1. CORRECTNESS: Are all facts and logic correct?
+2. COMPLETENESS: Did you address all parts of the question?
+3. CLARITY: Is the explanation easy to follow?
+4. EDGE CASES: Are there scenarios not covered?
+
+For each issue found, explain:
+- What the issue is
+- Why it's a problem
+- How to fix it
+"""
+
+# Pattern 2: Perspective Shift
+PERSPECTIVE_TEMPLATE = """
+Now imagine you are a senior engineer reviewing this code/solution.
+What would you flag in a code review? What questions would you ask?
+"""
+
+# Pattern 3: Adversarial Self-Test
+ADVERSARIAL_TEMPLATE = """
+Try to find a counterexample or edge case that breaks your solution.
+If you find one, explain how to fix it.
+If you can't find one, explain why the solution is robust.
+"""
+
+# Pattern 4: Explain to a Junior
+EXPLAIN_TEMPLATE = """
+Pretend you're explaining this to a junior developer.
+Does your explanation have any gaps they would ask about?
+"""</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 6: Claude Extended Thinking and OpenAI o1/o3 -->
+            <h2 class="mt-4">Production Reasoning Models</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Claude's Extended Thinking</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What is Extended Thinking?</h4>
+                    <p>Claude's extended thinking feature allows the model to engage in deeper reasoning before responding. The model generates internal "thinking" tokens that are used to work through complex problems but may be hidden from the final response.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+
+client = anthropic.Anthropic()
+
+# Using extended thinking with Claude
+response = client.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=16000,
+    thinking={
+        "type": "enabled",
+        "budget_tokens": 10000  # Allow up to 10k tokens for thinking
+    },
+    messages=[{
+        "role": "user",
+        "content": """
+        A farmer has 17 sheep. All but 9 run away. How many sheep does the farmer have left?
+
+        Before answering, think through this carefully - it's a trick question.
+        """
+    }]
+)
+
+# Access the thinking and response
+for block in response.content:
+    if block.type == "thinking":
+        print("=== THINKING ===")
+        print(block.thinking)
+    elif block.type == "text":
+        print("\n=== RESPONSE ===")
+        print(block.text)
+
+# Example output:
+# === THINKING ===
+# Let me parse this carefully. "All but 9 run away" means 9 do NOT run away.
+# So if 9 sheep remain, and we started with 17...
+# Wait, the question asks how many are LEFT, not how many ran away.
+# "All but 9 run away" = 9 stay behind
+# The farmer has 9 sheep left.
+#
+# === RESPONSE ===
+# The farmer has 9 sheep left.
+# The phrase "all but 9 run away" means that 9 sheep did NOT run away - they stayed.</code></pre>
+                    </div>
+
+                    <h4>When to Use Extended Thinking</h4>
+                    <ul>
+                        <li><strong>Complex math problems</strong> requiring multi-step computation</li>
+                        <li><strong>Logic puzzles</strong> with tricky wording</li>
+                        <li><strong>Code generation</strong> for complex algorithms</li>
+                        <li><strong>Analysis tasks</strong> requiring careful consideration of multiple factors</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Best Practice:</strong> Set a thinking budget appropriate for your task complexity. Simple questions need 1-2k tokens; complex reasoning might need 10k+. Monitor usage to optimize costs.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>OpenAI o-Series Reasoning Models (o3, o4-mini)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>How o-Series Models Work Differently</h4>
+                    <p>OpenAI's o-series models (o1, o3, o4-mini) are trained specifically for reasoning tasks using reinforcement learning on chain-of-thought data. They differ from standard GPT models:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Feature</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">GPT-4o</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">o3 / o4-mini</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reasoning Style</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single forward pass</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Internal chain of thought</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fast (seconds)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slow (10s - minutes)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost (input)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$2.50/1M tokens</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">o3: ~$10/1M, o4-mini: ~$1.10/1M</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Math/Code Accuracy</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Excellent</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Streaming</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes (streaming supported since o3)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">System Messages</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes (supported since o1 GA, Dec 2024)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reasoning Control</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">N/A</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><code>reasoning_effort</code>: low / medium / high</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">from openai import OpenAI
+
+client = OpenAI()
+
+# Using o3 for complex reasoning
+response = client.chat.completions.create(
+    model="o3",  # or "o4-mini" for faster/cheaper
+    reasoning_effort="high",  # low, medium, or high
+    messages=[
+        {"role": "system", "content": "You are a rigorous mathematician."},
+        {
+            "role": "user",
+            "content": """
+            Prove that there are infinitely many prime numbers.
+            Provide a rigorous proof with clear logical steps.
+            """
+        }
+    ]
+    # Note: o3/o4-mini support system messages, streaming, and reasoning_effort.
+    # They do NOT support temperature or top_p (reasoning is deterministic).
+)
+
+print(response.choices[0].message.content)
+
+# o3/o4-mini excel at:
+# - Mathematical proofs
+# - Complex code generation (algorithms, debugging)
+# - Scientific reasoning
+# - Multi-step logic problems</code></pre>
+                    </div>
+
+                    <h4>o3 and o4-mini (2025)</h4>
+                    <p>The o3 model (January 2025) and o4-mini (April 2025) push reasoning further:</p>
+                    <ul>
+                        <li><strong>Deeper search:</strong> More internal reasoning steps with configurable <code>reasoning_effort</code></li>
+                        <li><strong>Better calibration:</strong> Knows when it's uncertain</li>
+                        <li><strong>Breakthrough performance:</strong> o3 achieved gold-medal level on the International Mathematical Olympiad (IMO) benchmark; o4-mini matches o3 on many reasoning tasks at a fraction of the cost</li>
+                        <li><strong>Tool use:</strong> o3 and o4-mini natively support function calling and structured outputs</li>
+                        <li><strong>Cost trade-off:</strong> o4-mini offers strong reasoning at ~$1.10/1M input tokens vs o3's ~$10/1M, making reasoning models viable for higher-volume production use</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Section 7: When to Use Which Model -->
+            <h2 class="mt-4">Decision Framework: Fast vs Reasoning Models</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Cost and Latency Tradeoffs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="thinking-demo">
+                        <h4 style="color: white; text-align: center; margin-bottom: 1rem;">Model Comparison (Early 2025 Pricing, approximate)</h4>
+                        <div class="cost-comparison">
+                            <div class="cost-card">
+                                <div class="model-name">Claude 3.5 Haiku</div>
+                                <div class="cost-value">$0.80</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~500ms latency</div>
+                            </div>
+                            <div class="cost-card">
+                                <div class="model-name">Claude Sonnet 4</div>
+                                <div class="cost-value">$3.00</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~1-2s latency</div>
+                            </div>
+                            <div class="cost-card">
+                                <div class="model-name">GPT-4o</div>
+                                <div class="cost-value">$2.50</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~1-3s latency</div>
+                            </div>
+                            <div class="cost-card">
+                                <div class="model-name">o4-mini</div>
+                                <div class="cost-value">$1.10</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~5-30s latency</div>
+                            </div>
+                            <div class="cost-card">
+                                <div class="model-name">o3</div>
+                                <div class="cost-value">$10.00</div>
+                                <div class="cost-unit">per 1M input tokens</div>
+                                <div class="latency">~10-60s latency</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Decision Matrix</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[New Task] --> B{Is it reasoning-heavy?}
+    B -->|No| C{Need high quality?}
+    B -->|Yes| D{Is latency critical?}
+
+    C -->|No| E[Haiku/GPT-4o-mini]
+    C -->|Yes| F[Sonnet/GPT-4o]
+
+    D -->|Yes| G[Sonnet + CoT prompting]
+    D -->|No| H{Is accuracy critical?}
+
+    H -->|Yes| I[o3/o4-mini or Extended Thinking]
+    H -->|No| G
+
+    style E fill:#48bb78
+    style F fill:#667eea
+    style G fill:#f6ad55
+    style I fill:#764ba2
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Production Routing Pattern</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+
+class ModelTier(Enum):
+    FAST = "fast"           # Haiku - simple tasks
+    BALANCED = "balanced"   # Sonnet - most tasks
+    REASONING = "reasoning" # Extended thinking - complex reasoning
+
+@dataclass
+class TaskClassification:
+    tier: ModelTier
+    reasoning: str
+    estimated_tokens: int
+
+def classify_task(task: str) -> TaskClassification:
+    """
+    Classify a task to determine which model tier to use.
+    In production, this could itself be an LLM call with Haiku.
+    """
+    # Keywords suggesting complex reasoning
+    reasoning_keywords = [
+        "prove", "derive", "analyze", "debug", "optimize",
+        "why does", "step by step", "logic", "mathematical",
+        "algorithm", "design system", "tradeoffs"
+    ]
+
+    # Keywords suggesting simple tasks
+    simple_keywords = [
+        "translate", "summarize", "extract", "format",
+        "convert", "list", "define", "what is"
+    ]
+
+    task_lower = task.lower()
+
+    # Count keyword matches
+    reasoning_score = sum(1 for kw in reasoning_keywords if kw in task_lower)
+    simple_score = sum(1 for kw in simple_keywords if kw in task_lower)
+
+    # Estimate task complexity by length and structure
+    has_code = "```" in task or "def " in task or "function" in task_lower
+    is_long = len(task) > 1000
+    has_multiple_parts = task.count("?") > 1 or task.count("\n-") > 2
+
+    # Decision logic
+    if reasoning_score >= 2 or (has_code and is_long):
+        return TaskClassification(
+            tier=ModelTier.REASONING,
+            reasoning="Complex reasoning or code task detected",
+            estimated_tokens=4000
+        )
+    elif simple_score >= 2 and not has_multiple_parts:
+        return TaskClassification(
+            tier=ModelTier.FAST,
+            reasoning="Simple transformation task",
+            estimated_tokens=500
+        )
+    else:
+        return TaskClassification(
+            tier=ModelTier.BALANCED,
+            reasoning="Standard complexity task",
+            estimated_tokens=1500
+        )
+
+def get_model_config(tier: ModelTier) -> dict:
+    """Get model configuration for a tier."""
+    configs = {
+        ModelTier.FAST: {
+            "model": "claude-3-5-haiku-20241022",
+            "max_tokens": 1024,
+            "thinking": None
+        },
+        ModelTier.BALANCED: {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 4096,
+            "thinking": None
+        },
+        ModelTier.REASONING: {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 16000,
+            "thinking": {"type": "enabled", "budget_tokens": 8000}
+        }
+    }
+    return configs[tier]
+
+class SmartRouter:
+    """Route requests to appropriate model based on task complexity."""
+
+    def __init__(self):
+        self.client = anthropic.Anthropic()
+        self.usage_stats = {tier: {"calls": 0, "tokens": 0} for tier in ModelTier}
+
+    def complete(self, task: str, force_tier: Optional[ModelTier] = None) -> dict:
+        """
+        Complete a task using the appropriate model.
+
+        Args:
+            task: The task to complete
+            force_tier: Override automatic classification
+
+        Returns:
+            Dict with response, model used, and classification
+        """
+        # Classify task
+        if force_tier:
+            classification = TaskClassification(
+                tier=force_tier,
+                reasoning="Forced tier",
+                estimated_tokens=2000
+            )
+        else:
+            classification = classify_task(task)
+
+        # Get model config
+        config = get_model_config(classification.tier)
+
+        # Build request
+        request_kwargs = {
+            "model": config["model"],
+            "max_tokens": config["max_tokens"],
+            "messages": [{"role": "user", "content": task}]
+        }
+
+        if config["thinking"]:
+            request_kwargs["thinking"] = config["thinking"]
+
+        # Make request
+        response = self.client.messages.create(**request_kwargs)
+
+        # Track usage
+        self.usage_stats[classification.tier]["calls"] += 1
+        self.usage_stats[classification.tier]["tokens"] += response.usage.input_tokens + response.usage.output_tokens
+
+        # Extract text response
+        text_content = ""
+        thinking_content = ""
+        for block in response.content:
+            if block.type == "text":
+                text_content = block.text
+            elif block.type == "thinking":
+                thinking_content = block.thinking
+
+        return {
+            "response": text_content,
+            "thinking": thinking_content if thinking_content else None,
+            "model": config["model"],
+            "tier": classification.tier.value,
+            "classification_reason": classification.reasoning,
+            "usage": {
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens
+            }
+        }
+
+    def get_stats(self) -> dict:
+        """Get usage statistics by tier."""
+        return {tier.value: stats for tier, stats in self.usage_stats.items()}
+
+# Example usage
+router = SmartRouter()
+
+# Simple task - routes to Haiku
+simple = router.complete("Translate 'Hello world' to French")
+print(f"Simple task used: {simple['tier']}")  # Output: fast
+
+# Medium task - routes to Sonnet
+medium = router.complete("Explain the tradeoffs between SQL and NoSQL databases")
+print(f"Medium task used: {medium['tier']}")  # Output: balanced
+
+# Complex task - routes to extended thinking
+complex_task = """
+Debug this code and explain why it produces incorrect results:
+
+def fibonacci(n):
+    if n <= 1:
+        return n
+    return fibonacci(n-1) + fibonacci(n-1)  # Bug: should be n-2
+
+Why is fib(5) returning 16 instead of 5? Trace through the execution.
+"""
+complex_result = router.complete(complex_task)
+print(f"Complex task used: {complex_result['tier']}")  # Output: reasoning
+print(f"Thinking: {complex_result['thinking'][:200]}...")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 8: Structured Output for Reasoning Traces -->
+            <h2 class="mt-4">Structured Output for Reasoning Traces</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Capturing and Processing Reasoning</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Why Structure Reasoning Output?</h4>
+                    <ul>
+                        <li><strong>Debugging:</strong> Understand why the model made certain decisions</li>
+                        <li><strong>Auditing:</strong> Provide explainability for stakeholders</li>
+                        <li><strong>Improvement:</strong> Identify patterns in reasoning failures</li>
+                        <li><strong>Chaining:</strong> Feed structured reasoning into downstream systems</li>
+                    </ul>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+import json
+from pydantic import BaseModel
+from typing import List, Optional
+
+client = anthropic.Anthropic()
+
+class ReasoningStep(BaseModel):
+    step_number: int
+    action: str  # What the model is doing
+    observation: str  # What it found/calculated
+    confidence: float  # 0-1 confidence in this step
+
+class StructuredReasoning(BaseModel):
+    problem_understanding: str
+    approach: str
+    steps: List[ReasoningStep]
+    final_answer: str
+    confidence: float
+    potential_issues: List[str]
+
+def get_structured_reasoning(problem: str) -> StructuredReasoning:
+    """Get reasoning output in a structured format."""
+
+    prompt = f"""
+Solve this problem with detailed reasoning:
+
+{problem}
+
+Respond in this exact JSON format:
+{{
+    "problem_understanding": "Your interpretation of what's being asked",
+    "approach": "High-level strategy you'll use",
+    "steps": [
+        {{
+            "step_number": 1,
+            "action": "What you're doing",
+            "observation": "What you found or calculated",
+            "confidence": 0.95
+        }}
+    ],
+    "final_answer": "The answer",
+    "confidence": 0.9,
+    "potential_issues": ["Any caveats or uncertainties"]
+}}
+"""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    # Parse JSON from response
+    text = response.content[0].text
+
+    # Find JSON in response
+    start = text.find('{')
+    end = text.rfind('}') + 1
+    if start != -1 and end > start:
+        json_str = text[start:end]
+        data = json.loads(json_str)
+        return StructuredReasoning(**data)
+
+    raise ValueError("Could not parse structured reasoning from response")
+
+# Example usage
+problem = """
+A company has 120 employees. 40% work remotely, 35% work in the office,
+and the rest work hybrid. If the company wants to reduce office space costs
+by having at least 60% of employees work remotely or hybrid, how many
+office workers need to transition to remote or hybrid?
+"""
+
+result = get_structured_reasoning(problem)
+
+print("Problem Understanding:", result.problem_understanding)
+print("\nApproach:", result.approach)
+print("\nReasoning Steps:")
+for step in result.steps:
+    print(f"  {step.step_number}. {step.action}")
+    print(f"     -> {step.observation} (confidence: {step.confidence})")
+print(f"\nFinal Answer: {result.final_answer}")
+print(f"Overall Confidence: {result.confidence}")
+print(f"Potential Issues: {result.potential_issues}")
+
+# Output:
+# Problem Understanding: Calculate how many office workers must change work mode...
+# Approach: Calculate current distribution, determine target, find difference...
+#
+# Reasoning Steps:
+#   1. Calculate current distribution
+#      -> Remote: 48, Office: 42, Hybrid: 30 (confidence: 0.99)
+#   2. Determine current non-office percentage
+#      -> (48 + 30) / 120 = 65% already remote or hybrid (confidence: 0.99)
+#   ...
+#
+# Final Answer: 0 workers need to transition (already at 65%)
+# Overall Confidence: 0.95
+# Potential Issues: ["Rounding in percentage calculations"]</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Engineering Insights -->
+            <h2 class="mt-4">Engineering Insights</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>How Big Companies Use Reasoning Models</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Anthropic's Claude</h4>
+                    <ul>
+                        <li><strong>Constitutional AI:</strong> Uses reasoning to self-critique and improve responses</li>
+                        <li><strong>Extended thinking:</strong> Dedicated compute budget for complex reasoning</li>
+                        <li><strong>Artifacts:</strong> Structured output for code, documents, etc.</li>
+                    </ul>
+
+                    <h4>OpenAI's Approach</h4>
+                    <ul>
+                        <li><strong>o-series models (o3, o4-mini):</strong> Trained specifically on reasoning traces via RL</li>
+                        <li><strong>Hidden reasoning:</strong> Internal CoT summarized but not fully exposed to users (safety); reasoning tokens are billed separately</li>
+                        <li><strong>Compute scaling:</strong> Configurable via <code>reasoning_effort</code> (low/medium/high) - more thinking time = better results</li>
+                    </ul>
+
+                    <h4>Google DeepMind</h4>
+                    <ul>
+                        <li><strong>Gemini 2.5 Pro/Flash:</strong> Multi-modal reasoning across text, images, code, with a built-in "thinking" mode that exposes intermediate reasoning</li>
+                        <li><strong>AlphaCode 2 / AlphaProof:</strong> Tree search for competitive programming and formal math proofs</li>
+                    </ul>
+
+                    <h4>Production Patterns at Scale</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Company</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use Case</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Reasoning Approach</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stripe</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fraud detection explanations</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CoT for audit trails</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cursor</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Code generation/debugging</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extended thinking + reflection</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Perplexity</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Research synthesis</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-source reasoning</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Notion</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">AI assistant</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Router + tiered models</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Common Mistakes -->
+            <h2 class="mt-4">Common Mistakes</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What Engineers Misunderstand About Reasoning</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>1. Using Reasoning Models for Everything</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Using o1 for "What's the capital of France?"<br>
+                        <strong>Right:</strong> Use fast models for simple tasks, reasoning models for complex ones
+                    </div>
+
+                    <h4 class="mt-3">2. Not Validating Reasoning Steps</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Trusting CoT output because it "looks thoughtful"<br>
+                        <strong>Right:</strong> Models can generate plausible-looking but wrong reasoning. Always validate final answers.
+                    </div>
+
+                    <h4 class="mt-3">3. Ignoring the "Faithfulness" Problem</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Assuming the model's stated reasoning matches its actual computation<br>
+                        <strong>Right:</strong> CoT can be post-hoc rationalization. The model might get the right answer for wrong reasons.
+                    </div>
+
+                    <h4 class="mt-3">4. Not Setting Thinking Budgets</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Letting reasoning run indefinitely<br>
+                        <strong>Right:</strong> Set appropriate token budgets. Diminishing returns after a point.
+                    </div>
+
+                    <h4 class="mt-3">5. Using CoT Where It Hurts</h4>
+                    <div class="card" style="background: var(--danger-bg); border-left: 4px solid var(--danger-color);">
+                        <strong>Wrong:</strong> Adding "Let's think step by step" to creative writing tasks<br>
+                        <strong>Right:</strong> CoT can make some tasks worse by over-analyzing. Match technique to task.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Recall Questions -->
+            <h2 class="mt-4">Active Recall Questions</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ol>
+                        <li class="mb-2"><strong>Why does adding "Let's think step by step" improve reasoning performance?</strong>
+                            <details><summary>Answer</summary>It forces the model to decompose problems, uses generated text as working memory, and allows error detection/correction in intermediate steps.</details>
+                        </li>
+                        <li class="mb-2"><strong>What's the key difference between Self-Consistency and Tree of Thought?</strong>
+                            <details><summary>Answer</summary>Self-Consistency generates independent parallel paths and votes on final answers. ToT uses structured exploration with intermediate evaluation and can backtrack from dead ends.</details>
+                        </li>
+                        <li class="mb-2"><strong>When should you use a reasoning model vs a fast model?</strong>
+                            <details><summary>Answer</summary>Reasoning models for: multi-step math, logic, debugging, planning, complex analysis. Fast models for: simple Q&A, translation, summarization, classification.</details>
+                        </li>
+                        <li class="mb-2"><strong>What is the "faithfulness" problem in chain of thought?</strong>
+                            <details><summary>Answer</summary>The stated reasoning may not reflect the model's actual computation. It might generate plausible post-hoc rationalization rather than genuine step-by-step reasoning.</details>
+                        </li>
+                        <li class="mb-2"><strong>Why might you want to capture structured reasoning output?</strong>
+                            <details><summary>Answer</summary>For debugging model decisions, providing audit trails, identifying patterns in failures, and chaining reasoning into downstream systems.</details>
+                        </li>
+                        <li class="mb-2"><strong>What are the tradeoffs of using o3/o4-mini vs GPT-4o with CoT prompting?</strong>
+                            <details><summary>Answer</summary>o3/o4-mini: Better reasoning accuracy, but higher latency and reasoning token costs. They now support streaming, system messages, and function calling. GPT-4o+CoT: Faster, cheaper per token, but less reliable on very hard problems. o4-mini narrows the cost gap significantly.</details>
+                        </li>
+                        <li class="mb-2"><strong>How does Claude's extended thinking work?</strong>
+                            <details><summary>Answer</summary>You set a thinking budget (token count) via the <code>thinking</code> parameter. Claude generates reasoning tokens in a <code>thinking</code> content block before the main response. The thinking tokens are visible in the API response. Good for complex tasks where you want to inspect the reasoning or need higher accuracy.</details>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Mini Project -->
+            <h2 class="mt-4">Mini Project: Build a Smart Math Solver</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Project: Adaptive Reasoning Math Solver</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Goal</h4>
+                    <p>Build a math problem solver that:</p>
+                    <ol>
+                        <li>Classifies problem difficulty</li>
+                        <li>Uses appropriate reasoning technique (direct, CoT, or self-consistency)</li>
+                        <li>Returns structured output with confidence scores</li>
+                        <li>Falls back to stronger reasoning when confidence is low</li>
+                    </ol>
+
+                    <h4>Starter Code</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python">import anthropic
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+import re
+
+class Difficulty(Enum):
+    EASY = "easy"       # Single operation
+    MEDIUM = "medium"   # Multi-step
+    HARD = "hard"       # Complex reasoning
+
+@dataclass
+class MathSolution:
+    answer: str
+    confidence: float
+    reasoning: str
+    method_used: str
+    attempts: int
+
+class AdaptiveMathSolver:
+    def __init__(self):
+        self.client = anthropic.Anthropic()
+
+    def classify_difficulty(self, problem: str) -> Difficulty:
+        """
+        Classify problem difficulty to route to appropriate reasoning strategy.
+
+        This is a heuristic-based classifier that analyzes the problem text
+        to determine complexity. In production, you might use an LLM for
+        classification, but heuristics are faster and more cost-effective
+        for initial routing.
+
+        Difficulty Levels:
+        - EASY: Simple arithmetic, single operation (e.g., "What is 7 + 5?")
+        - MEDIUM: Multi-step problems, word problems with 2-3 operations
+        - HARD: Complex reasoning, multiple variables, rates, optimization
+
+        Args:
+            problem: The math problem text to classify
+
+        Returns:
+            Difficulty enum indicating problem complexity
+        """
+        # Normalize the problem text for analysis
+        problem_lower = problem.lower()
+
+        # ============================================================
+        # HARD INDICATORS: Complex reasoning required
+        # These patterns suggest problems needing self-consistency
+        # or extended thinking due to multiple variables/constraints
+        # ============================================================
+        hard_indicators = [
+            # Rate problems (distance/time, work/time, fill/drain)
+            r'\b(rate|speed|velocity|per\s+(hour|minute|second|day))\b',
+            r'\b(liters?|gallons?)\s*(per|\/)\s*(min|hour|second)\b',
+
+            # Optimization and comparison problems
+            r'\b(maximize|minimize|optimal|best|least|most)\b',
+            r'\b(compare|ratio|proportion)\b',
+
+            # Multi-entity problems (pipes, workers, machines)
+            r'\b(pipe\s*[a-z]|worker\s*[a-z]|machine\s*[a-z])\b',
+            r'\b(both|together|combined|simultaneously)\b.*\b(and)\b',
+
+            # Conditional/constraint problems
+            r'\b(if|when|while|until|given that)\b.*\b(then|how)\b',
+            r'\b(leak|loss|drain|decrease)\b',
+
+            # Probability and statistics
+            r'\b(probability|chance|odds|expected|average)\b',
+
+            # Algebraic complexity markers
+            r'\b(equation|variable|solve\s+for|unknown)\b',
+        ]
+
+        # Check for hard indicators
+        hard_score = 0
+        for pattern in hard_indicators:
+            if re.search(pattern, problem_lower):
+                hard_score += 1
+
+        # Multiple hard indicators strongly suggest HARD difficulty
+        if hard_score >= 2:
+            return Difficulty.HARD
+
+        # ============================================================
+        # EASY INDICATORS: Simple, direct computation
+        # Single operation problems that don't need chain-of-thought
+        # ============================================================
+        easy_patterns = [
+            # Direct arithmetic expressions
+            r'^what\s+is\s+\d+\s*[\+\-\*\/]\s*\d+\s*\??$',
+            r'^\d+\s*[\+\-\*\/]\s*\d+\s*=\s*\??$',
+
+            # Simple single-operation questions
+            r'^(calculate|compute|find|what\s+is)\s+\d+\s*[\+\-\*\/]\s*\d+',
+        ]
+
+        for pattern in easy_patterns:
+            if re.search(pattern, problem_lower):
+                return Difficulty.EASY
+
+        # Count mathematical operations in the problem
+        # More operations suggest higher complexity
+        operations = re.findall(r'[\+\-\*\/]|\b(plus|minus|times|divided|multiply|add|subtract)\b', problem_lower)
+
+        # Count numbers mentioned (more numbers often = more steps)
+        numbers = re.findall(r'\b\d+\.?\d*\b', problem)
+
+        # ============================================================
+        # MEDIUM INDICATORS: Multi-step word problems
+        # These need Chain-of-Thought but not self-consistency
+        # ============================================================
+        medium_indicators = [
+            # Word problem structure
+            r'\b(store|shop|buy|sell|cost|price|pay|change)\b',
+            r'\b(total|sum|altogether|remaining|left)\b',
+            r'\b(first|then|after|next|finally)\b',
+
+            # Percentage and fraction problems
+            r'\b(percent|%|fraction|half|quarter|third)\b',
+
+            # Basic geometry
+            r'\b(area|perimeter|length|width|height)\b',
+
+            # Sequential operations
+            r'\b(and\s+then|after\s+that)\b',
+        ]
+
+        medium_score = 0
+        for pattern in medium_indicators:
+            if re.search(pattern, problem_lower):
+                medium_score += 1
+
+        # ============================================================
+        # CLASSIFICATION DECISION LOGIC
+        # Combine signals to make final determination
+        # ============================================================
+
+        # If we have a hard indicator, lean toward HARD
+        if hard_score >= 1 and (len(numbers) > 4 or medium_score >= 2):
+            return Difficulty.HARD
+
+        # Word problems with multiple steps -> MEDIUM
+        if medium_score >= 1 or len(numbers) >= 3 or len(operations) >= 2:
+            return Difficulty.MEDIUM
+
+        # Very short problems with few numbers -> EASY
+        if len(problem.split()) < 10 and len(numbers) <= 2:
+            return Difficulty.EASY
+
+        # Default to MEDIUM for uncertain cases
+        # It's better to over-prepare (CoT) than under-prepare (direct)
+        return Difficulty.MEDIUM
+
+    def solve_easy(self, problem: str) -> MathSolution:
+        """Direct answer for easy problems."""
+        pass
+
+    def solve_medium(self, problem: str) -> MathSolution:
+        """Chain of Thought for medium problems."""
+        pass
+
+    def solve_hard(self, problem: str, n_samples: int = 3) -> MathSolution:
+        """Self-consistency for hard problems."""
+        pass
+
+    def solve(self, problem: str) -> MathSolution:
+        """
+        Main solver with adaptive fallback.
+
+        Strategy:
+        1. Classify difficulty
+        2. Try appropriate method
+        3. If confidence < 0.7, try harder method
+        4. Return best solution
+        """
+        pass
+
+# Test your implementation
+solver = AdaptiveMathSolver()
+
+test_problems = [
+    "What is 7 + 5?",  # Easy
+    "A store sells apples for $2 each. If you buy 3 apples and pay with a $10 bill, how much change do you get?",  # Medium
+    "A tank is filled by two pipes. Pipe A fills at 3 liters/min, Pipe B at 5 liters/min. If the tank is 80 liters and both pipes run, but there's a leak of 1 liter/min, how long to fill?",  # Hard
+]
+
+for problem in test_problems:
+    result = solver.solve(problem)
+    print(f"Problem: {problem[:50]}...")
+    print(f"Answer: {result.answer}")
+    print(f"Confidence: {result.confidence:.0%}")
+    print(f"Method: {result.method_used}")
+    print("---")</code></pre>
+                    </div>
+
+                    <h4>Success Criteria</h4>
+                    <ul>
+                        <li>Correctly classifies at least 80% of problems</li>
+                        <li>Uses appropriate method for each difficulty</li>
+                        <li>Achieves >90% accuracy on test set</li>
+                        <li>Confidence scores correlate with actual accuracy</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- How This Connects Forward -->
+            <h2 class="mt-4">How This Connects Forward</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Links to Future Topics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Module 14 (Multi-modal):</strong> Reasoning extends to images and video - visual chain of thought</li>
+                        <li><strong>Agents:</strong> Reasoning models power better planning and tool selection in agents</li>
+                        <li><strong>Evaluation:</strong> Structured reasoning output enables better eval of model capabilities</li>
+                        <li><strong>Fine-tuning:</strong> Reasoning traces can be used to fine-tune smaller models</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A[Reasoning Models] --> B[Multi-modal Reasoning]
+    A --> C[Agent Planning]
+    A --> D[Structured Evals]
+    A --> E[Distillation]
+
+    B --> F[Visual CoT]
+    C --> G[ReAct + ToT]
+    D --> H[Reasoning Benchmarks]
+    E --> I[Smaller Reasoning Models]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Checkpoint Summary -->
+            <h2 class="mt-4">Checkpoint Summary</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(72, 187, 120, 0.1) 0%, rgba(56, 161, 105, 0.1) 100%); border: 2px solid rgba(72, 187, 120, 0.3);">
+                <h3 style="color: #48bb78;">Key Takeaways</h3>
+                <ul>
+                    <li><strong>Reasoning matters</strong> for multi-step problems that can't be solved with pattern matching</li>
+                    <li><strong>Chain of Thought</strong> turns the model's output into a scratchpad for intermediate computation</li>
+                    <li><strong>Zero-shot CoT</strong> ("Let's think step by step") works surprisingly well without examples</li>
+                    <li><strong>Self-Consistency</strong> improves reliability by voting across multiple reasoning paths</li>
+                    <li><strong>Tree of Thought</strong> enables exploration with backtracking for complex problems</li>
+                    <li><strong>Reflection</strong> allows models to critique and improve their own outputs</li>
+                    <li><strong>Production systems</strong> route tasks to appropriate model tiers based on complexity</li>
+                    <li><strong>Structured output</strong> enables debugging, auditing, and downstream processing of reasoning</li>
+                </ul>
+
+                <h4 class="mt-3">You Should Now Be Able To:</h4>
+                <ol>
+                    <li>Explain why and when reasoning techniques improve LLM performance</li>
+                    <li>Implement zero-shot and few-shot chain of thought prompting</li>
+                    <li>Build self-consistency voting for higher reliability</li>
+                    <li>Design tree of thought search for complex problems</li>
+                    <li>Use Claude's extended thinking and OpenAI's o3/o4-mini models appropriately</li>
+                    <li>Build production routing systems that select models based on task complexity</li>
+                </ol>
+            </div>
+
+            <!-- Quiz -->
+            <h2 class="mt-4">Self-Check Quiz</h2>
+            <div class="quiz-container" id="module-quiz"></div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-17.html" class="btn btn-secondary">&larr; Previous: Evals Deep Dive</a>
+                <a href="module-19.html" class="btn btn-primary">Next: Multi-modal Models &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="../assets/js/app.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Sidebar toggle
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+
+            // Initialize quiz
+            const quizQuestions = [
+                {
+                    question: "What is the primary benefit of Chain of Thought prompting?",
+                    options: [
+                        "It makes responses longer",
+                        "It forces the model to break down problems into steps, using output as working memory",
+                        "It reduces API costs",
+                        "It speeds up inference"
+                    ],
+                    correct: 1,
+                    explanation: "CoT forces decomposition and uses generated text as working memory for intermediate computations."
+                },
+                {
+                    question: "When should you use Self-Consistency over simple CoT?",
+                    options: [
+                        "When you need faster responses",
+                        "When you need lower costs",
+                        "When accuracy matters more than latency and you want to vote across multiple paths",
+                        "When the problem is very simple"
+                    ],
+                    correct: 2,
+                    explanation: "Self-consistency trades cost/latency for accuracy by sampling multiple paths and voting."
+                },
+                {
+                    question: "What's the key difference between Self-Consistency and Tree of Thought?",
+                    options: [
+                        "Self-Consistency is free, ToT costs money",
+                        "ToT uses structured exploration with intermediate evaluation and backtracking",
+                        "Self-Consistency only works for math problems",
+                        "ToT is always faster"
+                    ],
+                    correct: 1,
+                    explanation: "ToT evaluates intermediate steps and can backtrack, while Self-Consistency samples independent complete paths."
+                },
+                {
+                    question: "What is the 'faithfulness' problem in chain of thought?",
+                    options: [
+                        "The model lies about its reasoning",
+                        "The stated reasoning may not reflect actual computation (post-hoc rationalization)",
+                        "CoT only works with certain models",
+                        "The model forgets previous steps"
+                    ],
+                    correct: 1,
+                    explanation: "The model might generate plausible-sounding reasoning that doesn't match its actual internal computation."
+                },
+                {
+                    question: "Which task is LEAST suitable for reasoning models like o3?",
+                    options: [
+                        "Multi-step mathematical proofs",
+                        "Complex debugging of algorithms",
+                        "Translating a sentence to another language",
+                        "Planning a system architecture"
+                    ],
+                    correct: 2,
+                    explanation: "Translation is a straightforward pattern matching task that doesn't benefit from deep reasoning."
+                }
+            ];
+
+            if (typeof StaffEngPrep !== 'undefined' && StaffEngPrep.Quiz) {
+                const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+                quiz.render();
+            }
+
+            // Initialize CoT demo
+            showCoTDemo('direct');
+        });
+
+        // Chain of Thought Demo
+        function showCoTDemo(type) {
+            const stepsContainer = document.getElementById('cot-steps');
+            const resultContainer = document.getElementById('cot-result');
+
+            // Update button states
+            document.querySelectorAll('.reasoning-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Clear previous content
+            stepsContainer.innerHTML = '';
+
+            if (type === 'direct') {
+                // Direct answer (often wrong or unexplained)
+                const step = document.createElement('div');
+                step.className = 'thought-step';
+                step.innerHTML = `
+                    <strong>Model Output:</strong>
+                    <div class="step-content">The answer is 30 apples.</div>
+                `;
+                stepsContainer.appendChild(step);
+
+                setTimeout(() => step.classList.add('visible'), 100);
+
+                resultContainer.innerHTML = `
+                    <span style="color: #f56565;">Answer: 30</span>
+                    <div style="font-size: 0.85rem; color: #a0aec0; margin-top: 0.5rem;">
+                        No reasoning shown - hard to verify correctness
+                    </div>
+                `;
+                resultContainer.style.background = 'rgba(245, 101, 101, 0.2)';
+            } else {
+                // Chain of Thought
+                const steps = [
+                    { title: 'Understand the problem', content: 'Starting: 47 apples. Morning: -23. Shipment: +18. Afternoon: -12.' },
+                    { title: 'Morning sales', content: '47 - 23 = 24 apples remaining' },
+                    { title: 'Shipment arrives', content: '24 + 18 = 42 apples' },
+                    { title: 'Afternoon sales', content: '42 - 12 = 30 apples remaining' },
+                    { title: 'Verify', content: '47 - 23 + 18 - 12 = 47 + 18 - 23 - 12 = 65 - 35 = 30' }
+                ];
+
+                steps.forEach((step, i) => {
+                    const stepEl = document.createElement('div');
+                    stepEl.className = 'thought-step';
+                    stepEl.innerHTML = `
+                        <span class="step-number">${i + 1}</span>
+                        <strong>${step.title}</strong>
+                        <div class="step-content">${step.content}</div>
+                    `;
+                    stepsContainer.appendChild(stepEl);
+
+                    setTimeout(() => {
+                        stepEl.classList.add('visible');
+                        if (i === steps.length - 1) {
+                            stepEl.classList.add('highlight');
+                        }
+                    }, (i + 1) * 400);
+                });
+
+                setTimeout(() => {
+                    resultContainer.innerHTML = `
+                        <span style="color: #48bb78;">Answer: 30 apples</span>
+                        <div style="font-size: 0.85rem; color: #a0aec0; margin-top: 0.5rem;">
+                            Each step is verifiable - we can check the math
+                        </div>
+                    `;
+                    resultContainer.style.background = 'rgba(72, 187, 120, 0.2)';
+                }, steps.length * 400 + 200);
+            }
+        }
+    </script>
+    <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
+</body>
+</html>

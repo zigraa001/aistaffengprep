@@ -3,922 +3,2000 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Module 17: Traditional ML, DS Collaboration &amp; AI Tradeoffs - Staff Engineer Prep</title>
+    <title>Module 17: Evals Deep Dive &amp; Frameworks - Staff Engineer Prep</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <style>
-        .model-card {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            margin: 1rem 0;
-            border-left: 4px solid #667eea;
-            color: white;
-        }
-        .model-card.tree    { border-left-color: #48bb78; }
-        .model-card.linear  { border-left-color: #4facfe; }
-        .model-card.ensemble{ border-left-color: #f6ad55; }
-        .model-card.unsup   { border-left-color: #ed64a6; }
-        .algo-badge {
+        /* Eval score badges */
+        .eval-score {
             display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin: 0.15rem;
+        }
+        .eval-score.high   { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(52,211,153,0.4); }
+        .eval-score.medium { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(251,191,36,0.4); }
+        .eval-score.low    { background: rgba(239,68,68,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.4); }
+
+        /* Metric dashboard row */
+        .metric-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, rgba(79,172,254,0.08), rgba(0,242,254,0.08));
+            border: 1px solid rgba(79,172,254,0.25);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .metric-card .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #4facfe;
+            display: block;
+        }
+        .metric-card .metric-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary, #a0aec0);
+            margin-top: 0.25rem;
+        }
+        .metric-card .metric-trend {
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .metric-card .metric-trend.up   { color: #34d399; }
+        .metric-card .metric-trend.down { color: #f87171; }
+
+        /* Score meter */
+        .score-meter {
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            height: 10px;
+            margin: 0.4rem 0;
+            overflow: hidden;
+        }
+        .score-meter-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+        .fill-green  { background: linear-gradient(90deg, #10b981, #34d399); }
+        .fill-yellow { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+        .fill-red    { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .fill-blue   { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+
+        /* Pipeline visualization */
+        .pipeline-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem 0;
+            border-left: 2px solid rgba(79,172,254,0.3);
+            padding-left: 1.5rem;
+            margin-left: 0.75rem;
+            position: relative;
+        }
+        .pipeline-step::before {
+            content: '';
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #4facfe;
+            position: absolute;
+            left: -8px;
+            top: 1.2rem;
+            flex-shrink: 0;
+        }
+        .pipeline-step:last-child {
+            border-left: 2px solid transparent;
+        }
+        .pipeline-step-num {
+            background: rgba(79,172,254,0.15);
+            color: #4facfe;
+            font-weight: 700;
+            font-size: 0.85rem;
             padding: 0.2rem 0.6rem;
             border-radius: 0.4rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* Framework comparison table */
+        .framework-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+            margin: 1rem 0;
+        }
+        .framework-table th {
+            background: rgba(79,172,254,0.12);
+            color: #4facfe;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid rgba(79,172,254,0.25);
+        }
+        .framework-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            vertical-align: top;
+        }
+        .framework-table tr:hover td {
+            background: rgba(255,255,255,0.03);
+        }
+        .tag {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 0.3rem;
             font-size: 0.75rem;
             font-weight: 600;
-            margin: 0.2rem;
+            margin: 0.1rem;
         }
-        .badge-green  { background: rgba(72,187,120,0.2); color: #48bb78; }
-        .badge-blue   { background: rgba(102,126,234,0.2); color: #667eea; }
-        .badge-orange { background: rgba(246,173,85,0.2); color: #f6ad55; }
-        .badge-red    { background: rgba(252,129,129,0.2); color: #fc8181; }
-        .decision-flow {
-            background: linear-gradient(135deg, #0f3460 0%, #16213e 100%);
+        .tag-blue   { background: rgba(59,130,246,0.2);  color: #93c5fd; }
+        .tag-green  { background: rgba(16,185,129,0.2);  color: #6ee7b7; }
+        .tag-purple { background: rgba(139,92,246,0.2);  color: #c4b5fd; }
+        .tag-orange { background: rgba(249,115,22,0.2);  color: #fdba74; }
+        .tag-red    { background: rgba(239,68,68,0.2);   color: #fca5a5; }
+
+        /* Recall questions */
+        .recall-question {
+            background: rgba(139,92,246,0.08);
+            border-left: 4px solid #8b5cf6;
+            border-radius: 0 0.5rem 0.5rem 0;
+            margin: 0.75rem 0;
+            overflow: hidden;
+        }
+        .recall-question summary {
+            padding: 1rem 1.25rem;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-primary, #f0f0f0);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .recall-question summary::before {
+            content: '?';
+            background: rgba(139,92,246,0.3);
+            color: #a78bfa;
+            font-weight: 700;
+            border-radius: 50%;
+            width: 1.6rem;
+            height: 1.6rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+        .recall-question summary::-webkit-details-marker { display: none; }
+        .recall-answer {
+            padding: 1rem 1.25rem 1.25rem 3.25rem;
+            border-top: 1px solid rgba(139,92,246,0.2);
+            color: var(--text-secondary, #a0aec0);
+            line-height: 1.7;
+        }
+
+        /* Flashcard suggestions */
+        .flashcard {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.1));
+            border: 1px solid rgba(139,92,246,0.25);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            margin: 0.6rem 0;
+        }
+        .flashcard .fc-q {
+            color: #a78bfa;
+            font-weight: 700;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+        .flashcard .fc-a {
+            color: var(--text-secondary, #a0aec0);
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        /* Judge rubric */
+        .rubric-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .rubric-score-badge {
+            min-width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+        .rubric-score-badge.s5 { background: rgba(16,185,129,0.25); color: #34d399; }
+        .rubric-score-badge.s4 { background: rgba(59,130,246,0.25);  color: #60a5fa; }
+        .rubric-score-badge.s3 { background: rgba(245,158,11,0.25);  color: #fbbf24; }
+        .rubric-score-badge.s2 { background: rgba(249,115,22,0.25);  color: #fb923c; }
+        .rubric-score-badge.s1 { background: rgba(239,68,68,0.25);   color: #f87171; }
+
+        /* Mini project box */
+        .project-box {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(79,172,254,0.3);
             border-radius: 1rem;
             padding: 2rem;
             margin: 1.5rem 0;
         }
-        .flow-question {
-            background: rgba(102,126,234,0.2);
-            border: 2px solid #667eea;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            text-align: center;
-            margin: 0.5rem 0;
-            cursor: pointer;
-            transition: all 0.2s;
+        .project-box h3 {
+            color: #4facfe;
+            margin-top: 0;
         }
-        .flow-question:hover { background: rgba(102,126,234,0.35); }
-        .flow-answer {
-            background: rgba(72,187,120,0.15);
-            border: 2px solid #48bb78;
-            border-radius: 0.75rem;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        .recall-question {
-            background: linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(236,72,153,0.1) 100%);
-            border: 1px solid rgba(139,92,246,0.3);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            margin: 0.75rem 0;
-        }
-        .recall-question summary { cursor: pointer; font-weight: 600; color: #8b5cf6; }
-        .recall-question .answer { margin-top:1rem; padding-top:1rem; border-top:1px solid rgba(139,92,246,0.3); }
-        .tradeoff-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 1rem;
-            margin: 1rem 0;
-        }
-        @media (max-width: 700px) { .tradeoff-row { grid-template-columns: 1fr; } }
-        .tradeoff-cell {
-            background: rgba(255,255,255,0.05);
-            border-radius: 0.75rem;
-            padding: 1rem;
-            text-align: center;
-        }
-        .partner-step {
+        .project-milestone {
             display: flex;
             align-items: flex-start;
-            gap: 1rem;
-            padding: 1rem;
-            background: rgba(255,255,255,0.04);
-            border-radius: 0.5rem;
-            margin: 0.5rem 0;
-            border-left: 3px solid #667eea;
+            gap: 0.75rem;
+            margin: 0.75rem 0;
         }
-        .partner-icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
+        .project-milestone-num {
+            background: rgba(79,172,254,0.2);
+            color: #4facfe;
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 0.4rem;
+            white-space: nowrap;
             flex-shrink: 0;
+        }
+
+        /* Info / warning callouts */
+        .callout {
+            border-radius: 0.5rem;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+        .callout-icon { font-size: 1.25rem; flex-shrink: 0; }
+        .callout-body { line-height: 1.65; font-size: 0.9rem; }
+        .callout.info    { background: rgba(59,130,246,0.1);  border-left: 4px solid #3b82f6; }
+        .callout.warning { background: rgba(245,158,11,0.1);  border-left: 4px solid #f59e0b; }
+        .callout.danger  { background: rgba(239,68,68,0.1);   border-left: 4px solid #ef4444; }
+        .callout.success { background: rgba(16,185,129,0.1);  border-left: 4px solid #10b981; }
+
+        /* Prism override for dark theme inside code-block */
+        pre[class*="language-"] {
+            background: #1a1a2e !important;
+            border-radius: 0.5rem;
+            font-size: 0.82rem;
+            line-height: 1.6;
+        }
+        code[class*="language-"] {
+            font-size: 0.82rem;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .score-meter-fill { transition: none; }
         }
     </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
-
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Getting Started</div>
-                    <a href="index.html" class="sidebar-link">Introduction</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Foundations</div>
-                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Setup + Core Math</a>
-                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>Terminology + MNIST</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">LLM Deep Dive</div>
-                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>LLM Basics</a>
-                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Attention Mechanisms</a>
-                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>LLM Coding: GPT</a>
-                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Training at Scale</a>
-                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Optimization Hacks</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">RAG &amp; Retrieval</div>
-                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>RAG Fundamentals</a>
-                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>RAG Implementation</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Agents &amp; Systems</div>
-                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>AI Agents</a>
-                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Context Engineering</a>
-                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>AI Engineering</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Advanced Topics</div>
-                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Thinking Models</a>
-                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Multi-modal Models</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">ML &amp; Collaboration</div>
-                    <a href="module-17.html" class="sidebar-link active" data-module="17"><span class="sidebar-link-number">17</span>Traditional ML &amp; DS Teams</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Capstone &amp; Career</div>
-                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Capstone Project</a>
-                    <a href="module-16.html" class="sidebar-link" data-module="16"><span class="sidebar-link-number">16</span>Career Goals</a>
-                </div>
-            </nav>
-        </aside>
-
+        <aside class="sidebar" id="sidebar"></aside>
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="main-content">
-            <h1>Module 17: Traditional ML, DS Collaboration &amp; AI Tradeoffs</h1>
-            <p class="text-muted mb-3">What every staff engineer must know about classical ML models, partnering with Data Science teams, and making principled AI technology decisions.</p>
+            <h1>Module 17: Evals Deep Dive &amp; Frameworks</h1>
+            <p style="color:var(--text-secondary,#a0aec0);font-size:1.05rem;margin-bottom:2rem;">
+                You cannot improve what you cannot measure. This module covers the complete science and engineering
+                of evaluating LLM systems — from first principles to production CI/CD gates.
+            </p>
 
-            <div class="card mt-3" style="background:linear-gradient(135deg,rgba(139,92,246,0.1),rgba(236,72,153,0.1));border:2px solid rgba(139,92,246,0.3);">
-                <h3 style="color:#8b5cf6;">Why This Module Exists</h3>
-                <p>Staff engineers at AI-native companies are expected to do more than ship LLM features. You will be asked: <em>"Why not a simpler model?"</em>, <em>"How do you work with Data Science?"</em>, and <em>"What are the tradeoffs of this AI approach?"</em> This module gives you the vocabulary and frameworks to answer those questions cold.</p>
-                <h4 class="mt-2">What You'll Learn</h4>
-                <ul>
-                    <li>The full landscape of classical ML algorithms and when each wins</li>
-                    <li>Key ML metrics: classification, regression, ranking, clustering</li>
-                    <li>The ML vs DL vs LLM decision framework with concrete criteria</li>
-                    <li>How to partner effectively with Data Science and ML teams</li>
-                    <li>MLOps: feature stores, model registries, experiment tracking, deployment patterns</li>
-                    <li>AI tradeoffs that interviewers ask about: accuracy vs latency, explainability vs performance, build vs buy</li>
-                    <li>AI-native application design patterns</li>
-                </ul>
-            </div>
-
-            <!-- ============================================================ -->
-            <!-- SECTION 1: TRADITIONAL ML LANDSCAPE                         -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">1. Traditional ML Model Landscape</h2>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>Supervised Learning: The Workhorse Models</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <div class="model-card linear">
-                        <h4>Linear &amp; Logistic Regression</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Interpretable</span> <span class="algo-badge badge-green">Fast</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Fits a weighted sum of features (+ bias) to the target. Logistic adds a sigmoid to produce probabilities.</li>
-                            <li><strong>Key hyperparameters:</strong> regularization type (L1=Lasso → sparse features, L2=Ridge → small weights), C (inverse of regularization strength)</li>
-                            <li><strong>When to use:</strong> Baseline model, interpretability required, features are mostly linear, low latency needed, small datasets (&lt;100K rows)</li>
-                            <li><strong>When to avoid:</strong> Non-linear relationships, high-cardinality categoricals without feature engineering, image/text/audio input</li>
-                            <li><strong>Metrics to monitor:</strong> Classification: AUC-ROC, log loss, F1. Regression: RMSE, MAE, R²</li>
-                        </ul>
-                        <div class="code-block" style="margin-top:0.75rem;">
-<code>from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-
-# Classification
-clf = Pipeline([
-    ("scaler", StandardScaler()),
-    ("model", LogisticRegression(C=1.0, penalty="l2", max_iter=1000, solver="lbfgs"))
-])
-clf.fit(X_train, y_train)
-
-# Coefficients tell you feature importance (after scaling)
-coef = dict(zip(feature_names, clf["model"].coef_[0]))
-print(sorted(coef.items(), key=lambda x: abs(x[1]), reverse=True)[:5])</code>
-                        </div>
-                    </div>
-
-                    <div class="model-card tree">
-                        <h4>Decision Trees</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Interpretable</span> <span class="algo-badge badge-orange">Prone to overfit</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Recursively splits data by the feature+threshold that maximises information gain (Gini impurity or entropy for classification; variance reduction for regression).</li>
-                            <li><strong>Key hyperparameters:</strong> <code>max_depth</code> (most important — controls overfit), <code>min_samples_leaf</code>, <code>min_samples_split</code></li>
-                            <li><strong>When to use:</strong> Exploring feature interactions, explainability for stakeholders, handling mixed feature types without preprocessing</li>
-                            <li><strong>When to avoid:</strong> Standalone for production — almost always outperformed by ensembles. High-cardinality categoricals cause issues.</li>
-                            <li><strong>Staff insight:</strong> Decision trees are the building block of random forests and gradient boosting. Understand them deeply — interviewers test this.</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card ensemble">
-                        <h4>Random Forest</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">Robust</span> <span class="algo-badge badge-orange">No native missing value support (sklearn)</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Trains N decision trees on bootstrapped data subsets (bagging) + random feature subsets. Averages predictions (regression) or votes (classification). Decorrelated trees reduce variance.</li>
-                            <li><strong>Key hyperparameters:</strong> <code>n_estimators</code> (100–500), <code>max_features</code> (sqrt for classification, 1/3 for regression), <code>max_depth</code></li>
-                            <li><strong>When to use:</strong> Tabular data, feature importance needed, robust baseline. Note: scikit-learn's RF does <em>not</em> handle missing values natively — impute first or use <code>HistGradientBoostingClassifier</code> which does.</li>
-                            <li><strong>Feature importance:</strong> Mean decrease in impurity (MDI) — but biased toward high-cardinality features. Use permutation importance for unbiased estimates.</li>
-                            <li><strong>Metrics to watch:</strong> OOB (out-of-bag) error — free validation without a separate set.</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card ensemble">
-                        <h4>Gradient Boosting: XGBoost / LightGBM / CatBoost</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-orange">Needs tuning</span> <span class="algo-badge badge-green">SOTA tabular</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Builds trees <em>sequentially</em>. Each new tree corrects the residual error of all previous trees. Uses gradient descent in function space. Much more powerful than random forest for structured data.</li>
-                            <li><strong>XGBoost vs LightGBM vs CatBoost:</strong>
-                                <ul>
-                                    <li><strong>XGBoost:</strong> Level-wise tree growth, column subsampling, most widely deployed</li>
-                                    <li><strong>LightGBM:</strong> Leaf-wise growth → faster training on large datasets, better for high-cardinality features</li>
-                                    <li><strong>CatBoost:</strong> Native categorical support (no one-hot needed), ordered boosting to prevent target leakage</li>
-                                </ul>
-                            </li>
-                            <li><strong>Key hyperparameters:</strong> <code>learning_rate</code> (0.01–0.3), <code>n_estimators</code> (100–2000), <code>max_depth</code> (3–8), <code>subsample</code>, <code>reg_alpha/lambda</code> (L1/L2)</li>
-                            <li><strong>Production tip:</strong> Always use early stopping with a validation set. SHAP values for explainability.</li>
-                        </ul>
-                        <div class="code-block" style="margin-top:0.75rem;">
-<code>import lightgbm as lgb
-import shap
-
-model = lgb.LGBMClassifier(
-    n_estimators=500,
-    learning_rate=0.05,
-    max_depth=6,
-    num_leaves=63,          # LightGBM: use num_leaves, not max_depth alone
-    subsample=0.8,
-    colsample_bytree=0.8,
-    reg_alpha=0.1,          # L1 regularization
-    reg_lambda=1.0,         # L2 regularization
-)
-model.fit(X_train, y_train, eval_set=[(X_val, y_val)],
-          callbacks=[lgb.log_evaluation(50), lgb.early_stopping(50)])
-
-# SHAP values for explainability — critical for enterprise / regulated industries
-explainer = shap.TreeExplainer(model)
-shap_values = explainer.shap_values(X_val)
-shap.summary_plot(shap_values, X_val, feature_names=feature_names)</code>
-                        </div>
-                    </div>
-
-                    <div class="model-card linear">
-                        <h4>Support Vector Machines (SVM)</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression (SVR)</span> <span class="algo-badge badge-orange">Slow on large data</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Finds the hyperplane with maximum margin between classes. Kernel trick (RBF, polynomial) maps to high-dimensional space for non-linear boundaries.</li>
-                            <li><strong>When to use:</strong> Small-to-medium datasets (&lt;100K), high-dimensional sparse data (text with TF-IDF), clear margin of separation</li>
-                            <li><strong>When to avoid:</strong> Large datasets (O(n²–n³) training time), noisy data with overlapping classes, need for probability outputs (platt scaling required)</li>
-                            <li><strong>Key hyperparameters:</strong> <code>C</code> (margin hardness), <code>kernel</code> (rbf is default), <code>gamma</code> (RBF width)</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card linear">
-                        <h4>k-Nearest Neighbours (kNN)</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-blue">Regression</span> <span class="algo-badge badge-green">No training</span> <span class="algo-badge badge-red">Slow inference</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> At inference time, finds the k closest training examples (by distance) and returns their majority class / average value.</li>
-                            <li><strong>When to use:</strong> Recommendation systems (approximate kNN), anomaly detection, when you don't have labeled data but have similar items</li>
-                            <li><strong>Production note:</strong> Exact kNN is O(n) per query. In production, use HNSW (Faiss, Qdrant) for approximate nearest-neighbour search — this is the engine behind vector databases.</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card linear">
-                        <h4>Naive Bayes</h4>
-                        <p><span class="algo-badge badge-blue">Classification</span> <span class="algo-badge badge-green">Very fast</span> <span class="algo-badge badge-green">Works with small data</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Applies Bayes' theorem assuming feature independence (naive). P(class|features) ∝ P(features|class) × P(class).</li>
-                            <li><strong>Variants:</strong> Multinomial NB (text/counts), Gaussian NB (continuous features), Bernoulli NB (binary features)</li>
-                            <li><strong>When to use:</strong> Text classification baseline, spam filtering, very limited compute, streaming/online learning, real-time classification at microsecond latency</li>
-                            <li><strong>Classic example:</strong> Gmail's early spam filter was NB-based (now uses deep learning). NB remains the fastest option when the accuracy-vs-speed tradeoff strongly favors speed.</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>Unsupervised Learning: Clustering, Dimensionality Reduction</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <div class="model-card unsup">
-                        <h4>K-Means Clustering</h4>
-                        <p><span class="algo-badge badge-blue">Clustering</span> <span class="algo-badge badge-green">Fast</span> <span class="algo-badge badge-orange">Requires k upfront</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Initializes k centroids, assigns each point to nearest centroid, updates centroids to cluster means. Repeats until convergence. Minimizes within-cluster sum of squares (inertia).</li>
-                            <li><strong>Choose k with:</strong> Elbow method (inertia vs k), Silhouette score (max = best), Gap statistic</li>
-                            <li><strong>Metrics:</strong> Inertia (within-cluster SS), Silhouette score (-1 to 1, target &gt;0.5), Davies-Bouldin index (lower = better)</li>
-                            <li><strong>Limitations:</strong> Assumes spherical clusters, sensitive to outliers, scale-dependent (must standardize). Use DBSCAN for arbitrary shapes, HDBSCAN for varying densities.</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card unsup">
-                        <h4>DBSCAN / HDBSCAN</h4>
-                        <p><span class="algo-badge badge-blue">Clustering</span> <span class="algo-badge badge-green">No k needed</span> <span class="algo-badge badge-green">Finds outliers</span></p>
-                        <ul>
-                            <li><strong>DBSCAN:</strong> Core points (≥min_samples within eps radius) form clusters. Border points attach to nearest core. Noise points (outliers) get label -1.</li>
-                            <li><strong>HDBSCAN:</strong> Hierarchical extension. Handles varying densities. More robust than DBSCAN — preferred for production. Used in the Hierarchical RAG section of module-08.</li>
-                            <li><strong>When to use:</strong> Unknown number of clusters, expect outliers, non-spherical cluster shapes, document clustering in RAG pipelines</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card unsup">
-                        <h4>PCA — Principal Component Analysis</h4>
-                        <p><span class="algo-badge badge-blue">Dimensionality Reduction</span> <span class="algo-badge badge-green">Linear</span> <span class="algo-badge badge-green">Interpretable components</span></p>
-                        <ul>
-                            <li><strong>How it works:</strong> Finds orthogonal directions (principal components) of maximum variance in the data. Projects data onto top-k components. SVD under the hood.</li>
-                            <li><strong>When to use:</strong> Remove correlated features, speed up downstream models, visualize high-dimensional data (with 2 components), noise reduction</li>
-                            <li><strong>Key metric:</strong> Explained variance ratio — keep enough components to explain 90–95% of variance</li>
-                            <li><strong>Limitation:</strong> Linear only. Use UMAP/t-SNE for non-linear structure.</li>
-                        </ul>
-                    </div>
-
-                    <div class="model-card unsup">
-                        <h4>t-SNE / UMAP — Non-linear Visualization</h4>
-                        <p><span class="algo-badge badge-blue">Visualization</span> <span class="algo-badge badge-orange">Not for new points (t-SNE)</span></p>
-                        <ul>
-                            <li><strong>t-SNE:</strong> Preserves local structure. Great for visualization. Cannot project new points without refitting. Perplexity parameter (5–50) controls neighborhood size.</li>
-                            <li><strong>UMAP:</strong> Faster, preserves both local and global structure, can project new points. Preferred for production and embedding visualization.</li>
-                            <li><strong>Use case:</strong> Visualize LLM embedding clusters, debug RAG retrieval quality, explore customer segmentation</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================================================ -->
-            <!-- SECTION 2: ML METRICS                                        -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">2. ML Metrics: The Complete Reference</h2>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>Classification Metrics</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Formula</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Use When</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Target</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Accuracy</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">(TP+TN) / Total</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Balanced classes only</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Baseline ≥ majority class rate</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Precision</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">TP / (TP+FP)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">False positives are costly (spam filter)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.9 for high-stakes</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Recall (Sensitivity)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">TP / (TP+FN)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">False negatives are costly (cancer detection)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.95 for safety-critical</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>F1 Score</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">2 × P×R / (P+R)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Imbalanced classes, need balance of P &amp; R</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.8 typical production</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>AUC-ROC</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Area under TPR vs FPR curve</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Threshold-agnostic model comparison</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;0.85 good; &gt;0.95 excellent; 0.5 = random</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>AUC-PR</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Area under Precision-Recall curve</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Highly imbalanced datasets (fraud, rare events)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Baseline = class prevalence</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Log Loss</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-mean(y·log(p) + (1-y)·log(1-p))</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">When calibrated probabilities matter</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower is better; 0 = perfect</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Matthews Correlation Coefficient</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">(TP×TN − FP×FN) / √(...)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Most reliable single metric for imbalanced binary classification</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; &gt;0.6 good</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="callout callout-warning">
-                        <div class="callout-title">The Precision-Recall Tradeoff (Staff Must Know)</div>
-                        <p>Adjusting the classification threshold shifts precision and recall in opposite directions. Lower threshold → more positives predicted → higher recall, lower precision. Higher threshold → fewer positives → higher precision, lower recall. The right threshold depends on your <strong>cost asymmetry</strong>: how much does a false positive cost vs a false negative? In fraud detection, a missed fraud (FN) is far costlier than a false alarm (FP), so optimize recall.</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>Regression &amp; Clustering Metrics</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <h4>Regression Metrics</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(72,187,120,0.15);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Formula</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Good For</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Sensitive to Outliers?</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MAE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean(|y - ŷ|)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Interpretable average error; use when outliers are real</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No (linear penalty)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MSE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean((y - ŷ)²)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training loss; differentiable, drives gradient descent</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes (squares errors)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RMSE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">√MSE</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Same units as target; standard reporting metric</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>R² (Coefficient of Determination)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1 - SS_res/SS_tot</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">How much variance the model explains. 1.0 = perfect, 0 = mean baseline</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Moderate</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>MAPE</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">mean(|y - ŷ| / |y|) × 100%</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Relative error — good for scale-agnostic comparison across datasets</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Undefined when y=0</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Huber Loss</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">MSE for small errors, MAE for large</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Robust to outliers while staying differentiable everywhere</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Moderate (by design)</td></tr>
-                        </tbody>
-                    </table>
-
-                    <h4 class="mt-3">Clustering Metrics</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(246,173,85,0.15);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Metric</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">What It Measures</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Range / Target</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Needs Ground Truth?</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Silhouette Score</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">How similar a point is to its own cluster vs neighbours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; &gt;0.5 good clusters</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Inertia</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Sum of squared distances to nearest centroid</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower = better; use elbow method to pick k</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Davies-Bouldin Index</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Ratio of within-cluster scatter to between-cluster separation</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Lower = better; 0 = perfect</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>ARI</strong> (Adjusted Rand Index)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Measures similarity between predicted and true cluster assignments, adjusted for chance</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">-1 to 1; 1 = perfect</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ============================================================ -->
-            <!-- SECTION 3: ML vs DL vs LLM DECISION FRAMEWORK               -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">3. ML vs DL vs LLM: Decision Framework</h2>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>The Decision Tree (Ironic but Apt)</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <div class="diagram-container">
-                        <div class="mermaid">
-flowchart TD
-    A[New ML Problem] --> B{Structured tabular\ndata?}
-    B -->|Yes| C{&lt; 100K rows\nor need interpretability?}
-    C -->|Yes| D[Logistic Regression\nor Decision Tree]
-    C -->|No| E{Labels available?}
-    E -->|Yes| F[XGBoost / LightGBM\nSTATE OF THE ART for tabular]
-    E -->|No| G[K-Means / HDBSCAN\nfor clustering]
-    B -->|No - Images/Audio/Video| H[CNN / Vision Transformer\nDiffusion for generation]
-    B -->|No - Text| I{Need domain knowledge\nor few-shot?}
-    I -->|Yes| J{Task complexity?}
-    J -->|Simple classification| K[Fine-tune encoder model\nBERT/DeBERTa or small LLM]
-    J -->|Complex / open-ended| L[LLM with prompting\nor RAG]
-    B -->|No - Time series| M{Length &amp; complexity?}
-    M -->|Short, structured| N[XGBoost with lag features\nor ARIMA]
-    M -->|Long, complex patterns| O[LSTM / Transformer\nor PatchTST]
-                        </div>
-                    </div>
-
-                    <h4 class="mt-3">The Honest Tradeoff Table</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Criterion</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Classical ML</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Deep Learning</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">LLM</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">100s–100Ks rows</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">10Ks–millions</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">0 (zero-shot) to thousands (fine-tuning)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Inference latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;1ms (microseconds)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">200ms–60s+ (reasoning models can be longer)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Interpretability</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (LR, trees)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (black box)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (chain of thought helps)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Compute cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Very low</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium–high</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (varies widely: $0.10–$15 per 1M input tokens depending on model)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Input type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Structured / tabular</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Images, audio, sequences</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Text, images, audio, video (multimodal)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Regulatory compliance</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Easiest (explainable)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Harder</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hardest (hallucinations)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feature engineering needed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Heavy</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Minimal (prompt engineering instead)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Handles new tasks zero-shot?</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">No</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Yes</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="interview-tip">
-                        <strong>Staff-Level Interview Answer:</strong> "My default is to start with the simplest model that could work. If the data is tabular and labeled, I reach for LightGBM first — it trains in seconds, gives feature importance, and beats neural nets on most tabular benchmarks. I only move to LLMs when the task involves language understanding, zero-shot generalization, or when the business needs natural language I/O. LLMs are a last resort on cost and latency grounds, not a first reach."
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================================================ -->
-            <!-- SECTION 4: PARTNERING WITH DS/ML TEAMS                      -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">4. Partnering with Data Science &amp; ML Teams</h2>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>The Staff Engineer's Role in ML Projects</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <div class="key-insight">
-                        <strong>The Core Tension:</strong> Data Scientists optimize for model accuracy. Engineers optimize for reliability, scalability, and maintainability. Staff engineers bridge this gap — they need enough ML literacy to ask the right questions, and enough systems experience to build the right infrastructure.
-                    </div>
-
-                    <h4>What Data Scientists Expect from a Staff Engineer</h4>
-                    <div class="partner-step">
-                        <div class="partner-icon">🏗️</div>
-                        <div>
-                            <strong>Build reliable ML infrastructure</strong>
-                            <p>Feature stores (Feast, Tecton, Hopsworks), model training pipelines (Kubeflow, Vertex AI Pipelines, SageMaker Pipelines), experiment tracking (MLflow, W&amp;B), model registries.</p>
-                        </div>
-                    </div>
-                    <div class="partner-step">
-                        <div class="partner-icon">🚀</div>
-                        <div>
-                            <strong>Own model deployment and serving</strong>
-                            <p>Serve models via REST/gRPC (TorchServe, Triton Inference Server, BentoML). Manage A/B testing infrastructure. Handle rollbacks. Maintain SLOs for model latency and throughput.</p>
-                        </div>
-                    </div>
-                    <div class="partner-step">
-                        <div class="partner-icon">📊</div>
-                        <div>
-                            <strong>Build monitoring and observability</strong>
-                            <p>Track prediction drift, feature drift, data quality. Alert on performance degradation. Build dashboards for model performance metrics. Handle retraining triggers.</p>
-                        </div>
-                    </div>
-                    <div class="partner-step">
-                        <div class="partner-icon">🔒</div>
-                        <div>
-                            <strong>Enforce data quality and contracts</strong>
-                            <p>Define schema contracts for features. Validate data at ingestion (Great Expectations, Soda). Prevent training-serving skew — the #1 cause of silent model failures in production.</p>
-                        </div>
-                    </div>
-                    <div class="partner-step">
-                        <div class="partner-icon">💬</div>
-                        <div>
-                            <strong>Translate between ML and product</strong>
-                            <p>Help DS frame the problem correctly (prediction vs recommendation vs anomaly). Ensure metrics align with business outcomes. Push back when the ML solution is over-engineered for the problem.</p>
-                        </div>
-                    </div>
-
-                    <h4 class="mt-3">Questions a Staff Engineer Should Ask When Reviewing an ML Project</h4>
-                    <ul>
-                        <li>What is the <strong>offline-to-online gap</strong>? Does the eval set reflect production data distribution?</li>
-                        <li>What happens when the <strong>model is wrong</strong>? Is there a fallback? Can the user override?</li>
-                        <li>What is the <strong>retraining strategy</strong>? Scheduled (daily/weekly), trigger-based (drift threshold), or continuous?</li>
-                        <li>How are <strong>features computed at serving time</strong>? Do they match how they were computed at training time?</li>
-                        <li>Does the model need to be <strong>explainable</strong> to regulators, users, or support teams?</li>
-                        <li>What is the <strong>label latency</strong>? If ground truth arrives hours later, how do you handle it?</li>
-                        <li>What is the <strong>data lineage</strong>? Can you trace any prediction back to the exact features used?</li>
+            <!-- What You'll Learn -->
+            <div class="card" style="margin-bottom:2rem;">
+                <h3 style="margin-top:0;">What You'll Learn</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.75rem;margin-top:0.5rem;">
+                    <ul style="margin:0;padding-left:1.25rem;line-height:1.8;">
+                        <li>Why evals are non-negotiable in LLM systems</li>
+                        <li>Complete taxonomy of eval types and metrics</li>
+                        <li>RAGAS framework for RAG evaluation</li>
+                        <li>DeepEval, Promptfoo, Braintrust hands-on</li>
+                    </ul>
+                    <ul style="margin:0;padding-left:1.25rem;line-height:1.8;">
+                        <li>LLM-as-Judge: design, pitfalls, mitigations</li>
+                        <li>Human eval workflows and inter-annotator agreement</li>
+                        <li>CI/CD eval gates and regression detection</li>
+                        <li>Building a complete eval pipeline end-to-end</li>
                     </ul>
                 </div>
             </div>
 
+            <!-- ================================================================
+                 SECTION 1: Why Evals
+                 ================================================================ -->
+            <h2>1. Why Evals Are the Foundation</h2>
             <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>MLOps Stack: What Every Staff Engineer Must Know</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
+                <div class="collapsible-header"><span>Evals Are the Unit Tests of AI — But Harder</span></div>
                 <div class="collapsible-content">
+                    <p>
+                        In traditional software, a function either returns the right value or it doesn't. In LLM systems,
+                        "correct" is often a spectrum. An answer can be <em>factually accurate but poorly formatted</em>,
+                        <em>well-structured but hallucinated</em>, or <em>faithful to context but missing the point</em>.
+                        This is why evals require purpose-built infrastructure.
+                    </p>
+                    <p>
+                        The central thesis of LLM engineering is: <strong>"If you don't have evals, you are guessing."</strong>
+                        Every prompt change, model upgrade, or retrieval tweak either improves or regresses quality. Without
+                        automated measurement, engineers fly blind.
+                    </p>
+
+                    <h4>The Cost of Missing Evals</h4>
+                    <ul>
+                        <li><strong>Random walks:</strong> Prompt engineering without evals means you can't tell if change A helped or hurt. Teams end up reverting changes because "it felt worse."</li>
+                        <li><strong>Silent regressions:</strong> A new model version silently degrades your use case. You find out from customer complaints three weeks later.</li>
+                        <li><strong>Unscalable code review:</strong> Human reviewing every LLM output doesn't scale past early prototypes.</li>
+                        <li><strong>No deployment confidence:</strong> You can't give stakeholders a signal that "this release is better than the last."</li>
+                    </ul>
+
+                    <h4>The Eval-Driven Development Loop</h4>
                     <div class="diagram-container">
                         <div class="mermaid">
-graph LR
-    subgraph "Data Layer"
-        A[Raw Data\nData Lake] --> B[Feature Store\nFeast/Tecton]
-        B --> C[Training Dataset\nOffline Features]
-        B --> D[Online Features\nLow-latency lookup]
-    end
-    subgraph "Training Layer"
-        C --> E[Experiment Tracking\nMLflow / W&B]
-        E --> F[Model Registry\nMLflow / Vertex]
-    end
-    subgraph "Serving Layer"
-        F --> G[Model Server\nTriton / TorchServe]
-        D --> G
-        G --> H[A/B Testing\nSplit traffic]
-        H --> I[Production Traffic]
-    end
-    subgraph "Monitoring Layer"
-        I --> J[Prediction Logs]
-        J --> K[Drift Detection\nEvidently AI]
-        K -->|drift alert| L[Retrain Trigger\nKubeflow Pipeline]
-        L --> E
-    end
+flowchart LR
+    A[Write Prompt\nor Change Config] --> B[Run Eval Suite\nOffline]
+    B --> C{Score vs\nBaseline?}
+    C -- Improved --> D[Merge to main\nCI gate passes]
+    C -- Regressed --> E[Diagnose\nFailure Cases]
+    E --> F[Update Prompt\nor Dataset]
+    F --> A
+    D --> G[Deploy to\nProduction]
+    G --> H[Online Evals\nLive Traffic]
+    H --> I{Drift\nDetected?}
+    I -- Yes --> E
+    I -- No --> J[Monitor &amp;\nAlert]
                         </div>
                     </div>
 
-                    <h4 class="mt-3">Feature Store: The Most Important Infrastructure Piece</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Component</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Purpose</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Technology</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Offline store</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Historical features for training. Point-in-time correct joins to prevent target leakage.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Parquet / Hive / BigQuery</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Online store</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low-latency (&lt;5ms) feature lookup at serving time. Must match training features exactly.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Redis / DynamoDB / Cassandra</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feature registry</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Catalog of feature definitions, owners, and lineage. Enables reuse across teams.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Feast, Tecton, Hopsworks</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Materialization pipeline</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Batch/streaming job that computes features and writes to online + offline stores.</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Spark / Flink / Dataflow</td></tr>
-                        </tbody>
-                    </table>
-
-                    <div class="callout callout-danger">
-                        <div class="callout-title">Training-Serving Skew: The Silent Killer</div>
-                        <p>Training-serving skew occurs when features are computed differently at training time vs serving time. Example: at training, "user's total purchases" is computed from the full history. At serving, it's computed from the last 30 days due to a caching optimization. The model was never trained on that distribution. The model <em>appears</em> to work but silently underperforms.</p>
-                        <p><strong>Fix:</strong> Use the <em>same feature computation code</em> for training and serving. Feature stores enforce this by having one feature definition used for both offline and online retrieval.</p>
-                    </div>
-
-                    <h4 class="mt-3">Experiment Tracking with MLflow</h4>
-                    <div class="code-block">
-<code>import mlflow
-import mlflow.sklearn
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.metrics import roc_auc_score
-
-mlflow.set_experiment("churn-prediction-v2")
-
-with mlflow.start_run(run_name="gbc-baseline"):
-    # Log hyperparameters
-    params = {"n_estimators": 300, "learning_rate": 0.05, "max_depth": 6}
-    mlflow.log_params(params)
-
-    model = GradientBoostingClassifier(**params)
-    model.fit(X_train, y_train)
-
-    # Log metrics
-    train_auc = roc_auc_score(y_train, model.predict_proba(X_train)[:, 1])
-    val_auc   = roc_auc_score(y_val,   model.predict_proba(X_val)[:, 1])
-    mlflow.log_metric("train_auc", train_auc)
-    mlflow.log_metric("val_auc", val_auc)
-    mlflow.log_metric("overfit_gap", train_auc - val_auc)  # ← flag if > 0.05
-
-    # Log model artifact + schema
-    signature = mlflow.models.infer_signature(X_train, model.predict(X_train))
-    mlflow.sklearn.log_model(model, "model", signature=signature)
-
-    # Register in model registry for deployment
-    mlflow.register_model(f"runs:/{mlflow.active_run().info.run_id}/model",
-                          "churn-prediction-prod")</code>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============================================================ -->
-            <!-- SECTION 5: AI TRADEOFFS                                      -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">5. AI Tradeoffs: The Staff Engineer's Framework</h2>
-
-            <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>The Big Tradeoffs You'll Be Asked About</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
-                <div class="collapsible-content">
-                    <div class="callout callout-info">
-                        <div class="callout-title">How to Answer Tradeoff Questions</div>
-                        <p>Never say one option is always better. Frame your answer as: (1) name the axes of the tradeoff, (2) give concrete thresholds where you'd flip, (3) mention what you'd measure to decide.</p>
-                    </div>
-
-                    <h4>Accuracy vs Latency</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">If latency matters more</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Lever</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">If accuracy matters more</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Use a smaller model</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model size</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Use a larger model (async, background)</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Quantize to INT4</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Precision</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Run FP16 or full precision</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Rule-based pre-filter</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Architecture</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Cascade: cheap model first, expensive on hard cases</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Return cached result</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Caching</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Always compute fresh</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Classical ML (&lt;1ms)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model type</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">LLM (100ms–5s)</td></tr>
-                        </tbody>
-                    </table>
-
-                    <h4 class="mt-3">Explainability vs Performance</h4>
-                    <div class="tradeoff-row">
-                        <div class="tradeoff-cell">
-                            <strong style="color:#48bb78;">High Explainability</strong>
-                            <p style="font-size:0.85rem;margin:0.5rem 0;">Logistic Regression, Decision Trees, Linear SVMs, GAMs</p>
-                            <p style="font-size:0.8rem;color:#a0aec0;">Required by: banking (credit scoring), healthcare, GDPR Article 22, hiring algorithms</p>
-                        </div>
-                        <div class="tradeoff-cell">
-                            <strong style="color:#f6ad55;">Middle Ground</strong>
-                            <p style="font-size:0.85rem;margin:0.5rem 0;">XGBoost + SHAP, Random Forest + feature importance, LIME for local explanations</p>
-                            <p style="font-size:0.8rem;color:#a0aec0;">Good enough for most enterprise use cases</p>
-                        </div>
-                        <div class="tradeoff-cell">
-                            <strong style="color:#fc8181;">High Performance</strong>
-                            <p style="font-size:0.85rem;margin:0.5rem 0;">Deep neural networks, LLMs, ensemble of ensembles</p>
-                            <p style="font-size:0.8rem;color:#a0aec0;">Use when: accuracy gain &gt; explainability cost, task isn't regulated</p>
+                    <div class="callout info">
+                        <span class="callout-icon">&#128161;</span>
+                        <div class="callout-body">
+                            <strong>Industry Practice:</strong> Teams at Anthropic, OpenAI, and Google DeepMind maintain
+                            eval suites with hundreds to thousands of test cases per product feature. Prompt changes that
+                            don't improve any eval are generally not deployed, regardless of how good they seem subjectively.
                         </div>
                     </div>
 
-                    <h4 class="mt-3">Build vs Buy vs Fine-tune vs Prompt</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
+                    <h4>What Makes LLM Evals Harder than Unit Tests</h4>
+                    <table class="framework-table">
                         <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Option</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Cost</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Speed to Production</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Data Privacy</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">When to Choose</th>
-                            </tr>
+                            <tr><th>Dimension</th><th>Unit Tests</th><th>LLM Evals</th></tr>
                         </thead>
                         <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Prompt engineering</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Per-call API cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary (unless self-hosted)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Prototyping, low spend, or non-sensitive data</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>RAG</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">API cost + vector DB</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Days</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Data leaves boundary (unless self-hosted)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Dynamic knowledge, can't fine-tune every update</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Fine-tuning (LoRA)</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training + API/hosting</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">1–2 weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Training data exposed</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Consistent style/format, domain-specific knowledge, reduce prompt length</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Train from scratch</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">$1M–$100M+</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Months</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Only for frontier labs, specialized domains (bio, legal), or regulatory requirements</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);"><strong>Self-host open model</strong></td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">GPU infra + eng time</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Weeks</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Full control</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&gt;500K req/day, data privacy, &gt;$50K/mo API spend</td></tr>
-                        </tbody>
-                    </table>
-
-                    <h4 class="mt-3">Online vs Batch Inference</h4>
-                    <table style="width:100%;border-collapse:collapse;margin:1rem 0;">
-                        <thead>
-                            <tr style="background:rgba(102,126,234,0.2);">
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);"></th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Online (Real-time)</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Near Real-time (Streaming)</th>
-                                <th style="padding:0.6rem;border:1px solid rgba(255,255,255,0.1);">Batch (Scheduled)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Latency</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">&lt;100ms</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Seconds</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Hours–days acceptable</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Examples</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Fraud detection, content moderation, search ranking</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Clickstream analysis, ride-sharing pricing</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Churn prediction, recommendations pre-computed overnight</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Infrastructure</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Model server + feature store online</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Kafka + Flink + model server</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Spark / BigQuery + storage</td></tr>
-                            <tr><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Cost</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">High (always-on replicas)</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Medium</td><td style="padding:0.5rem;border:1px solid rgba(255,255,255,0.1);">Low (spot instances)</td></tr>
+                            <tr><td>Output space</td><td>Finite, deterministic</td><td>Open-ended text, probabilistic</td></tr>
+                            <tr><td>Correctness definition</td><td>Binary (pass/fail)</td><td>Graded, multi-dimensional</td></tr>
+                            <tr><td>Test creation cost</td><td>Low (assert statements)</td><td>High (need labeled data or judges)</td></tr>
+                            <tr><td>Evaluation speed</td><td>Milliseconds</td><td>Seconds to minutes (model inference)</td></tr>
+                            <tr><td>Evaluation cost</td><td>Near zero</td><td>$0.01–$5+ per eval run</td></tr>
+                            <tr><td>Coverage of edge cases</td><td>Enumerable</td><td>Combinatorially explosive</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- ============================================================ -->
-            <!-- SECTION 6: AI-NATIVE APPLICATION PATTERNS                   -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">6. AI-Native Application Design Patterns</h2>
-
+            <!-- ================================================================
+                 SECTION 2: Eval Taxonomy
+                 ================================================================ -->
+            <h2>2. Eval Taxonomy</h2>
             <div class="collapsible open">
-                <div class="collapsible-header">
-                    <span>What Makes an Application "AI-Native"</span>
-                    <span class="collapsible-icon">&#9660;</span>
-                </div>
+                <div class="collapsible-header"><span>Complete Classification of Evaluation Approaches</span></div>
                 <div class="collapsible-content">
-                    <p>An AI-native app is one where AI is not a feature but the <em>core product mechanism</em>. The UX, data model, and architecture are all shaped around the model. Staff engineers at AI-native companies must design for:</p>
 
+                    <h4>Offline vs Online Evals</h4>
+                    <p>
+                        <strong>Offline evals</strong> run on static datasets before deployment. They are fast, cheap, and
+                        reproducible. Think of them as integration tests that gate releases. <strong>Online evals</strong>
+                        run on live production traffic — either synchronously (adding latency) or asynchronously (sampled,
+                        post-response). Online evals catch distribution shift and real-user edge cases that offline datasets miss.
+                    </p>
+                    <table class="framework-table">
+                        <thead><tr><th>Property</th><th>Offline Evals</th><th>Online Evals</th></tr></thead>
+                        <tbody>
+                            <tr><td>When to run</td><td>Pre-deployment, CI/CD</td><td>Production traffic</td></tr>
+                            <tr><td>Dataset</td><td>Curated, versioned golden set</td><td>Sampled live queries</td></tr>
+                            <tr><td>Speed</td><td>Batch, parallel</td><td>Real-time or async</td></tr>
+                            <tr><td>Cost control</td><td>Full control</td><td>Needs sampling strategy</td></tr>
+                            <tr><td>Catches</td><td>Known failure modes</td><td>Novel edge cases, distribution drift</td></tr>
+                            <tr><td>Tools</td><td>DeepEval, Promptfoo, pytest</td><td>LangSmith, Braintrust, Langfuse</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Deterministic vs Probabilistic Metrics</h4>
+                    <p>
+                        <strong>Deterministic metrics</strong> produce the same result on every run (exact match, BLEU, ROUGE,
+                        regex checks). They're fast and free but brittle — a correct paraphrase scores 0 on exact match.
+                        <strong>Probabilistic metrics</strong> use model inference (LLM-as-judge, embedding similarity)
+                        and have variance. Running the same eval twice may give slightly different scores.
+                    </p>
+
+                    <h4>Reference-Based vs Reference-Free</h4>
+                    <ul>
+                        <li><strong>Reference-based:</strong> Compare model output against a known-good "gold" answer. Requires labeled data. Examples: BLEU, ROUGE, exact match, BERTScore.</li>
+                        <li><strong>Reference-free:</strong> Evaluate output quality without a gold standard. Examples: coherence scoring, factual consistency checking, toxicity classifiers. Essential when ground truth is unavailable or too expensive to produce.</li>
+                    </ul>
+
+                    <h4>Pointwise vs Pairwise vs Listwise</h4>
+                    <ul>
+                        <li><strong>Pointwise:</strong> Score a single response on a scale (1–5). Simple and parallelizable. Suffers from scale calibration issues.</li>
+                        <li><strong>Pairwise:</strong> Compare two responses and pick the better one. More reliable signal; used by RLHF and LLM-as-judge benchmarks. Does not scale to large candidate sets.</li>
+                        <li><strong>Listwise:</strong> Rank a list of N responses. Used in NDCG for retrieval. Computationally expensive but provides a full ordering.</li>
+                    </ul>
+
+                    <h4>Task-Specific Eval Considerations</h4>
+                    <table class="framework-table">
+                        <thead><tr><th>Task Type</th><th>Key Metrics</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Summarization</strong></td>
+                                <td>ROUGE-L, BERTScore, faithfulness, conciseness</td>
+                                <td>Hallucination is the primary failure mode; ROUGE alone is insufficient</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Question Answering</strong></td>
+                                <td>Exact match, F1, faithfulness, answer relevancy</td>
+                                <td>Track both precision (is it correct?) and recall (is it complete?)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Code Generation</strong></td>
+                                <td>HumanEval pass@k, unit test pass rate, AST similarity</td>
+                                <td>Execution-based evals are ground truth; don't rely on string matching</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Classification</strong></td>
+                                <td>Accuracy, F1, precision/recall per class, calibration</td>
+                                <td>Check per-class performance; macro vs micro F1 matters for imbalanced sets</td>
+                            </tr>
+                            <tr>
+                                <td><strong>RAG / Retrieval</strong></td>
+                                <td>RAGAS suite (see Section 3), MRR, NDCG@k</td>
+                                <td>Separate retrieval quality from generation quality</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dialogue / Chat</strong></td>
+                                <td>Coherence, engagingness, task success rate, safety</td>
+                                <td>Often requires human eval or fine-tuned judge models</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Eval Taxonomy Diagram</h4>
                     <div class="diagram-container">
                         <div class="mermaid">
 graph TD
-    subgraph "AI-Native App Architecture"
-        U[User Input] --> GW[API Gateway]
-        GW --> S[Safety/Guardrail Layer]
-        S --> R[Router\nSimple vs Complex]
-        R -->|Simple| FM[Fast Model\nsmall/cached]
-        R -->|Complex| LM[Large Model\nRAG + Tools]
-        FM --> C[Context Manager]
-        LM --> C
-        C --> FB[Feedback Collection]
-        FB --> FT[Fine-tune Pipeline\ndata flywheel]
-        FT --> LM
-    end
+    A[LLM Evaluation] --> B[When?]
+    A --> C[How to Score?]
+    A --> D[What Signal?]
+    A --> E[Granularity?]
+
+    B --> B1[Offline\npre-deployment]
+    B --> B2[Online\nproduction]
+
+    C --> C1[Deterministic\nBLEU, ROUGE,\nexact match]
+    C --> C2[Probabilistic\nLLM-as-judge,\nembedding sim]
+
+    D --> D1[Reference-based\nneed gold labels]
+    D --> D2[Reference-free\nno gold needed]
+
+    E --> E1[Pointwise\nsingle score]
+    E --> E2[Pairwise\nA vs B]
+    E --> E3[Listwise\nrank N outputs]
+
+    style A fill:#1e3a5f,stroke:#4facfe,color:#fff
+    style B fill:#1a2e1a,stroke:#48bb78,color:#fff
+    style C fill:#2e1a2e,stroke:#9f7aea,color:#fff
+    style D fill:#2e2a1a,stroke:#f6ad55,color:#fff
+    style E fill:#2a1a2e,stroke:#fc8181,color:#fff
                         </div>
-                    </div>
-
-                    <h4 class="mt-3">The 6 Core AI-Native Patterns</h4>
-
-                    <div class="model-card">
-                        <h4>1. Model Cascade (Cheap → Expensive)</h4>
-                        <p>Route easy requests to a small cheap model; escalate hard ones to a large expensive model. The fast model classifies difficulty first.</p>
-                        <p><strong>Example:</strong> Tier-1 support: a small model (e.g., Claude Haiku, GPT-4o-mini, or a fine-tuned open-source model) handles 70% of tickets at very low cost. Complex edge cases go to a frontier model (e.g., Claude Opus, GPT-4o) at 10–50x the per-token cost. Typical result: 3–5x cost reduction with &lt;5% quality degradation.</p>
-                        <div class="code-block">
-<code>def smart_route(query: str, threshold: float = 0.8) -> str:
-    # Fast classifier to assess query complexity
-    complexity_score = complexity_classifier.predict([query])[0]
-
-    if complexity_score &lt; threshold:
-        return call_model(SMALL_MODEL, query)      # cheap, fast (e.g., Haiku, GPT-4o-mini)
-    else:
-        return call_model(LARGE_MODEL, query,       # expensive, accurate (e.g., Opus, GPT-4o)
-                          tools=all_tools, rag=True)</code>
-                        </div>
-                    </div>
-
-                    <div class="model-card tree">
-                        <h4>2. Human-in-the-Loop (HITL)</h4>
-                        <p>For high-stakes or low-confidence decisions, route to a human reviewer instead of auto-accepting the model output.</p>
-                        <p><strong>Triggers for HITL:</strong> Confidence below threshold, novel input distribution, high-value transaction, regulated domain (medical, legal, financial).</p>
-                        <p><strong>Key metric:</strong> Auto-accept rate (target &gt;85% for cost efficiency). Track FP rate of auto-accepts — if it creeps up, lower the threshold.</p>
-                    </div>
-
-                    <div class="model-card ensemble">
-                        <h4>3. Data Flywheel</h4>
-                        <p>User interactions generate labeled data → label data is used to fine-tune → fine-tuned model is better → attracts more users → more data. Compounding advantage over time.</p>
-                        <p><strong>Staff engineer's role:</strong> Build the data collection pipeline, define quality filters, automate the fine-tuning trigger, A/B test the new model before full rollout.</p>
-                    </div>
-
-                    <div class="model-card linear">
-                        <h4>4. Model-as-Feature (Embedding Features)</h4>
-                        <p>Use a pre-trained model to generate embedding features, then feed those embeddings into a lightweight classical ML model (logistic regression, XGBoost). Best of both worlds: rich representation from the foundation model + fast, interpretable downstream model.</p>
-                        <p><strong>Example:</strong> Embed product descriptions with an embedding API (e.g., OpenAI text-embedding-3-small, Voyage, or Cohere Embed) → feed the resulting vectors (e.g., 1536-dim) to LightGBM for price prediction. Trains in minutes, inference in &lt;5ms.</p>
-                    </div>
-
-                    <div class="model-card unsup">
-                        <h4>5. Guardrail Layer (Input + Output)</h4>
-                        <p><strong>Input guardrails:</strong> PII detection, prompt injection detection, topic classification (refuse off-topic requests).<br>
-                        <strong>Output guardrails:</strong> Hallucination detection (faithfulness check via RAGAS), toxicity filtering (Perspective API), PII scrubbing in outputs, schema validation for structured outputs.</p>
-                        <p><strong>Latency budget:</strong> Guardrails add 50–200ms. Budget this into your TTFT SLO. Run input guardrails in parallel with model prefill to hide latency.</p>
-                    </div>
-
-                    <div class="model-card ensemble">
-                        <h4>6. Async / Background AI Processing</h4>
-                        <p>Not every AI task needs to be synchronous. Move expensive AI operations to background queues (Celery, SQS + Lambda, Pub/Sub). Return a job ID immediately; stream results when ready or notify via webhook.</p>
-                        <p><strong>Use cases:</strong> Document analysis, report generation, batch embedding, retraining pipelines, nightly recommendation pre-computation.</p>
-                        <p><strong>Pattern:</strong> POST /analyze → 202 Accepted + job_id → GET /results/{job_id} → 200 with results when complete.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- ============================================================ -->
-            <!-- SECTION 7: ACTIVE RECALL                                     -->
-            <!-- ============================================================ -->
-            <h2 class="mt-4">Active Recall Questions</h2>
+            <!-- ================================================================
+                 SECTION 3: RAGAS
+                 ================================================================ -->
+            <h2>3. RAG Evaluation: The RAGAS Framework</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Measuring RAG Quality Across All Dimensions</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        RAGAS (Retrieval-Augmented Generation Assessment) is the canonical framework for evaluating RAG
+                        pipelines end-to-end. It decomposes RAG quality into four orthogonal metrics that together cover
+                        both retrieval and generation failure modes.
+                    </p>
+
+                    <div class="metric-dashboard">
+                        <div class="metric-card">
+                            <span class="metric-value">0.92</span>
+                            <div class="metric-label">Faithfulness</div>
+                            <div class="score-meter"><div class="score-meter-fill fill-green" style="width:92%"></div></div>
+                            <div class="metric-trend up">Grounded in context</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-value">0.85</span>
+                            <div class="metric-label">Answer Relevancy</div>
+                            <div class="score-meter"><div class="score-meter-fill fill-blue" style="width:85%"></div></div>
+                            <div class="metric-trend up">Answers the question</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-value">0.71</span>
+                            <div class="metric-label">Context Precision</div>
+                            <div class="score-meter"><div class="score-meter-fill fill-yellow" style="width:71%"></div></div>
+                            <div class="metric-trend down">Noisy retrieval chunks</div>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-value">0.88</span>
+                            <div class="metric-label">Context Recall</div>
+                            <div class="score-meter"><div class="score-meter-fill fill-green" style="width:88%"></div></div>
+                            <div class="metric-trend up">Most needed docs found</div>
+                        </div>
+                    </div>
+
+                    <h4>Faithfulness</h4>
+                    <p>
+                        Faithfulness measures whether each claim in the generated answer is supported by the retrieved context.
+                        A faithfulness score of 1.0 means every statement in the answer can be traced back to the provided
+                        chunks. A low score is the primary indicator of <em>hallucination</em>.
+                    </p>
+                    <p>
+                        <strong>How it's computed:</strong> The judge LLM extracts atomic claims from the answer, then
+                        checks each claim against the retrieved context. Score = (supported claims) / (total claims).
+                    </p>
+                    <p>
+                        <strong>Common failure patterns:</strong> (1) LLM "fills in" plausible-sounding details not in context;
+                        (2) LLM conflates information from two different documents; (3) Retrieved context is technically
+                        relevant but lacks the specific fact needed, so the LLM invents it.
+                    </p>
+
+                    <h4>Answer Relevancy</h4>
+                    <p>
+                        Answer relevancy asks: does the generated answer address the original question? A high-faithfulness
+                        but low-relevancy answer might correctly quote from context but answer a different question than
+                        was asked. This catches prompt engineering failures where the model "responds to context" rather
+                        than "responds to the user."
+                    </p>
+                    <p>
+                        <strong>How it's computed:</strong> The judge generates N reverse questions from the answer
+                        ("what question would this answer be a good response to?"), then computes embedding cosine similarity
+                        between those reverse questions and the original question. High similarity = high relevancy.
+                    </p>
+
+                    <h4>Context Precision</h4>
+                    <p>
+                        Context precision measures signal-to-noise in the retrieved chunks. If you retrieve 10 chunks but
+                        only 2 are relevant to answering the question, context precision is low. Low precision wastes
+                        context window space, increases cost, and can confuse the LLM with irrelevant information
+                        (the "lost in the middle" problem).
+                    </p>
+                    <p>
+                        <strong>Formula:</strong> For each position k, compute precision@k × relevance(k), then average over
+                        all relevant chunks. This is essentially a mean average precision (MAP) adapted for RAG.
+                    </p>
+
+                    <h4>Context Recall</h4>
+                    <p>
+                        Context recall measures whether the retriever found <em>all</em> the chunks needed to answer the
+                        question. You need ground-truth annotations (which chunks are needed) or an LLM that judges whether
+                        the expected answer could be derived from the retrieved context.
+                    </p>
+                    <p>
+                        <strong>How it's computed:</strong> Each sentence in the ground-truth answer is checked against
+                        the retrieved context. Score = (sentences attributable to context) / (total expected answer sentences).
+                    </p>
+
+                    <h4>RAGAS Diagnostic Matrix</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Faithfulness</th><th>Answer Relevancy</th><th>Context Precision</th><th>Context Recall</th><th>Diagnosis</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td>System is working well</td></tr>
+                            <tr><td><span class="eval-score low">Low</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td>LLM is hallucinating despite good context — generation issue</td></tr>
+                            <tr><td><span class="eval-score high">High</span></td><td><span class="eval-score low">Low</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td>Context is retrieved but LLM answers the wrong thing — prompt issue</td></tr>
+                            <tr><td><span class="eval-score high">High</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score low">Low</span></td><td><span class="eval-score high">High</span></td><td>Too many noisy chunks retrieved — re-ranking issue</td></tr>
+                            <tr><td><span class="eval-score high">High</span></td><td><span class="eval-score medium">Med</span></td><td><span class="eval-score high">High</span></td><td><span class="eval-score low">Low</span></td><td>Missing chunks — embedding model or chunking issue</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>RAGAS Evaluation Pipeline — Python Code</h4>
+                    <pre><code class="language-python"># pip install ragas langchain openai chromadb
+from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall,
+)
+from datasets import Dataset
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# Step 1: Prepare your eval dataset
+# Each record needs: question, answer (generated), contexts (retrieved), ground_truth
+eval_data = {
+    "question": [
+        "What is the capital of France?",
+        "How does RLHF work?",
+        "What is RAG and when should I use it?",
+    ],
+    "answer": [
+        # These come from your RAG pipeline during eval run
+        "The capital of France is Paris.",
+        "RLHF stands for Reinforcement Learning from Human Feedback. It involves collecting "
+        "human preference data on model outputs, training a reward model on those preferences, "
+        "then fine-tuning the LLM using RL to maximize the reward signal.",
+        "RAG (Retrieval-Augmented Generation) combines a retrieval system with a language model. "
+        "Use RAG when: your knowledge base changes frequently, you need citations, or the domain "
+        "is too large to fine-tune on.",
+    ],
+    "contexts": [
+        # Lists of retrieved text chunks
+        ["France is a country in Western Europe. Its capital and largest city is Paris."],
+        [
+            "RLHF involves three phases: supervised fine-tuning, reward modeling from human "
+            "preferences, and RL optimization (usually PPO) against the reward model.",
+            "Human labelers rank pairs of model outputs; the reward model learns to predict "
+            "these rankings.",
+        ],
+        [
+            "RAG augments LLMs with external retrieval. It is most useful when knowledge "
+            "currency, traceability, and domain breadth matter more than latency.",
+            "Fine-tuning is better when style/format consistency is the goal; RAG is better "
+            "for factual grounding.",
+        ],
+    ],
+    "ground_truth": [
+        "Paris is the capital of France.",
+        "RLHF collects human preference labels, trains a reward model, then uses RL to optimize "
+        "the LLM policy to maximize reward.",
+        "RAG retrieves relevant documents at inference time to ground LLM outputs. Prefer RAG "
+        "when the knowledge base is large, dynamic, or requires sourcing.",
+    ],
+}
+
+dataset = Dataset.from_dict(eval_data)
+
+# Step 2: Configure judge LLM and embeddings
+judge_llm = ChatOpenAI(model="gpt-4o", temperature=0)
+embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+
+# Step 3: Run RAGAS evaluation
+result = evaluate(
+    dataset=dataset,
+    metrics=[faithfulness, answer_relevancy, context_precision, context_recall],
+    llm=judge_llm,
+    embeddings=embeddings,
+)
+
+print(result)
+# Output example:
+# {'faithfulness': 0.9167, 'answer_relevancy': 0.8823,
+#  'context_precision': 0.8333, 'context_recall': 0.8667}
+
+# Step 4: Export to pandas for analysis
+df = result.to_pandas()
+# Drill into low-scoring cases
+failures = df[df["faithfulness"] &lt; 0.7]
+print(f"Faithfulness failures: {len(failures)} / {len(df)}")
+for _, row in failures.iterrows():
+    print(f"  Q: {row['question']}")
+    print(f"  A: {row['answer'][:100]}...")
+    print(f"  Score: {row['faithfulness']:.2f}")
+</code></pre>
+
+                    <h4>Interpreting RAGAS Scores</h4>
+                    <ul>
+                        <li><strong>&gt; 0.85:</strong> Good — monitor for drift but no immediate action needed</li>
+                        <li><strong>0.70 – 0.85:</strong> Acceptable for early-stage; invest in improvement</li>
+                        <li><strong>0.50 – 0.70:</strong> Problematic — users will notice quality issues</li>
+                        <li><strong>&lt; 0.50:</strong> Broken — do not deploy; fix the identified dimension first</li>
+                    </ul>
+
+                    <div class="callout warning">
+                        <span class="callout-icon">&#9888;&#65039;</span>
+                        <div class="callout-body">
+                            <strong>RAGAS Limitation:</strong> RAGAS itself uses LLM calls to compute metrics, which
+                            means scores are only as reliable as your judge model. Always validate RAGAS scores
+                            against a human-annotated sample (50–100 examples) when first deploying. GPT-4o-based
+                            RAGAS scores typically correlate ~0.7–0.8 with expert human judgments.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 4: Eval Frameworks
+                 ================================================================ -->
+            <h2>4. Eval Frameworks Deep Dive</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>DeepEval, Promptfoo, Braintrust, OpenAI Evals — Compared</span></div>
+                <div class="collapsible-content">
+
+                    <h4>Framework Comparison</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr>
+                                <th>Framework</th>
+                                <th>Interface</th>
+                                <th>Best For</th>
+                                <th>Metrics</th>
+                                <th>Pricing</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>DeepEval</strong></td>
+                                <td><span class="tag tag-green">Python / pytest</span></td>
+                                <td>Engineers comfortable with pytest; CI integration; 14+ built-in metrics</td>
+                                <td>Faithfulness, hallucination, answer relevancy, contextual recall/precision, toxicity, bias, G-Eval, summarization</td>
+                                <td>Open-source core; Confident AI cloud optional</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Promptfoo</strong></td>
+                                <td><span class="tag tag-blue">CLI / YAML</span></td>
+                                <td>Prompt engineers; red-teaming; non-Python teams; local LLM testing</td>
+                                <td>LLM-rubric, contains, regex, code-based, similarity; extensible</td>
+                                <td>Open-source; self-hosted</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Braintrust</strong></td>
+                                <td><span class="tag tag-purple">SDK + UI</span></td>
+                                <td>Full eval lifecycle: logging, datasets, scoring, comparison UI</td>
+                                <td>Custom scorers; LLM-as-judge; human review built-in</td>
+                                <td>Free tier; usage-based cloud</td>
+                            </tr>
+                            <tr>
+                                <td><strong>OpenAI Evals</strong></td>
+                                <td><span class="tag tag-orange">Python / YAML</span></td>
+                                <td>Academic/research benchmarks; fine-tune evaluation; model comparison</td>
+                                <td>Match, includes, fuzzy match, model-graded, custom Python</td>
+                                <td>Open-source (Apache 2.0)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>LangSmith</strong></td>
+                                <td><span class="tag tag-blue">SDK + UI</span></td>
+                                <td>LangChain users; tracing + eval in one platform; human annotation</td>
+                                <td>LLM-as-judge via evaluator templates; custom criteria</td>
+                                <td>Free tier; LangChain Cloud pricing</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>DeepEval — pytest-Style LLM Evals</h4>
+                    <p>
+                        DeepEval maps LLM evaluation onto the familiar pytest pattern. Each test case defines input,
+                        actual output, retrieved context (for RAG), and expected output. Metrics are classes that implement
+                        a <code>measure()</code> method and return a score + reason.
+                    </p>
+                    <pre><code class="language-python"># pip install deepeval
+import pytest
+from deepeval import assert_test
+from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+from deepeval.metrics import (
+    FaithfulnessMetric,
+    AnswerRelevancyMetric,
+    ContextualRecallMetric,
+    HallucinationMetric,
+    ToxicityMetric,
+    GEval,
+)
+
+# Define a custom G-Eval metric (rubric-based)
+conciseness_metric = GEval(
+    name="Conciseness",
+    criteria="The response answers the question without unnecessary verbosity. "
+             "It does not repeat the question back or pad with filler phrases.",
+    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.INPUT],
+    minimum_score=0.7,
+)
+
+@pytest.mark.parametrize("test_case", [
+    LLMTestCase(
+        input="What is RAG?",
+        actual_output=my_rag_pipeline("What is RAG?"),
+        expected_output="RAG combines retrieval with generation to ground LLM outputs.",
+        retrieval_context=[
+            "RAG (Retrieval-Augmented Generation) uses a retriever to fetch relevant "
+            "documents and a generator to produce answers grounded in those documents."
+        ],
+    ),
+    LLMTestCase(
+        input="Explain the transformer architecture",
+        actual_output=my_rag_pipeline("Explain the transformer architecture"),
+        expected_output="Transformers use self-attention to process sequences in parallel.",
+        retrieval_context=[
+            "The transformer model introduced by Vaswani et al. (2017) uses multi-head "
+            "self-attention and feed-forward layers to process input sequences in parallel."
+        ],
+    ),
+])
+def test_rag_quality(test_case: LLMTestCase):
+    assert_test(test_case, [
+        FaithfulnessMetric(threshold=0.8, model="gpt-4o-mini"),
+        AnswerRelevancyMetric(threshold=0.75, model="gpt-4o-mini"),
+        ContextualRecallMetric(threshold=0.7, model="gpt-4o-mini"),
+        HallucinationMetric(threshold=0.2, model="gpt-4o-mini"),  # lower is better
+        conciseness_metric,
+    ])
+
+# Run: deepeval test run test_rag.py
+# Output includes per-metric scores, reasons, and pass/fail status
+</code></pre>
+
+                    <h4>Promptfoo — YAML-Configured, CLI-First</h4>
+                    <p>
+                        Promptfoo is ideal when you want to test multiple prompt variants against multiple models
+                        without writing Python. It runs red-team scans, generates test matrices, and outputs HTML reports.
+                    </p>
+                    <pre><code class="language-yaml"># promptfooconfig.yaml
+description: "RAG customer support eval"
+
+prompts:
+  - "Answer the customer question using only the provided context.\n\nContext: {{context}}\n\nQuestion: {{question}}"
+  - "You are a helpful support agent. Answer the following question based solely on the context below.\nContext: {{context}}\nQuestion: {{question}}\nAnswer:"
+
+providers:
+  - id: openai:gpt-4o-mini
+    config:
+      temperature: 0
+  - id: openai:gpt-4o
+    config:
+      temperature: 0
+  - id: anthropic:claude-3-haiku-20240307
+
+tests:
+  - vars:
+      question: "What is your return policy?"
+      context: "Our return policy allows returns within 30 days of purchase with original receipt."
+    assert:
+      - type: contains
+        value: "30 days"
+      - type: llm-rubric
+        value: "The answer directly addresses the return policy question and mentions the 30-day window."
+      - type: not-contains
+        value: "I don't know"
+
+  - vars:
+      question: "Do you offer international shipping?"
+      context: "We currently ship to the US, Canada, and the UK only."
+    assert:
+      - type: llm-rubric
+        value: "The answer only mentions countries present in the context (US, Canada, UK) and does not invent additional countries."
+      - type: javascript
+        value: "output.toLowerCase().includes('us') || output.toLowerCase().includes('united states')"
+
+# Red team configuration
+redteam:
+  plugins:
+    - harmful:hate
+    - harmful:violence
+    - prompt-injection
+    - jailbreak
+  strategies:
+    - jailbreak
+    - prompt-injection
+
+# Run: promptfoo eval
+# View: promptfoo view
+</code></pre>
+
+                    <h4>Braintrust — Full Eval Lifecycle</h4>
+                    <pre><code class="language-python"># pip install braintrust autoevals
+import braintrust
+from autoevals import Factuality, Levenshtein
+
+experiment = braintrust.init(
+    project="rag-customer-support",
+    experiment="gpt-4o-mini-v2-prompt",
+    api_key="YOUR_API_KEY",
+)
+
+# Load your test dataset from Braintrust datasets (versioned)
+dataset = braintrust.init_dataset(project="rag-customer-support", name="golden-set-v3")
+
+for record in dataset:
+    # Run your pipeline
+    output = my_rag_pipeline(record["input"])
+
+    # Log result with scores
+    experiment.log(
+        inputs={"question": record["input"]},
+        output=output,
+        expected=record["expected"],
+        scores={
+            "factuality": Factuality()(
+                output=output,
+                expected=record["expected"],
+                input=record["input"],
+            ),
+        },
+        metadata={"model": "gpt-4o-mini", "prompt_version": "v2"},
+    )
+
+summary = experiment.summarize(summarize_scores=True)
+print(summary)
+# Braintrust UI: compare experiment vs previous, drill into regressions
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 5: LLM-as-Judge
+                 ================================================================ -->
+            <h2>5. LLM-as-Judge</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Using a Strong Model to Evaluate a Weaker Model</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        LLM-as-Judge is the technique of using a capable frontier model (e.g., GPT-4o, Claude 3.5 Sonnet)
+                        to evaluate the output of another model. It scales better than human annotation and handles
+                        open-ended text better than deterministic metrics. The key insight is that <em>evaluating quality
+                        is easier than generating quality</em> — a smaller model can produce mediocre answers, but
+                        GPT-4o can reliably identify that they're mediocre.
+                    </p>
+
+                    <h4>Judge Prompt Engineering: Rubrics, Scales, and Examples</h4>
+                    <p>
+                        The quality of your judge is only as good as your judge prompt. Vague instructions produce
+                        noisy scores. A production-grade judge prompt should include:
+                    </p>
+                    <ul>
+                        <li><strong>Clear task description:</strong> Precisely what the evaluated model was asked to do</li>
+                        <li><strong>Scoring rubric:</strong> Each score level defined with explicit, distinct criteria</li>
+                        <li><strong>Few-shot examples:</strong> 2–3 (question, answer, score, reasoning) examples per score level</li>
+                        <li><strong>Chain-of-thought:</strong> Ask the judge to reason before scoring ("Think step by step, then output your score")</li>
+                        <li><strong>Structured output:</strong> JSON with <code>score</code> and <code>reasoning</code> fields</li>
+                    </ul>
+
+                    <h4>Example LLM Judge Implementation</h4>
+                    <pre><code class="language-python">import json
+from openai import OpenAI
+from typing import Optional
+
+client = OpenAI()
+
+JUDGE_SYSTEM_PROMPT = """You are an expert evaluator for AI assistant responses.
+Evaluate the given response on FAITHFULNESS to the provided context.
+
+Faithfulness measures whether every factual claim in the response is supported
+by the provided context. Do not penalize for what the context doesn't say —
+only penalize for claims that contradict or go beyond the context.
+
+Scoring Rubric:
+  5 - All claims directly supported by context. No unsupported additions.
+  4 - Nearly all claims supported; one minor inference not explicitly in context.
+  3 - Most claims supported but 1-2 clear additions beyond context.
+  2 - Several claims lack context support; significant extrapolation.
+  1 - Response largely ignores or contradicts the context; severe hallucination.
+
+Output ONLY valid JSON: {"score": &lt;int 1-5&gt;, "reasoning": "&lt;brief explanation&gt;", "violations": ["&lt;specific unsupported claim&gt;"]}
+"""
+
+def judge_faithfulness(
+    question: str,
+    context: str,
+    response: str,
+    model: str = "gpt-4o",
+) -&gt; dict:
+    user_message = f"""QUESTION: {question}
+
+CONTEXT:
+{context}
+
+RESPONSE TO EVALUATE:
+{response}"""
+
+    completion = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+            {"role": "user",   "content": user_message},
+        ],
+        temperature=0,           # Deterministic scores
+        response_format={"type": "json_object"},
+        seed=42,                 # Reproducibility
+    )
+
+    result = json.loads(completion.choices[0].message.content)
+    result["normalized_score"] = (result["score"] - 1) / 4  # 0.0 - 1.0
+    return result
+
+# Usage
+result = judge_faithfulness(
+    question="What is the boiling point of water?",
+    context="Water boils at 100°C (212°F) at sea level. At higher altitudes, the boiling point decreases.",
+    response="Water boils at 100°C at sea level. At high altitude, it boils at a lower temperature, "
+             "which is why cooking times increase. Additionally, adding salt raises the boiling point slightly.",
+)
+# result: {"score": 3, "normalized_score": 0.5,
+#  "reasoning": "First two claims are supported. Salt claim not in context.",
+#  "violations": ["adding salt raises the boiling point slightly"]}
+</code></pre>
+
+                    <h4>Scoring Rubric Visualized</h4>
+                    <div style="margin: 1rem 0;">
+                        <div class="rubric-row">
+                            <div class="rubric-score-badge s5">5</div>
+                            <div><strong>All claims directly supported.</strong> The response only contains information present in or directly inferable from the provided context. Zero hallucinations.</div>
+                        </div>
+                        <div class="rubric-row">
+                            <div class="rubric-score-badge s4">4</div>
+                            <div><strong>Nearly all claims supported.</strong> One minor inference beyond context, but no contradictions. Reasonable background knowledge applied.</div>
+                        </div>
+                        <div class="rubric-row">
+                            <div class="rubric-score-badge s3">3</div>
+                            <div><strong>Mostly faithful.</strong> 1–2 specific claims go beyond context, but the core answer is grounded. User would likely notice at least one unsupported statement.</div>
+                        </div>
+                        <div class="rubric-row">
+                            <div class="rubric-score-badge s2">2</div>
+                            <div><strong>Significant extrapolation.</strong> Multiple claims lack context support. The response mixes real context with invented detail throughout.</div>
+                        </div>
+                        <div class="rubric-row">
+                            <div class="rubric-score-badge s1">1</div>
+                            <div><strong>Severe hallucination.</strong> Response largely ignores the provided context, contradicts it, or fabricates most of its content.</div>
+                        </div>
+                    </div>
+
+                    <h4>Position Bias and Mitigation</h4>
+                    <p>
+                        LLM judges show <strong>position bias</strong> in pairwise evaluation: when comparing Response A vs B,
+                        the judge often favors whichever response appears first in the prompt. Studies (Wang et al., 2023;
+                        Zheng et al., 2023) found GPT-4 has a ~10–15% position bias toward the first response.
+                    </p>
+                    <p>
+                        <strong>Mitigation strategies:</strong>
+                    </p>
+                    <ul>
+                        <li><strong>Swap and average:</strong> Run pairwise eval twice with order swapped (A vs B, then B vs A). Only declare a winner when both agree.</li>
+                        <li><strong>Balanced ordering:</strong> Across your eval dataset, randomize which model appears first.</li>
+                        <li><strong>Chain-of-thought before verdict:</strong> Force the judge to reason extensively before declaring a winner — this reduces snap position-based judgments.</li>
+                        <li><strong>Calibration examples:</strong> Include examples in the system prompt that demonstrate the judge should not favor based on order.</li>
+                    </ul>
+
+                    <h4>Multi-Judge Agreement (Inter-Rater Reliability)</h4>
+                    <p>
+                        When a single judge LLM is insufficient (high-stakes decisions, catching judge bias), run multiple
+                        independent judges and aggregate. Common patterns:
+                    </p>
+                    <ul>
+                        <li><strong>Majority vote:</strong> 3 judges, take the majority score. Works well for binary or coarse ratings.</li>
+                        <li><strong>Average:</strong> Average continuous scores from N judges. Use standard deviation as a confidence indicator.</li>
+                        <li><strong>Escalate disagreements:</strong> When judges disagree by more than 1 point, route to human review or a stronger judge model.</li>
+                        <li><strong>Cross-model validation:</strong> Use GPT-4o as one judge and Claude 3.5 Sonnet as another — reduces model-family-specific biases.</li>
+                    </ul>
+
+                    <h4>When LLM-as-Judge Fails</h4>
+                    <div class="callout danger">
+                        <span class="callout-icon">&#128683;</span>
+                        <div class="callout-body">
+                            <strong>Do NOT rely solely on LLM-as-judge when:</strong> (1) Evaluating safety-critical outputs
+                            (medical, legal) where the judge itself can miss subtle errors; (2) Evaluating code correctness —
+                            execution-based evals are ground truth; (3) Evaluating highly technical domains where GPT-4o
+                            has known knowledge gaps; (4) The evaluated model is stronger than your judge model.
+                        </div>
+                    </div>
+                    <ul>
+                        <li><strong>Sycophancy:</strong> The judge favors verbose, confident-sounding answers over correct but brief ones.</li>
+                        <li><strong>Self-preference bias:</strong> GPT-4o tends to rate GPT-4o outputs higher; use a different model family to cross-validate.</li>
+                        <li><strong>Verbosity bias:</strong> Longer responses tend to score higher regardless of quality. Normalize by asking "is this response appropriately concise?"</li>
+                        <li><strong>Recency bias:</strong> In long responses, the judge over-weights the final paragraphs.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 6: Human Eval Workflows
+                 ================================================================ -->
+            <h2>6. Human Eval Workflows</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>When You Need Humans, How to Structure It</span></div>
+                <div class="collapsible-content">
+                    <h4>When Human Evaluation is Irreplaceable</h4>
+                    <ul>
+                        <li><strong>Safety and policy evaluation:</strong> Determining if output violates guidelines requires nuanced human judgment that LLMs reliably get wrong in edge cases.</li>
+                        <li><strong>Subjective quality dimensions:</strong> "Does this feel natural?", "Would a real customer find this helpful?" — humans are the ground truth.</li>
+                        <li><strong>Calibrating automated evaluators:</strong> Before deploying LLM-as-judge, validate against 100+ human-annotated examples to measure agreement.</li>
+                        <li><strong>Novel task types:</strong> When you don't yet have a reliable automated evaluator for a new capability.</li>
+                        <li><strong>Legal/medical/financial outputs:</strong> High-stakes domains where automated eval errors have real consequences.</li>
+                    </ul>
+
+                    <h4>Annotation Guidelines and Rubrics</h4>
+                    <p>
+                        High-quality human evals require investment in annotation infrastructure. The leading cause of
+                        poor human eval data is ambiguous guidelines that different annotators interpret differently.
+                        A production annotation rubric should include:
+                    </p>
+                    <ul>
+                        <li><strong>Task-specific criteria</strong> — not generic "is this good?" but "does this answer the original question AND stay within the provided context?"</li>
+                        <li><strong>Clear scale anchors</strong> — written descriptions of what a 1, 3, and 5 mean for this specific task</li>
+                        <li><strong>Positive and negative examples</strong> — 3–5 examples per score level, annotated with reasoning</li>
+                        <li><strong>Edge case guidance</strong> — explicit rules for common ambiguous cases</li>
+                        <li><strong>Conflict resolution protocol</strong> — what happens when annotators disagree</li>
+                    </ul>
+
+                    <h4>Inter-Annotator Agreement (IAA)</h4>
+                    <p>
+                        IAA measures how consistently different annotators rate the same samples. Low IAA means your
+                        task is ambiguous, your rubric is unclear, or your annotators need more training.
+                    </p>
+                    <pre><code class="language-python">from sklearn.metrics import cohen_kappa_score
+import numpy as np
+# krippendorff available via pip install krippendorff
+import krippendorff
+
+# Annotator ratings for 20 examples (scale 1-5)
+annotator_1 = [5, 4, 3, 5, 2, 4, 5, 3, 4, 5, 2, 3, 4, 5, 1, 4, 3, 5, 4, 3]
+annotator_2 = [5, 4, 4, 5, 2, 3, 5, 3, 4, 4, 2, 3, 4, 5, 1, 4, 4, 5, 4, 3]
+annotator_3 = [4, 3, 3, 5, 3, 4, 5, 2, 4, 5, 1, 3, 5, 5, 1, 3, 3, 4, 4, 2]
+
+# Cohen's Kappa (pairwise; handles chance agreement)
+kappa_1_2 = cohen_kappa_score(annotator_1, annotator_2, weights='quadratic')
+kappa_1_3 = cohen_kappa_score(annotator_1, annotator_3, weights='quadratic')
+print(f"Kappa(A1, A2): {kappa_1_2:.3f}")  # 0.6-0.8 is substantial agreement
+print(f"Kappa(A1, A3): {kappa_1_3:.3f}")
+
+# Krippendorff's Alpha (multi-annotator; handles ordinal scales)
+# ratings_matrix: rows=annotators, cols=examples
+ratings_matrix = np.array([annotator_1, annotator_2, annotator_3], dtype=float)
+alpha = krippendorff.alpha(reliability_data=ratings_matrix, level_of_measurement='ordinal')
+print(f"Krippendorff's Alpha: {alpha:.3f}")
+# Alpha interpretation:
+#   &gt; 0.80: High reliability, annotation can proceed
+#   0.67 - 0.80: Acceptable; review ambiguous cases
+#   0.50 - 0.67: Low; revise guidelines before proceeding
+#   &lt; 0.50: Unreliable; guidelines need major overhaul
+</code></pre>
+
+                    <h4>Crowdsourcing vs Expert Evaluation</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Factor</th><th>Crowdsourcing (MTurk, Prolific)</th><th>Expert Evaluation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Cost per annotation</td><td>$0.05 – $0.50</td><td>$10 – $100+</td></tr>
+                            <tr><td>Throughput</td><td>Thousands/day</td><td>Tens to hundreds/day</td></tr>
+                            <tr><td>Domain expertise</td><td>General tasks only</td><td>Technical/medical/legal</td></tr>
+                            <tr><td>Quality control</td><td>Requires qualification tasks, spam filtering</td><td>High; self-regulating</td></tr>
+                            <tr><td>IAA typical</td><td>0.5–0.65 without screening</td><td>0.7–0.85</td></tr>
+                            <tr><td>Best for</td><td>General QA, content moderation, preference pairs</td><td>Medical NLP, legal, code review, safety</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Hybrid Human-LLM Eval Pipelines</h4>
+                    <p>
+                        Most production systems use a tiered approach to balance cost and quality:
+                    </p>
+                    <div class="pipeline-step">
+                        <span class="pipeline-step-num">Step 1</span>
+                        <div><strong>Automated filters (free):</strong> Exact match, regex, length checks. Filter out obvious failures before spending on LLM eval.</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <span class="pipeline-step-num">Step 2</span>
+                        <div><strong>LLM-as-judge (cheap):</strong> Run all remaining examples through a fast judge model (GPT-4o-mini). Flag cases where score &lt; 0.5 or score is in ambiguous range (e.g., 0.45–0.65).</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <span class="pipeline-step-num">Step 3</span>
+                        <div><strong>Strong model re-eval (moderate):</strong> Re-evaluate flagged cases with a stronger judge (GPT-4o, Claude 3.5 Sonnet). Often resolves ambiguity without needing humans.</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <span class="pipeline-step-num">Step 4</span>
+                        <div><strong>Human review (expensive, targeted):</strong> Route only high-stakes or still-ambiguous cases to human annotators. Typically &lt;5% of total volume.</div>
+                    </div>
+                    <div class="pipeline-step">
+                        <span class="pipeline-step-num">Step 5</span>
+                        <div><strong>Feedback loop:</strong> Human annotations become training data for improving the judge model or go into the golden dataset for future automated evals.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 7: CI/CD Eval Gates
+                 ================================================================ -->
+            <h2>7. CI/CD Eval Gates</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Automating Quality Gates in Your Deployment Pipeline</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        CI/CD eval gates are automated quality checks that run in your deployment pipeline and
+                        <em>block deploys when quality drops below a threshold</em>. They are the most impactful
+                        practice for maintaining LLM system quality over time, because they make regressions visible
+                        before they reach users.
+                    </p>
+
+                    <h4>CI/CD Pipeline with Eval Gates</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    PR[Pull Request\nPrompt / Config Change] --> CI[CI Pipeline Triggered]
+    CI --> BUILD[Build + Lint]
+    BUILD --> UNIT[Unit Tests\n&amp; Regression Suite]
+    UNIT --> EVAL[LLM Eval Suite\nDeepEval / Promptfoo]
+
+    EVAL --> FAITHFUL{Faithfulness\n&gt;= 0.80?}
+    FAITHFUL -- Fail --> BLOCK1[Block PR\n&#10060; Faithfulness Regression]
+    FAITHFUL -- Pass --> RELEVANCY{Answer Relevancy\n&gt;= 0.75?}
+    RELEVANCY -- Fail --> BLOCK2[Block PR\n&#10060; Relevancy Regression]
+    RELEVANCY -- Pass --> COMPARE[Compare vs\nBaseline Dataset]
+
+    COMPARE --> REGRESS{Any metric\ndropped &gt; 5%?}
+    REGRESS -- Yes --> BLOCK3[Block PR\n&#10060; Regression Detected]
+    REGRESS -- No --> MERGE[Merge to Main\n&#9989; All Gates Passed]
+
+    MERGE --> STAGING[Deploy to Staging]
+    STAGING --> SHADOW[Shadow Eval\non Real Traffic Sample]
+    SHADOW --> PROD[Deploy to Production]
+    PROD --> ONLINE[Online Eval\nAsync Sampling]
+    ONLINE --> ALERT{Metric Drop\nin Production?}
+    ALERT -- Yes --> ROLLBACK[Trigger Rollback\n+ PagerDuty Alert]
+    ALERT -- No --> MONITOR[Continue Monitoring]
+
+    style BLOCK1 fill:#3b0000,stroke:#ef4444,color:#fff
+    style BLOCK2 fill:#3b0000,stroke:#ef4444,color:#fff
+    style BLOCK3 fill:#3b0000,stroke:#ef4444,color:#fff
+    style MERGE  fill:#003b1a,stroke:#10b981,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>GitHub Actions Workflow for Prompt Evals</h4>
+                    <pre><code class="language-yaml"># .github/workflows/eval.yml
+name: LLM Eval Gate
+
+on:
+  pull_request:
+    paths:
+      - 'prompts/**'
+      - 'config/rag_config.yaml'
+      - 'src/pipeline/**'
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install deepeval ragas openai anthropic datasets
+
+      - name: Run eval suite
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EVAL_DATASET_PATH: "evals/datasets/golden-set-v3.json"
+          BASELINE_SCORES_PATH: "evals/baselines/main-branch-scores.json"
+        run: |
+          python evals/run_eval.py \
+            --dataset $EVAL_DATASET_PATH \
+            --baseline $BASELINE_SCORES_PATH \
+            --output evals/results/pr-scores.json \
+            --fail-threshold 0.05
+
+      - name: Upload eval results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: evals/results/
+
+      - name: Comment PR with eval summary
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const scores = JSON.parse(fs.readFileSync('evals/results/pr-scores.json', 'utf8'));
+            const baseline = JSON.parse(fs.readFileSync('evals/baselines/main-branch-scores.json', 'utf8'));
+
+            const formatDelta = (current, base) =&gt; {
+              const delta = current - base;
+              const sign = delta &gt;= 0 ? '+' : '';
+              const emoji = delta &gt;= 0 ? '&#9989;' : '&#10060;';
+              return `${emoji} ${sign}${(delta * 100).toFixed(1)}%`;
+            };
+
+            const body = `## LLM Eval Results
+
+            | Metric | Baseline | PR Score | Delta |
+            |--------|----------|----------|-------|
+            | Faithfulness | ${(baseline.faithfulness * 100).toFixed(1)}% | ${(scores.faithfulness * 100).toFixed(1)}% | ${formatDelta(scores.faithfulness, baseline.faithfulness)} |
+            | Answer Relevancy | ${(baseline.answer_relevancy * 100).toFixed(1)}% | ${(scores.answer_relevancy * 100).toFixed(1)}% | ${formatDelta(scores.answer_relevancy, baseline.answer_relevancy)} |
+            | Context Precision | ${(baseline.context_precision * 100).toFixed(1)}% | ${(scores.context_precision * 100).toFixed(1)}% | ${formatDelta(scores.context_precision, baseline.context_precision)} |
+
+            ${scores.passed ? '&#9989; All eval gates passed.' : '&#10060; One or more eval gates failed. Review failures above.'}
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+</code></pre>
+
+                    <h4>Eval Dataset as Versioned Artifacts</h4>
+                    <p>
+                        Your eval dataset is as important as your code. Treat it like a software artifact:
+                    </p>
+                    <ul>
+                        <li><strong>Version control:</strong> Store datasets in git (for small sets) or DVC/S3 with a manifest file in git (for large sets).</li>
+                        <li><strong>Immutable snapshots:</strong> Never mutate an existing eval version; create a new version. This preserves reproducibility of historical scores.</li>
+                        <li><strong>Diverse coverage:</strong> Ensure your golden set covers: common cases (60%), edge cases (25%), adversarial inputs (15%).</li>
+                        <li><strong>Drift monitoring:</strong> Periodically compare live traffic distribution against your eval dataset. If they diverge significantly, update the dataset.</li>
+                    </ul>
+
+                    <h4>Regression Detection: Comparing Against Baseline</h4>
+                    <pre><code class="language-python">import json
+import sys
+from typing import Any
+
+def check_regressions(
+    current_scores: dict[str, float],
+    baseline_scores: dict[str, float],
+    threshold: float = 0.05,  # 5% regression is a fail
+    strict_metrics: list[str] | None = None,
+) -&gt; tuple[bool, list[str]]:
+    """
+    Returns (passed, list_of_failures).
+    strict_metrics: metrics where ANY regression (even 1%) fails the gate.
+    """
+    if strict_metrics is None:
+        strict_metrics = ["faithfulness"]  # Safety-critical metric
+
+    failures = []
+    for metric, current in current_scores.items():
+        if metric not in baseline_scores:
+            continue
+        baseline = baseline_scores[metric]
+        drop = baseline - current
+
+        if metric in strict_metrics and drop &gt; 0.01:
+            failures.append(
+                f"{metric}: STRICT FAIL — dropped {drop*100:.1f}% "
+                f"({baseline*100:.1f}% -&gt; {current*100:.1f}%)"
+            )
+        elif drop &gt; threshold:
+            failures.append(
+                f"{metric}: FAIL — dropped {drop*100:.1f}% "
+                f"({baseline*100:.1f}% -&gt; {current*100:.1f}%) "
+                f"[threshold: {threshold*100:.0f}%]"
+            )
+
+    return len(failures) == 0, failures
+
+
+if __name__ == "__main__":
+    current  = json.load(open("evals/results/pr-scores.json"))
+    baseline = json.load(open("evals/baselines/main-branch-scores.json"))
+
+    passed, failures = check_regressions(
+        current_scores=current,
+        baseline_scores=baseline,
+        threshold=0.05,
+    )
+
+    if failures:
+        print("EVAL GATE FAILED:")
+        for f in failures:
+            print(f"  - {f}")
+        sys.exit(1)
+    else:
+        print("All eval gates passed.")
+        sys.exit(0)
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 8: Regression Testing for Prompts
+                 ================================================================ -->
+            <h2>8. Regression Testing for Prompts</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Prompt Versioning, Golden Datasets, A/B Testing</span></div>
+                <div class="collapsible-content">
+                    <h4>Prompt Versioning Strategies</h4>
+                    <p>
+                        Prompts are code. They need versioning, review, and testing. The naive approach (embed prompts
+                        as strings in application code) leads to untested changes and no auditability.
+                    </p>
+                    <ul>
+                        <li><strong>File-based versioning:</strong> Store prompts as <code>.txt</code> or <code>.jinja2</code> files in a <code>prompts/</code> directory, committed to git. Use semantic versioning in filenames: <code>customer-support-v2.3.0.jinja2</code>.</li>
+                        <li><strong>Prompt registries:</strong> Tools like Langfuse, LangSmith, and Promptlayer provide hosted prompt management with version history, A/B assignment, and analytics.</li>
+                        <li><strong>Environment-specific deployment:</strong> Tag prompts with environments (dev/staging/prod). Only promote a prompt version after it passes the full eval suite in each environment.</li>
+                    </ul>
+
+                    <h4>Golden Dataset Management</h4>
+                    <p>
+                        A golden dataset is a curated collection of (input, expected_output) pairs that represent the
+                        "north star" quality your system should achieve. Building and maintaining it is ongoing work.
+                    </p>
+                    <ul>
+                        <li><strong>Seed from failures:</strong> Every time a bug is found in production, add it to the golden set. This prevents regressions of bugs you've already fixed.</li>
+                        <li><strong>Coverage criteria:</strong> Ensure the dataset covers all major use cases proportionally. Avoid datasets that are 80% easy examples — they make every model look good.</li>
+                        <li><strong>Freshness:</strong> Update the golden set when your product changes, new features are added, or user distribution shifts significantly.</li>
+                        <li><strong>Metadata tagging:</strong> Tag each example with category, difficulty, and source (user-submitted, synthetic, adversarial). This enables targeted analysis.</li>
+                    </ul>
+
+                    <h4>A/B Testing Prompts in Production</h4>
+                    <pre><code class="language-python">import random
+import hashlib
+from typing import Literal
+
+PromptVersion = Literal["control", "treatment"]
+
+def assign_prompt_version(
+    user_id: str,
+    experiment_name: str,
+    treatment_fraction: float = 0.1,
+) -&gt; PromptVersion:
+    """
+    Deterministic assignment: same user always gets same variant.
+    Uses hashing so assignment is consistent across requests.
+    """
+    key = f"{experiment_name}:{user_id}".encode()
+    hash_val = int(hashlib.md5(key).hexdigest(), 16)
+    bucket = hash_val % 100
+    return "treatment" if bucket &lt; (treatment_fraction * 100) else "control"
+
+# Usage in request handler
+def handle_request(user_id: str, query: str) -&gt; str:
+    variant = assign_prompt_version(user_id, "prompt-v3-experiment")
+
+    if variant == "treatment":
+        prompt = load_prompt("prompts/customer-support-v3.jinja2")
+    else:
+        prompt = load_prompt("prompts/customer-support-v2.3.0.jinja2")
+
+    response = call_llm(prompt.render(query=query))
+
+    # Log for analysis
+    log_event({
+        "user_id": user_id,
+        "experiment": "prompt-v3-experiment",
+        "variant": variant,
+        "query": query,
+        "response": response,
+        "timestamp": time.time(),
+    })
+
+    return response
+</code></pre>
+
+                    <h4>Statistical Significance for Eval Comparisons</h4>
+                    <p>
+                        With a 100-example eval set, a 2% improvement could be noise. Use statistical testing before
+                        declaring a winner:
+                    </p>
+                    <pre><code class="language-python">from scipy import stats
+import numpy as np
+
+def compare_prompt_versions(
+    control_scores: list[float],
+    treatment_scores: list[float],
+    alpha: float = 0.05,
+) -&gt; dict:
+    """
+    Paired t-test for comparing two prompt versions on the same eval set.
+    Use paired test because we're comparing same examples across versions.
+    """
+    t_stat, p_value = stats.ttest_rel(treatment_scores, control_scores)
+    effect_size = (np.mean(treatment_scores) - np.mean(control_scores)) / np.std(control_scores)
+
+    return {
+        "control_mean":   np.mean(control_scores),
+        "treatment_mean": np.mean(treatment_scores),
+        "absolute_delta": np.mean(treatment_scores) - np.mean(control_scores),
+        "relative_delta": (np.mean(treatment_scores) - np.mean(control_scores)) / np.mean(control_scores),
+        "p_value":        p_value,
+        "significant":    p_value &lt; alpha,
+        "cohens_d":       effect_size,
+        "recommendation": (
+            "Deploy treatment" if (p_value &lt; alpha and np.mean(treatment_scores) &gt; np.mean(control_scores))
+            else "Keep control" if p_value &lt; alpha
+            else "Inconclusive — need more data"
+        ),
+    }
+
+# Rule of thumb: need ~100 examples for 5% difference to be detectable at p&lt;0.05
+# Use power analysis to size your eval set:
+from statsmodels.stats.power import TTestIndPower
+analysis = TTestIndPower()
+n = analysis.solve_power(effect_size=0.3, power=0.8, alpha=0.05)
+print(f"Minimum sample size per variant: {int(np.ceil(n))}")  # ~176
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 9: Building an Eval Pipeline
+                 ================================================================ -->
+            <h2>9. Building an Eval Pipeline End-to-End</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Architecture, Dataset Creation, Metric Selection, Automation</span></div>
+                <div class="collapsible-content">
+                    <h4>End-to-End Eval Pipeline Architecture</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph DATA["Dataset Layer"]
+        D1[Production Logs\nSampled Queries]
+        D2[Manual Curation\nEdge Cases]
+        D3[Synthetic Generation\nLLM-augmented]
+        D4[Adversarial Examples\nRed-team outputs]
+        D5[(Golden Dataset\nVersioned)]
+        D1 &amp; D2 &amp; D3 &amp; D4 --> D5
+    end
+
+    subgraph RUN["Execution Layer"]
+        R1[Pipeline Runner\npython eval.py]
+        R2[Parallel Batch\nAsyncio / ThreadPool]
+        R3[Cache Layer\nRedis / diskcache]
+        D5 --> R1
+        R1 --> R2
+        R2 --> R3
+    end
+
+    subgraph SCORE["Scoring Layer"]
+        S1[Deterministic Metrics\nExact match, ROUGE]
+        S2[Embedding Metrics\nBERTScore, cosine sim]
+        S3[LLM-as-Judge\nGPT-4o rubric]
+        S4[Human Labels\nPending review queue]
+        R2 --> S1 &amp; S2 &amp; S3 &amp; S4
+    end
+
+    subgraph REPORT["Reporting Layer"]
+        P1[Score Aggregation\nper-metric, per-category]
+        P2[Baseline Comparison\nregression detection]
+        P3[Dashboard\nBraintrust / custom]
+        P4[CI Gate\npass or fail PR]
+        S1 &amp; S2 &amp; S3 &amp; S4 --> P1
+        P1 --> P2 --> P3
+        P2 --> P4
+    end
+
+    style DATA fill:#1a2e1a,stroke:#48bb78
+    style RUN  fill:#1a1a2e,stroke:#4facfe
+    style SCORE fill:#2e1a2e,stroke:#9f7aea
+    style REPORT fill:#2e2a1a,stroke:#f6ad55
+                        </div>
+                    </div>
+
+                    <h4>Dataset Creation and Curation</h4>
+                    <p>
+                        Building your initial golden dataset is the hardest part of setting up evals. Most teams underinvest
+                        here and end up with datasets that are too easy, too narrow, or not representative of real usage.
+                    </p>
+                    <ol>
+                        <li><strong>Harvest from production logs (Week 1):</strong> Sample 500–1000 real user queries. Label the ones your current system handles well as "positive examples" and the ones it gets wrong as "known failures."</li>
+                        <li><strong>Expert curation (Week 1-2):</strong> Have domain experts review samples and write gold-standard answers for 100–200 examples. These are your most valuable evaluation points.</li>
+                        <li><strong>Synthetic expansion (Week 2-3):</strong> Use an LLM to generate additional examples based on your real examples. Critically review synthetic examples — they can be biased toward what the LLM finds "typical."</li>
+                        <li><strong>Adversarial injection (Week 3-4):</strong> Use red-teaming tools (Promptfoo, Garak) to generate adversarial inputs: prompt injections, jailbreaks, edge cases, boundary violations.</li>
+                        <li><strong>Ongoing maintenance:</strong> Set a standing process to add 5–10 new examples per week from production failures or newly discovered edge cases.</li>
+                    </ol>
+
+                    <h4>Metric Selection Decision Tree</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[What are you evaluating?] --> B{RAG pipeline?}
+    B -- Yes --> C[RAGAS suite\nFaithfulness + Relevancy +\nContext Precision + Recall]
+    B -- No --> D{Do you have\ngold labels?}
+    D -- Yes --> E{Is the output\nopen-ended text?}
+    E -- No --> F[Exact match, F1\nPrecision/Recall]
+    E -- Yes --> G[ROUGE-L for extractive\nBERTScore for semantic\n+ LLM-as-judge]
+    D -- No --> H{Is it code?}
+    H -- Yes --> I[Execution-based\nUnit test pass rate\nHumanEval pass@k]
+    H -- No --> J{High stakes\nor safety?}
+    J -- Yes --> K[Human evaluation\n+ LLM judge for scale]
+    J -- No --> L[LLM-as-judge\nwith rubric + G-Eval]
+
+    style C fill:#1a3a2a,stroke:#48bb78,color:#fff
+    style F fill:#1a1a3a,stroke:#4facfe,color:#fff
+    style I fill:#3a1a1a,stroke:#fc8181,color:#fff
+    style K fill:#2e1a2e,stroke:#9f7aea,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>Complete Eval Runner Implementation</h4>
+                    <pre><code class="language-python">"""
+eval/run_eval.py — Complete eval pipeline runner
+Usage: python eval/run_eval.py --dataset golden-set-v3.json --output results.json
+"""
+import asyncio
+import json
+import time
+import argparse
+from pathlib import Path
+from typing import Any
+from dataclasses import dataclass, asdict
+
+from openai import AsyncOpenAI
+from ragas import evaluate
+from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
+from datasets import Dataset
+
+@dataclass
+class EvalResult:
+    question: str
+    generated_answer: str
+    contexts: list[str]
+    ground_truth: str
+    faithfulness: float
+    answer_relevancy: float
+    context_precision: float
+    context_recall: float
+    latency_ms: float
+
+async def run_pipeline(question: str, client: AsyncOpenAI) -&gt; tuple[str, list[str], float]:
+    """Your actual RAG pipeline. Returns (answer, contexts, latency_ms)."""
+    start = time.monotonic()
+    # --- Replace with your pipeline ---
+    contexts = await retrieve_chunks(question)
+    answer   = await generate_answer(question, contexts, client)
+    # ----------------------------------
+    latency_ms = (time.monotonic() - start) * 1000
+    return answer, contexts, latency_ms
+
+async def evaluate_dataset(
+    dataset_path: str,
+    output_path: str,
+    max_concurrency: int = 5,
+) -&gt; dict[str, float]:
+
+    client = AsyncOpenAI()
+    examples = json.loads(Path(dataset_path).read_text())
+
+    semaphore = asyncio.Semaphore(max_concurrency)
+    raw_results = []
+
+    async def process_one(example: dict) -&gt; EvalResult | None:
+        async with semaphore:
+            try:
+                answer, contexts, latency = await run_pipeline(
+                    example["question"], client
+                )
+                return {
+                    "question":  example["question"],
+                    "answer":    answer,
+                    "contexts":  contexts,
+                    "ground_truth": example["ground_truth"],
+                    "latency_ms":   latency,
+                }
+            except Exception as e:
+                print(f"Pipeline error for '{example['question'][:50]}': {e}")
+                return None
+
+    tasks = [process_one(ex) for ex in examples]
+    raw_results = [r for r in await asyncio.gather(*tasks) if r is not None]
+
+    # Run RAGAS scoring
+    ds = Dataset.from_list([{
+        "question":     r["question"],
+        "answer":       r["answer"],
+        "contexts":     r["contexts"],
+        "ground_truth": r["ground_truth"],
+    } for r in raw_results])
+
+    scores = evaluate(ds, metrics=[faithfulness, answer_relevancy, context_precision, context_recall])
+
+    # Merge scores into results
+    score_dict = scores.to_pandas().to_dict(orient="records")
+    for i, row in enumerate(score_dict):
+        raw_results[i].update(row)
+
+    # Aggregate
+    aggregate = {
+        "faithfulness":       float(scores["faithfulness"]),
+        "answer_relevancy":   float(scores["answer_relevancy"]),
+        "context_precision":  float(scores["context_precision"]),
+        "context_recall":     float(scores["context_recall"]),
+        "avg_latency_ms":     sum(r["latency_ms"] for r in raw_results) / len(raw_results),
+        "n_examples":         len(raw_results),
+        "n_failed":           len(examples) - len(raw_results),
+        "timestamp":          time.time(),
+    }
+
+    Path(output_path).write_text(json.dumps({
+        "aggregate": aggregate,
+        "per_example": raw_results,
+    }, indent=2))
+
+    return aggregate
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset",  required=True)
+    parser.add_argument("--output",   required=True)
+    parser.add_argument("--baseline", default=None)
+    parser.add_argument("--fail-threshold", type=float, default=0.05)
+    args = parser.parse_args()
+
+    scores = asyncio.run(evaluate_dataset(args.dataset, args.output))
+    print(json.dumps(scores, indent=2))
+
+    if args.baseline:
+        baseline = json.loads(Path(args.baseline).read_text())
+        passed, failures = check_regressions(scores, baseline, args.fail_threshold)
+        if not passed:
+            for f in failures:
+                print(f"REGRESSION: {f}")
+            raise SystemExit(1)
+</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 10: Staff-Level Interview Angle
+                 ================================================================ -->
+            <h2>10. Staff-Level Interview Angle</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>How to Discuss Evals at the Staff Level</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        At the staff level, interviewers don't just want to know <em>what</em> RAGAS metrics mean —
+                        they want to see that you can design eval infrastructure for a system, reason about tradeoffs
+                        in eval strategy, and advocate for eval investment across an organization.
+                    </p>
+
+                    <h4>System Design Question: "How would you build evals for a new AI feature?"</h4>
+                    <p>
+                        A strong staff-level answer demonstrates a <em>deliberate, phased approach</em> rather than
+                        jumping to a specific framework. Structure your answer around:
+                    </p>
+                    <ol>
+                        <li><strong>Define success criteria first:</strong> "Before choosing metrics, I'd work with product and users to define what 'good' means for this feature. For a support chatbot, that's answer correctness, tone, and task completion rate — not just ROUGE."</li>
+                        <li><strong>Build a tiered eval stack:</strong> Deterministic checks → embedding similarity → LLM-as-judge → human spot checks. Each tier is a fallback for the ones above it.</li>
+                        <li><strong>Start small, automate fast:</strong> "I'd start with 50 handcrafted golden examples and get automated evals running in CI within the first sprint. Growing the dataset is easier than building the pipeline."</li>
+                        <li><strong>Treat eval data as a product artifact:</strong> "The golden dataset gets versioned, reviewed in PRs, and owned by the team — just like the model config."</li>
+                        <li><strong>Connect evals to business metrics:</strong> "RAGAS faithfulness of 0.85 means nothing to a PM. I'd run calibration studies showing 'faithfulness below 0.7 correlates with 15% higher escalation rate.' That makes eval investment concrete."</li>
+                    </ol>
+
+                    <h4>Tradeoff Questions to Expect</h4>
+                    <ul>
+                        <li><strong>"When would you choose LLM-as-judge over human evaluation?"</strong>
+                            For volume (&gt;1000 examples), speed (CI pipelines), and low-stakes domains. For safety,
+                            medical, or when your judge is weaker than the evaluated model, prefer humans.
+                        </li>
+                        <li><strong>"How do you prevent your eval from overfitting to your golden dataset?"</strong>
+                            Separate development eval set (for iteration) from a hold-out test set (never used for
+                            prompt tuning). Periodically sample new examples from production to refresh both sets.
+                        </li>
+                        <li><strong>"Your eval suite runs for 45 minutes in CI. How do you fix this?"</strong>
+                            Tier the eval: a fast tier (deterministic, &lt;30s) runs on every PR; the full LLM eval
+                            suite runs only on changes to prompt files or pipeline config. Cache LLM responses
+                            during development.
+                        </li>
+                        <li><strong>"What do you do when human evaluators and your LLM judge disagree?"</strong>
+                            Human judgment is ground truth. Investigate the systematic disagreements to understand
+                            the judge's failure modes. Update the judge prompt or calibrate the threshold. If
+                            disagreement is above 15%, the judge is unreliable for that dimension.
+                        </li>
+                    </ul>
+
+                    <h4>What Strong Candidates Demonstrate</h4>
+                    <ul>
+                        <li>They know that evals are <em>infrastructure</em>, not an afterthought</li>
+                        <li>They quantify uncertainty — "this metric has X% agreement with human judgment on our dataset"</li>
+                        <li>They tie technical metrics to user-observable or business outcomes</li>
+                        <li>They have opinions on when NOT to use LLM-as-judge</li>
+                        <li>They've thought about how to grow and maintain a golden dataset over time</li>
+                        <li>They understand the difference between measuring improvement and proving statistical significance</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 11: Active Recall
+                 ================================================================ -->
+            <h2>11. Active Recall</h2>
+            <p style="color:var(--text-secondary,#a0aec0);">Test your understanding. Click each question to reveal the answer.</p>
 
             <details class="recall-question">
-                <summary>1. A product team wants to build a churn prediction model. Walk me through your model selection process.</summary>
-                <div class="answer">
-                    <p>Start with the simplest model that could work. For churn (tabular data, binary classification): (1) EDA to understand class imbalance and feature types. (2) Logistic regression as interpretable baseline. (3) LightGBM with early stopping as the likely production model. (4) Use SHAP values to explain predictions to stakeholders. Would only consider an LLM if churn signals are embedded in free-text customer support tickets, in which case I'd embed the tickets and use them as features for LightGBM rather than calling an LLM at inference time.</p>
+                <summary>What do the four RAGAS metrics each measure, and which failure mode does each one catch?</summary>
+                <div class="recall-answer">
+                    <strong>Faithfulness</strong> measures whether every claim in the answer is supported by retrieved context — it catches <em>hallucination</em>. <strong>Answer Relevancy</strong> checks if the answer actually addresses the question — it catches cases where the model "answers the context" rather than the user. <strong>Context Precision</strong> measures signal-to-noise in retrieved chunks — it catches a noisy retriever that returns many irrelevant chunks. <strong>Context Recall</strong> measures whether all needed information was retrieved — it catches a retriever that misses relevant documents. All four are needed because a RAG system can fail at each stage independently.
                 </div>
             </details>
 
             <details class="recall-question">
-                <summary>2. What is training-serving skew and how do you prevent it?</summary>
-                <div class="answer">
-                    <p>Training-serving skew is when features are computed differently at training time vs serving time, causing silent model degradation. Prevent it by: (1) Using a feature store where the same feature definition is used for both offline training data retrieval and online serving lookups. (2) Integration tests that compute features on a sample request and compare training vs serving values. (3) Adding feature distribution monitoring in production and alerting on drift. (4) Logging all feature values used for each prediction so you can reproduce and debug.</p>
+                <summary>What is position bias in LLM-as-judge, and what are two concrete mitigation techniques?</summary>
+                <div class="recall-answer">
+                    Position bias is the tendency of an LLM judge to favor whichever response appears first in a pairwise comparison prompt, regardless of actual quality. Studies found GPT-4 has ~10–15% position bias toward Response A. Two mitigations: (1) <strong>Swap and average</strong> — run the eval twice with A/B order swapped; only declare a winner when both orderings agree. (2) <strong>Force chain-of-thought before verdict</strong> — require the judge to reason extensively about both responses before declaring a winner, which reduces snap position-based judgments. A third useful practice is randomizing which model appears first across the eval dataset.
                 </div>
             </details>
 
             <details class="recall-question">
-                <summary>3. When would you choose XGBoost over an LLM for a classification problem?</summary>
-                <div class="answer">
-                    <p>Almost always for structured tabular data. XGBoost: (1) Trains in seconds/minutes vs hours/days. (2) Inference in microseconds vs 100ms–seconds. (3) 10–100× cheaper. (4) More interpretable via SHAP. (5) No hallucination risk. I'd only consider an LLM if: the input is unstructured text, I need zero-shot generalization to unseen categories, or the task requires reasoning steps that can't be captured in features. Even then I might embed the text and use XGBoost downstream rather than calling an LLM at inference time.</p>
+                <summary>When should you use offline evals vs online evals, and what does each catch that the other misses?</summary>
+                <div class="recall-answer">
+                    <strong>Offline evals</strong> run pre-deployment on curated static datasets. They catch known failure modes, prevent regressions, and block bad deploys. They miss: novel user behaviors, distribution drift, and real-world edge cases you didn't think to include in your golden set. <strong>Online evals</strong> run on live production traffic (sampled asynchronously). They catch distribution shift, real user edge cases, and failure modes that don't appear in your curated dataset. They miss: pre-deployment regressions (by definition, since the code is already live). Best practice: use offline evals as CI gates, online evals as continuous quality monitors with alerting.
                 </div>
             </details>
 
             <details class="recall-question">
-                <summary>4. You have AUC-ROC = 0.95 but your product team is unhappy with the model. What questions do you ask?</summary>
-                <div class="answer">
-                    <p>(1) Is AUC-ROC the right metric? For highly imbalanced data, a model with 0.95 AUC can still have terrible precision — check AUC-PR. (2) What threshold is being used? AUC is threshold-agnostic but the business is experiencing a specific threshold. (3) Is the eval set representative? 0.95 on a clean held-out set but 0.70 on production data suggests distribution shift. (4) Are there subgroup failures? Overall AUC can mask poor performance on important customer segments. (5) What does the confusion matrix look like? Understand where errors are — FP or FN — and which error type costs more.</p>
+                <summary>Explain the difference between context precision and context recall in RAG evaluation. If context precision is low but context recall is high, what does that tell you about the retriever?</summary>
+                <div class="recall-answer">
+                    <strong>Context precision</strong> = of the chunks retrieved, how many are actually relevant to answering the question (precision / signal-to-noise). <strong>Context recall</strong> = of the chunks needed to answer the question, how many were actually retrieved (coverage). If context precision is low but context recall is high, the retriever is finding all the right chunks but also retrieving many irrelevant chunks alongside them. This pattern points to a <em>re-ranking problem</em> — the retriever is too broad, and you need a re-ranker (cross-encoder, Cohere Rerank, etc.) to filter the candidate set before passing it to the LLM. Low context recall with high context precision suggests a <em>retrieval coverage problem</em> — the retriever is precise but missing documents, often due to embedding model limitations or chunking strategy issues.
                 </div>
             </details>
 
             <details class="recall-question">
-                <summary>5. How do you explain to a stakeholder why your LLM-based feature sometimes gives wrong answers?</summary>
-                <div class="answer">
-                    <p>Frame it in business terms: "LLMs are probabilistic, not deterministic — they predict the most likely correct answer based on patterns learned from billions of documents, not a lookup table. For well-supported facts, they're &gt;95% reliable. For edge cases or very recent events, confidence is lower. This is why we have: (1) RAG to ground answers in authoritative sources, (2) faithfulness scoring to detect when the model makes claims not supported by the context, and (3) a human review queue for answers below our confidence threshold. We target &lt;2% error rate on supported queries, similar to a well-trained customer support agent."</p>
+                <summary>What is Krippendorff's Alpha and when would you use it over Cohen's Kappa?</summary>
+                <div class="recall-answer">
+                    Both are inter-annotator agreement statistics. <strong>Cohen's Kappa</strong> is pairwise (two annotators) and handles chance-corrected agreement; it's easy to compute but doesn't generalize to multiple annotators without averaging. <strong>Krippendorff's Alpha</strong> handles multiple annotators simultaneously, handles ordinal/interval/ratio scales appropriately, and handles missing data (not all annotators must rate every example). Use Krippendorff's Alpha when: you have 3+ annotators, your rating scale is ordinal (like 1–5 quality scores), or you have incomplete annotation data. Use Cohen's Kappa for quick pairwise reliability checks or when annotators annotate every example. Acceptable IAA thresholds: Alpha &gt; 0.80 is high reliability; 0.67–0.80 is acceptable; below 0.67 suggests the rubric needs revision.
                 </div>
             </details>
 
             <details class="recall-question">
-                <summary>6. What's the difference between presence_penalty and repetition_penalty?</summary>
-                <div class="answer">
-                    <p><strong>presence_penalty</strong> (OpenAI): additive flat penalty subtracted from any token that appeared at least once. Binary — doesn't grow with frequency. Used to encourage topic variety. <strong>frequency_penalty</strong> (OpenAI): additive penalty proportional to count — the more times a token appears, the larger the penalty. <strong>repetition_penalty</strong> (HuggingFace/llama.cpp): multiplicative — divides the logit of previously seen tokens by the penalty value. 1.0 = off, 1.3 = strong. The additive vs multiplicative difference means they interact differently with temperature scaling.</p>
+                <summary>You're running a prompt A/B test with 80 examples. The treatment prompt scores 2% higher on faithfulness. Can you ship it?</summary>
+                <div class="recall-answer">
+                    No — not without statistical validation. A 2% improvement on 80 examples is very likely to be within normal statistical noise. You need to run a paired t-test (or Wilcoxon signed-rank test for non-normal distributions) to determine p-value. With n=80 and a 2% effect size (small Cohen's d ≈ 0.2), you likely won't achieve p &lt; 0.05 — you'd typically need ~200+ examples to detect a 2% difference reliably. Options: (1) Collect more eval examples until you have sufficient power, (2) Ship as a cautious A/B in production with 10% traffic and monitor online metrics for a week, (3) Accept the change anyway if the improvement is consistent across ALL metrics and the absolute risk of regression is low. Never ship based on a single marginally-better metric without significance testing.
                 </div>
             </details>
 
-            <!-- ============================================================ -->
-            <!-- CHECKPOINT SUMMARY                                           -->
-            <!-- ============================================================ -->
-            <div class="checkpoint-summary mt-4">
-                <h2>Checkpoint Summary</h2>
-                <p>After this module, you can:</p>
+            <!-- ================================================================
+                 SECTION 12: Mini-Project
+                 ================================================================ -->
+            <h2>12. Mini-Project: Build a Complete RAG Eval Pipeline</h2>
+            <div class="project-box">
+                <h3>Project: Production-Ready RAG Eval System</h3>
+                <p>
+                    Build a complete evaluation pipeline for a RAG-based document Q&amp;A system. The pipeline should
+                    cover offline evals, CI integration, and a reporting dashboard.
+                </p>
+
+                <h4>Context</h4>
+                <p>
+                    You are the staff engineer responsible for a RAG system that answers questions from an enterprise
+                    knowledge base (10K+ documents). The system currently has no automated evals. Your PM says
+                    "we're planning to upgrade the embedding model next sprint — we need to know if it actually
+                    improves things before we ship."
+                </p>
+
+                <h4>Milestones</h4>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">M1</span>
+                    <div>
+                        <strong>Golden Dataset (Day 1–2)</strong><br>
+                        Create a 50-example golden dataset from production logs. Each record: question, retrieved contexts,
+                        ground truth answer, metadata (category, difficulty). Write a Python script that samples from
+                        real logs and exports to JSON. Target: at least 5 categories, 10 adversarial examples.
+                    </div>
+                </div>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">M2</span>
+                    <div>
+                        <strong>RAGAS Baseline (Day 2–3)</strong><br>
+                        Run RAGAS on your golden dataset against the current embedding model. Record baseline scores
+                        for all four metrics. Identify the bottom 10 examples by faithfulness — analyze what the common
+                        failure pattern is (hallucination type, missing context, etc.).
+                    </div>
+                </div>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">M3</span>
+                    <div>
+                        <strong>LLM-as-Judge Integration (Day 3–4)</strong><br>
+                        Implement a custom judge metric for "answer completeness" — does the answer address all parts
+                        of a multi-part question? Write a rubric, implement <code>judge_completeness()</code>, and
+                        validate it against 20 human-annotated examples (target: &gt; 0.7 correlation with human scores).
+                    </div>
+                </div>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">M4</span>
+                    <div>
+                        <strong>CI Gate (Day 4–5)</strong><br>
+                        Implement a GitHub Actions workflow that: (1) runs the eval suite on any PR touching
+                        <code>config/embedding_model.yaml</code>, (2) compares against baseline, (3) fails the PR if
+                        faithfulness drops more than 3%, (4) posts a score summary comment on the PR.
+                    </div>
+                </div>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">M5</span>
+                    <div>
+                        <strong>Reporting Dashboard (Day 5–7)</strong><br>
+                        Build a simple HTML dashboard (or Braintrust project) showing: current vs baseline scores
+                        per metric, per-category breakdown, top-5 worst-performing examples with their scores and
+                        judge explanations, and a trend line over the last 10 eval runs.
+                    </div>
+                </div>
+                <div class="project-milestone">
+                    <span class="project-milestone-num">BONUS</span>
+                    <div>
+                        <strong>Online Eval Sampling</strong><br>
+                        Add an async background task that samples 1% of production queries, runs faithfulness
+                        scoring via LLM-as-judge, and writes results to a time-series database (InfluxDB or
+                        CloudWatch). Alert when 7-day rolling faithfulness drops below 0.75.
+                    </div>
+                </div>
+
+                <h4>Evaluation Criteria</h4>
                 <ul>
-                    <li>Describe the main classical ML algorithms, when each wins, and their key hyperparameters</li>
-                    <li>Choose the right metric for classification (AUC-ROC vs AUC-PR vs F1), regression (MAE vs RMSE), and clustering (silhouette score)</li>
-                    <li>Apply the ML vs DL vs LLM decision framework to any new problem</li>
-                    <li>Explain the staff engineer's role in ML projects: feature stores, training-serving skew, MLOps pipelines</li>
-                    <li>Articulate the key AI tradeoffs: accuracy/latency, explainability/performance, build/buy/fine-tune/prompt</li>
-                    <li>Design AI-native applications using cascades, HITL, data flywheels, and guardrail layers</li>
+                    <li>Does your golden dataset have balanced coverage and adversarial examples?</li>
+                    <li>Is the LLM judge validated against human annotations?</li>
+                    <li>Does the CI gate correctly block regressions and pass improvements?</li>
+                    <li>Can you explain any metric score in terms a non-engineer would understand?</li>
+                    <li>Is the eval pipeline fast enough to run in &lt; 10 minutes in CI?</li>
                 </ul>
+            </div>
 
-                <h4 class="mt-3">Connects To</h4>
-                <ul>
-                    <li><strong>Module 12 (AI Engineering):</strong> Eval frameworks, fine-tuning decisions, and production deployment</li>
-                    <li><strong>Module 8–9 (RAG):</strong> Vector search is approximate kNN; HDBSCAN is used in hierarchical RAG</li>
-                    <li><strong>Module 7 (Optimization):</strong> Quantization, serving latency — feeds directly into accuracy vs latency tradeoff</li>
-                    <li><strong>Module 16 (Career):</strong> Articulating DS partnership experience in behavioral interviews</li>
-                </ul>
+            <!-- ================================================================
+                 SECTION 13: Flashcard Suggestions
+                 ================================================================ -->
+            <h2>13. Flashcard Suggestions</h2>
+            <p style="color:var(--text-secondary,#a0aec0);font-size:0.9rem;">
+                Export these to Anki, use them for spaced repetition, or quiz a colleague.
+            </p>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What are the four RAGAS metrics and what does each measure?</div>
+                <div class="fc-a">Faithfulness (hallucination detection — are claims grounded in context?), Answer Relevancy (does the answer address the question?), Context Precision (signal-to-noise of retrieved chunks), Context Recall (did retrieval find all needed chunks?).</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What is position bias in LLM-as-judge and how do you mitigate it?</div>
+                <div class="fc-a">The judge systematically favors the response in the first position (~10–15% bias in GPT-4). Mitigate by: (1) swap-and-average — run twice with swapped order; (2) chain-of-thought before verdict; (3) randomize position assignment across dataset.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What is Krippendorff's Alpha and when does it beat Cohen's Kappa?</div>
+                <div class="fc-a">A multi-annotator, scale-aware agreement statistic. Better than Cohen's Kappa when: 3+ annotators, ordinal scales (1–5), or missing annotations. Alpha &gt; 0.80 = high reliability; below 0.67 = revise rubric.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What is the difference between offline and online evals?</div>
+                <div class="fc-a">Offline: pre-deployment, curated static dataset, runs in CI, catches known failures and regressions. Online: live production traffic (sampled), async, catches distribution shift and novel edge cases. Both are needed; offline gates deploys, online monitors health.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: If RAGAS context precision is 0.45 but context recall is 0.90, what is the likely fix?</div>
+                <div class="fc-a">The retriever is finding all needed chunks (high recall) but also many irrelevant ones (low precision). The fix is a re-ranker (cross-encoder, Cohere Rerank) to filter the candidate set before passing to the LLM — not changing the embedding model.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: Name three ways LLM-as-judge can fail systematically.</div>
+                <div class="fc-a">(1) Sycophancy — favors verbose, confident-sounding answers; (2) Self-preference bias — GPT-4o rates GPT-4o outputs higher; (3) Verbosity bias — longer responses score higher regardless of quality; (4) Position bias in pairwise evals; (5) Domain blindness in highly technical/specialized areas.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: How do you determine statistical significance when comparing two prompt versions on an eval set?</div>
+                <div class="fc-a">Use a paired t-test (same examples run through both versions). Check p-value &lt; 0.05 for significance. For n=100 examples, you can reliably detect ~5% differences. Use power analysis (statsmodels) to determine minimum sample size before running the experiment.</div>
             </div>
 
             <!-- Navigation -->
-            <div class="flex flex-between mt-4">
-                <a href="module-16.html" class="btn btn-secondary">&larr; Previous: Career Goals</a>
-                <a href="index.html" class="btn btn-primary">Back to Course Overview &rarr;</a>
+            <div style="display:flex;justify-content:space-between;margin-top:3rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,0.08);">
+                <a href="module-16.html" class="btn btn-secondary">&larr; Previous: Cost Optimization</a>
+                <a href="module-18.html" class="btn btn-primary">Next: Thinking Models &rarr;</a>
             </div>
         </main>
     </div>
 
     <script src="../assets/js/app.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
     <script>
-        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+        // Sidebar toggle
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebarToggle');
         const sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -934,7 +2012,35 @@ graph TD
                 sidebarOverlay.classList.remove('open');
             });
         }
+
+        // Animate score meter fills on intersection
+        const observerOptions = { threshold: 0.3 };
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const fill = entry.target;
+                    const targetWidth = fill.style.width;
+                    fill.style.width = '0%';
+                    requestAnimationFrame(() => {
+                        requestAnimationFrame(() => {
+                            fill.style.width = targetWidth;
+                        });
+                    });
+                    observer.unobserve(fill);
+                }
+            });
+        }, observerOptions);
+
+        document.querySelectorAll('.score-meter-fill').forEach(el => {
+            const w = el.style.width;
+            el.style.width = '0%';
+            observer.observe(el);
+        });
     </script>
+    <script src="sidebar.js"></script>
     <script src="../assets/js/navbar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
 </body>
 </html>
