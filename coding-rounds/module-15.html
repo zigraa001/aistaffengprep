@@ -7,6 +7,361 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* ===== Interactive Demo Styles ===== */
+        .demo-container {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 16px 0;
+            border: 1px solid #0f3460;
+        }
+        .demo-title {
+            color: #e94560;
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .matrix-grid {
+            display: inline-grid;
+            gap: 4px;
+            margin: 12px auto;
+        }
+        .matrix-cell {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            transition: background 0.3s ease, transform 0.3s ease, color 0.3s ease;
+            cursor: default;
+            border: 2px solid transparent;
+        }
+        .matrix-cell.default    { background: #0f3460; color: #a8c8e8; border-color: #1a5276; }
+        .matrix-cell.highlight  { background: #e94560; color: #fff; transform: scale(1.12); border-color: #ff6b6b; }
+        .matrix-cell.swapping   { background: #f39c12; color: #1a1a2e; transform: scale(1.15); border-color: #f1c40f; }
+        .matrix-cell.done       { background: #27ae60; color: #fff; border-color: #2ecc71; }
+        .matrix-cell.layer0     { background: #8e44ad; color: #fff; border-color: #9b59b6; }
+        .matrix-cell.layer1     { background: #2980b9; color: #fff; border-color: #3498db; }
+        .matrix-cell.layer2     { background: #27ae60; color: #fff; border-color: #2ecc71; }
+        .matrix-cell.layer3     { background: #e67e22; color: #fff; border-color: #f39c12; }
+        .matrix-cell.boundary   { outline: 3px dashed #e94560; outline-offset: 2px; }
+        .demo-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .demo-btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            letter-spacing: 0.5px;
+        }
+        .demo-btn:hover  { opacity: 0.85; transform: translateY(-1px); }
+        .demo-btn:active { transform: translateY(0); }
+        .demo-btn.primary  { background: #e94560; color: #fff; }
+        .demo-btn.secondary{ background: #0f3460; color: #a8c8e8; border: 1px solid #1a5276; }
+        .demo-btn.success  { background: #27ae60; color: #fff; }
+        .demo-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+        .demo-status {
+            margin-top: 12px;
+            padding: 10px 14px;
+            background: rgba(15,52,96,0.6);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: #a8c8e8;
+            min-height: 36px;
+            border-left: 3px solid #e94560;
+        }
+        .demo-step-label {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            background: #16213e;
+            color: #e94560;
+            border: 1px solid #e94560;
+            margin-bottom: 8px;
+        }
+        .boundary-info {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .boundary-badge {
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            background: #0f3460;
+            color: #a8c8e8;
+            border: 1px solid #1a5276;
+        }
+        .boundary-badge span { color: #e94560; }
+
+        /* ===== Partition Diagram ===== */
+        .partition-diagram {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 16px 0;
+            overflow-x: auto;
+        }
+        .partition-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 8px 0;
+            flex-wrap: nowrap;
+        }
+        .partition-cell {
+            width: 44px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .pcell-left  { background: #8e44ad; color: #fff; }
+        .pcell-right { background: #2980b9; color: #fff; }
+        .pcell-label { background: transparent; color: #a8c8e8; font-size: 0.75rem; width: auto; padding: 0 4px; }
+        .partition-arrow { color: #e94560; font-size: 1.2rem; flex-shrink: 0; }
+        .partition-divider {
+            width: 3px;
+            height: 38px;
+            background: #e94560;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+        .partition-valid   { border: 2px solid #27ae60; border-radius: 8px; padding: 10px; margin: 8px 0; }
+        .partition-invalid { border: 2px solid #e74c3c; border-radius: 8px; padding: 10px; margin: 8px 0; }
+        .p-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .p-badge.valid   { background: #27ae60; color: #fff; }
+        .p-badge.invalid { background: #e74c3c; color: #fff; }
+
+        /* ===== Cyclic Sort Viz ===== */
+        .cyclic-array {
+            display: flex;
+            gap: 6px;
+            margin: 12px 0;
+            flex-wrap: wrap;
+        }
+        .cyclic-cell {
+            width: 52px;
+            height: 52px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            position: relative;
+            transition: background 0.3s, transform 0.3s;
+        }
+        .cyclic-cell .idx {
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 2px;
+        }
+        .cyclic-cell.normal  { background: #0f3460; color: #a8c8e8; border: 2px solid #1a5276; }
+        .cyclic-cell.active  { background: #e94560; color: #fff; transform: scale(1.12); border: 2px solid #ff6b6b; }
+        .cyclic-cell.target  { background: #f39c12; color: #1a1a2e; border: 2px solid #f1c40f; }
+        .cyclic-cell.placed  { background: #27ae60; color: #fff; border: 2px solid #2ecc71; }
+        .swap-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            color: #e94560;
+            margin: 4px 0;
+        }
+
+        /* ===== Reservoir Sampling Viz ===== */
+        .reservoir-viz {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            margin: 14px 0;
+        }
+        .reservoir-stream {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .reservoir-item {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .reservoir-item.pending  { background: #0f3460; color: #a8c8e8; border: 1px solid #1a5276; }
+        .reservoir-item.selected { background: #27ae60; color: #fff; border: 1px solid #2ecc71; }
+        .reservoir-item.rejected { background: #2c3e50; color: #7f8c8d; border: 1px solid #34495e; text-decoration: line-through; }
+        .reservoir-item .prob    { font-size: 0.7rem; opacity: 0.8; }
+        .reservoir-bucket {
+            padding: 14px 18px;
+            background: #0f3460;
+            border: 2px solid #e94560;
+            border-radius: 8px;
+            min-width: 110px;
+            text-align: center;
+        }
+        .reservoir-bucket .label { font-size: 0.7rem; color: #a8c8e8; margin-bottom: 4px; }
+        .reservoir-bucket .value { font-size: 1.4rem; font-weight: 700; color: #e94560; }
+
+        /* ===== Flashcard Styles ===== */
+        .flashcard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 14px;
+            margin-top: 12px;
+        }
+        .flashcard {
+            perspective: 800px;
+            height: 160px;
+            cursor: pointer;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.55s ease;
+            transform-style: preserve-3d;
+        }
+        .flashcard:hover .flashcard-inner,
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            inset: 0;
+            backface-visibility: hidden;
+            border-radius: 10px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .flashcard-front {
+            background: linear-gradient(135deg, #0f3460, #1a5276);
+            border: 1px solid #2980b9;
+        }
+        .flashcard-front .fc-q {
+            font-size: 0.82rem;
+            color: #a8c8e8;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+        .flashcard-front .fc-hint {
+            font-size: 0.7rem;
+            color: #5d8aa8;
+            margin-top: 8px;
+        }
+        .flashcard-back {
+            background: linear-gradient(135deg, #16213e, #0a1628);
+            border: 1px solid #27ae60;
+            transform: rotateY(180deg);
+        }
+        .flashcard-back .fc-a {
+            font-size: 0.8rem;
+            color: #a8d8a8;
+            line-height: 1.5;
+        }
+
+        /* ===== Real-world & interview tip cards ===== */
+        .rw-card {
+            background: #16213e;
+            border-left: 4px solid #e94560;
+            border-radius: 0 8px 8px 0;
+            padding: 14px 18px;
+            margin: 10px 0;
+        }
+        .rw-card h5 {
+            margin: 0 0 6px 0;
+            color: #e94560;
+            font-size: 0.9rem;
+        }
+        .rw-card p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: #a8c8e8;
+            line-height: 1.6;
+        }
+        .tip-item {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+            padding: 10px 14px;
+            background: #16213e;
+            border-radius: 8px;
+            border: 1px solid #1a5276;
+        }
+        .tip-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .tip-text {
+            font-size: 0.85rem;
+            color: #a8c8e8;
+            line-height: 1.6;
+        }
+        .tip-text strong { color: #e94560; }
+        .followup-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.84rem;
+        }
+        .followup-table th {
+            background: #0f3460;
+            color: #a8c8e8;
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 2px solid #1a5276;
+        }
+        .followup-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1a5276;
+            color: #c0d8e8;
+            vertical-align: top;
+        }
+        .followup-table tr:last-child td { border-bottom: none; }
+        .followup-table td:first-child { color: #e94560; font-style: italic; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .matrix-cell, .cyclic-cell, .flashcard-inner { transition: none !important; }
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
@@ -107,6 +462,9 @@
             </ul>
         </div>
 
+        <!-- =====================================================================
+             SECTION 1: NUMBER THEORY
+             ===================================================================== -->
         <h2 class="mt-4">1. Number Theory Essentials</h2>
 
         <div class="collapsible open">
@@ -116,6 +474,7 @@
             </div>
             <div class="collapsible-content">
                 <p><strong>Why it matters:</strong> Number theory problems are rare but when they appear, you either know the trick or you are stuck. These four building blocks cover 90% of math-tagged interview problems.</p>
+
                 <h4>GCD &mdash; Euclidean Algorithm</h4>
                 <p>The key insight: <code>gcd(a, b) = gcd(b, a % b)</code>. This converges in O(log(min(a,b))) steps because the remainder shrinks by at least half every two iterations.</p>
 <pre><code class="language-python">import math
@@ -129,6 +488,23 @@ def lcm(a: int, b: int) -&gt; int:
     return a * b // gcd(a, b)
 
 # Python 3.9+ has math.gcd and math.lcm built-in
+</code></pre>
+
+<pre><code class="language-java">// Java: GCD and LCM
+public class MathUtils {
+    public static long gcd(long a, long b) {
+        while (b != 0) {
+            long temp = b;
+            b = a % b;
+            a = temp;
+        }
+        return a;
+    }
+
+    public static long lcm(long a, long b) {
+        return a / gcd(a, b) * b;  // divide first to avoid overflow
+    }
+}
 </code></pre>
 
                 <h4>Sieve of Eratosthenes</h4>
@@ -145,8 +521,26 @@ def lcm(a: int, b: int) -&gt; int:
 # sieve(30) -&gt; [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]
 </code></pre>
 
+<pre><code class="language-java">// Java: Sieve of Eratosthenes
+public static List&lt;Integer&gt; sieve(int n) {
+    boolean[] isComposite = new boolean[n + 1];
+    List&lt;Integer&gt; primes = new ArrayList&lt;&gt;();
+    for (int i = 2; i &lt;= n; i++) {
+        if (!isComposite[i]) {
+            primes.add(i);
+            // mark multiples starting from i*i
+            for (long j = (long) i * i; j &lt;= n; j += i) {
+                isComposite[(int) j] = true;
+            }
+        }
+    }
+    return primes;
+}
+</code></pre>
+
                 <h4>Modular Arithmetic</h4>
                 <p>Key rules: <code>(a + b) % m = ((a % m) + (b % m)) % m</code> and same for multiplication. Division requires the modular inverse: <code>a/b mod m = a * pow(b, m-2, m) mod m</code> when m is prime (Fermat's little theorem).</p>
+
                 <h4>Fast Exponentiation (Binary Exponentiation)</h4>
                 <p>Computes a<sup>n</sup> mod m in O(log n) by repeated squaring. Critical for large power problems (LC #50).</p>
 <pre><code class="language-python">def power(base: int, exp: int, mod: int) -&gt; int:
@@ -161,9 +555,28 @@ def lcm(a: int, b: int) -&gt; int:
 
 # Python built-in: pow(base, exp, mod) does the same thing
 </code></pre>
+
+<pre><code class="language-java">// Java: Fast Exponentiation
+public static long power(long base, long exp, long mod) {
+    long result = 1;
+    base %= mod;
+    while (exp &gt; 0) {
+        if ((exp &amp; 1) == 1) {          // odd exponent
+            result = result * base % mod;
+        }
+        exp &gt;&gt;= 1;
+        base = base * base % mod;
+    }
+    return result;
+}
+// Note: Math.pow() loses precision for large ints — always use this instead
+</code></pre>
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 2: MATRIX PATTERNS
+             ===================================================================== -->
         <h2 class="mt-4">2. Matrix Patterns</h2>
 
         <div class="collapsible open">
@@ -172,6 +585,7 @@ def lcm(a: int, b: int) -&gt; int:
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
+
                 <h4>Rotate Matrix 90&deg; In-Place (LC #48)</h4>
                 <p><strong>Pattern:</strong> Transpose then reverse each row. This avoids the four-way swap which is error-prone. Time O(n&sup2;), space O(1).</p>
 <pre><code class="language-python">def rotate(matrix: list[list[int]]) -&gt; None:
@@ -184,6 +598,45 @@ def lcm(a: int, b: int) -&gt; int:
     for row in matrix:
         row.reverse()
 </code></pre>
+
+<pre><code class="language-java">// Java: Rotate Matrix 90° clockwise in-place
+public void rotate(int[][] matrix) {
+    int n = matrix.length;
+    // Step 1: Transpose
+    for (int i = 0; i &lt; n; i++) {
+        for (int j = i + 1; j &lt; n; j++) {
+            int temp = matrix[i][j];
+            matrix[i][j] = matrix[j][i];
+            matrix[j][i] = temp;
+        }
+    }
+    // Step 2: Reverse each row
+    for (int[] row : matrix) {
+        int left = 0, right = n - 1;
+        while (left &lt; right) {
+            int temp = row[left];
+            row[left++] = row[right];
+            row[right--] = temp;
+        }
+    }
+}
+</code></pre>
+
+                <!-- ===== INTERACTIVE: Matrix Rotation ===== -->
+                <div class="demo-container">
+                    <div class="demo-title">Interactive: Matrix Rotation Step-By-Step</div>
+                    <div style="display:flex; flex-direction:column; align-items:center;">
+                        <div id="rot-step-label" class="demo-step-label">Original Matrix</div>
+                        <div id="rot-grid" class="matrix-grid" style="grid-template-columns: repeat(4, 48px);"></div>
+                    </div>
+                    <div class="demo-status" id="rot-status">Click "Transpose" to see Step 1, or "Animate All" for the full sequence.</div>
+                    <div class="demo-controls">
+                        <button class="demo-btn primary" id="rot-transpose-btn" onclick="rotStep1()">Step 1: Transpose</button>
+                        <button class="demo-btn primary" id="rot-reverse-btn" onclick="rotStep2()" disabled>Step 2: Reverse Rows</button>
+                        <button class="demo-btn success" id="rot-animate-btn" onclick="rotAnimate()">Animate All</button>
+                        <button class="demo-btn secondary" onclick="rotReset()">Reset</button>
+                    </div>
+                </div>
 
                 <h4>Spiral Order (LC #54)</h4>
                 <p>Maintain four boundaries (top, bottom, left, right) and peel layers. Shrink after each edge.</p>
@@ -208,6 +661,53 @@ def lcm(a: int, b: int) -&gt; int:
             left += 1
     return res
 </code></pre>
+
+<pre><code class="language-java">// Java: Spiral Order
+public List&lt;Integer&gt; spiralOrder(int[][] matrix) {
+    List&lt;Integer&gt; res = new ArrayList&lt;&gt;();
+    int top = 0, bottom = matrix.length - 1;
+    int left = 0, right = matrix[0].length - 1;
+    while (top &lt;= bottom &amp;&amp; left &lt;= right) {
+        for (int j = left; j &lt;= right; j++)   res.add(matrix[top][j]);
+        top++;
+        for (int i = top; i &lt;= bottom; i++)   res.add(matrix[i][right]);
+        right--;
+        if (top &lt;= bottom) {
+            for (int j = right; j &gt;= left; j--)  res.add(matrix[bottom][j]);
+            bottom--;
+        }
+        if (left &lt;= right) {
+            for (int i = bottom; i &gt;= top; i--)  res.add(matrix[i][left]);
+            left++;
+        }
+    }
+    return res;
+}
+</code></pre>
+
+                <!-- ===== INTERACTIVE: Spiral Traversal ===== -->
+                <div class="demo-container">
+                    <div class="demo-title">Interactive: Spiral Traversal Visualization</div>
+                    <div style="display:flex; flex-direction:column; align-items:center;">
+                        <div id="spiral-step-label" class="demo-step-label">4×5 Matrix — Click Step to begin</div>
+                        <div id="spiral-grid" class="matrix-grid" style="grid-template-columns: repeat(5, 48px);"></div>
+                        <div class="boundary-info" id="spiral-bounds">
+                            <div class="boundary-badge">Top: <span id="bnd-top">0</span></div>
+                            <div class="boundary-badge">Bottom: <span id="bnd-bottom">3</span></div>
+                            <div class="boundary-badge">Left: <span id="bnd-left">0</span></div>
+                            <div class="boundary-badge">Right: <span id="bnd-right">4</span></div>
+                        </div>
+                    </div>
+                    <div class="demo-status" id="spiral-status">A 4×5 matrix. Each color represents a spiral layer. Click "Step" to traverse one cell at a time.</div>
+                    <div class="demo-controls">
+                        <button class="demo-btn primary" id="spiral-step-btn" onclick="spiralStep()">Step</button>
+                        <button class="demo-btn success" id="spiral-animate-btn" onclick="spiralAnimate()">Animate All</button>
+                        <button class="demo-btn secondary" onclick="spiralReset()">Reset</button>
+                    </div>
+                    <div style="margin-top:10px; font-size:0.82rem; color:#a8c8e8;">
+                        Traversal order: <span id="spiral-output" style="color:#e94560; font-weight:700;"></span>
+                    </div>
+                </div>
 
                 <h4>Set Matrix Zeroes (LC #73)</h4>
                 <p>Use the first row and first column as markers for O(1) extra space. Two booleans track whether the first row/column themselves need zeroing.</p>
@@ -238,6 +738,28 @@ def lcm(a: int, b: int) -&gt; int:
             matrix[i][0] = 0
 </code></pre>
 
+<pre><code class="language-java">// Java: Set Matrix Zeroes — O(1) extra space
+public void setZeroes(int[][] matrix) {
+    int m = matrix.length, n = matrix[0].length;
+    boolean firstRowZero = false, firstColZero = false;
+    for (int j = 0; j &lt; n; j++) if (matrix[0][j] == 0) firstRowZero = true;
+    for (int i = 0; i &lt; m; i++) if (matrix[i][0] == 0) firstColZero = true;
+
+    // Use row 0 and col 0 as flags
+    for (int i = 1; i &lt; m; i++)
+        for (int j = 1; j &lt; n; j++)
+            if (matrix[i][j] == 0) { matrix[i][0] = 0; matrix[0][j] = 0; }
+
+    // Zero out interior cells
+    for (int i = 1; i &lt; m; i++)
+        for (int j = 1; j &lt; n; j++)
+            if (matrix[i][0] == 0 || matrix[0][j] == 0) matrix[i][j] = 0;
+
+    if (firstRowZero) Arrays.fill(matrix[0], 0);
+    if (firstColZero) for (int i = 0; i &lt; m; i++) matrix[i][0] = 0;
+}
+</code></pre>
+
                 <h4>Search a 2D Matrix II (LC #240)</h4>
                 <p><strong>Pattern:</strong> Start from top-right corner. If target is smaller, move left; if larger, move down. Each step eliminates a row or column. Time O(m + n).</p>
 <pre><code class="language-python">def searchMatrix(matrix: list[list[int]], target: int) -&gt; bool:
@@ -252,9 +774,24 @@ def lcm(a: int, b: int) -&gt; int:
             r += 1
     return False
 </code></pre>
+
+<pre><code class="language-java">// Java: Search 2D Matrix II — start top-right, O(m+n)
+public boolean searchMatrix(int[][] matrix, int target) {
+    int r = 0, c = matrix[0].length - 1;
+    while (r &lt; matrix.length &amp;&amp; c &gt;= 0) {
+        if (matrix[r][c] == target) return true;
+        else if (matrix[r][c] &gt; target) c--;
+        else r++;
+    }
+    return false;
+}
+</code></pre>
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 3: MODIFIED BINARY SEARCH
+             ===================================================================== -->
         <h2 class="mt-4">3. Modified Binary Search</h2>
 
         <div class="collapsible open">
@@ -264,6 +801,7 @@ def lcm(a: int, b: int) -&gt; int:
             </div>
             <div class="collapsible-content">
                 <p>In a rotated sorted array, one half is always sorted. Determine which half, check if the target falls in that range, then discard the other.</p>
+
                 <h4>Search in Rotated Sorted Array (LC #33)</h4>
 <pre><code class="language-python">def search(nums: list[int], target: int) -&gt; int:
     lo, hi = 0, len(nums) - 1
@@ -286,6 +824,24 @@ def lcm(a: int, b: int) -&gt; int:
     return -1
 </code></pre>
 
+<pre><code class="language-java">// Java: Search in Rotated Sorted Array
+public int search(int[] nums, int target) {
+    int lo = 0, hi = nums.length - 1;
+    while (lo &lt;= hi) {
+        int mid = lo + (hi - lo) / 2;  // avoids integer overflow
+        if (nums[mid] == target) return mid;
+        if (nums[lo] &lt;= nums[mid]) {          // left half sorted
+            if (nums[lo] &lt;= target &amp;&amp; target &lt; nums[mid]) hi = mid - 1;
+            else lo = mid + 1;
+        } else {                               // right half sorted
+            if (nums[mid] &lt; target &amp;&amp; target &lt;= nums[hi]) lo = mid + 1;
+            else hi = mid - 1;
+        }
+    }
+    return -1;
+}
+</code></pre>
+
                 <h4>Find Minimum in Rotated Sorted Array (LC #153)</h4>
                 <p>Compare <code>nums[mid]</code> with <code>nums[hi]</code>. If greater, minimum is right; otherwise left (including mid).</p>
 <pre><code class="language-python">def findMin(nums: list[int]) -&gt; int:
@@ -299,8 +855,100 @@ def lcm(a: int, b: int) -&gt; int:
     return nums[lo]
 </code></pre>
 
-                <h4>Median of Two Sorted Arrays (LC #4) &mdash; Hard</h4>
+<pre><code class="language-java">// Java: Find Minimum in Rotated Sorted Array
+public int findMin(int[] nums) {
+    int lo = 0, hi = nums.length - 1;
+    while (lo &lt; hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (nums[mid] &gt; nums[hi]) lo = mid + 1;
+        else hi = mid;
+    }
+    return nums[lo];
+}
+</code></pre>
+
+                <!-- ===== EXPANDED: Median of Two Sorted Arrays ===== -->
+                <h4>Median of Two Sorted Arrays (LC #4) &mdash; Hard — Deep Dive</h4>
                 <p>Binary search on the partition point in the smaller array. Valid partition: <code>maxLeft1 &lt;= minRight2</code> and <code>maxLeft2 &lt;= minRight1</code>. Time O(log(min(m,n))).</p>
+
+                <p><strong>Why binary search on the shorter array?</strong> The partition index in the shorter array (length m) determines the partition in the longer array (length n) uniquely, because we need exactly <code>(m+n+1)/2</code> elements on the left total. Binary searching on m gives O(log m) which is minimized by making m the shorter one. If m &gt; n we swap them to guarantee O(log(min(m,n))).</p>
+
+                <p><strong>The Core Insight — Partition Visualization:</strong> We want to split both arrays so that the combined left half has all elements &le; the combined right half. For a combined array of length m+n:</p>
+                <ul>
+                    <li>Left side needs <code>half = (m+n+1)//2</code> elements total</li>
+                    <li>If we put <code>i</code> elements from nums1 in the left, we put <code>half - i</code> from nums2</li>
+                    <li>Valid partition: <code>nums1[i-1] &le; nums2[j]</code> AND <code>nums2[j-1] &le; nums1[i]</code></li>
+                </ul>
+
+                <div class="partition-diagram">
+                    <p style="color:#a8c8e8; font-size:0.85rem; margin:0 0 12px 0;"><strong>Concrete example:</strong> nums1 = [1, 3, 8, 9, 15], nums2 = [7, 11, 18, 19, 21, 25]<br>Combined length = 11, so left side needs (11+1)/2 = 6 elements total.</p>
+
+                    <p style="color:#e94560; font-size:0.82rem; margin: 8px 0 4px 0;"><strong>Valid Partition (i=3 from nums1, j=3 from nums2):</strong></p>
+                    <div class="partition-valid">
+                        <span class="p-badge valid">VALID</span>
+                        <div class="partition-row">
+                            <div class="partition-cell pcell-label">nums1:</div>
+                            <div class="partition-cell pcell-left">1</div>
+                            <div class="partition-cell pcell-left">3</div>
+                            <div class="partition-cell pcell-left">8</div>
+                            <div class="partition-divider"></div>
+                            <div class="partition-cell pcell-right">9</div>
+                            <div class="partition-cell pcell-right">15</div>
+                        </div>
+                        <div class="partition-row">
+                            <div class="partition-cell pcell-label">nums2:</div>
+                            <div class="partition-cell pcell-left">7</div>
+                            <div class="partition-cell pcell-left">11</div>
+                            <div class="partition-cell pcell-left">18</div>
+                            <div class="partition-divider"></div>
+                            <div class="partition-cell pcell-right">19</div>
+                            <div class="partition-cell pcell-right">21</div>
+                            <div class="partition-cell pcell-right">25</div>
+                        </div>
+                        <p style="font-size:0.8rem; color:#a8c8e8; margin:8px 0 0 0;">
+                            maxLeft1=8, minRight2=19 &rarr; 8 &le; 19 &#10003;<br>
+                            maxLeft2=18, minRight1=9 &rarr; 18 &le; 9? <strong style="color:#e74c3c;">NO</strong> &rarr; i is too small, move right
+                        </p>
+                    </div>
+
+                    <p style="color:#e94560; font-size:0.82rem; margin: 12px 0 4px 0;"><strong>Valid Partition (i=4 from nums1, j=2 from nums2):</strong></p>
+                    <div class="partition-valid">
+                        <span class="p-badge valid">VALID</span>
+                        <div class="partition-row">
+                            <div class="partition-cell pcell-label">nums1:</div>
+                            <div class="partition-cell pcell-left">1</div>
+                            <div class="partition-cell pcell-left">3</div>
+                            <div class="partition-cell pcell-left">8</div>
+                            <div class="partition-cell pcell-left">9</div>
+                            <div class="partition-divider"></div>
+                            <div class="partition-cell pcell-right">15</div>
+                        </div>
+                        <div class="partition-row">
+                            <div class="partition-cell pcell-label">nums2:</div>
+                            <div class="partition-cell pcell-left">7</div>
+                            <div class="partition-cell pcell-left">11</div>
+                            <div class="partition-divider"></div>
+                            <div class="partition-cell pcell-right">18</div>
+                            <div class="partition-cell pcell-right">19</div>
+                            <div class="partition-cell pcell-right">21</div>
+                            <div class="partition-cell pcell-right">25</div>
+                        </div>
+                        <p style="font-size:0.8rem; color:#a8c8e8; margin:8px 0 0 0;">
+                            maxLeft1=9, minRight2=18 &rarr; 9 &le; 18 &#10003;<br>
+                            maxLeft2=11, minRight1=15 &rarr; 11 &le; 15 &#10003; &rarr; <strong style="color:#27ae60;">VALID PARTITION FOUND!</strong><br>
+                            Odd total &rarr; median = max(maxLeft1, maxLeft2) = max(9, 11) = <strong style="color:#e94560;">11</strong>
+                        </p>
+                    </div>
+
+                    <div style="margin-top: 14px; padding: 12px; background: rgba(15,52,96,0.5); border-radius: 8px; font-size:0.82rem; color:#a8c8e8;">
+                        <strong style="color:#e94560;">Edge cases to handle:</strong><br>
+                        &bull; <code>i = 0</code>: no elements from nums1 on left &rarr; maxLeft1 = -&infin;<br>
+                        &bull; <code>i = m</code>: all elements from nums1 on left &rarr; minRight1 = +&infin;<br>
+                        &bull; Same logic for j = 0 and j = n<br>
+                        &bull; If one array is entirely smaller: the partition will naturally end up at one extreme
+                    </div>
+                </div>
+
 <pre><code class="language-python">def findMedianSortedArrays(nums1: list[int], nums2: list[int]) -&gt; float:
     if len(nums1) &gt; len(nums2):
         nums1, nums2 = nums2, nums1  # ensure nums1 is shorter
@@ -322,9 +970,39 @@ def lcm(a: int, b: int) -&gt; int:
         else:
             lo = i + 1
 </code></pre>
+
+<pre><code class="language-java">// Java: Median of Two Sorted Arrays — O(log(min(m,n)))
+public double findMedianSortedArrays(int[] nums1, int[] nums2) {
+    if (nums1.length &gt; nums2.length) {
+        int[] tmp = nums1; nums1 = nums2; nums2 = tmp;  // ensure nums1 shorter
+    }
+    int m = nums1.length, n = nums2.length;
+    int lo = 0, hi = m;
+    while (lo &lt;= hi) {
+        int i = (lo + hi) / 2;
+        int j = (m + n + 1) / 2 - i;
+        int left1  = (i == 0) ? Integer.MIN_VALUE : nums1[i - 1];
+        int right1 = (i == m) ? Integer.MAX_VALUE : nums1[i];
+        int left2  = (j == 0) ? Integer.MIN_VALUE : nums2[j - 1];
+        int right2 = (j == n) ? Integer.MAX_VALUE : nums2[j];
+        if (left1 &lt;= right2 &amp;&amp; left2 &lt;= right1) {
+            if ((m + n) % 2 == 1) return Math.max(left1, left2);
+            return (Math.max(left1, left2) + Math.min(right1, right2)) / 2.0;
+        } else if (left1 &gt; right2) {
+            hi = i - 1;
+        } else {
+            lo = i + 1;
+        }
+    }
+    return 0.0; // unreachable for valid inputs
+}
+</code></pre>
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 4: CYCLIC SORT
+             ===================================================================== -->
         <h2 class="mt-4">4. Cyclic Sort Pattern</h2>
 
         <div class="collapsible open">
@@ -334,6 +1012,23 @@ def lcm(a: int, b: int) -&gt; int:
             </div>
             <div class="collapsible-content">
                 <p>When the array contains numbers in [1, n] or [0, n], place each at its "correct" index, then scan for mismatches. O(n) time, O(1) space.</p>
+
+                <!-- ===== CYCLIC SORT VISUALIZATION ===== -->
+                <h4>Cyclic Sort — Visual Walkthrough</h4>
+                <p>Array <strong>[3, 1, 5, 4, 2]</strong>: each value v should live at index v-1. We iterate and swap until each position holds the right number.</p>
+
+                <div class="demo-container">
+                    <div class="demo-title">Cyclic Sort Placement Visualization</div>
+                    <div id="cyclic-array-display" class="cyclic-array" style="justify-content:center;"></div>
+                    <div class="swap-arrow" id="cyclic-swap-arrow" style="display:none;">&#8593;&#8595; swapping</div>
+                    <div class="demo-status" id="cyclic-status">Array [3,1,5,4,2]. Each number n should be at index n-1. Click Step to begin placing.</div>
+                    <div class="demo-controls">
+                        <button class="demo-btn primary" id="cyclic-step-btn" onclick="cyclicStep()">Step</button>
+                        <button class="demo-btn success" onclick="cyclicAnimate()">Animate All</button>
+                        <button class="demo-btn secondary" onclick="cyclicReset()">Reset</button>
+                    </div>
+                </div>
+
                 <h4>Find the Missing Number (LC #268 variant)</h4>
 <pre><code class="language-python">def missingNumber(nums: list[int]) -&gt; int:
     """Cyclic sort approach for nums containing [0..n] with one missing."""
@@ -349,6 +1044,22 @@ def lcm(a: int, b: int) -&gt; int:
         if nums[i] != i:
             return i
     return n
+</code></pre>
+
+<pre><code class="language-java">// Java: Missing Number via Cyclic Sort
+public int missingNumber(int[] nums) {
+    int n = nums.length, i = 0;
+    while (i &lt; n) {
+        int correct = nums[i];
+        if (correct &lt; n &amp;&amp; nums[i] != nums[correct]) {
+            int tmp = nums[i]; nums[i] = nums[correct]; nums[correct] = tmp;
+        } else {
+            i++;
+        }
+    }
+    for (i = 0; i &lt; n; i++) if (nums[i] != i) return i;
+    return n;
+}
 </code></pre>
 
                 <h4>Find the Duplicate Number (LC #287)</h4>
@@ -367,6 +1078,22 @@ def lcm(a: int, b: int) -&gt; int:
     return slow
 </code></pre>
 
+<pre><code class="language-java">// Java: Find Duplicate — Floyd's cycle detection
+public int findDuplicate(int[] nums) {
+    int slow = 0, fast = 0;
+    do {
+        slow = nums[slow];
+        fast = nums[nums[fast]];
+    } while (slow != fast);
+    slow = 0;
+    while (slow != fast) {
+        slow = nums[slow];
+        fast = nums[fast];
+    }
+    return slow;
+}
+</code></pre>
+
                 <h4>First Missing Positive (LC #41) &mdash; Hard</h4>
                 <p>Answer is in [1, n+1]. Place each value v at index v-1. First mismatch is the answer.</p>
 <pre><code class="language-python">def firstMissingPositive(nums: list[int]) -&gt; int:
@@ -383,9 +1110,28 @@ def lcm(a: int, b: int) -&gt; int:
             return i + 1
     return n + 1
 </code></pre>
+
+<pre><code class="language-java">// Java: First Missing Positive — O(n) time, O(1) space
+public int firstMissingPositive(int[] nums) {
+    int n = nums.length, i = 0;
+    while (i &lt; n) {
+        int correct = nums[i] - 1;
+        if (nums[i] &gt; 0 &amp;&amp; nums[i] &lt;= n &amp;&amp; nums[i] != nums[correct]) {
+            int tmp = nums[i]; nums[i] = nums[correct]; nums[correct] = tmp;
+        } else {
+            i++;
+        }
+    }
+    for (i = 0; i &lt; n; i++) if (nums[i] != i + 1) return i + 1;
+    return n + 1;
+}
+</code></pre>
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 5: RANDOMIZED ALGORITHMS
+             ===================================================================== -->
         <h2 class="mt-4">5. Randomized Algorithms &amp; Sampling</h2>
 
         <div class="collapsible open">
@@ -405,6 +1151,17 @@ def shuffle(arr: list[int]) -&gt; list[int]:
     return arr
 </code></pre>
 
+<pre><code class="language-java">// Java: Fisher-Yates Shuffle
+public int[] shuffle(int[] arr) {
+    Random rand = new Random();
+    for (int i = arr.length - 1; i &gt; 0; i--) {
+        int j = rand.nextInt(i + 1);  // [0, i] inclusive
+        int tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+}
+</code></pre>
+
                 <h4>Reservoir Sampling</h4>
                 <p>Sample k items uniformly from a stream of unknown length. For k=1:</p>
 <pre><code class="language-python">def reservoir_sample(stream) -&gt; int:
@@ -415,6 +1172,66 @@ def shuffle(arr: list[int]) -&gt; list[int]:
             result = val
     return result
 </code></pre>
+
+<pre><code class="language-java">// Java: Reservoir Sampling (k=1)
+public static int reservoirSample(int[] stream) {
+    Random rand = new Random();
+    int result = stream[0];
+    for (int i = 1; i &lt; stream.length; i++) {
+        // keep stream[i] with probability 1/(i+1)
+        if (rand.nextInt(i + 1) == 0) {
+            result = stream[i];
+        }
+    }
+    return result;
+}
+
+// General k-reservoir:
+public static int[] reservoirSampleK(int[] stream, int k) {
+    int[] reservoir = Arrays.copyOf(stream, k);
+    for (int i = k; i &lt; stream.length; i++) {
+        int j = new Random().nextInt(i + 1);
+        if (j &lt; k) reservoir[j] = stream[i];
+    }
+    return reservoir;
+}
+</code></pre>
+
+                <!-- ===== RESERVOIR SAMPLING PROBABILITY PROOF ===== -->
+                <h4>Why Reservoir Sampling Is Uniform — Visual Proof</h4>
+                <p>Stream of 5 elements: A, B, C, D, E. We want to pick 1 uniformly at random (each should have probability 1/5 = 20%).</p>
+
+                <div class="demo-container">
+                    <div class="demo-title">Reservoir Sampling Probability Walkthrough</div>
+                    <div class="reservoir-viz" id="reservoir-viz">
+                        <div class="reservoir-stream" id="reservoir-stream-items"></div>
+                        <div style="display:flex; flex-direction:column; gap:8px; align-items:center;">
+                            <div style="font-size:0.75rem; color:#a8c8e8; margin-bottom:4px;">Current reservoir:</div>
+                            <div class="reservoir-bucket">
+                                <div class="label">RESULT</div>
+                                <div class="value" id="reservoir-result">—</div>
+                            </div>
+                            <div style="font-size:0.75rem; color:#a8c8e8; margin-top:8px;">Survival probability:</div>
+                            <div style="font-size:0.7rem; color:#27ae60;" id="reservoir-prob-display"></div>
+                        </div>
+                    </div>
+                    <div class="demo-status" id="reservoir-status">Click "Step" to process each stream element. Watch why each survives with probability 1/n.</div>
+                    <div class="demo-controls">
+                        <button class="demo-btn primary" id="reservoir-step-btn" onclick="reservoirStep()">Step</button>
+                        <button class="demo-btn success" onclick="reservoirAnimate()">Animate All</button>
+                        <button class="demo-btn secondary" onclick="reservoirReset()">Reset</button>
+                    </div>
+                    <div style="margin-top: 14px; padding: 12px; background: rgba(15,52,96,0.5); border-radius: 8px; font-size:0.8rem; color:#a8c8e8;">
+                        <strong style="color:#e94560;">Proof for element A (index 0):</strong><br>
+                        A is selected at step 0 with prob 1/1 = 1.<br>
+                        A survives step 1: not replaced = 1 - 1/2 = 1/2.<br>
+                        A survives step 2: 1/2 &times; (1 - 1/3) = 1/2 &times; 2/3 = 1/3.<br>
+                        A survives step 3: 1/3 &times; (1 - 1/4) = 1/3 &times; 3/4 = 1/4.<br>
+                        A survives step 4: 1/4 &times; (1 - 1/5) = 1/4 &times; 4/5 = <strong style="color:#27ae60;">1/5</strong> &#10003;<br>
+                        Same reasoning applies to every element &rarr; uniform distribution.
+                    </div>
+                </div>
+
                 <h4>Random Pick with Weight (LC #528)</h4>
                 <p>Build a prefix sum, then binary search for a random target.</p>
 <pre><code class="language-python">import bisect
@@ -432,9 +1249,39 @@ class Solution:
         target = random.random() * self.total
         return bisect.bisect_right(self.prefix, target)
 </code></pre>
+
+<pre><code class="language-java">// Java: Random Pick with Weight (LC #528)
+class Solution {
+    private int[] prefix;
+    private int total;
+    private Random rand = new Random();
+
+    public Solution(int[] w) {
+        prefix = new int[w.length];
+        prefix[0] = w[0];
+        for (int i = 1; i &lt; w.length; i++) prefix[i] = prefix[i-1] + w[i];
+        total = prefix[w.length - 1];
+    }
+
+    public int pickIndex() {
+        int target = rand.nextInt(total) + 1;  // [1, total]
+        // Binary search for first prefix &gt;= target
+        int lo = 0, hi = prefix.length - 1;
+        while (lo &lt; hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (prefix[mid] &lt; target) lo = mid + 1;
+            else hi = mid;
+        }
+        return lo;
+    }
+}
+</code></pre>
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 6: PROBLEM MAP
+             ===================================================================== -->
         <h2 class="mt-4">6. LeetCode Problem Map</h2>
 
         <div class="collapsible open">
@@ -473,105 +1320,695 @@ class Solution:
             </div>
         </div>
 
+        <!-- =====================================================================
+             SECTION 7: REAL-WORLD APPLICATIONS
+             ===================================================================== -->
+        <h2 class="mt-4">7. Real-World Applications</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Where These Patterns Live in Production Systems</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <div class="rw-card">
+                    <h5>Sieve of Eratosthenes in Cryptography</h5>
+                    <p>RSA key generation requires finding large prime numbers. The sieve is used as a fast pre-screening step — trial division against the first 2000 primes filters out ~94% of composites. The surviving candidates are tested with Miller-Rabin primality (a probabilistic test). OpenSSL generates 2048-bit primes this way: sieve eliminates obvious composites, Miller-Rabin with 64 rounds gives astronomically low false-positive probability. The full pipeline runs in milliseconds despite operating on 600-digit numbers.</p>
+                </div>
+                <div class="rw-card">
+                    <h5>Fisher-Yates in Game Engines &amp; Gambling</h5>
+                    <p>Card shuffling in online poker and casino games uses Fisher-Yates with a cryptographically secure PRNG (e.g., /dev/urandom, or a hardware RNG). Using a Mersenne Twister instead is a security vulnerability — the state can be inferred from observed shuffles. Minecraft's procedural terrain generation seeds Fisher-Yates-style permutations with chunk coordinates for deterministic randomness. Unity's Random.Shuffle is Fisher-Yates under the hood.</p>
+                </div>
+                <div class="rw-card">
+                    <h5>Reservoir Sampling in Stream Processing</h5>
+                    <p>Apache Flink and Spark Streaming use reservoir sampling for approximate query processing (AQP) on unbounded streams — e.g., computing approx-percentiles without storing the entire stream. Netflix uses k-reservoir sampling (k in the thousands) to select representative users for A/B test cohorts from their 200M+ subscriber stream. The key property: you can process the stream in a single pass with O(k) memory, regardless of stream length — essential when the stream is a Kafka topic with hundreds of millions of events per hour.</p>
+                </div>
+                <div class="rw-card">
+                    <h5>Matrix Operations in Computer Graphics</h5>
+                    <p>The 90-degree rotation pattern generalizes to 4×4 homogeneous transformation matrices in 3D graphics. GPU vertex shaders apply model-view-projection (MVP) matrices: M rotates/scales the object, V positions the camera, P projects to screen. The transpose-then-reverse insight maps to the mathematical identity that R<sup>T</sup> = R<sup>-1</sup> for rotation matrices (orthogonal matrices). NVIDIA's CUDA and Apple's Metal perform millions of these matrix multiplications per frame at 60fps+.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- =====================================================================
+             SECTION 8: INTERVIEW TIPS
+             ===================================================================== -->
+        <h2 class="mt-4">8. Interview Tips &amp; Common Follow-ups</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>What Interviewers Look For — Pattern Recognition Signals</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <div class="tip-item">
+                    <div class="tip-icon">&#128293;</div>
+                    <div class="tip-text"><strong>Matrix problems:</strong> Always clarify upfront — "Is the matrix guaranteed to be square? Can I modify it in-place?" For non-square matrices, in-place rotation is impossible (output dimensions differ). This question alone signals awareness of constraints.</div>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-icon">&#9888;</div>
+                    <div class="tip-text"><strong>Rotated sorted array with duplicates (LC #81):</strong> When <code>nums[lo] == nums[mid]</code>, you can't determine which half is sorted. Must do <code>lo++</code> to shrink the window. Worst case degrades to O(n). Mention this proactively — it demonstrates depth.</div>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-icon">&#128170;</div>
+                    <div class="tip-text"><strong>Median of Two Sorted Arrays:</strong> Explicitly state "I'm binary searching on the shorter array to get O(log(min(m,n))). If m &gt; n I'll swap them." Interviewers at Google/Meta specifically look for this justification — without it, you may get docked even with a correct solution.</div>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-icon">&#128161;</div>
+                    <div class="tip-text"><strong>Cyclic Sort recognition signal:</strong> The moment you see "array of length n containing numbers in range [1, n]" or "find missing/duplicate in O(n) time and O(1) space," that is the cyclic sort cue. Say out loud: "I recognize this as a cyclic sort pattern — numbers in a fixed range let us use index placement as a hash."</div>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-icon">&#127922;</div>
+                    <div class="tip-text"><strong>Reservoir sampling:</strong> Interviewers love follow-ups: "Can you prove it's uniform?" Walk through the telescoping product: element i is selected with probability 1/(i+1) and survives each subsequent step j with probability j/(j+1), so the total survival probability telescopes to 1/n.</div>
+                </div>
+
+                <h4 style="margin-top: 16px;">Common Follow-up Questions</h4>
+                <table class="followup-table">
+                    <thead>
+                        <tr>
+                            <th>Follow-up Question</th>
+                            <th>Answer</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>"Rotate the matrix counter-clockwise instead."</td>
+                            <td>Transpose, then reverse each <em>column</em> (instead of each row). Alternatively: reverse each row, then transpose.</td>
+                        </tr>
+                        <tr>
+                            <td>"What if the matrix is not square?"</td>
+                            <td>In-place rotation is impossible — the output has different dimensions. You must allocate a new matrix. This is a trick question designed to test if you understand WHY the transpose trick works.</td>
+                        </tr>
+                        <tr>
+                            <td>"Can you find the median in O(n) without sorting?"</td>
+                            <td>Yes — Quickselect (average O(n), worst O(n&sup2;)) or Median of Medians (guaranteed O(n)). But for two sorted arrays specifically, the O(log(min(m,n))) binary search is optimal.</td>
+                        </tr>
+                        <tr>
+                            <td>"How do you handle duplicates in rotated sorted array search?"</td>
+                            <td>When nums[lo] == nums[mid], we can't determine which half is sorted. Do lo++ to skip the ambiguous element. Worst-case O(n), average O(log n). This is LC #81.</td>
+                        </tr>
+                        <tr>
+                            <td>"Can you do reservoir sampling for k &gt; 1?"</td>
+                            <td>Yes — fill reservoir with first k elements. For each subsequent element i, pick a random index j in [0, i]. If j &lt; k, replace reservoir[j]. Each element ends up in the reservoir with probability k/n.</td>
+                        </tr>
+                        <tr>
+                            <td>"What if GCD input could be 0?"</td>
+                            <td>gcd(0, n) = n by convention (0 is divisible by everything). The Euclidean algorithm handles this: gcd(0, b) terminates immediately returning b. Python's math.gcd handles this correctly.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- =====================================================================
+             SECTION 9: FLASHCARDS
+             ===================================================================== -->
+        <h2 class="mt-4">9. Flashcards</h2>
+        <p style="font-size:0.85rem; color: var(--text-muted);">Click or hover to flip each card and reveal the answer.</p>
+
+        <div class="flashcard-grid">
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q1: How do you rotate a matrix 90° clockwise in-place?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">Transpose (swap matrix[i][j] with matrix[j][i]), then reverse each row. Time O(n²), Space O(1). For counter-clockwise: transpose then reverse each column.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q2: What is the key insight for Spiral Matrix traversal?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">Maintain four boundaries (top, bottom, left, right). Traverse each edge, then shrink the boundary inward. Check top &le; bottom and left &le; right after each direction change to avoid re-visiting cells.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q3: In Search in Rotated Sorted Array, how do you decide which half to search?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">Check which half is sorted (compare nums[lo] with nums[mid]). If target falls in the sorted half's range, search there; otherwise search the other half. One half is always monotonically sorted.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q4: What is the time complexity of Median of Two Sorted Arrays, and why?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">O(log(min(m,n))). Binary search on the partition of the shorter array (length m). Each step eliminates half the search space. Always swap so we binary search on the shorter array to minimize the log factor.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q5: Why does Cyclic Sort achieve O(n) time?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">Each swap places at least one element in its correct position. At most n swaps total, plus n iterations to scan. The while loop looks O(n²) but the inner swap is bounded: total swaps &le; n, so the combined work is O(n).</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-q">Q6: Why does Fisher-Yates produce a uniformly random permutation?</div>
+                        <div class="fc-hint">Hover/click to reveal &#8635;</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-a">At step i (from n-1 down to 1), element i is placed with probability 1/(i+1) at each remaining position. The product of all choices equals n! total equally-likely outcomes, matching the number of permutations.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- =====================================================================
+             QUIZ
+             ===================================================================== -->
         <h2 class="mt-4">Module Quiz</h2>
         <div id="module-quiz" class="card mt-3"></div>
 
         <div class="flex flex-between mt-4">
             <a href="module-14.html" class="btn btn-secondary">&larr; Module 14</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &amp; Finish &rarr;</button>
         </div>
         </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="../assets/js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Mermaid
-            mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    // =========================================================================
+    // MATRIX ROTATION DEMO
+    // =========================================================================
+    (function() {
+        const ORIG = [
+            [1,  2,  3,  4],
+            [5,  6,  7,  8],
+            [9,  10, 11, 12],
+            [13, 14, 15, 16]
+        ];
+        const COLORS = ['#3498db','#e74c3c','#27ae60','#f39c12','#9b59b6','#1abc9c','#e67e22','#2ecc71'];
 
-            // Sidebar toggle for mobile
-            const sidebar = document.getElementById('sidebar');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const sidebarOverlay = document.getElementById('sidebarOverlay');
+        let rotMatrix, rotPhase = 0; // 0=original, 1=transposed, 2=rotated
 
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('open');
-                sidebarOverlay.classList.toggle('open');
-            });
+        function cloneMatrix(m) { return m.map(r => [...r]); }
 
-            sidebarOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('open');
-                sidebarOverlay.classList.remove('open');
-            });
-
-            // Update sidebar links based on completion status
-            document.querySelectorAll('.sidebar-link[data-module]').forEach(link => {
-                const moduleNum = parseInt(link.dataset.module);
-                if (StaffEngPrep.ProgressTracker.isModuleComplete('coding', moduleNum)) {
-                    link.classList.add('completed');
+        function rotRender(highlights, swapping) {
+            highlights = highlights || {};
+            swapping   = swapping   || {};
+            const grid = document.getElementById('rot-grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'matrix-cell';
+                    const key = i + ',' + j;
+                    if (swapping[key])     cell.classList.add('swapping');
+                    else if (highlights[key]) cell.classList.add('highlight');
+                    else                   cell.classList.add('default');
+                    cell.textContent = rotMatrix[i][j];
+                    grid.appendChild(cell);
                 }
-            });
+            }
+        }
 
-            // Quiz
-            const quizQuestions = [
-                {
-                    question: "What is the time complexity of the Sieve of Eratosthenes to find all primes up to n?",
-                    options: ["O(n)", "O(n log n)", "O(n log log n)", "O(n sqrt(n))"],
-                    correct: 2,
-                    explanation: "The sieve runs in O(n log log n). The inner loop for each prime p does n/p work, and the sum of 1/p for all primes up to n converges to log log n."
-                },
-                {
-                    question: "In the 'Rotate Image' problem, what two-step approach rotates a matrix 90 degrees clockwise in-place?",
-                    options: [
-                        "Reverse rows then transpose",
-                        "Transpose then reverse each row",
-                        "Reverse columns then reverse rows",
-                        "Transpose then reverse each column"
-                    ],
-                    correct: 1,
-                    explanation: "Transpose swaps matrix[i][j] with matrix[j][i], then reversing each row completes the 90-degree clockwise rotation. For counter-clockwise, you would reverse each column instead."
-                },
-                {
-                    question: "In 'Search in Rotated Sorted Array', how do you decide which half to search?",
-                    options: [
-                        "Always search the left half first",
-                        "Compare target with the pivot element",
-                        "Check which half is sorted (compare nums[lo] with nums[mid]), then check if target falls in that range",
-                        "Use two binary searches: one to find the pivot, one to find the target"
-                    ],
-                    correct: 2,
-                    explanation: "If nums[lo] <= nums[mid], the left half is sorted. Check if the target is in [lo, mid); if so, search left, otherwise search right. The same logic applies symmetrically for the right half."
-                },
-                {
-                    question: "What is the answer range for 'First Missing Positive' on an array of length n?",
-                    options: ["[0, n]", "[1, n]", "[1, n+1]", "[0, n+1]"],
-                    correct: 2,
-                    explanation: "The smallest missing positive must be in [1, n+1]. If the array contains all of 1 through n, the answer is n+1. Otherwise, at least one value in [1, n] is missing."
-                },
-                {
-                    question: "Why does Fisher-Yates shuffle produce a uniformly random permutation?",
-                    options: [
-                        "It uses a cryptographic random number generator",
-                        "Each element is swapped exactly once",
-                        "At step i, element i is placed with probability 1/(n-i+1) at each remaining position, yielding n! equally likely outcomes",
-                        "It sorts elements by random keys"
-                    ],
-                    correct: 2,
-                    explanation: "At each step i (from n-1 down to 1), we pick uniformly among positions [0, i]. This produces exactly n! equally likely permutations because the number of choice sequences equals n * (n-1) * ... * 1 = n!."
+        window.rotReset = function() {
+            rotMatrix = cloneMatrix(ORIG);
+            rotPhase = 0;
+            document.getElementById('rot-step-label').textContent = 'Original Matrix';
+            document.getElementById('rot-status').textContent = 'Click "Transpose" to see Step 1, or "Animate All" for the full sequence.';
+            document.getElementById('rot-transpose-btn').disabled = false;
+            document.getElementById('rot-reverse-btn').disabled = true;
+            rotRender();
+        };
+
+        window.rotStep1 = async function() {
+            if (rotPhase !== 0) return;
+            document.getElementById('rot-transpose-btn').disabled = true;
+            document.getElementById('rot-status').textContent = 'Transposing: swapping matrix[i][j] with matrix[j][i] for all i < j...';
+
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const delay = reduced ? 0 : 200;
+
+            for (let i = 0; i < 4; i++) {
+                for (let j = i + 1; j < 4; j++) {
+                    const hl = {};
+                    hl[i+','+j] = true; hl[j+','+i] = true;
+                    rotRender({}, hl);
+                    if (delay) await new Promise(r => setTimeout(r, delay));
+                    // swap
+                    let tmp = rotMatrix[i][j];
+                    rotMatrix[i][j] = rotMatrix[j][i];
+                    rotMatrix[j][i] = tmp;
+                    rotRender(hl);
+                    if (delay) await new Promise(r => setTimeout(r, delay / 2));
                 }
-            ];
+            }
+            rotRender();
+            rotPhase = 1;
+            document.getElementById('rot-step-label').textContent = 'After Transpose';
+            document.getElementById('rot-status').textContent = 'Transpose complete. Now click "Reverse Rows" to complete the rotation.';
+            document.getElementById('rot-reverse-btn').disabled = false;
+        };
 
-            const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
-            quiz.render();
+        window.rotStep2 = async function() {
+            if (rotPhase !== 1) return;
+            document.getElementById('rot-reverse-btn').disabled = true;
+            document.getElementById('rot-status').textContent = 'Reversing each row...';
+
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const delay = reduced ? 0 : 250;
+
+            for (let i = 0; i < 4; i++) {
+                const hl = {};
+                for (let j = 0; j < 4; j++) hl[i+','+j] = true;
+                rotRender(hl);
+                if (delay) await new Promise(r => setTimeout(r, delay));
+                rotMatrix[i].reverse();
+                rotRender();
+                if (delay) await new Promise(r => setTimeout(r, delay / 2));
+            }
+            // Mark all done
+            const doneGrid = document.getElementById('rot-grid');
+            doneGrid.querySelectorAll('.matrix-cell').forEach(c => {
+                c.className = 'matrix-cell done';
+            });
+            rotPhase = 2;
+            document.getElementById('rot-step-label').textContent = 'Rotated 90° Clockwise';
+            document.getElementById('rot-status').textContent = 'Done! The matrix is now rotated 90° clockwise. Original top row [1,2,3,4] is now the rightmost column.';
+        };
+
+        window.rotAnimate = async function() {
+            rotReset();
+            await new Promise(r => setTimeout(r, 300));
+            await rotStep1();
+            await new Promise(r => setTimeout(r, 400));
+            await rotStep2();
+        };
+
+        // Init
+        rotReset();
+    })();
+
+    // =========================================================================
+    // SPIRAL TRAVERSAL DEMO
+    // =========================================================================
+    (function() {
+        const ROWS = 4, COLS = 5;
+        const MATRIX = [
+            [1,  2,  3,  4,  5],
+            [6,  7,  8,  9,  10],
+            [11, 12, 13, 14, 15],
+            [16, 17, 18, 19, 20]
+        ];
+        const LAYER_CLASSES = ['layer0','layer1','layer2','layer3'];
+
+        let spiralState, spiralAnimating;
+
+        function buildSpiralSequence() {
+            const seq = []; // [{r,c,layer}]
+            let top = 0, bottom = ROWS-1, left = 0, right = COLS-1, layer = 0;
+            while (top <= bottom && left <= right) {
+                for (let j = left; j <= right; j++)         seq.push({r:top, c:j, layer});
+                top++;
+                for (let i = top; i <= bottom; i++)         seq.push({r:i, c:right, layer});
+                right--;
+                if (top <= bottom) {
+                    for (let j = right; j >= left; j--)     seq.push({r:bottom, c:j, layer});
+                    bottom--;
+                }
+                if (left <= right) {
+                    for (let i = bottom; i >= top; i--)     seq.push({r:i, c:left, layer});
+                    left++;
+                }
+                layer++;
+            }
+            return seq;
+        }
+
+        const SEQ = buildSpiralSequence();
+
+        function spiralRenderGrid(visited, currentIdx) {
+            const grid = document.getElementById('spiral-grid');
+            grid.innerHTML = '';
+            for (let i = 0; i < ROWS; i++) {
+                for (let j = 0; j < COLS; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'matrix-cell default';
+                    cell.textContent = MATRIX[i][j];
+                    grid.appendChild(cell);
+                }
+            }
+            const cells = grid.querySelectorAll('.matrix-cell');
+            visited.forEach((entry, idx) => {
+                const cellEl = cells[entry.r * COLS + entry.c];
+                cellEl.className = 'matrix-cell ' + LAYER_CLASSES[entry.layer % LAYER_CLASSES.length];
+                if (idx === currentIdx) cellEl.classList.add('highlight');
+            });
+        }
+
+        function updateBounds() {
+            const visited = spiralState.visited;
+            if (visited.length === 0) {
+                document.getElementById('bnd-top').textContent = '0';
+                document.getElementById('bnd-bottom').textContent = (ROWS-1).toString();
+                document.getElementById('bnd-left').textContent = '0';
+                document.getElementById('bnd-right').textContent = (COLS-1).toString();
+                return;
+            }
+            const lastLayer = SEQ[spiralState.idx > 0 ? spiralState.idx - 1 : 0].layer;
+            // Recalculate boundaries based on current layer
+            const top    = lastLayer;
+            const bottom = ROWS - 1 - lastLayer;
+            const left   = lastLayer;
+            const right  = COLS - 1 - lastLayer;
+            document.getElementById('bnd-top').textContent    = Math.max(0, top).toString();
+            document.getElementById('bnd-bottom').textContent = Math.max(top, bottom).toString();
+            document.getElementById('bnd-left').textContent   = Math.max(0, left).toString();
+            document.getElementById('bnd-right').textContent  = Math.max(left, right).toString();
+        }
+
+        window.spiralReset = function() {
+            spiralAnimating = false;
+            spiralState = { idx: 0, visited: [] };
+            spiralRenderGrid([], -1);
+            document.getElementById('spiral-output').textContent = '';
+            document.getElementById('spiral-status').textContent = 'A 4×5 matrix. Each color represents a spiral layer. Click "Step" to traverse one cell at a time.';
+            document.getElementById('spiral-step-label').textContent = '4×5 Matrix — Click Step to begin';
+            document.getElementById('spiral-step-btn').disabled = false;
+            updateBounds();
+        };
+
+        window.spiralStep = function() {
+            if (spiralState.idx >= SEQ.length) return;
+            const entry = SEQ[spiralState.idx];
+            spiralState.visited.push(entry);
+            spiralState.idx++;
+            spiralRenderGrid(spiralState.visited, spiralState.visited.length - 1);
+            updateBounds();
+            const vals = spiralState.visited.map(e => MATRIX[e.r][e.c]);
+            document.getElementById('spiral-output').textContent = vals.join(' → ');
+            document.getElementById('spiral-step-label').textContent =
+                'Cell ' + spiralState.idx + ' / ' + SEQ.length + ' — Layer ' + entry.layer;
+            document.getElementById('spiral-status').textContent =
+                'Visiting matrix[' + entry.r + '][' + entry.c + '] = ' + MATRIX[entry.r][entry.c];
+            if (spiralState.idx >= SEQ.length) {
+                document.getElementById('spiral-status').textContent = 'Spiral complete! All ' + SEQ.length + ' cells visited.';
+                document.getElementById('spiral-step-btn').disabled = true;
+            }
+        };
+
+        window.spiralAnimate = async function() {
+            spiralReset();
+            spiralAnimating = true;
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const delay = reduced ? 0 : 180;
+            while (spiralState.idx < SEQ.length && spiralAnimating) {
+                spiralStep();
+                if (delay) await new Promise(r => setTimeout(r, delay));
+            }
+            spiralAnimating = false;
+        };
+
+        spiralReset();
+    })();
+
+    // =========================================================================
+    // CYCLIC SORT DEMO
+    // =========================================================================
+    (function() {
+        const ORIG = [3, 1, 5, 4, 2];
+        let arr, i, done;
+
+        function render(activeI, targetI) {
+            const container = document.getElementById('cyclic-array-display');
+            container.innerHTML = '';
+            arr.forEach((val, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'cyclic-cell';
+                const idxLabel = document.createElement('div');
+                idxLabel.className = 'idx';
+                idxLabel.textContent = 'idx ' + idx;
+                const valLabel = document.createElement('div');
+                valLabel.textContent = val;
+                cell.appendChild(idxLabel);
+                cell.appendChild(valLabel);
+                if (done && val === idx + 1)       cell.classList.add('placed');
+                else if (idx === activeI)          cell.classList.add('active');
+                else if (idx === targetI)          cell.classList.add('target');
+                else                               cell.classList.add('normal');
+                container.appendChild(cell);
+            });
+        }
+
+        window.cyclicReset = function() {
+            arr = [...ORIG];
+            i = 0;
+            done = false;
+            document.getElementById('cyclic-step-btn').disabled = false;
+            document.getElementById('cyclic-swap-arrow').style.display = 'none';
+            document.getElementById('cyclic-status').textContent =
+                'Array [3,1,5,4,2]. Each number n should be at index n-1. Click Step to begin placing.';
+            render(-1, -1);
+        };
+
+        window.cyclicStep = function() {
+            if (done) return;
+            if (i >= arr.length) {
+                done = true;
+                render(-1, -1);
+                document.getElementById('cyclic-status').textContent =
+                    'Sorted! Now scan: first position where arr[i] != i+1 is the missing/duplicate.';
+                document.getElementById('cyclic-step-btn').disabled = true;
+                return;
+            }
+            const correct = arr[i] - 1;
+            if (arr[i] > 0 && arr[i] <= arr.length && arr[i] !== arr[correct]) {
+                render(i, correct);
+                document.getElementById('cyclic-swap-arrow').style.display = 'flex';
+                document.getElementById('cyclic-status').textContent =
+                    'arr[' + i + ']=' + arr[i] + ' belongs at index ' + correct +
+                    ' (arr[' + correct + ']=' + arr[correct] + '). Swapping...';
+                let tmp = arr[i]; arr[i] = arr[correct]; arr[correct] = tmp;
+                render(i, -1);
+            } else {
+                document.getElementById('cyclic-swap-arrow').style.display = 'none';
+                document.getElementById('cyclic-status').textContent =
+                    'arr[' + i + ']=' + arr[i] + ' is already at correct index ' + i + '. Moving to i=' + (i+1) + '.';
+                render(i, -1);
+                i++;
+            }
+        };
+
+        window.cyclicAnimate = async function() {
+            cyclicReset();
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const delay = reduced ? 0 : 500;
+            while (!done) {
+                cyclicStep();
+                if (delay) await new Promise(r => setTimeout(r, delay));
+            }
+        };
+
+        cyclicReset();
+    })();
+
+    // =========================================================================
+    // RESERVOIR SAMPLING DEMO
+    // =========================================================================
+    (function() {
+        const STREAM = ['A', 'B', 'C', 'D', 'E'];
+        // Deterministic example: A selected, B replaces at 1/2, C replaces at 1/3,
+        // D doesn't replace at 1/4 (we won't), E doesn't replace — show final=C
+        // We'll show a scripted walkthrough for clarity
+        const STEPS = [
+            { val: 'A', selected: true,  result: 'A', prob: '1/1 = 100%', survive: 'A is first element, always selected' },
+            { val: 'B', selected: true,  result: 'B', prob: '1/2 = 50%',  survive: 'Random pick 0 from [0,1] → replace A with B' },
+            { val: 'C', selected: false, result: 'B', prob: '1/3 = 33%',  survive: 'Random pick 1 from [0,2] → keep B' },
+            { val: 'D', selected: false, result: 'B', prob: '1/4 = 25%',  survive: 'Random pick 3 from [0,3] → keep B' },
+            { val: 'E', selected: false, result: 'B', prob: '1/5 = 20%',  survive: 'Random pick 2 from [0,4] → keep B. Final result: B' }
+        ];
+        let resIdx = 0;
+        const itemStates = STREAM.map(() => 'pending');
+
+        function resRender() {
+            const container = document.getElementById('reservoir-stream-items');
+            container.innerHTML = '';
+            STREAM.forEach((val, i) => {
+                const item = document.createElement('div');
+                item.className = 'reservoir-item ' + itemStates[i];
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = val;
+                item.appendChild(nameSpan);
+                if (i < resIdx) {
+                    const probSpan = document.createElement('span');
+                    probSpan.className = 'prob';
+                    probSpan.textContent = 'p=' + STEPS[i].prob;
+                    item.appendChild(probSpan);
+                }
+                container.appendChild(item);
+            });
+        }
+
+        window.reservoirReset = function() {
+            resIdx = 0;
+            for (let i = 0; i < itemStates.length; i++) itemStates[i] = 'pending';
+            document.getElementById('reservoir-result').textContent = '—';
+            document.getElementById('reservoir-prob-display').textContent = '';
+            document.getElementById('reservoir-status').textContent =
+                'Click "Step" to process each stream element. Watch why each survives with probability 1/n.';
+            document.getElementById('reservoir-step-btn').disabled = false;
+            resRender();
+        };
+
+        window.reservoirStep = function() {
+            if (resIdx >= STEPS.length) return;
+            const step = STEPS[resIdx];
+            itemStates[resIdx] = step.selected ? 'selected' : 'rejected';
+            document.getElementById('reservoir-result').textContent = step.result;
+            document.getElementById('reservoir-status').textContent =
+                'Element ' + step.val + ': ' + step.survive;
+            document.getElementById('reservoir-prob-display').textContent =
+                'P(' + step.val + ' chosen) = ' + step.prob;
+            resIdx++;
+            resRender();
+            if (resIdx >= STEPS.length) {
+                document.getElementById('reservoir-step-btn').disabled = true;
+                document.getElementById('reservoir-status').textContent =
+                    'Complete! Each element had exactly 1/5 = 20% probability of being the final result.';
+            }
+        };
+
+        window.reservoirAnimate = async function() {
+            reservoirReset();
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const delay = reduced ? 0 : 600;
+            while (resIdx < STEPS.length) {
+                reservoirStep();
+                if (delay) await new Promise(r => setTimeout(r, delay));
+            }
+        };
+
+        reservoirReset();
+    })();
+
+    // =========================================================================
+    // APP INIT
+    // =========================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            sidebarOverlay.classList.toggle('open');
         });
 
-        function completeModule() {
-            StaffEngPrep.ProgressTracker.markModuleComplete('coding', 15);
-            alert('Module 15 marked as complete!');
-            window.location.href = 'module-08.html';
-        }
+        sidebarOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('open');
+        });
+
+        document.querySelectorAll('.sidebar-link[data-module]').forEach(link => {
+            const moduleNum = parseInt(link.dataset.module);
+            if (StaffEngPrep.ProgressTracker.isModuleComplete('coding', moduleNum)) {
+                link.classList.add('completed');
+            }
+        });
+
+        // Quiz
+        const quizQuestions = [
+            {
+                question: "What is the time complexity of the Sieve of Eratosthenes to find all primes up to n?",
+                options: ["O(n)", "O(n log n)", "O(n log log n)", "O(n sqrt(n))"],
+                correct: 2,
+                explanation: "The sieve runs in O(n log log n). The inner loop for each prime p does n/p work, and the sum of 1/p for all primes up to n converges to log log n."
+            },
+            {
+                question: "In the 'Rotate Image' problem, what two-step approach rotates a matrix 90 degrees clockwise in-place?",
+                options: [
+                    "Reverse rows then transpose",
+                    "Transpose then reverse each row",
+                    "Reverse columns then reverse rows",
+                    "Transpose then reverse each column"
+                ],
+                correct: 1,
+                explanation: "Transpose swaps matrix[i][j] with matrix[j][i], then reversing each row completes the 90-degree clockwise rotation. For counter-clockwise, you would reverse each column instead."
+            },
+            {
+                question: "In 'Search in Rotated Sorted Array', how do you decide which half to search?",
+                options: [
+                    "Always search the left half first",
+                    "Compare target with the pivot element",
+                    "Check which half is sorted (compare nums[lo] with nums[mid]), then check if target falls in that range",
+                    "Use two binary searches: one to find the pivot, one to find the target"
+                ],
+                correct: 2,
+                explanation: "If nums[lo] <= nums[mid], the left half is sorted. Check if the target is in [lo, mid); if so, search left, otherwise search right. The same logic applies symmetrically for the right half."
+            },
+            {
+                question: "What is the answer range for 'First Missing Positive' on an array of length n?",
+                options: ["[0, n]", "[1, n]", "[1, n+1]", "[0, n+1]"],
+                correct: 2,
+                explanation: "The smallest missing positive must be in [1, n+1]. If the array contains all of 1 through n, the answer is n+1. Otherwise, at least one value in [1, n] is missing."
+            },
+            {
+                question: "Why does Fisher-Yates shuffle produce a uniformly random permutation?",
+                options: [
+                    "It uses a cryptographic random number generator",
+                    "Each element is swapped exactly once",
+                    "At step i, element i is placed with probability 1/(n-i+1) at each remaining position, yielding n! equally likely outcomes",
+                    "It sorts elements by random keys"
+                ],
+                correct: 2,
+                explanation: "At each step i (from n-1 down to 1), we pick uniformly among positions [0, i]. This produces exactly n! equally likely permutations because the number of choice sequences equals n * (n-1) * ... * 1 = n!."
+            },
+            {
+                question: "In Median of Two Sorted Arrays (LC #4), why must we binary search on the shorter array?",
+                options: [
+                    "The shorter array is always sorted",
+                    "Binary searching on the shorter array gives O(log(min(m,n))), minimizing the time complexity",
+                    "The longer array's partition is independent of the shorter one",
+                    "It avoids integer overflow"
+                ],
+                correct: 1,
+                explanation: "The partition in the shorter array (length m) uniquely determines the partition in the longer one. Binary searching on m gives O(log m). To minimize this, we ensure m <= n by swapping if necessary, achieving O(log(min(m,n)))."
+            }
+        ];
+
+        const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+        quiz.render();
+    });
+
+    function completeModule() {
+        StaffEngPrep.ProgressTracker.markModuleComplete('coding', 15);
+        alert('Module 15 marked as complete!');
+        window.location.href = 'index.html';
+    }
     </script>
     <script src="../assets/js/navbar.js"></script>
 </body>

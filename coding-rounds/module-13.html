@@ -7,6 +7,367 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* ---- Interactive Bit Visualizer ---- */
+        #bit-visualizer {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 28px 24px 24px;
+            margin: 24px 0;
+            color: #e0e0ff;
+            font-family: 'Courier New', monospace;
+        }
+        #bit-visualizer h4 {
+            color: #a78bfa;
+            margin-top: 0;
+            font-size: 1.1rem;
+            letter-spacing: 0.5px;
+        }
+        .bv-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .bv-label {
+            width: 80px;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .bit-cells {
+            display: flex;
+            gap: 4px;
+        }
+        .bit-cell {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            border: 2px solid #334155;
+            background: #0f172a;
+            color: #94a3b8;
+            font-size: 1.1rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            user-select: none;
+        }
+        .bit-cell.set {
+            background: #4f46e5;
+            color: #fff;
+            border-color: #818cf8;
+        }
+        .bit-cell:hover {
+            border-color: #818cf8;
+        }
+        .bv-decimal {
+            font-size: 1.3rem;
+            color: #38bdf8;
+            min-width: 50px;
+        }
+        .bv-input-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .bv-input-row label {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+        .bv-input-row input {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e0e0ff;
+            padding: 6px 10px;
+            width: 80px;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+        }
+        .bv-ops-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .bv-op-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 10px 14px;
+        }
+        .bv-op-name {
+            color: #a78bfa;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .bv-op-bits {
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+        .bv-op-dec {
+            color: #38bdf8;
+            font-size: 0.82rem;
+            margin-top: 2px;
+        }
+        .bv-sep {
+            width: 1px;
+            height: 36px;
+            background: #334155;
+            margin: 0 4px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .bit-cell { transition: none; }
+        }
+
+        /* ---- Brian Kernighan Animation Table ---- */
+        .bk-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Courier New', monospace;
+            font-size: 0.88rem;
+            margin: 12px 0;
+        }
+        .bk-table th {
+            background: #1e293b;
+            color: #94a3b8;
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 2px solid #334155;
+        }
+        .bk-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1e293b;
+            color: #e2e8f0;
+        }
+        .bk-table tr:last-child td {
+            border-bottom: none;
+        }
+        .bit-on  { color: #818cf8; font-weight: bold; }
+        .bit-off { color: #475569; }
+        .bit-cleared { color: #f87171; font-weight: bold; }
+        .bk-step-badge {
+            background: #312e81;
+            color: #a5b4fc;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.78rem;
+        }
+
+        /* ---- XOR Swap Visualization ---- */
+        .xor-swap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+            margin: 14px 0;
+        }
+        .xor-step-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 14px;
+            font-family: 'Courier New', monospace;
+        }
+        .xor-step-title {
+            color: #34d399;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .xor-var-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .xor-var-name { color: #94a3b8; font-size: 0.85rem; }
+        .xor-var-bits { color: #e2e8f0; letter-spacing: 2px; font-size: 0.9rem; }
+        .xor-var-dec  { color: #38bdf8; font-size: 0.8rem; }
+        .xor-op-line  {
+            color: #fbbf24;
+            font-size: 0.82rem;
+            margin: 6px 0;
+            border-top: 1px solid #1e293b;
+            padding-top: 6px;
+        }
+
+        /* ---- Bitmask Subset Tree ---- */
+        .subset-tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 0;
+            overflow-x: auto;
+        }
+        .tree-level {
+            display: flex;
+            gap: 8px;
+            margin: 4px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .tree-node {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.78rem;
+            color: #e2e8f0;
+            text-align: center;
+            min-width: 70px;
+        }
+        .tree-node.root { background: #312e81; border-color: #4f46e5; color: #c7d2fe; }
+        .tree-node.leaf { background: #14532d; border-color: #16a34a; color: #86efac; }
+        .tree-node.mid1 { background: #1e3a5f; border-color: #2563eb; }
+        .tree-node.mid2 { background: #2d1b4e; border-color: #7c3aed; }
+        .tree-connector { color: #475569; font-size: 0.75rem; text-align: center; }
+        .tree-bit-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            margin: 2px 0;
+        }
+
+        /* ---- Bloom Filter Calculator ---- */
+        #bloom-calc {
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            border-radius: 10px;
+            padding: 22px;
+            margin: 16px 0;
+            color: #e0e0ff;
+        }
+        #bloom-calc h5 {
+            color: #67e8f9;
+            margin-top: 0;
+        }
+        .bloom-inputs {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .bloom-field label {
+            display: block;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+        .bloom-field input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #e0e0ff;
+            padding: 7px 10px;
+            font-family: 'Courier New', monospace;
+        }
+        .bloom-result {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-family: 'Courier New', monospace;
+        }
+        .bloom-result-val {
+            font-size: 2rem;
+            color: #34d399;
+            font-weight: bold;
+        }
+        .bloom-result-sub {
+            color: #64748b;
+            font-size: 0.82rem;
+            margin-top: 4px;
+        }
+        .bloom-optimal { color: #fbbf24; font-size: 0.85rem; margin-top: 8px; }
+
+        /* ---- Flashcards ---- */
+        .flashcard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            margin: 16px 0;
+        }
+        .flashcard {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            cursor: pointer;
+            min-height: 130px;
+            perspective: 600px;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            min-height: 130px;
+            transition: transform 0.5s;
+            transform-style: preserve-3d;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            width: 100%;
+            min-height: 130px;
+            box-sizing: border-box;
+            backface-visibility: hidden;
+            padding: 16px;
+            border-radius: 10px;
+        }
+        .flashcard-front {
+            background: #1e293b;
+        }
+        .flashcard-back {
+            background: #172554;
+            transform: rotateY(180deg);
+        }
+        .flashcard-q {
+            color: #a78bfa;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .flashcard-text {
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .flashcard-hint {
+            color: #475569;
+            font-size: 0.75rem;
+            margin-top: 10px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .flashcard-inner { transition: none; }
+        }
+
+        /* ---- Vis containers ---- */
+        .vis-box {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+        .vis-box h5 {
+            color: #67e8f9;
+            margin: 0 0 14px;
+            font-size: 0.95rem;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
@@ -101,9 +462,10 @@
             <ul>
                 <li>Understand binary representation, two's complement, and bitwise operators</li>
                 <li>Master essential bit tricks: power-of-2 check, set-bit counting, get/set/clear/toggle</li>
-                <li>Apply XOR properties to solve "find the unique element" family of problems</li>
+                <li>Apply XOR properties to solve the "find the unique element" family of problems</li>
                 <li>Use bitmasks to enumerate subsets and solve constraint-based problems</li>
                 <li>Recognize real-world applications: bloom filters, feature flags, permissions</li>
+                <li>Understand language-level differences between Python, Java, and C++ bit behavior</li>
             </ul>
         </div>
 
@@ -142,7 +504,7 @@
 
                 <p><strong>Key insight:</strong> <code>-n == ~n + 1</code>. This means <code>n &amp; (-n)</code> isolates the lowest set bit, because negation flips all bits above the lowest set bit and keeps it.</p>
 
-                <pre><code class="language-python"># Binary representation examples
+                <pre><code class="language-python"># Python — binary representation
 # Python integers have arbitrary precision, so we mask to 32 bits for display
 def show_bits(n, width=8):
     """Display the binary representation of n."""
@@ -150,11 +512,92 @@ def show_bits(n, width=8):
         n = n &amp; ((1 &lt;&lt; width) - 1)  # two's complement mask
     return format(n, f'0{width}b')
 
-print(show_bits(13))     # 00001101
-print(show_bits(-13, 8)) # 11110011  (two's complement)
+print(show_bits(13))      # 00001101
+print(show_bits(-13, 8))  # 11110011  (two's complement)
 print(show_bits(13 &lt;&lt; 2)) # 00110100  (13 * 4 = 52)
 print(show_bits(13 &gt;&gt; 1)) # 00000110  (13 // 2 = 6)
 </code></pre>
+
+                <pre><code class="language-java">// Java — binary representation
+public class ShowBits {
+    public static String showBits(int n) {
+        // Integer.toBinaryString does not zero-pad or show two's complement
+        // Use String.format with a mask for a consistent 8-bit display
+        return String.format("%8s", Integer.toBinaryString(n &amp; 0xFF))
+                     .replace(' ', '0');
+    }
+
+    public static void main(String[] args) {
+        System.out.println(showBits(13));       // 00001101
+        System.out.println(showBits(-13));      // 11110011 (masked to 8 bits)
+        System.out.println(showBits(13 &lt;&lt; 2)); // 00110100
+        System.out.println(showBits(13 &gt;&gt; 1)); // 00000110
+
+        // Full 32-bit: Integer.toBinaryString(-13) shows all 32 bits
+        System.out.println(Integer.toBinaryString(-13));
+        // "11111111111111111111111111110011"
+
+        // Arithmetic vs logical right shift
+        int x = -8;
+        System.out.println(x &gt;&gt; 1);   // -4  (arithmetic, sign preserved)
+        System.out.println(x &gt;&gt;&gt; 1);  // 2147483644 (logical, fills with 0)
+    }
+}
+</code></pre>
+
+                <pre><code class="language-cpp">// C++ — binary representation
+#include &lt;cstdint&gt;
+#include &lt;bitset&gt;
+#include &lt;iostream&gt;
+
+void show_bits(int32_t n) {
+    // std::bitset gives a clean 32-bit string
+    std::cout &lt;&lt; std::bitset&lt;8&gt;(n &amp; 0xFF) &lt;&lt; "\n";
+}
+
+int main() {
+    show_bits(13);       // 00001101
+    show_bits(-13);      // 11110011 (masked to 8 bits)
+    show_bits(13 &lt;&lt; 2); // 00110100
+
+    // Note: right-shifting a negative signed int is implementation-defined
+    // before C++20. Use unsigned types or cast for portability.
+    uint32_t u = static_cast&lt;uint32_t&gt;(-13);
+    std::cout &lt;&lt; std::bitset&lt;32&gt;(u) &lt;&lt; "\n"; // all 32 bits
+}
+</code></pre>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- INTERACTIVE BIT VISUALIZER (after Bit Basics)                -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Interactive Bit Visualizer</h2>
+
+        <div id="bit-visualizer" class="animated" role="region" aria-label="Interactive bit manipulation demo">
+            <h4>Bit Manipulator — Click bits to toggle</h4>
+            <div class="bv-input-row">
+                <label for="bv-num-a">Number A (decimal):</label>
+                <input type="number" id="bv-num-a" value="42" min="-128" max="255">
+                <label for="bv-num-b" style="margin-left:16px;">Number B (decimal):</label>
+                <input type="number" id="bv-num-b" value="15" min="-128" max="255">
+            </div>
+
+            <!-- Number A bits -->
+            <div class="bv-row">
+                <span class="bv-label">A bits:</span>
+                <div class="bit-cells" id="bv-cells-a"></div>
+                <span class="bv-decimal" id="bv-dec-a">42</span>
+            </div>
+            <!-- Number B bits -->
+            <div class="bv-row">
+                <span class="bv-label">B bits:</span>
+                <div class="bit-cells" id="bv-cells-b"></div>
+                <span class="bv-decimal" id="bv-dec-b">15</span>
+            </div>
+
+            <div class="bv-ops-grid" id="bv-ops-grid">
+                <!-- filled by JS -->
             </div>
         </div>
 
@@ -172,16 +615,29 @@ print(show_bits(13 &gt;&gt; 1)) # 00000110  (13 // 2 = 6)
 
                 <h4>Check if Power of 2</h4>
                 <p>A power of 2 has exactly one bit set: <code>1, 10, 100, 1000...</code> in binary. Subtracting 1 flips that bit and sets all lower bits: <code>0111...</code>. So <code>n &amp; (n - 1)</code> is zero if and only if n is a power of 2.</p>
-                <pre><code class="language-python">def is_power_of_two(n: int) -&gt; bool:
+                <pre><code class="language-python"># Python
+def is_power_of_two(n: int) -&gt; bool:
     return n &gt; 0 and (n &amp; (n - 1)) == 0
 
 # Example: 16 = 10000, 15 = 01111 -&gt; 10000 &amp; 01111 = 0  (True)
 # Example: 18 = 10010, 17 = 10001 -&gt; 10010 &amp; 10001 = 10000 (False)
 </code></pre>
+                <pre><code class="language-java">// Java
+public boolean isPowerOfTwo(int n) {
+    return n &gt; 0 &amp;&amp; (n &amp; (n - 1)) == 0;
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+bool isPowerOfTwo(int32_t n) {
+    return n &gt; 0 &amp;&amp; (n &amp; (n - 1)) == 0;
+}
+// C++20 also provides std::has_single_bit(n) in &lt;bit&gt;
+</code></pre>
 
                 <h4>Count Set Bits (Brian Kernighan's Algorithm)</h4>
                 <p><code>n &amp; (n - 1)</code> clears the lowest set bit. Repeat until n becomes 0, counting iterations. This runs in O(k) where k is the number of set bits, not the total bit width.</p>
-                <pre><code class="language-python">def count_set_bits(n: int) -&gt; int:
+                <pre><code class="language-python"># Python
+def count_set_bits(n: int) -&gt; int:
     count = 0
     while n:
         n &amp;= n - 1   # clear lowest set bit
@@ -190,32 +646,118 @@ print(show_bits(13 &gt;&gt; 1)) # 00000110  (13 // 2 = 6)
 
 # Python built-in: bin(n).count('1') or n.bit_count() (3.10+)
 </code></pre>
+                <pre><code class="language-java">// Java
+public int countSetBits(int n) {
+    int count = 0;
+    while (n != 0) {
+        n &amp;= n - 1;
+        count++;
+    }
+    return count;
+}
+// Java built-in: Integer.bitCount(n) uses POPCNT intrinsic on modern JVMs
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int countSetBits(int32_t n) {
+    int count = 0;
+    while (n) {
+        n &amp;= n - 1;
+        count++;
+    }
+    return count;
+}
+// GCC/Clang built-in: __builtin_popcount(n) — compiles to a single POPCNT
+// For 64-bit: __builtin_popcountll(n)
+// C++20 standard: std::popcount(static_cast&lt;uint32_t&gt;(n))
+</code></pre>
 
                 <h4>Get / Set / Clear / Toggle the i-th Bit</h4>
-                <pre><code class="language-python">def get_bit(n, i):
-    """Return 1 if bit i is set, else 0."""
-    return (n &gt;&gt; i) &amp; 1
-
-def set_bit(n, i):
-    """Set bit i to 1."""
-    return n | (1 &lt;&lt; i)
-
-def clear_bit(n, i):
-    """Set bit i to 0."""
-    return n &amp; ~(1 &lt;&lt; i)
-
-def toggle_bit(n, i):
-    """Flip bit i."""
-    return n ^ (1 &lt;&lt; i)
+                <pre><code class="language-python"># Python
+def get_bit(n, i):    return (n &gt;&gt; i) &amp; 1
+def set_bit(n, i):    return n | (1 &lt;&lt; i)
+def clear_bit(n, i):  return n &amp; ~(1 &lt;&lt; i)
+def toggle_bit(n, i): return n ^ (1 &lt;&lt; i)
+</code></pre>
+                <pre><code class="language-java">// Java
+int getBit(int n, int i)    { return (n &gt;&gt; i) &amp; 1; }
+int setBit(int n, int i)    { return n | (1 &lt;&lt; i); }
+int clearBit(int n, int i)  { return n &amp; ~(1 &lt;&lt; i); }
+int toggleBit(int n, int i) { return n ^ (1 &lt;&lt; i); }
+</code></pre>
+                <pre><code class="language-cpp">// C++  (use int32_t for explicit 32-bit width)
+int32_t getBit(int32_t n, int i)    { return (n &gt;&gt; i) &amp; 1; }
+int32_t setBit(int32_t n, int i)    { return n | (1 &lt;&lt; i); }
+int32_t clearBit(int32_t n, int i)  { return n &amp; ~(1 &lt;&lt; i); }
+int32_t toggleBit(int32_t n, int i) { return n ^ (1 &lt;&lt; i); }
 </code></pre>
 
                 <h4>Isolate the Lowest Set Bit</h4>
                 <p><code>n &amp; (-n)</code> returns a number with only the lowest set bit of n. This is the basis of Binary Indexed Trees (Fenwick Trees) and appears in many problems.</p>
-                <pre><code class="language-python">def lowest_set_bit(n: int) -&gt; int:
+                <pre><code class="language-python"># Python
+def lowest_set_bit(n: int) -&gt; int:
     return n &amp; (-n)
-
 # 12 = 1100, -12 = ...0100 -&gt; 1100 &amp; 0100 = 0100 = 4
 </code></pre>
+                <pre><code class="language-java">// Java
+int lowestSetBit(int n) { return n &amp; (-n); }
+// Works identically because Java uses two's complement 32-bit ints
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int32_t lowestSetBit(int32_t n) { return n &amp; (-n); }
+// GCC extension: __builtin_ctz(n) counts trailing zeros (same info)
+</code></pre>
+
+                <!-- BRIAN KERNIGHAN ANIMATION -->
+                <div class="vis-box">
+                    <h5>Brian Kernighan Step-by-Step: n = 52 (binary 110100)</h5>
+                    <p style="color:#94a3b8;font-size:0.85rem;">Each row clears the lowest set bit. Count = number of rows before n = 0.</p>
+                    <table class="bk-table">
+                        <thead>
+                            <tr>
+                                <th>Step</th>
+                                <th>n (binary)</th>
+                                <th>n-1 (binary)</th>
+                                <th>n &amp; (n-1)</th>
+                                <th>Bit cleared</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="bk-step-badge">start</span></td>
+                                <td><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span></td>
+                                <td>—</td>
+                                <td>—</td>
+                                <td>count = 0</td>
+                            </tr>
+                            <tr>
+                                <td><span class="bk-step-badge">iter 1</span></td>
+                                <td><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span> = 52</td>
+                                <td><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-on">1</span><span class="bit-on">1</span> = 51</td>
+                                <td><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span> = 48</td>
+                                <td><span class="bit-cleared">bit 2</span> (value 4) cleared</td>
+                            </tr>
+                            <tr>
+                                <td><span class="bk-step-badge">iter 2</span></td>
+                                <td><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span> = 48</td>
+                                <td><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-on">1</span> = 47</td>
+                                <td><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span> = 32</td>
+                                <td><span class="bit-cleared">bit 4</span> (value 16) cleared</td>
+                            </tr>
+                            <tr>
+                                <td><span class="bk-step-badge">iter 3</span></td>
+                                <td><span class="bit-on">1</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span> = 32</td>
+                                <td><span class="bit-off">0</span><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-on">1</span><span class="bit-on">1</span> = 31</td>
+                                <td><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span><span class="bit-off">0</span> = 0</td>
+                                <td><span class="bit-cleared">bit 5</span> (value 32) cleared</td>
+                            </tr>
+                            <tr>
+                                <td><span class="bk-step-badge">done</span></td>
+                                <td colspan="3">n = 0, loop exits</td>
+                                <td><strong style="color:#34d399;">count = 3</strong> (52 has three 1-bits)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <h4>Quick Reference</h4>
                 <table>
@@ -252,28 +794,126 @@ def toggle_bit(n, i):
                 </ul>
                 <p>Together these mean: XOR-ing a list of numbers cancels out every number that appears an even number of times, leaving only the odd-count numbers.</p>
 
+                <!-- XOR SWAP VISUALIZATION -->
+                <div class="vis-box">
+                    <h5>XOR Swap Step-by-Step: a=5, b=3</h5>
+                    <div class="xor-swap-grid">
+                        <div class="xor-step-card">
+                            <div class="xor-step-title">Initial State</div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">a =</span>
+                                <span class="xor-var-bits">0101</span>
+                                <span class="xor-var-dec">= 5</span>
+                            </div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">b =</span>
+                                <span class="xor-var-bits">0011</span>
+                                <span class="xor-var-dec">= 3</span>
+                            </div>
+                        </div>
+                        <div class="xor-step-card">
+                            <div class="xor-step-title">Step 1: a ^= b</div>
+                            <div class="xor-op-line">0101 ^ 0011 = 0110</div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">a =</span>
+                                <span class="xor-var-bits">0110</span>
+                                <span class="xor-var-dec">= 6 (a XOR b)</span>
+                            </div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">b =</span>
+                                <span class="xor-var-bits">0011</span>
+                                <span class="xor-var-dec">= 3 (unchanged)</span>
+                            </div>
+                        </div>
+                        <div class="xor-step-card">
+                            <div class="xor-step-title">Step 2: b ^= a</div>
+                            <div class="xor-op-line">0011 ^ 0110 = 0101</div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">a =</span>
+                                <span class="xor-var-bits">0110</span>
+                                <span class="xor-var-dec">= 6 (unchanged)</span>
+                            </div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">b =</span>
+                                <span class="xor-var-bits">0101</span>
+                                <span class="xor-var-dec">= 5 (recovered a!)</span>
+                            </div>
+                        </div>
+                        <div class="xor-step-card">
+                            <div class="xor-step-title">Step 3: a ^= b</div>
+                            <div class="xor-op-line">0110 ^ 0101 = 0011</div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">a =</span>
+                                <span class="xor-var-bits">0011</span>
+                                <span class="xor-var-dec">= 3 (swapped!)</span>
+                            </div>
+                            <div class="xor-var-row">
+                                <span class="xor-var-name">b =</span>
+                                <span class="xor-var-bits">0101</span>
+                                <span class="xor-var-dec">= 5 (swapped!)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <p style="color:#94a3b8;font-size:0.82rem;margin-top:8px;"><strong>Why it works:</strong> a stores a^b. When b ^= a, b gets (original b) ^ (a^b) = original a. When a ^= b (new b = original a), a gets (a^b) ^ a = original b.</p>
+                </div>
+
                 <h4>LC #136: Single Number</h4>
                 <p>Every element appears twice except one. XOR all elements; duplicates cancel, leaving the unique number.</p>
-                <pre><code class="language-python">def single_number(nums: list[int]) -&gt; int:
+                <pre><code class="language-python"># Python
+def single_number(nums: list[int]) -&gt; int:
     result = 0
     for n in nums:
         result ^= n
     return result
 # O(n) time, O(1) space
+# Pythonic one-liner: from functools import reduce; reduce(operator.xor, nums)
+</code></pre>
+                <pre><code class="language-java">// Java
+public int singleNumber(int[] nums) {
+    int result = 0;
+    for (int n : nums) result ^= n;
+    return result;
+}
+// One-liner with streams: Arrays.stream(nums).reduce(0, (a, b) -&gt; a ^ b)
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int singleNumber(vector&lt;int&gt;&amp; nums) {
+    return accumulate(nums.begin(), nums.end(), 0, bit_xor&lt;int&gt;());
+}
+// Or simply: int r=0; for(int n:nums) r^=n; return r;
 </code></pre>
 
                 <h4>LC #268: Missing Number</h4>
                 <p>Array of n numbers from 0..n with one missing. XOR all values with all indices 0..n; every number cancels except the missing one.</p>
-                <pre><code class="language-python">def missing_number(nums: list[int]) -&gt; int:
+                <pre><code class="language-python"># Python
+def missing_number(nums: list[int]) -&gt; int:
     xor = len(nums)
     for i, num in enumerate(nums):
         xor ^= i ^ num
     return xor
 </code></pre>
+                <pre><code class="language-java">// Java
+public int missingNumber(int[] nums) {
+    int xor = nums.length;
+    for (int i = 0; i &lt; nums.length; i++) {
+        xor ^= i ^ nums[i];
+    }
+    return xor;
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int missingNumber(vector&lt;int&gt;&amp; nums) {
+    int xorVal = nums.size();
+    for (int i = 0; i &lt; (int)nums.size(); i++)
+        xorVal ^= i ^ nums[i];
+    return xorVal;
+}
+</code></pre>
 
                 <h4>LC #260: Single Number III (Two Unique Numbers)</h4>
                 <p>Every element appears twice except two elements a and b. XOR all gives <code>a ^ b</code>. Since a != b, at least one bit differs. Use any differing bit to partition all numbers into two groups; XOR within each group recovers a and b separately.</p>
-                <pre><code class="language-python">def single_number_iii(nums: list[int]) -&gt; list[int]:
+                <pre><code class="language-python"># Python
+def single_number_iii(nums: list[int]) -&gt; list[int]:
     xor_all = 0
     for n in nums:
         xor_all ^= n
@@ -288,6 +928,37 @@ def toggle_bit(n, i):
         else:
             b ^= n
     return [a, b]
+</code></pre>
+                <pre><code class="language-java">// Java
+public int[] singleNumberIII(int[] nums) {
+    int xorAll = 0;
+    for (int n : nums) xorAll ^= n;
+
+    // Lowest set bit of xorAll is a bit where the two unique nums differ
+    int diffBit = xorAll &amp; (-xorAll);
+
+    int a = 0, b = 0;
+    for (int n : nums) {
+        if ((n &amp; diffBit) != 0) a ^= n;
+        else b ^= n;
+    }
+    return new int[]{a, b};
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+vector&lt;int&gt; singleNumberIII(vector&lt;int&gt;&amp; nums) {
+    int xorAll = 0;
+    for (int n : nums) xorAll ^= n;
+
+    int diffBit = xorAll &amp; (-xorAll);
+
+    int a = 0, b = 0;
+    for (int n : nums) {
+        if (n &amp; diffBit) a ^= n;
+        else b ^= n;
+    }
+    return {a, b};
+}
 </code></pre>
                 <p><strong>Why the partition works:</strong> Every paired number has both copies in the same group (they share the same bit value at that position), so they cancel. The two unique numbers land in different groups because they differ at that bit.</p>
             </div>
@@ -307,46 +978,162 @@ def toggle_bit(n, i):
 
                 <h4>Enumerating Subsets with Bitmasks</h4>
                 <p>For a set of n elements, each subset maps to an n-bit number where bit i indicates whether element i is included. This gives a clean O(2<sup>n</sup>) enumeration. Common in DP on subsets (e.g., TSP, assignment problems).</p>
-                <pre><code class="language-python">def subsets(nums: list[int]) -&gt; list[list[int]]:
+
+                <!-- BITMASK SUBSET TREE VISUALIZATION -->
+                <div class="vis-box">
+                    <h5>Bitmask Subset Tree for {a, b, c}</h5>
+                    <p style="color:#94a3b8;font-size:0.82rem;margin-top:0;">Each level is a bit decision: include (1) or exclude (0). Leaf nodes show all 8 subsets.</p>
+                    <div class="subset-tree">
+                        <div class="tree-level">
+                            <div class="tree-node root">mask = ???<br><span style="font-size:0.7rem">decide bit c</span></div>
+                        </div>
+                        <div class="tree-connector">bit 2 (c): 0 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1</div>
+                        <div class="tree-level">
+                            <div class="tree-node mid1">0??<br>c excluded</div>
+                            <div class="tree-node mid1">1??<br>c included</div>
+                        </div>
+                        <div class="tree-connector">bit 1 (b): 0 &nbsp;&nbsp;&nbsp;&nbsp; 1 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 0 &nbsp;&nbsp;&nbsp;&nbsp; 1</div>
+                        <div class="tree-level">
+                            <div class="tree-node mid2">00?</div>
+                            <div class="tree-node mid2">01?</div>
+                            <div class="tree-node mid2">10?</div>
+                            <div class="tree-node mid2">11?</div>
+                        </div>
+                        <div class="tree-connector">bit 0 (a): 0 &nbsp; 1 &nbsp;&nbsp;&nbsp; 0 &nbsp; 1 &nbsp;&nbsp;&nbsp; 0 &nbsp; 1 &nbsp;&nbsp;&nbsp; 0 &nbsp; 1</div>
+                        <div class="tree-level">
+                            <div class="tree-node leaf">000<br>{}</div>
+                            <div class="tree-node leaf">001<br>{a}</div>
+                            <div class="tree-node leaf">010<br>{b}</div>
+                            <div class="tree-node leaf">011<br>{a,b}</div>
+                            <div class="tree-node leaf">100<br>{c}</div>
+                            <div class="tree-node leaf">101<br>{a,c}</div>
+                            <div class="tree-node leaf">110<br>{b,c}</div>
+                            <div class="tree-node leaf">111<br>{a,b,c}</div>
+                        </div>
+                    </div>
+                    <p style="color:#94a3b8;font-size:0.82rem;margin-top:8px;">Mask 0 (000) = empty set, mask 7 (111) = full set. Iterating mask from 0 to 2<sup>n</sup>-1 visits every subset exactly once.</p>
+                </div>
+
+                <pre><code class="language-python"># Python
+def subsets(nums: list[int]) -&gt; list[list[int]]:
     n = len(nums)
     result = []
     for mask in range(1 &lt;&lt; n):  # 0 to 2^n - 1
-        subset = []
-        for i in range(n):
-            if mask &amp; (1 &lt;&lt; i):
-                subset.append(nums[i])
+        subset = [nums[i] for i in range(n) if mask &amp; (1 &lt;&lt; i)]
         result.append(subset)
     return result
+</code></pre>
+                <pre><code class="language-java">// Java
+public List&lt;List&lt;Integer&gt;&gt; subsets(int[] nums) {
+    int n = nums.length;
+    List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+    for (int mask = 0; mask &lt; (1 &lt;&lt; n); mask++) {
+        List&lt;Integer&gt; subset = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; n; i++) {
+            if ((mask &amp; (1 &lt;&lt; i)) != 0) subset.add(nums[i]);
+        }
+        result.add(subset);
+    }
+    return result;
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+vector&lt;vector&lt;int&gt;&gt; subsets(vector&lt;int&gt;&amp; nums) {
+    int n = nums.size();
+    vector&lt;vector&lt;int&gt;&gt; result;
+    for (int mask = 0; mask &lt; (1 &lt;&lt; n); mask++) {
+        vector&lt;int&gt; subset;
+        for (int i = 0; i &lt; n; i++)
+            if (mask &amp; (1 &lt;&lt; i)) subset.push_back(nums[i]);
+        result.push_back(subset);
+    }
+    return result;
+}
 </code></pre>
 
                 <h4>LC #461: Hamming Distance</h4>
                 <p>The Hamming distance between two integers is the number of positions where their bits differ. XOR the two numbers (differing bits become 1), then count set bits.</p>
-                <pre><code class="language-python">def hamming_distance(x: int, y: int) -&gt; int:
+                <pre><code class="language-python"># Python
+def hamming_distance(x: int, y: int) -&gt; int:
     xor = x ^ y
     count = 0
     while xor:
-        xor &amp;= xor - 1  # Brian Kernighan
+        xor &amp;= xor - 1
         count += 1
     return count
+</code></pre>
+                <pre><code class="language-java">// Java
+public int hammingDistance(int x, int y) {
+    return Integer.bitCount(x ^ y);
+    // Integer.bitCount uses POPCNT hardware intrinsic on modern JVMs
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int hammingDistance(int x, int y) {
+    return __builtin_popcount(x ^ y);
+}
 </code></pre>
 
                 <h4>LC #190: Reverse Bits</h4>
                 <p>Reverse all 32 bits of a given unsigned integer. Process bit by bit from LSB to MSB.</p>
-                <pre><code class="language-python">def reverse_bits(n: int) -&gt; int:
+                <pre><code class="language-python"># Python
+def reverse_bits(n: int) -&gt; int:
     result = 0
     for _ in range(32):
         result = (result &lt;&lt; 1) | (n &amp; 1)
         n &gt;&gt;= 1
     return result
 </code></pre>
+                <pre><code class="language-java">// Java — note: parameter is int but treated as unsigned 32-bit
+public int reverseBits(int n) {
+    int result = 0;
+    for (int i = 0; i &lt; 32; i++) {
+        result = (result &lt;&lt; 1) | (n &amp; 1);
+        n &gt;&gt;&gt;= 1;  // &gt;&gt;&gt; is logical (unsigned) right shift — fills with 0
+    }
+    return result;
+}
+// Note: &gt;&gt;&gt; matters here because n may be "negative" (MSB set).
+// Using &gt;&gt; would sign-extend and produce wrong results.
+</code></pre>
+                <pre><code class="language-cpp">// C++
+uint32_t reverseBits(uint32_t n) {
+    uint32_t result = 0;
+    for (int i = 0; i &lt; 32; i++) {
+        result = (result &lt;&lt; 1) | (n &amp; 1);
+        n &gt;&gt;= 1;  // safe: uint32_t, logical right shift
+    }
+    return result;
+}
+// C++20: std::byteswap handles byte-level, but bit reversal needs a loop or
+// platform intrinsic (__builtin_bitreverse32 on some GCC versions)
+</code></pre>
 
                 <h4>LC #191: Number of 1 Bits</h4>
-                <pre><code class="language-python">def hamming_weight(n: int) -&gt; int:
+                <pre><code class="language-python"># Python
+def hamming_weight(n: int) -&gt; int:
     count = 0
     while n:
         n &amp;= n - 1
         count += 1
     return count
+</code></pre>
+                <pre><code class="language-java">// Java
+public int hammingWeight(int n) {
+    return Integer.bitCount(n);  // one-liner using built-in
+}
+// Manual version:
+public int hammingWeightManual(int n) {
+    int count = 0;
+    while (n != 0) { n &amp;= n - 1; count++; }
+    return count;
+}
+</code></pre>
+                <pre><code class="language-cpp">// C++
+int hammingWeight(uint32_t n) {
+    return __builtin_popcount(n);
+    // Manual: int c=0; while(n){ n&amp;=n-1; c++; } return c;
+}
 </code></pre>
             </div>
         </div>
@@ -363,12 +1150,85 @@ def toggle_bit(n, i):
             </div>
             <div class="collapsible-content">
 
-                <h4>Bloom Filters</h4>
-                <p>A bloom filter is a bit array of m bits with k hash functions. To add an element, set the k hash-indicated bits to 1. To query, check if all k bits are set. False positives are possible (all bits happen to be set by other elements), but false negatives are impossible. Used in databases (Cassandra, LevelDB) to avoid expensive disk reads for keys that definitely do not exist.</p>
+                <h4>Bloom Filters — Deep Dive</h4>
+                <p>A bloom filter is a space-efficient probabilistic data structure that answers membership queries. It uses a bit array of <strong>m</strong> bits with <strong>k</strong> independent hash functions.</p>
+                <ul>
+                    <li><strong>Insert:</strong> Hash the element k times, set each of the k bit positions to 1.</li>
+                    <li><strong>Query:</strong> Hash the element k times, check if all k positions are 1. If any is 0, definitely not present. If all are 1, probably present (may be a false positive).</li>
+                    <li><strong>False negatives: impossible.</strong> A set bit can never be unset.</li>
+                    <li><strong>False positives: possible.</strong> Multiple elements may set all bits at query positions.</li>
+                </ul>
+
+                <h5>The Math</h5>
+                <p>After inserting <strong>n</strong> elements into a filter with <strong>m</strong> bits and <strong>k</strong> hash functions, the false positive rate is approximately:</p>
+                <div style="background:#0f172a;border-radius:8px;padding:14px 18px;margin:10px 0;font-family:'Courier New',monospace;">
+                    <span style="color:#67e8f9;font-size:1.1rem;">FP rate ≈ (1 − e<sup>−kn/m</sup>)<sup>k</sup></span>
+                </div>
+                <p>The optimal number of hash functions (minimizes FP rate for fixed m and n) is:</p>
+                <div style="background:#0f172a;border-radius:8px;padding:14px 18px;margin:10px 0;font-family:'Courier New',monospace;">
+                    <span style="color:#fbbf24;font-size:1.05rem;">k<sub>opt</sub> = (m/n) × ln(2) ≈ 0.693 × (m/n)</span>
+                </div>
+                <p><strong>Real-world numbers:</strong> Apache Cassandra uses bloom filters with ~10 bits per element and 10 hash functions, yielding roughly 1% false positive rate. LevelDB uses them to skip SST files that do not contain a queried key. Google Bigtable uses them to avoid unnecessary disk reads entirely for non-existent rows.</p>
+
+                <!-- BLOOM FILTER CALCULATOR -->
+                <div id="bloom-calc" class="animated" role="region" aria-label="Bloom filter false positive rate calculator">
+                    <h5>False Positive Rate Calculator</h5>
+                    <div class="bloom-inputs">
+                        <div class="bloom-field">
+                            <label for="bloom-m">m — bit array size</label>
+                            <input type="number" id="bloom-m" value="1000" min="1">
+                        </div>
+                        <div class="bloom-field">
+                            <label for="bloom-k">k — hash functions</label>
+                            <input type="number" id="bloom-k" value="7" min="1">
+                        </div>
+                        <div class="bloom-field">
+                            <label for="bloom-n">n — elements inserted</label>
+                            <input type="number" id="bloom-n" value="100" min="1">
+                        </div>
+                    </div>
+                    <div class="bloom-result">
+                        <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:4px;">False Positive Rate</div>
+                        <div class="bloom-result-val" id="bloom-fp-val">—</div>
+                        <div class="bloom-result-sub" id="bloom-fp-sub"></div>
+                        <div class="bloom-optimal" id="bloom-optimal"></div>
+                    </div>
+                </div>
+
+                <pre><code class="language-python"># Simple Bloom Filter in Python
+import hashlib, math
+
+class BloomFilter:
+    def __init__(self, m: int, k: int):
+        self.m = m          # bit array size
+        self.k = k          # number of hash functions
+        self.bits = 0       # use a single Python integer as bit array
+
+    def _hash_positions(self, item: str):
+        positions = set()
+        for seed in range(self.k):
+            digest = hashlib.md5(f"{seed}:{item}".encode()).hexdigest()
+            positions.add(int(digest, 16) % self.m)
+        return positions
+
+    def add(self, item: str):
+        for pos in self._hash_positions(item):
+            self.bits |= (1 &lt;&lt; pos)
+
+    def __contains__(self, item: str) -&gt; bool:
+        return all((self.bits &gt;&gt; pos) &amp; 1 for pos in self._hash_positions(item))
+
+# Optimal parameters for 1% FP rate with 1000 elements:
+n = 1000
+fp_rate = 0.01
+m = int(-n * math.log(fp_rate) / (math.log(2) ** 2))  # ~9585 bits
+k = int(m / n * math.log(2))                           # ~7 functions
+print(f"Optimal: m={m}, k={k}")
+</code></pre>
 
                 <h4>Feature Flags &amp; Permissions</h4>
                 <p>Unix file permissions use 3 bits per user class: <code>rwx</code> = read (4), write (2), execute (1). Checking permissions is a single AND: <code>if (perms &amp; WRITE_BIT)</code>. This pattern scales to feature flags in applications where each bit represents a feature toggle.</p>
-                <pre><code class="language-python"># Permission flags
+                <pre><code class="language-python"># Python — Permission flags
 READ    = 0b100  # 4
 WRITE   = 0b010  # 2
 EXECUTE = 0b001  # 1
@@ -383,18 +1243,38 @@ user_perms |= EXECUTE   # 0b111 = 7
 # Revoke write
 user_perms &amp;= ~WRITE    # 0b101 = 5
 </code></pre>
+                <pre><code class="language-java">// Java — Permission flags (same pattern, different types)
+public class Permissions {
+    static final int READ    = 0b100;
+    static final int WRITE   = 0b010;
+    static final int EXECUTE = 0b001;
+
+    int perms = READ | WRITE;  // 6
+
+    boolean canRead()    { return (perms &amp; READ) != 0; }
+    boolean canWrite()   { return (perms &amp; WRITE) != 0; }
+    boolean canExecute() { return (perms &amp; EXECUTE) != 0; }
+
+    void grantExecute()  { perms |= EXECUTE; }
+    void revokeWrite()   { perms &amp;= ~WRITE; }
+
+    // For 64 features: use long instead of int (64-bit flags)
+    // For &gt;64 features: use java.util.BitSet or EnumSet
+}
+</code></pre>
 
                 <h4>Language Gotchas</h4>
                 <table>
-                    <thead><tr><th>Topic</th><th>Python</th><th>Java / C++</th></tr></thead>
+                    <thead><tr><th>Topic</th><th>Python</th><th>Java</th><th>C++</th></tr></thead>
                     <tbody>
-                        <tr><td>Integer width</td><td>Arbitrary precision (no overflow)</td><td>Fixed 32/64-bit (overflow wraps)</td></tr>
-                        <tr><td>Right shift of negatives</td><td>Arithmetic (sign-extending, infinite width)</td><td>Java: <code>&gt;&gt;</code> arithmetic, <code>&gt;&gt;&gt;</code> logical. C++: implementation-defined before C++20</td></tr>
-                        <tr><td>Bitwise NOT</td><td><code>~5</code> = -6 (arbitrary precision means infinite leading 1s)</td><td><code>~5</code> = -6 within fixed width</td></tr>
-                        <tr><td>Mask to 32 bits</td><td><code>n &amp; 0xFFFFFFFF</code></td><td>Automatic</td></tr>
+                        <tr><td>Integer width</td><td>Arbitrary precision (no overflow)</td><td>int = 32-bit, long = 64-bit (fixed, wraps)</td><td>int = typically 32-bit; use int32_t/uint32_t for portability</td></tr>
+                        <tr><td>Right shift of negatives</td><td>Arithmetic (sign-extending)</td><td><code>&gt;&gt;</code> arithmetic; <code>&gt;&gt;&gt;</code> logical (unsigned)</td><td>Signed: implementation-defined pre-C++20; unsigned: always logical</td></tr>
+                        <tr><td>Bitwise NOT</td><td><code>~5 = -6</code> (infinite leading 1s)</td><td><code>~5 = -6</code> within 32 bits</td><td><code>~5 = -6</code> for int32_t; <code>~5u = 0xFFFFFFFA</code> for uint32_t</td></tr>
+                        <tr><td>Mask to 32 bits</td><td><code>n &amp; 0xFFFFFFFF</code></td><td>Automatic</td><td>Use uint32_t or cast</td></tr>
+                        <tr><td>popcount</td><td><code>n.bit_count()</code> (3.10+)</td><td><code>Integer.bitCount(n)</code></td><td><code>__builtin_popcount(n)</code> / C++20 <code>std::popcount</code></td></tr>
                     </tbody>
                 </table>
-                <p><strong>Interview tip:</strong> If you are coding in Python and the problem specifies 32-bit integers, always mask your final result with <code>0xFFFFFFFF</code> and handle the sign bit manually to match expected output.</p>
+                <p><strong>Interview tip:</strong> If you are coding in Python and the problem specifies 32-bit integers, always mask your final result with <code>0xFFFFFFFF</code> and handle the sign bit manually to match expected output. In Java, always use <code>&gt;&gt;&gt;</code> (not <code>&gt;&gt;</code>) when right-shifting values that might have the MSB set (e.g., LC #190 Reverse Bits).</p>
             </div>
         </div>
 
@@ -415,7 +1295,7 @@ user_perms &amp;= ~WRITE    # 0b101 = 5
                         <tr><td>136</td><td>Single Number</td><td>Easy</td><td>XOR cancellation</td><td>XOR all elements; pairs cancel</td></tr>
                         <tr><td>268</td><td>Missing Number</td><td>Easy</td><td>XOR cancellation</td><td>XOR indices with values</td></tr>
                         <tr><td>191</td><td>Number of 1 Bits</td><td>Easy</td><td>Bit counting</td><td>Brian Kernighan: n &amp; (n-1)</td></tr>
-                        <tr><td>190</td><td>Reverse Bits</td><td>Easy</td><td>Bit traversal</td><td>Build result LSB to MSB</td></tr>
+                        <tr><td>190</td><td>Reverse Bits</td><td>Easy</td><td>Bit traversal</td><td>Build result LSB to MSB; use &gt;&gt;&gt; in Java</td></tr>
                         <tr><td>231</td><td>Power of Two</td><td>Easy</td><td>Bit property</td><td>n &amp; (n-1) == 0</td></tr>
                         <tr><td>461</td><td>Hamming Distance</td><td>Easy</td><td>XOR + counting</td><td>XOR then count set bits</td></tr>
                         <tr><td>338</td><td>Counting Bits</td><td>Easy</td><td>DP + bits</td><td>dp[i] = dp[i &amp; (i-1)] + 1</td></tr>
@@ -432,6 +1312,159 @@ user_perms &amp;= ~WRITE    # 0b101 = 5
         </div>
 
         <!-- ============================================================ -->
+        <!-- SECTION 7: Interview Follow-Up Questions                      -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">7. Interview Follow-Up Questions</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Questions Interviewers Ask After Your Initial Solution</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Once you solve a bit manipulation problem, a strong interviewer will probe your depth. Here are the most common follow-ups and strong answers.</p>
+
+                <div class="card" style="margin-bottom:14px;">
+                    <h4 style="margin-top:0;color:#a78bfa;">How would you count set bits in O(1)?</h4>
+                    <p><strong>Hint: lookup table or hardware instruction.</strong></p>
+                    <p>For small inputs (8-bit), precompute a lookup table of 256 entries (0–255) where each entry stores the popcount for that byte value. For a 32-bit integer, split into four bytes and sum: <code>table[n &amp; 0xFF] + table[(n&gt;&gt;8) &amp; 0xFF] + ...</code>. This is O(1) time with O(256) = O(1) space after setup.</p>
+                    <p>In practice, modern CPUs have a <code>POPCNT</code> hardware instruction. Java's <code>Integer.bitCount()</code> and C++'s <code>__builtin_popcount()</code> both compile to a single CPU instruction on x86-64 — true hardware O(1).</p>
+                </div>
+
+                <div class="card" style="margin-bottom:14px;">
+                    <h4 style="margin-top:0;color:#a78bfa;">What is the difference between signed and unsigned right shift in Java? When does it matter?</h4>
+                    <p><code>&gt;&gt;</code> (arithmetic): preserves the sign bit; shifting -8 right by 1 gives -4. Used for division by powers of 2 on signed integers.</p>
+                    <p><code>&gt;&gt;&gt;</code> (logical/unsigned): fills with 0 regardless of sign. Shifting -8 (<code>0xFFFFFFF8</code>) right by 1 gives <code>0x7FFFFFFC</code> = 2147483644.</p>
+                    <p><strong>When it matters:</strong> LC #190 (Reverse Bits) processes bits of the input integer as if they were unsigned. Using <code>&gt;&gt;</code> on a negative input would sign-extend and pollute the upper bits of the result. Always use <code>&gt;&gt;&gt;</code> when treating Java ints as raw bit patterns. The same issue affects rolling hash problems where the window value may exceed <code>Integer.MAX_VALUE</code>.</p>
+                </div>
+
+                <div class="card" style="margin-bottom:14px;">
+                    <h4 style="margin-top:0;color:#a78bfa;">How would you implement addition without the + operator using bit manipulation?</h4>
+                    <p>Use the ripple-carry adder model: <code>sum = a ^ b</code> gives bits that are different (no carry), and <code>carry = (a &amp; b) &lt;&lt; 1</code> gives bits that need to be carried. Repeat with <code>a = sum, b = carry</code> until carry is 0.</p>
+                    <pre><code class="language-python">def add_no_plus(a: int, b: int) -&gt; int:
+    mask = 0xFFFFFFFF  # simulate 32-bit
+    while b &amp; mask:
+        carry = (a &amp; b) &lt;&lt; 1
+        a = a ^ b
+        b = carry
+    # Handle Python's arbitrary precision for negative results
+    return (a &amp; mask) if (a &amp; 0x80000000) else a
+</code></pre>
+                </div>
+
+                <div class="card" style="margin-bottom:14px;">
+                    <h4 style="margin-top:0;color:#a78bfa;">Can you use bit manipulation to solve the Power Set problem? How does it compare to backtracking?</h4>
+                    <p><strong>Bitmask approach:</strong> Iterate mask from 0 to 2<sup>n</sup>−1. For each mask, the bits indicate which elements are included. O(n·2<sup>n</sup>) time, same as backtracking.</p>
+                    <p><strong>Trade-offs vs backtracking:</strong></p>
+                    <ul>
+                        <li>Bitmask is iterative (no recursion overhead, no stack depth concerns), easier to parallelize.</li>
+                        <li>Backtracking is more flexible for pruning (e.g., constraint satisfaction) and handles n &gt; 64 without needing BigInteger.</li>
+                        <li>Bitmask becomes impractical at n &gt; ~30 due to memory; backtracking can generate subsets lazily via a generator.</li>
+                    </ul>
+                    <p>Interviewers want you to articulate the trade-offs, not just say "both are O(2<sup>n</sup>)".</p>
+                </div>
+
+                <div class="card" style="margin-bottom:14px;">
+                    <h4 style="margin-top:0;color:#a78bfa;">Why are Bloom filters used in databases like Cassandra and LevelDB?</h4>
+                    <p>These databases use LSM (Log-Structured Merge) trees or SSTables where data is spread across multiple disk files. A point lookup for a key might require reading many files to determine the key does not exist — a very expensive I/O operation.</p>
+                    <p>Bloom filters act as a fast "definitely not here" gate before any disk I/O. Each SST file has its own filter. On a read: check the in-memory bloom filter first. If the filter says "no", skip the file entirely. If it says "maybe", do the disk read. With a 1% FP rate and 10 bits per element, you eliminate &gt;99% of unnecessary disk reads with negligible memory overhead (1.25 bytes per element for 10 bits).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 8: Flashcards                                         -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">8. Flashcards</h2>
+        <p style="color:#94a3b8;">Click each card to reveal the answer. Use these for spaced repetition practice.</p>
+
+        <div class="flashcard-grid">
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: n and (n-1)">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q1</div>
+                        <div class="flashcard-text">What does <code>n &amp; (n-1)</code> do?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A1</div>
+                        <div class="flashcard-text">Clears the lowest set bit. Used in Brian Kernighan's algorithm (count set bits in O(k) iterations) and power-of-2 check (<code>n &gt; 0 &amp;&amp; (n &amp; (n-1)) == 0</code>).</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: n and negative n">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q2</div>
+                        <div class="flashcard-text">What does <code>n &amp; (-n)</code> do?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A2</div>
+                        <div class="flashcard-text">Isolates the lowest set bit. Used in Fenwick Trees (Binary Indexed Trees) and Single Number III to split groups by any differing bit.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: XOR unique number">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q3</div>
+                        <div class="flashcard-text">Why does XOR-ing all elements find the single unique number?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A3</div>
+                        <div class="flashcard-text">XOR is self-inverse (<code>a^a=0</code>) and associative. All paired elements cancel out (<code>a^a=0</code>), and XOR with 0 is identity (<code>a^0=a</code>), leaving only the unique element.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: Single Number III">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q4</div>
+                        <div class="flashcard-text">How does Single Number III separate two unique numbers?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A4</div>
+                        <div class="flashcard-text">XOR all gives <code>a^b</code>. Isolate any differing bit (use <code>(a^b) &amp; (-(a^b))</code>). Partition all numbers by that bit — pairs stay together (both copies in same group), so a and b land in different groups. XOR each group to recover them.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: Python 32-bit masking">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q5</div>
+                        <div class="flashcard-text">Why must you mask to 32 bits in Python for bit manipulation problems?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A5</div>
+                        <div class="flashcard-text">Python has arbitrary-precision integers, so <code>~5 = -6</code> with infinite leading 1s — not 32-bit two's complement. Mask with <code>0xFFFFFFFF</code> to simulate 32-bit behavior. Also convert back to signed: <code>if result &gt; 0x7FFFFFFF: result -= 0x100000000</code>.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flashcard" onclick="this.classList.toggle('flipped')" role="button" aria-label="Flashcard: Bloom filter FP rate">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="flashcard-q">Q6</div>
+                        <div class="flashcard-text">What is the false positive rate formula for a Bloom filter?</div>
+                        <div class="flashcard-hint">Click to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="flashcard-q">A6</div>
+                        <div class="flashcard-text">Approximately <code>(1 − e<sup>−kn/m</sup>)<sup>k</sup></code> where k = hash functions, n = elements inserted, m = bit array size. Optimal k = (m/n)·ln(2) ≈ 0.693·(m/n). For 1% FP rate: ~10 bits/element, ~7 hash functions.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
         <!-- Quiz Section                                                  -->
         <!-- ============================================================ -->
         <h2 class="mt-4">Self-Check Quiz</h2>
@@ -442,100 +1475,266 @@ user_perms &amp;= ~WRITE    # 0b101 = 5
         <!-- ============================================================ -->
         <div class="flex flex-between mt-4">
             <a href="module-12.html" class="btn btn-secondary">&larr; Module 12</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <a href="module-14.html" class="btn btn-primary">Module 14 &rarr;</a>
         </div>
         </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-cpp.min.js"></script>
     <script src="../assets/js/app.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Mermaid
-            mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    // ================================================================
+    // Interactive Bit Visualizer
+    // ================================================================
+    (function () {
+        const numAInput = document.getElementById('bv-num-a');
+        const numBInput = document.getElementById('bv-num-b');
+        const cellsAEl  = document.getElementById('bv-cells-a');
+        const cellsBEl  = document.getElementById('bv-cells-b');
+        const decAEl    = document.getElementById('bv-dec-a');
+        const decBEl    = document.getElementById('bv-dec-b');
+        const opsGrid   = document.getElementById('bv-ops-grid');
 
-            // Sidebar toggle for mobile
-            const sidebar = document.getElementById('sidebar');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const sidebarOverlay = document.getElementById('sidebarOverlay');
+        let valA = 42, valB = 15;
 
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('open');
-                sidebarOverlay.classList.toggle('open');
+        function clamp(n) {
+            // Keep as 8-bit unsigned for display purposes
+            return ((n % 256) + 256) % 256;
+        }
+
+        function toBits8(n) {
+            n = clamp(n);
+            const bits = [];
+            for (let i = 7; i >= 0; i--) bits.push((n >> i) & 1);
+            return bits;
+        }
+
+        function buildCells(container, value, onToggle) {
+            container.innerHTML = '';
+            const bits = toBits8(value);
+            bits.forEach((bit, idx) => {
+                const cell = document.createElement('div');
+                cell.className = 'bit-cell' + (bit ? ' set' : '');
+                cell.textContent = bit;
+                cell.title = `Bit ${7 - idx} (value ${1 << (7 - idx)})`;
+                cell.addEventListener('click', () => {
+                    const bitPos = 7 - idx;
+                    onToggle(bitPos);
+                });
+                container.appendChild(cell);
             });
+        }
 
-            sidebarOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('open');
-                sidebarOverlay.classList.remove('open');
-            });
+        function toSignedDisplay(n8) {
+            // Display as signed if bit 7 is set
+            return n8 >= 128 ? n8 - 256 : n8;
+        }
 
-            // Update sidebar links based on completion status
-            document.querySelectorAll('.sidebar-link[data-module]').forEach(link => {
-                const moduleNum = parseInt(link.dataset.module);
-                if (StaffEngPrep.ProgressTracker.isModuleComplete('coding', moduleNum)) {
-                    link.classList.add('completed');
-                }
-            });
+        function pad8(n) {
+            return toBits8(n).join('');
+        }
 
-            // Quiz
-            const quizQuestions = [
-                {
-                    question: "What does n & (n - 1) do?",
-                    options: [
-                        "Isolates the lowest set bit",
-                        "Clears the lowest set bit",
-                        "Sets the lowest clear bit",
-                        "Counts the number of set bits"
-                    ],
-                    correct: 1,
-                    explanation: "Subtracting 1 flips the lowest set bit and all bits below it. ANDing with the original clears the lowest set bit while leaving all higher bits unchanged."
-                },
-                {
-                    question: "In Single Number III (#260), why do we isolate a differing bit between the two unique numbers?",
-                    options: [
-                        "To determine which number is larger",
-                        "To partition all numbers into two groups so each unique number is in a different group",
-                        "To count the total number of set bits",
-                        "To convert the problem to Single Number II"
-                    ],
-                    correct: 1,
-                    explanation: "The differing bit splits numbers into two groups. Paired numbers always land in the same group (both have the same bit value), so XOR within each group isolates one unique number."
-                },
-                {
-                    question: "What is the result of n & (-n)?",
-                    options: [
-                        "Always 0",
-                        "n with all bits flipped",
-                        "A number with only the lowest set bit of n",
-                        "n divided by 2"
-                    ],
-                    correct: 2,
-                    explanation: "Negating n (two's complement: ~n + 1) flips all bits above the lowest set bit and preserves the lowest set bit. ANDing with original keeps only that bit."
-                },
-                {
-                    question: "In Python, what is the value of ~5?",
-                    options: ["-5", "-6", "4", "250"],
-                    correct: 1,
-                    explanation: "In Python, ~x == -(x+1) for all integers. So ~5 = -6. This follows from two's complement: ~x + 1 = -x, therefore ~x = -x - 1 = -(x+1)."
-                },
-                {
-                    question: "How many iterations does Brian Kernighan's algorithm take for n = 40 (binary 101000)?",
-                    options: ["6 (number of bits)", "40", "2 (number of set bits)", "5"],
-                    correct: 2,
-                    explanation: "Brian Kernighan's algorithm iterates once per set bit. 40 in binary is 101000 which has exactly 2 set bits, so it takes 2 iterations."
-                }
+        function renderOps() {
+            const a = clamp(valA), b = clamp(valB);
+            const ops = [
+                { name: 'A AND B', sym: '&amp;',  val: a & b },
+                { name: 'A OR B',  sym: '|',  val: a | b },
+                { name: 'A XOR B', sym: '^',  val: a ^ b },
+                { name: 'NOT A',   sym: '~',  val: (~a) & 0xFF },
+                { name: 'NOT B',   sym: '~',  val: (~b) & 0xFF },
+                { name: 'A &lt;&lt; 1', sym: '&lt;&lt;', val: (a << 1) & 0xFF },
+                { name: 'A &gt;&gt; 1', sym: '&gt;&gt;', val: (a >> 1) & 0xFF },
+                { name: 'A &amp; (A-1)', sym: '', val: (a & (a - 1)) & 0xFF },
+                { name: 'A &amp; (-A)', sym: '', val: (a & (-a)) & 0xFF },
             ];
 
-            const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
-            quiz.render();
+            opsGrid.innerHTML = '';
+            ops.forEach(op => {
+                const card = document.createElement('div');
+                card.className = 'bv-op-card';
+                card.innerHTML = `
+                    <div class="bv-op-name">${op.name}</div>
+                    <div class="bv-op-bits">${pad8(op.val)}</div>
+                    <div class="bv-op-dec">= ${toSignedDisplay(op.val)} (${op.val} unsigned)</div>
+                `;
+                opsGrid.appendChild(card);
+            });
+        }
+
+        function render() {
+            valA = clamp(parseInt(numAInput.value) || 0);
+            valB = clamp(parseInt(numBInput.value) || 0);
+
+            buildCells(cellsAEl, valA, (bitPos) => {
+                valA ^= (1 << bitPos);
+                numAInput.value = valA;
+                render();
+            });
+            buildCells(cellsBEl, valB, (bitPos) => {
+                valB ^= (1 << bitPos);
+                numBInput.value = valB;
+                render();
+            });
+
+            decAEl.textContent = toSignedDisplay(valA) + ' (' + pad8(valA) + ')';
+            decBEl.textContent = toSignedDisplay(valB) + ' (' + pad8(valB) + ')';
+            renderOps();
+        }
+
+        numAInput.addEventListener('input', render);
+        numBInput.addEventListener('input', render);
+        render();
+    })();
+
+    // ================================================================
+    // Bloom Filter Calculator
+    // ================================================================
+    (function () {
+        const mInput  = document.getElementById('bloom-m');
+        const kInput  = document.getElementById('bloom-k');
+        const nInput  = document.getElementById('bloom-n');
+        const fpVal   = document.getElementById('bloom-fp-val');
+        const fpSub   = document.getElementById('bloom-fp-sub');
+        const optEl   = document.getElementById('bloom-optimal');
+
+        function calcFP() {
+            const m = parseFloat(mInput.value) || 1;
+            const k = parseFloat(kInput.value) || 1;
+            const n = parseFloat(nInput.value) || 1;
+
+            // FP rate = (1 - e^(-k*n/m))^k
+            const fp = Math.pow(1 - Math.exp(-k * n / m), k);
+            const pct = (fp * 100).toFixed(4);
+            fpVal.textContent = pct + '%';
+
+            // Contextual message
+            if (fp < 0.001) fpSub.textContent = 'Excellent — less than 0.1% false positive rate';
+            else if (fp < 0.01) fpSub.textContent = 'Good — Cassandra-class performance (~1%)';
+            else if (fp < 0.1) fpSub.textContent = 'Acceptable for many use cases';
+            else fpSub.textContent = 'High false positive rate — increase m or adjust k';
+
+            // Optimal k
+            const kOpt = (m / n) * Math.LN2;
+            optEl.textContent = `Optimal k for these m and n: ${kOpt.toFixed(2)} ` +
+                                `(set k=${Math.round(kOpt)} for minimum FP rate)`;
+        }
+
+        mInput.addEventListener('input', calcFP);
+        kInput.addEventListener('input', calcFP);
+        nInput.addEventListener('input', calcFP);
+        calcFP();
+    })();
+
+    // ================================================================
+    // Page Init (sidebar, collapsibles, progress, quiz)
+    // ================================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+        const sidebar        = document.getElementById('sidebar');
+        const sidebarToggle  = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            sidebarOverlay.classList.toggle('open');
         });
 
-        function completeModule() {
-            StaffEngPrep.ProgressTracker.markModuleComplete('coding', 13);
-            alert('Module 13 marked as complete!');
-            window.location.href = 'module-14.html';
-        }
+        sidebarOverlay.addEventListener('click', function() {
+            sidebar.classList.remove('open');
+            sidebarOverlay.classList.remove('open');
+        });
+
+        document.querySelectorAll('.sidebar-link[data-module]').forEach(link => {
+            const moduleNum = parseInt(link.dataset.module);
+            if (StaffEngPrep.ProgressTracker.isModuleComplete('coding', moduleNum)) {
+                link.classList.add('completed');
+            }
+        });
+
+        // Quiz
+        const quizQuestions = [
+            {
+                question: "What does n & (n - 1) do?",
+                options: [
+                    "Isolates the lowest set bit",
+                    "Clears the lowest set bit",
+                    "Sets the lowest clear bit",
+                    "Counts the number of set bits"
+                ],
+                correct: 1,
+                explanation: "Subtracting 1 flips the lowest set bit and all bits below it. ANDing with the original clears the lowest set bit while leaving all higher bits unchanged."
+            },
+            {
+                question: "In Single Number III (#260), why do we isolate a differing bit between the two unique numbers?",
+                options: [
+                    "To determine which number is larger",
+                    "To partition all numbers into two groups so each unique number is in a different group",
+                    "To count the total number of set bits",
+                    "To convert the problem to Single Number II"
+                ],
+                correct: 1,
+                explanation: "The differing bit splits numbers into two groups. Paired numbers always land in the same group (both have the same bit value), so XOR within each group isolates one unique number."
+            },
+            {
+                question: "What is the result of n & (-n)?",
+                options: [
+                    "Always 0",
+                    "n with all bits flipped",
+                    "A number with only the lowest set bit of n",
+                    "n divided by 2"
+                ],
+                correct: 2,
+                explanation: "Negating n (two's complement: ~n + 1) flips all bits above the lowest set bit and preserves the lowest set bit. ANDing with original keeps only that bit."
+            },
+            {
+                question: "In Python, what is the value of ~5?",
+                options: ["-5", "-6", "4", "250"],
+                correct: 1,
+                explanation: "In Python, ~x == -(x+1) for all integers. So ~5 = -6. This follows from two's complement: ~x + 1 = -x, therefore ~x = -x - 1 = -(x+1)."
+            },
+            {
+                question: "How many iterations does Brian Kernighan's algorithm take for n = 40 (binary 101000)?",
+                options: ["6 (number of bits)", "40", "2 (number of set bits)", "5"],
+                correct: 2,
+                explanation: "Brian Kernighan's algorithm iterates once per set bit. 40 in binary is 101000 which has exactly 2 set bits, so it takes 2 iterations."
+            },
+            {
+                question: "In Java, when should you use >>> instead of >> for right shift?",
+                options: [
+                    "Always; >>> is always faster",
+                    "When shifting positive integers only",
+                    "When treating the int as an unsigned bit pattern (e.g., LC #190 Reverse Bits)",
+                    "Never; >> is sufficient for all cases"
+                ],
+                correct: 2,
+                explanation: ">> is arithmetic (sign-extending); >>> is logical (fills with 0). Use >>> when the integer represents a raw bit pattern, not a signed value — e.g., Reverse Bits. Using >> on a negative input would sign-extend and corrupt the result."
+            },
+            {
+                question: "What is the optimal number of hash functions k for a Bloom filter with m bits and n elements?",
+                options: [
+                    "k = n",
+                    "k = m/n",
+                    "k = (m/n) * ln(2)",
+                    "k = sqrt(m)"
+                ],
+                correct: 2,
+                explanation: "The optimal k that minimizes false positive rate is k = (m/n) * ln(2) ≈ 0.693 * (m/n). With ~10 bits per element and k≈7, you achieve roughly 1% FP rate."
+            }
+        ];
+
+        const quiz = new StaffEngPrep.Quiz('module-quiz', quizQuestions);
+        quiz.render();
+    });
+
+    function completeModule() {
+        StaffEngPrep.ProgressTracker.markModuleComplete('coding', 13);
+        alert('Module 13 marked as complete!');
+        window.location.href = 'module-14.html';
+    }
     </script>
     <script src="../assets/js/navbar.js"></script>
 </body>

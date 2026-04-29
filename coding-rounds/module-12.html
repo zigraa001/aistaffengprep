@@ -7,6 +7,254 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* ── Interval Merge Visualizer ─────────────────────────────────── */
+        .viz-container {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            color: #e0e0e0;
+            font-family: monospace;
+        }
+        .viz-title {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #a78bfa;
+            margin-bottom: 16px;
+            letter-spacing: 0.5px;
+        }
+        .timeline-wrapper {
+            position: relative;
+            height: 120px;
+            margin: 12px 0 8px;
+        }
+        .timeline-axis {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #374151;
+        }
+        .timeline-tick {
+            position: absolute;
+            bottom: 0;
+            width: 1px;
+            background: #4b5563;
+            height: 8px;
+            transform: translateX(-50%);
+        }
+        .timeline-label {
+            position: absolute;
+            bottom: -22px;
+            font-size: 0.72rem;
+            color: #9ca3af;
+            transform: translateX(-50%);
+        }
+        .interval-bar {
+            position: absolute;
+            height: 22px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 600;
+            transition: all 0.4s ease;
+            cursor: default;
+            border: 2px solid transparent;
+        }
+        .interval-bar.pending  { background: #334155; border-color: #475569; color: #94a3b8; }
+        .interval-bar.active   { background: #7c3aed; border-color: #a78bfa; color: #fff; box-shadow: 0 0 12px #7c3aedaa; }
+        .interval-bar.merged   { background: #065f46; border-color: #10b981; color: #6ee7b7; }
+        .interval-bar.current  { background: #1e3a5f; border-color: #60a5fa; color: #93c5fd; }
+        .interval-bar.removed  { opacity: 0.3; }
+        .viz-status {
+            min-height: 44px;
+            padding: 10px 14px;
+            background: #0f172a;
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-size: 0.85rem;
+            margin-top: 40px;
+            border-left: 3px solid #7c3aed;
+        }
+        .viz-controls { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+        .viz-btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .viz-btn:hover { opacity: 0.85; }
+        .viz-btn.step    { background: #7c3aed; color: #fff; }
+        .viz-btn.animate { background: #0ea5e9; color: #fff; }
+        .viz-btn.reset   { background: #374151; color: #e2e8f0; }
+        .viz-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 0.78rem; }
+        .viz-legend-item { display: flex; align-items: center; gap: 6px; color: #9ca3af; }
+        .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+
+        /* ── Jump Game Reachability Diagram ───────────────────────────── */
+        .jump-diagram {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 22px;
+            margin: 18px 0;
+            color: #e0e0e0;
+        }
+        .jump-array { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+        .jump-cell {
+            width: 54px;
+            height: 54px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border: 2px solid transparent;
+        }
+        .jump-cell .cell-idx { font-size: 0.65rem; color: #9ca3af; font-weight: 400; margin-top: 2px; }
+        .jump-cell.reachable-0 { background: #1e3a5f; border-color: #3b82f6; color: #93c5fd; }
+        .jump-cell.reachable-1 { background: #14532d; border-color: #22c55e; color: #86efac; }
+        .jump-cell.reachable-2 { background: #713f12; border-color: #f59e0b; color: #fcd34d; }
+        .jump-cell.unreachable  { background: #2d1f1f; border-color: #ef4444; color: #fca5a5; }
+        .jump-arrows { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .jump-level-label {
+            font-size: 0.78rem;
+            color: #9ca3af;
+            margin-bottom: 4px;
+        }
+
+        /* ── Task Scheduler Grid ──────────────────────────────────────── */
+        .task-grid-viz {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 22px;
+            margin: 18px 0;
+        }
+        .task-grid-title { color: #a78bfa; font-weight: 700; margin-bottom: 14px; font-size: 0.95rem; }
+        .task-row { display: flex; gap: 6px; margin-bottom: 8px; align-items: center; }
+        .task-slot {
+            width: 46px;
+            height: 36px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .task-slot.task-A { background: #7c3aed; color: #fff; }
+        .task-slot.task-B { background: #0ea5e9; color: #fff; }
+        .task-slot.task-C { background: #10b981; color: #fff; }
+        .task-slot.task-idle { background: #1e293b; color: #475569; border: 1px dashed #374151; font-size: 0.75rem; }
+        .task-frame-label { font-size: 0.75rem; color: #6b7280; margin-left: 8px; }
+
+        /* ── Greedy vs DP Flowchart ───────────────────────────────────── */
+        .flowchart {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 18px 0;
+            color: #e0e0e0;
+        }
+        .fc-row { display: flex; align-items: center; justify-content: center; gap: 0; margin: 0; flex-wrap: wrap; }
+        .fc-node {
+            padding: 10px 16px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 0.82rem;
+            font-weight: 600;
+            min-width: 160px;
+            max-width: 200px;
+        }
+        .fc-node.question { background: #1e3a5f; border: 2px solid #3b82f6; color: #93c5fd; }
+        .fc-node.greedy   { background: #14532d; border: 2px solid #22c55e; color: #86efac; }
+        .fc-node.dp       { background: #7c2d12; border: 2px solid #f97316; color: #fdba74; }
+        .fc-node.check    { background: #4c1d95; border: 2px solid #a78bfa; color: #ddd6fe; }
+        .fc-arrow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 6px;
+            min-width: 60px;
+        }
+        .fc-arrow-line { width: 40px; height: 2px; background: #4b5563; }
+        .fc-arrow-head { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #4b5563; }
+        .fc-arrow-label { font-size: 0.72rem; color: #9ca3af; margin-bottom: 2px; }
+        .fc-arrow-v { display: flex; flex-direction: column; align-items: center; margin: 2px 0; }
+        .fc-arrow-v-line { width: 2px; height: 28px; background: #4b5563; }
+
+        /* ── Exchange Argument Math ───────────────────────────────────── */
+        .math-block {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.84rem;
+            color: #e2e8f0;
+            line-height: 1.8;
+        }
+        .math-block .step-num {
+            color: #a78bfa;
+            font-weight: 700;
+        }
+        .math-block .highlight {
+            color: #34d399;
+            font-weight: 600;
+        }
+
+        /* ── Flashcards ───────────────────────────────────────────────── */
+        .flashcard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px; }
+        .flashcard {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 18px;
+            cursor: pointer;
+            position: relative;
+            min-height: 120px;
+            transition: border-color 0.2s;
+        }
+        .flashcard:hover { border-color: #7c3aed; }
+        .flashcard .fc-front { color: #93c5fd; font-size: 0.88rem; font-weight: 600; }
+        .flashcard .fc-back  { color: #86efac; font-size: 0.84rem; margin-top: 12px; display: none; border-top: 1px solid #334155; padding-top: 12px; line-height: 1.6; }
+        .flashcard.revealed .fc-back { display: block; }
+        .flashcard .fc-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 0.68rem;
+            background: #4c1d95;
+            color: #c4b5fd;
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        .flashcard-hint { font-size: 0.78rem; color: #6b7280; margin-bottom: 8px; }
+
+        /* ── Interview Follow-ups ─────────────────────────────────────── */
+        .followup-item {
+            background: #0f172a;
+            border-left: 3px solid #a78bfa;
+            padding: 14px 16px;
+            margin: 10px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .followup-item .fq { color: #c4b5fd; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; }
+        .followup-item .fa { color: #9ca3af; font-size: 0.85rem; line-height: 1.6; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .interval-bar, .viz-btn { transition: none !important; }
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
@@ -104,6 +352,7 @@
                 <li>Master interval scheduling patterns: merge, remove overlap, meeting rooms</li>
                 <li>Solve classic greedy problems: jump game, gas station, task scheduler</li>
                 <li>Apply the exchange argument to prove greedy correctness</li>
+                <li>Recognize greedy in real-world systems (Huffman, Dijkstra, TCP)</li>
                 <li>Recognize greedy in graph algorithms (MST overview)</li>
             </ul>
         </div>
@@ -141,6 +390,103 @@
             </div>
         </div>
 
+        <!-- ── Exchange Argument Deep Dive ─────────────────────────────── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Exchange Argument Walkthrough: Activity Selection Proof</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Let's walk through a rigorous exchange argument for the activity selection problem. We want to prove: <em>always picking the earliest-finishing compatible activity produces a maximum-size set.</em></p>
+
+                <p><strong>Setup:</strong> Activities sorted by finish time: a&#8321; &le; a&#8322; &le; ... &le; a&#8345; (by finish time f&#8321; &le; f&#8322; &le; ... &le; f&#8345;). Let G = {g&#8321;, g&#8322;, ...} be greedy's solution and O* = {o&#8321;, o&#8322;, ...} be any optimal solution, both sorted by start time.</p>
+
+                <div class="math-block">
+<span class="step-num">Step 1 — Existence of a swap.</span>
+Suppose |O*| &gt; |G| (contradiction hypothesis).
+Let k be the first index where G and O* differ:
+  g&#8321;=o&#8321;, g&#8322;=o&#8322;, ..., g&#8337;&#8331;&#8321;=o&#8337;&#8331;&#8321;, but g&#8337; &ne; o&#8337;.
+
+<span class="step-num">Step 2 — Greedy finishes no later.</span>
+By greedy's rule, g&#8337; is the earliest-finishing activity compatible
+with {g&#8321;...g&#8337;&#8331;&#8321;}, so:
+  <span class="highlight">f(g&#8337;) &le; f(o&#8337;)</span>
+
+<span class="step-num">Step 3 — The swap is valid.</span>
+Construct O' = (O* \ {o&#8337;}) &#8746; {g&#8337;}.
+  - g&#8337; starts after f(g&#8337;&#8331;&#8321;) = f(o&#8337;&#8331;&#8321;) — compatible with prefix.
+  - o&#8337;&#8330;&#8321; starts after f(o&#8337;) &ge; f(g&#8337;) — so g&#8337; doesn't conflict with suffix.
+  Therefore O' is a valid compatible set.
+
+<span class="step-num">Step 4 — O' is no smaller.</span>
+|O'| = |O*| (we swapped one element for another).
+
+<span class="step-num">Step 5 — Induction.</span>
+Repeat: O' agrees with G on the first k elements now.
+After at most |O*| swaps, O* has been transformed into a set
+that agrees with G on all shared positions and |O*| &le; |G|,
+contradicting our hypothesis.
+
+<span class="highlight">Conclusion: |G| = |O*|, so greedy is optimal.</span>
+                </div>
+
+                <p class="mt-3"><strong>Interview tip:</strong> You don't need this level of rigor in an interview. Instead, say: "I'll use the exchange argument — assume an optimal solution differs from greedy at some step. Since greedy picks the earliest-finishing option, swapping OPT's choice for ours leaves at least as much room for future activities, so OPT can't be better." That's sufficient for a staff-level interview.</p>
+            </div>
+        </div>
+
+        <!-- ── Real-World Greedy Examples ──────────────────────────────── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Real-World Greedy Examples</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Greedy algorithms are not just competitive-programming curiosities — they appear throughout production systems:</p>
+
+                <h4>Huffman Coding (zip, gzip, JPEG, PNG)</h4>
+                <p>Huffman builds an optimal prefix-free binary code by greedily merging the two lowest-frequency symbols. Each merge step is the greedy choice: combining the rarest symbols costs the fewest extra bits. The resulting tree is provably optimal — no other prefix-free code achieves a shorter average codeword length. gzip achieves 60–80% compression on text because frequent English letters get 3-bit codes while rare ones get 12-bit codes.</p>
+
+                <h4>TCP Congestion Control — AIMD</h4>
+                <p>TCP's Additive Increase / Multiplicative Decrease (AIMD) is a greedy rate control policy. Each round-trip: if no loss detected, increase window by 1 MSS (greedy optimism). On loss, halve the window (greedy pessimism). The greedy insight: probe aggressively until the network signals congestion, then back off sharply. AIMD provably converges to a fair, efficient operating point without global coordination — each sender acts greedily on local feedback.</p>
+
+                <h4>CDN Cache Eviction — LRU as Greedy Heuristic</h4>
+                <p>LRU (Least Recently Used) eviction is a greedy approximation to the optimal offline algorithm (Belady's OPT: evict the page used furthest in the future). LRU's greedy insight is that past recency predicts future use. For workloads with temporal locality (most web traffic), LRU achieves within 5–10% of OPT hit rate. CDNs like Cloudflare and Fastly use LRU or SLRU (Segmented LRU) for this reason.</p>
+
+                <h4>Dijkstra's Algorithm — Greedy on Shortest Paths</h4>
+                <p>Dijkstra's is textbook greedy: always process the unvisited vertex with the smallest known distance. The greedy choice property holds because edge weights are non-negative — once a vertex is processed, its distance is final (no shorter path can arrive later through an already-processed vertex). This fails with negative edges (use Bellman-Ford instead). Google Maps uses a bidirectional Dijkstra variant to route ~10 billion queries/day.</p>
+
+                <table style="width:100%; border-collapse:collapse; margin-top:14px; font-size:0.9em;">
+                    <thead><tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                        <th style="padding:10px; text-align:left;">System</th>
+                        <th style="padding:10px; text-align:left;">Greedy Choice</th>
+                        <th style="padding:10px; text-align:left;">Why It's Optimal</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:10px;">Huffman (gzip)</td>
+                            <td style="padding:10px;">Merge two rarest symbols</td>
+                            <td style="padding:10px;">Provably minimizes average code length</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:10px;">TCP AIMD</td>
+                            <td style="padding:10px;">Increase until loss, then halve</td>
+                            <td style="padding:10px;">Converges to fair, efficient point</td>
+                        </tr>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:10px;">CDN LRU cache</td>
+                            <td style="padding:10px;">Evict least recently used</td>
+                            <td style="padding:10px;">Approximates optimal (Belady's)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding:10px;">Dijkstra routing</td>
+                            <td style="padding:10px;">Process closest unvisited vertex</td>
+                            <td style="padding:10px;">Non-negative weights make local min = global min</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 2: Interval Problems                                  -->
         <!-- ============================================================ -->
@@ -155,18 +501,63 @@
                 <p><strong>Problem:</strong> Given an array of intervals, merge all overlapping intervals.</p>
                 <p><strong>Key Insight:</strong> Sort by start time. Then scan left to right: if the current interval overlaps with the last merged one, extend; otherwise start a new merged interval.</p>
 
-<pre><code class="language-python">def merge(intervals: list[list[int]]) -> list[list[int]]:
+<pre><code class="language-python">def merge(intervals: list[list[int]]) -&gt; list[list[int]]:
     intervals.sort(key=lambda x: x[0])
     merged = [intervals[0]]
     for start, end in intervals[1:]:
-        if start <= merged[-1][1]:   # overlaps
+        if start &lt;= merged[-1][1]:   # overlaps
             merged[-1][1] = max(merged[-1][1], end)
         else:
             merged.append([start, end])
     return merged
 # Time: O(n log n)  Space: O(n) for output
 </code></pre>
-                <p><strong>Why sort by start?</strong> After sorting, we only need to check overlap with the previous interval. Without sorting, every pair might need checking (O(n^2)).</p>
+
+<pre><code class="language-java">import java.util.*;
+
+public int[][] merge(int[][] intervals) {
+    Arrays.sort(intervals, (a, b) -&gt; a[0] - b[0]);  // sort by start
+    List&lt;int[]&gt; merged = new ArrayList&lt;&gt;();
+    merged.add(intervals[0]);
+
+    for (int i = 1; i &lt; intervals.length; i++) {
+        int[] cur  = intervals[i];
+        int[] last = merged.get(merged.size() - 1);
+        if (cur[0] &lt;= last[1]) {          // overlaps
+            last[1] = Math.max(last[1], cur[1]);  // extend in-place
+        } else {
+            merged.add(cur);              // new separate interval
+        }
+    }
+    return merged.toArray(new int[0][]);
+}
+// Time: O(n log n)  Space: O(n)
+</code></pre>
+                <p><strong>Why sort by start?</strong> After sorting, we only need to check overlap with the previous interval. Without sorting, every pair might need checking (O(n<sup>2</sup>)).</p>
+            </div>
+        </div>
+
+        <!-- ── Interactive Interval Merge Visualizer ───────────────────── -->
+        <div class="viz-container" id="merge-viz" aria-label="Interactive Interval Merge Visualization">
+            <div class="viz-title">Interactive: Merge Intervals Step-by-Step</div>
+
+            <div class="viz-legend">
+                <div class="viz-legend-item"><div class="legend-dot" style="background:#334155;border:1px solid #475569;"></div>Pending</div>
+                <div class="viz-legend-item"><div class="legend-dot" style="background:#7c3aed;"></div>Currently Processing</div>
+                <div class="viz-legend-item"><div class="legend-dot" style="background:#1e3a5f;border:1px solid #60a5fa;"></div>Last Merged (active)</div>
+                <div class="viz-legend-item"><div class="legend-dot" style="background:#065f46;border:1px solid #10b981;"></div>Merged (complete)</div>
+            </div>
+
+            <div class="timeline-wrapper" id="viz-timeline">
+                <!-- bars and axis rendered by JS -->
+            </div>
+
+            <div class="viz-status" id="viz-status">Press <strong>Step</strong> to begin. Intervals will be sorted by start time, then merged one by one.</div>
+
+            <div class="viz-controls">
+                <button class="viz-btn step"    id="viz-step-btn"    onclick="vizStep()">&#9654; Step</button>
+                <button class="viz-btn animate" id="viz-anim-btn"    onclick="vizAnimate()">&#9654;&#9654; Animate</button>
+                <button class="viz-btn reset"   id="viz-reset-btn"   onclick="vizReset()">&#8635; Reset</button>
             </div>
         </div>
 
@@ -179,16 +570,35 @@
                 <p><strong>Problem:</strong> Find the minimum number of intervals to remove so that the rest are non-overlapping.</p>
                 <p><strong>Key Insight:</strong> This is equivalent to finding the <em>maximum</em> number of non-overlapping intervals (classic activity selection). Sort by <strong>end time</strong> and greedily keep intervals that don't overlap with the last kept one.</p>
 
-<pre><code class="language-python">def eraseOverlapIntervals(intervals: list[list[int]]) -> int:
+<pre><code class="language-python">def eraseOverlapIntervals(intervals: list[list[int]]) -&gt; int:
     intervals.sort(key=lambda x: x[1])  # sort by END time
     kept = 0
     prev_end = float('-inf')
     for start, end in intervals:
-        if start >= prev_end:  # no overlap
+        if start &gt;= prev_end:  # no overlap
             kept += 1
             prev_end = end
     return len(intervals) - kept
 # Time: O(n log n)  Space: O(1)
+</code></pre>
+
+<pre><code class="language-java">import java.util.*;
+
+public int eraseOverlapIntervals(int[][] intervals) {
+    Arrays.sort(intervals, (a, b) -&gt; a[1] - b[1]);  // sort by END time
+    int kept = 0;
+    int prevEnd = Integer.MIN_VALUE;
+
+    for (int[] interval : intervals) {
+        if (interval[0] &gt;= prevEnd) {  // no overlap — keep this interval
+            kept++;
+            prevEnd = interval[1];
+        }
+        // else: overlap — skip (remove) this interval
+    }
+    return intervals.length - kept;
+}
+// Time: O(n log n)  Space: O(1)
 </code></pre>
                 <p><strong>Why sort by end time, not start?</strong> Sorting by end time ensures we always pick the interval that leaves the most room for future intervals. This is the greedy choice property: finishing earliest is always at least as good as finishing later.</p>
             </div>
@@ -205,20 +615,20 @@
 
 <pre><code class="language-python">import heapq
 
-def minMeetingRooms(intervals: list[list[int]]) -> int:
+def minMeetingRooms(intervals: list[list[int]]) -&gt; int:
     if not intervals:
         return 0
     # Approach 1: Min-heap of end times
     intervals.sort(key=lambda x: x[0])
     heap = [intervals[0][1]]  # end time of first meeting
     for start, end in intervals[1:]:
-        if start >= heap[0]:   # room freed up
+        if start &gt;= heap[0]:   # room freed up
             heapq.heapreplace(heap, end)
         else:
             heapq.heappush(heap, end)
     return len(heap)
 
-def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
+def minMeetingRooms_sweep(intervals: list[list[int]]) -&gt; int:
     # Approach 2: Sweep line (often cleaner)
     events = []
     for start, end in intervals:
@@ -231,6 +641,49 @@ def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
         max_rooms = max(max_rooms, rooms)
     return max_rooms
 # Both: Time O(n log n), Space O(n)
+</code></pre>
+
+<pre><code class="language-java">import java.util.*;
+
+// Approach 1: Min-heap of end times
+public int minMeetingRooms(int[][] intervals) {
+    if (intervals.length == 0) return 0;
+    Arrays.sort(intervals, (a, b) -&gt; a[0] - b[0]);  // sort by start
+    PriorityQueue&lt;Integer&gt; heap = new PriorityQueue&lt;&gt;();  // min-heap of end times
+    heap.offer(intervals[0][1]);
+
+    for (int i = 1; i &lt; intervals.length; i++) {
+        if (intervals[i][0] &gt;= heap.peek()) {  // room freed up
+            heap.poll();
+        }
+        heap.offer(intervals[i][1]);  // assign/reuse room
+    }
+    return heap.size();
+}
+
+// Approach 2: Sweep line
+public int minMeetingRoomsSweep(int[][] intervals) {
+    int n = intervals.length;
+    int[] starts = new int[n], ends = new int[n];
+    for (int i = 0; i &lt; n; i++) {
+        starts[i] = intervals[i][0];
+        ends[i]   = intervals[i][1];
+    }
+    Arrays.sort(starts);
+    Arrays.sort(ends);
+
+    int rooms = 0, maxRooms = 0, j = 0;
+    for (int i = 0; i &lt; n; i++) {
+        if (starts[i] &lt; ends[j]) {
+            rooms++;        // need a new room
+        } else {
+            j++;            // room freed (end pointer advances)
+        }
+        maxRooms = Math.max(maxRooms, rooms);
+    }
+    return maxRooms;
+}
+// Both: Time O(n log n), Space O(n)
 </code></pre>
                 <p><strong>Real-world:</strong> Same as connection pooling, thread scheduling, and cloud VM allocation.</p>
             </div>
@@ -247,18 +700,29 @@ def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
             <div class="collapsible-content">
                 <p><strong>Jump Game I (#55):</strong> Can you reach the last index? Track the farthest reachable index.</p>
 
-<pre><code class="language-python">def canJump(nums: list[int]) -> bool:
+<pre><code class="language-python">def canJump(nums: list[int]) -&gt; bool:
     farthest = 0
     for i in range(len(nums)):
-        if i > farthest:
+        if i &gt; farthest:
             return False
         farthest = max(farthest, i + nums[i])
     return True
 </code></pre>
 
+<pre><code class="language-java">public boolean canJump(int[] nums) {
+    int farthest = 0;
+    for (int i = 0; i &lt; nums.length; i++) {
+        if (i &gt; farthest) return false;          // stuck — unreachable
+        farthest = Math.max(farthest, i + nums[i]);
+    }
+    return true;
+}
+// Time: O(n)  Space: O(1)
+</code></pre>
+
                 <p><strong>Jump Game II (#45):</strong> Minimum jumps to reach end. Use a BFS-like greedy: track the current level's boundary and the farthest you can reach.</p>
 
-<pre><code class="language-python">def jump(nums: list[int]) -> int:
+<pre><code class="language-python">def jump(nums: list[int]) -&gt; int:
     jumps = 0
     cur_end = 0       # end of current jump range
     farthest = 0      # farthest we can reach
@@ -270,7 +734,46 @@ def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
     return jumps
 # Time: O(n)  Space: O(1)
 </code></pre>
+
+<pre><code class="language-java">public int jump(int[] nums) {
+    int jumps = 0, curEnd = 0, farthest = 0;
+    for (int i = 0; i &lt; nums.length - 1; i++) {
+        farthest = Math.max(farthest, i + nums[i]);
+        if (i == curEnd) {      // must jump — end of current level
+            jumps++;
+            curEnd = farthest;
+        }
+    }
+    return jumps;
+}
+// Time: O(n)  Space: O(1)
+</code></pre>
                 <p><strong>Why greedy works here:</strong> Within each "jump level," we explore all reachable positions and pick the one that gets us farthest. This is optimal because jumping further never hurts.</p>
+
+                <!-- Jump Game Reachability Visualization -->
+                <div class="jump-diagram">
+                    <div class="viz-title">Jump Game II: BFS-Level Reachability</div>
+                    <p style="font-size:0.83rem;color:#9ca3af;margin-bottom:12px;">Array: [2, 3, 1, 1, 4] — indices color-coded by jump level needed to reach them</p>
+
+                    <div class="jump-level-label">Level 0 (start): index 0</div>
+                    <div class="jump-array">
+                        <div class="jump-cell reachable-0">2<div class="cell-idx">idx 0</div></div>
+                        <div class="jump-cell reachable-1">3<div class="cell-idx">idx 1</div></div>
+                        <div class="jump-cell reachable-1">1<div class="cell-idx">idx 2</div></div>
+                        <div class="jump-cell reachable-2">1<div class="cell-idx">idx 3</div></div>
+                        <div class="jump-cell reachable-2">4<div class="cell-idx">idx 4</div></div>
+                    </div>
+
+                    <div style="margin-top:14px;font-size:0.8rem;color:#9ca3af;line-height:1.8;">
+                        <strong style="color:#93c5fd;">Level 0</strong> (0 jumps): index 0 &mdash; can reach indices 1..2 (jump up to 2 steps)<br>
+                        <strong style="color:#86efac;">Level 1</strong> (1 jump): indices 1, 2 &mdash; from idx 1, can reach 2..4; from idx 2, can reach 3..3; farthest = 4<br>
+                        <strong style="color:#fcd34d;">Level 2</strong> (2 jumps): indices 3, 4 &mdash; index 4 is reached with 2 jumps
+                    </div>
+
+                    <div style="margin-top:12px;padding:10px 14px;background:#0f172a;border-radius:8px;font-size:0.82rem;color:#e2e8f0;">
+                        <strong>Greedy invariant:</strong> At each level boundary (<code>cur_end</code>), we commit one jump and advance <code>cur_end = farthest</code>. No index is visited twice &rarr; O(n).
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -283,18 +786,34 @@ def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
                 <p><strong>Problem:</strong> N gas stations in a circle with gas[i] fuel and cost[i] to reach the next station. Find the starting station to complete the circuit, or -1 if impossible.</p>
                 <p><strong>Key Insight:</strong> If total gas &ge; total cost, a solution exists. To find it: if running out of fuel at station j when starting from i, then no station between i and j works either. Start fresh from j+1.</p>
 
-<pre><code class="language-python">def canCompleteCircuit(gas: list[int], cost: list[int]) -> int:
-    if sum(gas) < sum(cost):
+<pre><code class="language-python">def canCompleteCircuit(gas: list[int], cost: list[int]) -&gt; int:
+    if sum(gas) &lt; sum(cost):
         return -1
     tank = 0
     start = 0
     for i in range(len(gas)):
         tank += gas[i] - cost[i]
-        if tank < 0:
+        if tank &lt; 0:
             start = i + 1  # everything before i+1 fails
             tank = 0
     return start
 # Time: O(n)  Space: O(1)
+</code></pre>
+
+<pre><code class="language-java">public int canCompleteCircuit(int[] gas, int[] cost) {
+    int totalSurplus = 0, tank = 0, start = 0;
+    for (int i = 0; i &lt; gas.length; i++) {
+        int net = gas[i] - cost[i];
+        totalSurplus += net;
+        tank += net;
+        if (tank &lt; 0) {          // failed starting from 'start'
+            start = i + 1;       // skip ahead — all stations i..j fail
+            tank = 0;
+        }
+    }
+    return totalSurplus &gt;= 0 ? start : -1;
+}
+// Time: O(n)  Space: O(1)
 </code></pre>
                 <p><strong>Why the skip is valid:</strong> If you run out at j starting from i, it means cumulative surplus was positive from i to some point but went negative by j. Any start between i+1..j would have less cumulative surplus (since station i had positive surplus), so they all fail too.</p>
             </div>
@@ -311,7 +830,7 @@ def minMeetingRooms_sweep(intervals: list[list[int]]) -> int:
 
 <pre><code class="language-python">from collections import Counter
 
-def leastInterval(tasks: list[str], n: int) -> int:
+def leastInterval(tasks: list[str], n: int) -&gt; int:
     freq = Counter(tasks)
     max_freq = max(freq.values())
     # count how many tasks have the max frequency
@@ -322,6 +841,74 @@ def leastInterval(tasks: list[str], n: int) -> int:
     return max(result, len(tasks))
 # Time: O(n)  Space: O(1) (26 letters max)
 </code></pre>
+
+<pre><code class="language-java">import java.util.*;
+
+public int leastInterval(char[] tasks, int n) {
+    int[] freq = new int[26];
+    for (char t : tasks) freq[t - 'A']++;
+
+    int maxFreq = 0;
+    for (int f : freq) maxFreq = Math.max(maxFreq, f);
+
+    // How many tasks share the max frequency?
+    int maxCount = 0;
+    for (int f : freq) if (f == maxFreq) maxCount++;
+
+    // (maxFreq - 1) full frames + the last partial frame
+    int result = (maxFreq - 1) * (n + 1) + maxCount;
+    return Math.max(result, tasks.length);
+}
+// Time: O(n)  Space: O(1) — 26 fixed slots
+</code></pre>
+
+                <!-- Task Scheduler Visual Grid -->
+                <div class="task-grid-viz">
+                    <div class="task-grid-title">Task Scheduler Visual: tasks=[A,A,A,A,A,A,B,B,C], n=2</div>
+                    <p style="font-size:0.8rem;color:#9ca3af;margin-bottom:14px;">
+                        freq: A=6, B=2, C=1 &mdash; max_freq=6, max_count=1 &mdash; result = (6-1)*(2+1)+1 = 16
+                    </p>
+
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <div class="task-slot task-B">B</div>
+                        <div class="task-slot task-C">C</div>
+                        <span class="task-frame-label">&larr; Frame 1 (size n+1=3)</span>
+                    </div>
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <div class="task-slot task-B">B</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <span class="task-frame-label">&larr; Frame 2 (B exhausted, 1 idle)</span>
+                    </div>
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <span class="task-frame-label">&larr; Frame 3 (C exhausted, 2 idles)</span>
+                    </div>
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <span class="task-frame-label">&larr; Frame 4</span>
+                    </div>
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <div class="task-slot task-idle">idle</div>
+                        <span class="task-frame-label">&larr; Frame 5</span>
+                    </div>
+                    <div class="task-row">
+                        <div class="task-slot task-A">A</div>
+                        <span class="task-frame-label">&larr; Final partial frame (max_count=1 task)</span>
+                    </div>
+
+                    <div style="margin-top:14px;padding:10px 14px;background:#0f172a;border-radius:8px;font-size:0.82rem;color:#e2e8f0;">
+                        Total slots = <strong style="color:#a78bfa;">16</strong>. Formula: (max_freq-1)*(n+1) + max_count = 5*3 + 1 = 16. max(16, 9 tasks) = 16.
+                    </div>
+                </div>
+
                 <p><strong>Visualization</strong> (A=6, B=2, C=1, n=2): <code>A B C | A B _ | A _ _ | A _ _ | A _ _ | A</code> -- most frequent task creates the frame, others fill gaps.</p>
             </div>
         </div>
@@ -334,7 +921,7 @@ def leastInterval(tasks: list[str], n: int) -> int:
             <div class="collapsible-content">
                 <p><strong>Problem:</strong> Partition a string so each letter appears in at most one part. Maximize partition count.</p>
 
-<pre><code class="language-python">def partitionLabels(s: str) -> list[int]:
+<pre><code class="language-python">def partitionLabels(s: str) -&gt; list[int]:
     last = {c: i for i, c in enumerate(s)}  # last occurrence
     start = end = 0
     result = []
@@ -345,6 +932,28 @@ def leastInterval(tasks: list[str], n: int) -> int:
             start = i + 1
     return result
 # Time: O(n)  Space: O(1) (26 letters)
+</code></pre>
+
+<pre><code class="language-java">import java.util.*;
+
+public List&lt;Integer&gt; partitionLabels(String s) {
+    int[] last = new int[26];
+    for (int i = 0; i &lt; s.length(); i++) {
+        last[s.charAt(i) - 'a'] = i;  // record last occurrence of each char
+    }
+
+    List&lt;Integer&gt; result = new ArrayList&lt;&gt;();
+    int start = 0, end = 0;
+    for (int i = 0; i &lt; s.length(); i++) {
+        end = Math.max(end, last[s.charAt(i) - 'a']);
+        if (i == end) {              // safe cut point reached
+            result.add(end - start + 1);
+            start = i + 1;
+        }
+    }
+    return result;
+}
+// Time: O(n)  Space: O(1)
 </code></pre>
                 <p><strong>Why greedy:</strong> We must extend each partition to include the last occurrence of every character we've seen. Once we reach that boundary, we know it's safe to cut.</p>
             </div>
@@ -385,7 +994,7 @@ class UnionFind:
     def union(self, x, y):
         px, py = self.find(x), self.find(y)
         if px == py: return False
-        if self.rank[px] < self.rank[py]: px, py = py, px
+        if self.rank[px] &lt; self.rank[py]: px, py = py, px
         self.parent[py] = px
         if self.rank[px] == self.rank[py]: self.rank[px] += 1
         return True
@@ -398,6 +1007,46 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
         if uf.union(u, v):
             mst_weight += w
     return mst_weight
+</code></pre>
+
+<pre><code class="language-java">// Kruskal's MST — Union-Find with path compression + union by rank
+class UnionFind {
+    private int[] parent, rank;
+
+    public UnionFind(int n) {
+        parent = new int[n];
+        rank   = new int[n];
+        for (int i = 0; i &lt; n; i++) parent[i] = i;
+    }
+
+    public int find(int x) {
+        if (parent[x] != x) parent[x] = find(parent[x]);  // path compression
+        return parent[x];
+    }
+
+    public boolean union(int x, int y) {
+        int px = find(x), py = find(y);
+        if (px == py) return false;           // already in same component
+        if (rank[px] &lt; rank[py]) { int tmp = px; px = py; py = tmp; }
+        parent[py] = px;
+        if (rank[px] == rank[py]) rank[px]++;
+        return true;
+    }
+}
+
+public int kruskal(int n, int[][] edges) {
+    // edges[i] = {weight, u, v}
+    Arrays.sort(edges, (a, b) -&gt; a[0] - b[0]);  // sort by weight
+    UnionFind uf = new UnionFind(n);
+    int mstWeight = 0;
+    for (int[] e : edges) {
+        if (uf.union(e[1], e[2])) {
+            mstWeight += e[0];
+        }
+    }
+    return mstWeight;
+}
+// Time: O(E log E)  Space: O(V)
 </code></pre>
                 <p>See <a href="module-04.html">Module 4: Graphs</a> for full MST implementations and problems.</p>
             </div>
@@ -430,6 +1079,63 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
                 </table>
 
                 <p class="mt-3"><strong>Interview tip:</strong> If you suspect greedy, try to find a counterexample. If you can't find one in 30 seconds, code the greedy solution and mention you'd prove correctness via exchange argument.</p>
+            </div>
+        </div>
+
+        <!-- Greedy vs DP Decision Flowchart (HTML, no mermaid) -->
+        <div class="flowchart">
+            <div class="viz-title" style="margin-bottom:18px;">Greedy vs DP Decision Flowchart</div>
+
+            <div class="fc-row">
+                <div class="fc-node question">Problem has optimal substructure?</div>
+            </div>
+            <div class="fc-row">
+                <div class="fc-arrow-v">
+                    <div class="fc-arrow-label" style="color:#22c55e;">Yes</div>
+                    <div class="fc-arrow-v-line"></div>
+                    <div class="fc-arrow-head"></div>
+                </div>
+            </div>
+            <div class="fc-row">
+                <div class="fc-node question">Can you prove locally optimal = globally optimal? (exchange argument)</div>
+            </div>
+
+            <div class="fc-row" style="margin-top:12px;">
+                <div style="display:flex;gap:60px;align-items:flex-start;justify-content:center;flex-wrap:wrap;">
+                    <div style="display:flex;flex-direction:column;align-items:center;">
+                        <div style="font-size:0.75rem;color:#22c55e;margin-bottom:4px;">Yes</div>
+                        <div style="width:2px;height:24px;background:#4b5563;"></div>
+                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #4b5563;"></div>
+                        <div class="fc-node greedy" style="margin-top:4px;">Use GREEDY<br><span style="font-size:0.72rem;font-weight:400;">O(n) or O(n log n)</span></div>
+                        <div style="width:2px;height:20px;background:#4b5563;margin-top:8px;"></div>
+                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #4b5563;"></div>
+                        <div class="fc-node check" style="margin-top:4px;">Can you find a counterexample?</div>
+                        <div style="display:flex;gap:30px;margin-top:10px;">
+                            <div style="display:flex;flex-direction:column;align-items:center;">
+                                <div style="font-size:0.72rem;color:#ef4444;">Yes</div>
+                                <div style="width:2px;height:16px;background:#4b5563;"></div>
+                                <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #4b5563;"></div>
+                                <div class="fc-node dp" style="margin-top:4px;font-size:0.78rem;">Use DP instead</div>
+                            </div>
+                            <div style="display:flex;flex-direction:column;align-items:center;">
+                                <div style="font-size:0.72rem;color:#22c55e;">No</div>
+                                <div style="width:2px;height:16px;background:#4b5563;"></div>
+                                <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid #4b5563;"></div>
+                                <div class="fc-node greedy" style="margin-top:4px;font-size:0.78rem;">Greedy likely correct</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;align-items:center;">
+                        <div style="font-size:0.75rem;color:#f97316;margin-bottom:4px;">No / Unsure</div>
+                        <div style="width:2px;height:24px;background:#4b5563;"></div>
+                        <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #4b5563;"></div>
+                        <div class="fc-node dp" style="margin-top:4px;">Use DP<br><span style="font-size:0.72rem;font-weight:400;">O(n&sup2;) to O(n&middot;W)</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top:18px;padding:10px 14px;background:#0f172a;border-radius:8px;font-size:0.8rem;color:#9ca3af;">
+                <strong style="color:#c4b5fd;">Tip:</strong> If you can't find a counterexample in 30s during an interview, implement greedy and mention you'd prove it via exchange argument. Interviewers value recognizing the pattern over memorizing proofs.
             </div>
         </div>
 
@@ -470,6 +1176,98 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
         </div>
 
         <!-- ============================================================ -->
+        <!-- SECTION 7: Interview Follow-Up Questions                      -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">7. Interview Follow-Up Questions</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Common Follow-Ups at Staff Level</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <div class="followup-item">
+                    <div class="fq">Q: How would you prove this greedy algorithm is correct? Walk me through the exchange argument.</div>
+                    <div class="fa">A: Assume an optimal solution O* differs from greedy G at position k. Since G made the locally optimal choice at step k (e.g., picked earliest-ending interval), G's choice finishes no later than O*'s. Swap O*[k] for G[k]: the solution remains valid (earlier finish can't create new conflicts) and is no worse. Repeat until O* = G, proving |G| = |O*|.</div>
+                </div>
+
+                <div class="followup-item">
+                    <div class="fq">Q: What if intervals have weights/priorities? Does greedy still work for maximum weight non-overlapping intervals?</div>
+                    <div class="fa">A: No — greedy breaks here. Consider intervals [(0,10,weight=5), (0,4,weight=3), (5,9,weight=3)]: greedy picks the earliest-ending = (0,4), then (5,9) for total weight 6. But (0,10) alone gives weight 5. Even that's wrong: the two shorter ones give 6. But with weight (0,10,weight=100): greedy misses it. You need Weighted Interval Scheduling DP: sort by end time, for each interval i, find the last compatible interval p(i), then dp[i] = max(dp[i-1], w[i] + dp[p(i)]). This runs O(n log n) with binary search for p(i).</div>
+                </div>
+
+                <div class="followup-item">
+                    <div class="fq">Q: Can you solve Meeting Rooms II without a heap?</div>
+                    <div class="fa">A: Yes — use the two-sorted-arrays sweep line. Separately sort start times and end times. Use two pointers: advance the start pointer one at a time. If the current start &lt; earliest end, increment rooms needed. Otherwise, the earliest-ending meeting has finished, so advance the end pointer (room reused) without incrementing the counter. This runs in O(n log n) time and O(n) space, avoids heap overhead, and is often cleaner to write under pressure.</div>
+                </div>
+
+                <div class="followup-item">
+                    <div class="fq">Q: What's the relationship between Activity Selection and Maximum Independent Set on interval graphs?</div>
+                    <div class="fa">A: Activity Selection is exactly Maximum Independent Set (MIS) on an interval graph — where vertices are intervals and edges connect overlapping pairs. MIS on general graphs is NP-hard, but interval graphs have special structure (they're perfect graphs) that allows polynomial-time solutions. The greedy earliest-end algorithm exploits this structure. This is why greedy works on intervals but not on general scheduling/graph problems.</div>
+                </div>
+
+                <div class="followup-item">
+                    <div class="fq">Q: How would you handle the Gas Station problem if there were multiple valid starting points? Return all of them.</div>
+                    <div class="fa">A: The single-pass greedy finds the first valid start. To find ALL valid starts, observe: a station i is a valid start if and only if the prefix sum of (gas - cost) from station i wrapping around is non-negative at every point. You can find all valid starts in O(n) by computing the suffix minimum of cumulative sums and checking each candidate — or by running the greedy from each "candidate start" identified when tank drops negative. In practice, if a solution exists, it may be unique (provable under certain conditions), but if multiple exist, the suffix-minimum approach identifies them in O(n).</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 8: Flashcards                                        -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">8. Flashcards</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>6 Key Concepts — Click Cards to Reveal Answers</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p class="flashcard-hint">Click any card to reveal the answer. Use these for spaced repetition (copy to Anki).</p>
+                <div class="flashcard-grid">
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 1">
+                        <div class="fc-badge">Q1</div>
+                        <div class="fc-front">What two properties must a problem have for greedy to work?</div>
+                        <div class="fc-back"><strong>Greedy Choice Property:</strong> local optimum leads to global optimum (never need to reconsider).<br><strong>Optimal Substructure:</strong> optimal solution contains optimal sub-solutions.<br><em>Both are needed. Optimal substructure alone only justifies DP.</em></div>
+                    </div>
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 2">
+                        <div class="fc-badge">Q2</div>
+                        <div class="fc-front">Why sort by END time (not start) for Activity Selection / Non-Overlapping Intervals?</div>
+                        <div class="fc-back">Finishing earliest leaves <strong>maximum room for future activities</strong>. This is the greedy choice — it never blocks a better option. An activity ending at time t frees the schedule at t; an activity ending at t' &gt; t can only block more futures. Formally proven via exchange argument.</div>
+                    </div>
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 3">
+                        <div class="fc-badge">Q3</div>
+                        <div class="fc-front">What is the exchange argument proof technique?</div>
+                        <div class="fc-back">Assume an optimal solution O* differs from greedy G. <strong>Show you can swap O*'s first differing choice for G's without worsening the solution.</strong> Repeat until O* = G. The key is showing the swap is: (1) feasible, (2) no worse in cost/value. After n swaps, O* has been transformed to G, proving G is also optimal.</div>
+                    </div>
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 4">
+                        <div class="fc-badge">Q4</div>
+                        <div class="fc-front">Why does greedy fail for 0/1 Knapsack but work for Fractional Knapsack?</div>
+                        <div class="fc-back">In <strong>fractional</strong>, you can take partial items — best value/weight ratio first is always optimal. In <strong>0/1</strong>, you must take whole items: greedy by ratio may waste capacity (e.g., ratio-best item weighs 10, leaving 1 unit of capacity vs. two items of weight 5 each filling it). The local choice (best ratio) is NOT part of every optimal 0/1 solution.</div>
+                    </div>
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 5">
+                        <div class="fc-badge">Q5</div>
+                        <div class="fc-front">In Jump Game II, why is the greedy BFS-like approach O(n)?</div>
+                        <div class="fc-back"><strong>Each index is visited exactly once.</strong> We track level boundaries (cur_end, farthest) without re-examining earlier indices. When i reaches cur_end, we increment jumps and advance cur_end = farthest. No nested loops, no revisiting — the loop runs n-1 times total. DP is O(n&sup2;) because for each position, it scans all predecessors.</div>
+                    </div>
+
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')" tabindex="0" role="button" aria-label="Flashcard 6">
+                        <div class="fc-badge">Q6</div>
+                        <div class="fc-front">In Gas Station, why can you skip all stations between i and j when you fail at j?</div>
+                        <div class="fc-back">If cumulative surplus goes negative at j starting from i: <strong>any start between i+1..j has even less surplus at j</strong>, because station i had positive surplus (it helped). Formally: surplus(k→j) = surplus(i→j) - surplus(i→k-1) &lt; surplus(i→j) &lt; 0 for any k in (i, j]. So all intermediate starts also fail at j.</div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
         <!-- QUIZ                                                          -->
         <!-- ============================================================ -->
         <h2 class="mt-4">Module Quiz</h2>
@@ -487,7 +1285,197 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="../assets/js/app.js"></script>
+    <script>
+    // ── Interval Merge Visualizer ──────────────────────────────────────
+    (function() {
+        const RAW_INTERVALS = [[1,3],[2,6],[8,10],[15,18],[5,7],[11,14],[9,13],[17,20]];
+        const TIMELINE_MIN  = 0;
+        const TIMELINE_MAX  = 21;
+
+        const STEPS_DATA = buildSteps(RAW_INTERVALS);
+        let stepIdx = 0;
+        let animTimer = null;
+
+        function pct(v) {
+            return ((v - TIMELINE_MIN) / (TIMELINE_MAX - TIMELINE_MIN) * 100).toFixed(2) + '%';
+        }
+
+        function buildSteps(raw) {
+            const sorted = raw.slice().sort((a, b) => a[0] - b[0]);
+            const steps  = [];
+            // Phase 0: show unsorted
+            steps.push({ phase: 'unsorted', intervals: raw.slice(), merged: [], activeIdx: -1, message: 'Original intervals (unsorted). Press Step to sort by start time.' });
+            // Phase 1: show sorted
+            steps.push({ phase: 'sorted', intervals: sorted.slice(), merged: [], activeIdx: -1, message: 'Sorted by start time: ' + sorted.map(i => '['+i+']').join(', ') + '. Now we scan left to right.' });
+            // Phase 2..N: process each interval
+            let mergedSoFar = [sorted[0].slice()];
+            steps.push({ phase: 'processing', intervals: sorted.slice(), merged: mergedSoFar.map(x => x.slice()), activeIdx: 0, message: 'Initialize merged with first interval [' + sorted[0] + '].' });
+            for (let i = 1; i < sorted.length; i++) {
+                const cur  = sorted[i];
+                const last = mergedSoFar[mergedSoFar.length - 1];
+                if (cur[0] <= last[1]) {
+                    const oldEnd = last[1];
+                    last[1] = Math.max(last[1], cur[1]);
+                    steps.push({
+                        phase: 'processing', intervals: sorted.slice(), merged: mergedSoFar.map(x => x.slice()),
+                        activeIdx: i,
+                        message: 'Interval [' + cur + ']: start (' + cur[0] + ') &le; last merged end (' + oldEnd + ') &rarr; MERGE. Extended to [' + last[0] + ', ' + last[1] + '].'
+                    });
+                } else {
+                    mergedSoFar.push(cur.slice());
+                    steps.push({
+                        phase: 'processing', intervals: sorted.slice(), merged: mergedSoFar.map(x => x.slice()),
+                        activeIdx: i,
+                        message: 'Interval [' + cur + ']: start (' + cur[0] + ') &gt; last merged end (' + last[1] + ') &rarr; NEW INTERVAL added.'
+                    });
+                }
+            }
+            steps.push({ phase: 'done', intervals: sorted.slice(), merged: mergedSoFar.map(x => x.slice()), activeIdx: -1, message: '&#10003; Done! ' + mergedSoFar.length + ' merged intervals: ' + mergedSoFar.map(i => '['+i+']').join(', ') });
+            return steps;
+        }
+
+        function render(idx) {
+            const s = STEPS_DATA[idx];
+            const container = document.getElementById('viz-timeline');
+            const statusEl  = document.getElementById('viz-status');
+
+            const ROW_H = 28;
+            const MARGIN_BOTTOM = 36;
+            const Y_SORTED_INTERVAL_BASE = 8;
+
+            // rows: source intervals (row 0 area), then merged result (row below)
+            const totalIntervals = s.intervals.length;
+            const neededHeight = (totalIntervals + 3) * ROW_H + MARGIN_BOTTOM;
+            container.style.height = neededHeight + 'px';
+            container.innerHTML = '';
+
+            // Draw source intervals
+            const colors = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ec4899','#a78bfa','#14b8a6','#f97316'];
+            s.intervals.forEach((iv, i) => {
+                const bar = document.createElement('div');
+                bar.className = 'interval-bar';
+                const left  = parseFloat(pct(iv[0]));
+                const width = parseFloat(pct(iv[1])) - left;
+                bar.style.left   = left + '%';
+                bar.style.width  = width + '%';
+                bar.style.top    = (Y_SORTED_INTERVAL_BASE + i * ROW_H) + 'px';
+
+                if (s.phase === 'done') {
+                    bar.classList.add('removed');
+                } else if (i === s.activeIdx) {
+                    bar.classList.add('active');
+                } else if (s.phase === 'processing' && i < s.activeIdx) {
+                    bar.classList.add('removed');
+                } else {
+                    bar.classList.add('pending');
+                    bar.style.background = colors[i % colors.length] + '44';
+                    bar.style.borderColor = colors[i % colors.length];
+                    bar.style.color = colors[i % colors.length];
+                }
+                bar.textContent = '[' + iv[0] + ',' + iv[1] + ']';
+                container.appendChild(bar);
+            });
+
+            // Label for source
+            const srcLabel = document.createElement('div');
+            srcLabel.style.cssText = 'position:absolute;left:0;top:' + Y_SORTED_INTERVAL_BASE + 'px;font-size:0.7rem;color:#6b7280;transform:translateY(-14px);';
+            srcLabel.textContent = s.phase === 'unsorted' ? 'Unsorted:' : 'Sorted input:';
+            container.appendChild(srcLabel);
+
+            // Draw merged result intervals
+            const mergeRowBase = Y_SORTED_INTERVAL_BASE + (totalIntervals + 1) * ROW_H;
+            if (s.merged && s.merged.length > 0) {
+                const mergedLabel = document.createElement('div');
+                mergedLabel.style.cssText = 'position:absolute;left:0;top:' + mergeRowBase + 'px;font-size:0.7rem;color:#10b981;transform:translateY(-14px);';
+                mergedLabel.textContent = 'Merged result:';
+                container.appendChild(mergedLabel);
+
+                s.merged.forEach((iv, i) => {
+                    const bar = document.createElement('div');
+                    bar.className = 'interval-bar';
+                    const left  = parseFloat(pct(iv[0]));
+                    const width = parseFloat(pct(iv[1])) - left;
+                    bar.style.left  = left + '%';
+                    bar.style.width = width + '%';
+                    bar.style.top   = mergeRowBase + 'px';
+                    // highlight the last merged interval as "current"
+                    if (i === s.merged.length - 1 && s.phase !== 'done') {
+                        bar.classList.add('current');
+                    } else {
+                        bar.classList.add('merged');
+                    }
+                    bar.textContent = '[' + iv[0] + ',' + iv[1] + ']';
+                    container.appendChild(bar);
+                });
+            }
+
+            // Draw axis
+            const axis = document.createElement('div');
+            axis.className = 'timeline-axis';
+            axis.style.bottom = (MARGIN_BOTTOM - 2) + 'px';
+            container.appendChild(axis);
+            for (let v = TIMELINE_MIN; v <= TIMELINE_MAX; v += 2) {
+                const tick = document.createElement('div');
+                tick.className = 'timeline-tick';
+                tick.style.left = pct(v);
+                tick.style.bottom = (MARGIN_BOTTOM - 2) + 'px';
+                container.appendChild(tick);
+                const lbl = document.createElement('div');
+                lbl.className = 'timeline-label';
+                lbl.style.left = pct(v);
+                lbl.style.bottom = (MARGIN_BOTTOM - 26) + 'px';
+                lbl.textContent = v;
+                container.appendChild(lbl);
+            }
+
+            statusEl.innerHTML = s.message;
+
+            // Disable step button at end
+            document.getElementById('viz-step-btn').disabled = (idx >= STEPS_DATA.length - 1);
+        }
+
+        window.vizStep = function() {
+            if (stepIdx < STEPS_DATA.length - 1) {
+                stepIdx++;
+                render(stepIdx);
+            }
+        };
+
+        window.vizAnimate = function() {
+            if (animTimer) return;
+            const btn = document.getElementById('viz-anim-btn');
+            btn.disabled = true;
+            animTimer = setInterval(function() {
+                if (stepIdx < STEPS_DATA.length - 1) {
+                    stepIdx++;
+                    render(stepIdx);
+                } else {
+                    clearInterval(animTimer);
+                    animTimer = null;
+                    btn.disabled = false;
+                }
+            }, 900);
+        };
+
+        window.vizReset = function() {
+            if (animTimer) { clearInterval(animTimer); animTimer = null; }
+            document.getElementById('viz-anim-btn').disabled = false;
+            document.getElementById('viz-step-btn').disabled = false;
+            stepIdx = 0;
+            render(0);
+        };
+
+        // respect prefers-reduced-motion
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.getElementById('viz-anim-btn').style.display = 'none';
+        }
+
+        // initial render
+        window.addEventListener('DOMContentLoaded', function() { render(0); });
+    })();
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize Mermaid
@@ -514,6 +1502,16 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
                 if (StaffEngPrep.ProgressTracker.isModuleComplete('coding', moduleNum)) {
                     link.classList.add('completed');
                 }
+            });
+
+            // Flashcard keyboard accessibility
+            document.querySelectorAll('.flashcard').forEach(card => {
+                card.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        this.classList.toggle('revealed');
+                    }
+                });
             });
 
             // Quiz
@@ -572,6 +1570,17 @@ def kruskal(n, edges):  # edges = [(weight, u, v)]
                     ],
                     correct: 2,
                     explanation: "The exchange argument assumes an optimal solution differs from greedy, then shows you can swap each differing choice to match greedy without increasing cost."
+                },
+                {
+                    question: "Why does greedy (sort by value/weight ratio) fail for 0/1 Knapsack but succeed for Fractional Knapsack?",
+                    options: [
+                        "The ratio sort is O(n log n) for fractional but O(n^2) for 0/1",
+                        "In fractional knapsack you can take partial items, so best ratio is always optimal; in 0/1 you must take whole items, which can waste capacity",
+                        "0/1 Knapsack doesn't have optimal substructure",
+                        "Fractional Knapsack always has a unique optimal solution"
+                    ],
+                    correct: 1,
+                    explanation: "Taking a fraction of the best-ratio item always helps in fractional knapsack. In 0/1, committing to a whole heavy item may block better combinations of smaller items."
                 }
             ];
 
