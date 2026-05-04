@@ -279,6 +279,7 @@
                     <tr><td><strong>DevOps</strong></td><td>CI/CD, culture, breaking down silos</td><td>Dev + Ops teams</td><td>Deployment frequency, lead time</td></tr>
                     <tr><td><strong>Infra Eng</strong></td><td>Compute, storage, networking, bare metal/cloud</td><td>All engineering</td><td>Cost efficiency, provisioning speed</td></tr>
                 </table>
+                <p><strong>Why this distinction matters:</strong> Interviewers test whether you understand role boundaries. Platform Eng builds <em>self-service tools</em> so developers don't need to file tickets &mdash; the value is <em>removing friction</em>. SRE owns <em>reliability outcomes</em> (SLOs), not just uptime. Confusing these roles signals you don't understand modern org design. At Agoda, Platform Eng owns the internal booking platform APIs that agent teams consume &mdash; knowing this framing shapes how you answer.</p>
 
                 <h3>Key Concepts</h3>
                 <ul>
@@ -288,6 +289,7 @@
                     <li><strong>Team Topologies:</strong> Stream-aligned teams (deliver value), Platform teams (reduce cognitive load), Enabling teams (coach), Complicated-subsystem teams (deep expertise).</li>
                     <li><strong>Golden Paths vs Golden Cages:</strong> Golden paths = recommended defaults that teams can deviate from. Golden cages = mandatory constraints. Prefer paths; use cages only for compliance/security.</li>
                 </ul>
+                <p><strong>Why "Platform-as-Product" wins:</strong> Teams that treat infra as a <em>mandate</em> get low adoption and shadow IT. Treating it as a <em>product</em> means you gather feedback, track NPS, and iterate. Google's internal Borg adoption succeeded because teams <em>chose</em> it (golden path), not because they were forced. Conway's Law matters because if your booking team and payment team can't communicate, their services won't integrate cleanly either &mdash; fix the org to fix the architecture.</p>
 
                 <h3>Staff-Level Thinking</h3>
                 <ul>
@@ -314,6 +316,7 @@
                     <tr><td><strong>Best For</strong></td><td>Public APIs, CRUD, browser clients</td><td>Internal microservices, low latency</td><td>Mobile/frontend with varied data needs</td></tr>
                     <tr><td><strong>Versioning</strong></td><td>URL path or header</td><td>Package versioning</td><td>Schema evolution (additive)</td></tr>
                 </table>
+                <p><strong>Why REST for agent APIs (Agoda context):</strong> External booking agents (MakeMyTrip, Booking.com) use REST because it's universally understood, works through all proxies/firewalls, and agents already have HTTP client libraries. gRPC would give ~10x smaller payloads and bidirectional streaming, but requires protobuf tooling that external agents may not have. <strong>Why GraphQL isn't ideal here:</strong> Agents need predictable, documented endpoints with strict contracts &mdash; not flexible querying that could accidentally over-fetch sensitive data or create expensive queries.</p>
 
                 <h3>API Versioning Strategies</h3>
                 <ul>
@@ -322,6 +325,7 @@
                     <li><strong>Query Param:</strong> <code>?version=2</code> &mdash; easy but pollutes caching.</li>
                     <li><strong>Content Negotiation:</strong> Combine media type + version. Most RESTful but complex.</li>
                 </ul>
+                <p><strong>Why URL path versioning wins for booking agents:</strong> Agents integrate via documented URLs &mdash; <code>/v1/bookings</code> is self-describing, visible in logs/monitoring, and cacheable. Header versioning is "cleaner" in theory but agents will misconfigure it (missing headers silently get wrong version). When Agoda adds v2 with breaking changes, agents can migrate on their own schedule without downtime.</p>
 
                 <h3>Error Handling Best Practices</h3>
                 <ul>
@@ -330,6 +334,7 @@
                     <li>Never leak stack traces or internal IDs in production error responses.</li>
                     <li>Use <strong>idempotency keys</strong> for POST/PUT to safely retry: <code>Idempotency-Key: &lt;uuid&gt;</code></li>
                 </ul>
+                <p><strong>Why idempotency keys are non-negotiable for bookings:</strong> Network failures happen. An agent sends <code>POST /v1/bookings</code>, the server processes it, but the response is lost. The agent retries. Without an idempotency key, the customer gets double-booked and double-charged. With an idempotency key, the server returns the same response as the first call. Stripe, PayPal, and Agoda all require this for payment/booking endpoints.</p>
 
                 <h3>Schema Evolution</h3>
                 <ul>
@@ -353,6 +358,7 @@
                     <tr><td><strong>Cursor (opaque)</strong></td><td>Stable with mutations, fast</td><td>No random page access</td><td>Feeds, timelines, infinite scroll</td></tr>
                     <tr><td><strong>Keyset</strong></td><td>Fast with index, stable</td><td>Requires sortable unique column</td><td>Large tables, time-series</td></tr>
                 </table>
+                <p><strong>Why cursor-based for agent booking APIs:</strong> An agent listing their bookings (<code>GET /v1/bookings</code>) may have millions of records. Offset pagination at page 10,000 forces the DB to scan and discard 100,000 rows before returning 10 &mdash; query time grows linearly with page depth. Cursor pagination uses an index seek (constant time regardless of position). It also avoids the "skipped/duplicate row" problem when new bookings are created between page fetches.</p>
 
                 <h3>Rate Limiting Algorithms</h3>
                 <table class="cs-table">
@@ -363,6 +369,7 @@
                     <tr><td><strong>Sliding Window Log</strong></td><td>Track timestamps of each request</td><td>Precise</td><td>Memory-heavy</td></tr>
                     <tr><td><strong>Sliding Window Counter</strong></td><td>Weighted average of current + previous window</td><td>Low memory, smooth</td><td>Approximate</td></tr>
                 </table>
+                <p><strong>Why token bucket is the default:</strong> Real traffic is bursty &mdash; an agent might send 50 requests in 1 second, then nothing for 10 seconds. Token bucket allows this burst (up to bucket capacity) while enforcing an average rate. Fixed window can't handle this &mdash; it either allows the burst and has no protection at window boundaries, or blocks legitimate burst traffic. Sliding window counter is the production upgrade (Cloudflare uses it) because it's O(1) memory and 99.9% accurate, but token bucket is easier to explain in an interview and conceptually simpler.</p>
 
                 <h3>API Gateway Patterns</h3>
                 <ul>
@@ -370,6 +377,7 @@
                     <li><strong>BFF (Backend for Frontend):</strong> Per-client gateways (mobile BFF, web BFF) that aggregate/transform backend calls.</li>
                     <li><strong>Service Mesh Sidecar:</strong> Envoy/Istio &mdash; mTLS, retries, circuit breaking at service-to-service layer.</li>
                 </ul>
+                <p><strong>Why an API gateway, not just a load balancer:</strong> A load balancer distributes traffic; a gateway <em>understands</em> traffic. For agent APIs, the gateway handles auth token validation (reject bad JWTs before they hit your app), per-agent rate limiting (MakeMyTrip gets 1000 RPM, small agents get 100), and request logging (which agent called what endpoint when). Without a gateway, every microservice reimplements these concerns &mdash; inconsistently. <strong>Why BFF for mobile vs web:</strong> A mobile client needs 1 API call returning hotel + pricing + availability (one round-trip), while the web app can make 3 parallel calls. BFF tailors the aggregation per client, avoiding over-fetching on mobile (saves bandwidth and battery).</p>
             </div>
 
             <!-- ============================================ -->
@@ -388,6 +396,7 @@
                     <tr><td><strong>WebSockets</strong></td><td>Bidirectional</td><td>Very low</td><td>High</td><td>Chat, gaming, collaborative editing</td></tr>
                     <tr><td><strong>Webhooks</strong></td><td>Server &rarr; Server (push)</td><td>Near real-time</td><td>Medium</td><td>Payment callbacks, CI/CD, integrations</td></tr>
                 </table>
+                <p><strong>Why webhooks for agent callbacks (not polling):</strong> After Agoda confirms a booking, the agent needs to know. Polling (<code>GET /v1/bookings/{id}/status</code> every 5s) wastes bandwidth and adds latency. Webhooks push the event to the agent's endpoint instantly. <strong>Why SSE over WebSockets for dashboards:</strong> SSE is HTTP-native (works through proxies, auto-reconnects, no special server infrastructure) and one-directional is all you need for live hotel availability dashboards. WebSockets add bidirectional complexity only justified when the client <em>also</em> sends data (chat, collaborative editing).</p>
 
                 <h3>Webhook Design Checklist</h3>
                 <ul>
@@ -406,6 +415,7 @@
                     <li><strong>HMAC Signatures:</strong> Sign request body/timestamp with shared secret. Used by Stripe, GitHub webhooks.</li>
                     <li><strong>Session-based:</strong> Server-side session with cookie. Stateful, doesn't scale horizontally without sticky sessions or shared session store (Redis).</li>
                 </ul>
+                <p><strong>Why OAuth 2.0 Client Credentials for agent APIs:</strong> API keys are easy but can't be scoped (an agent with one key gets access to everything) and can't expire gracefully. OAuth Client Credentials gives each agent a client_id + secret, they exchange it for a JWT with specific scopes (<code>bookings:write</code>, <code>inventory:read</code>), and the token expires in 15 minutes. If an agent is compromised, revoke their client_id &mdash; all their tokens immediately become invalid. <strong>Why not mTLS for agents:</strong> Certificate management is operationally heavy for external partners who may not have TLS expertise. Reserve mTLS for internal service-to-service.</p>
             </div>
 
             <!-- ============================================ -->
@@ -425,6 +435,7 @@
                     <tr><td><strong>Replay</strong></td><td>Yes (offset reset)</td><td>No (once consumed, gone)</td><td>No</td></tr>
                     <tr><td><strong>Best For</strong></td><td>Event streaming, analytics, CDC</td><td>Task queues, routing, RPC</td><td>Serverless, simple async</td></tr>
                 </table>
+                <p><strong>Why Kafka for booking events (not RabbitMQ):</strong> Booking events need <em>replay</em> &mdash; when analytics reprocesses last month's data, or when a new service joins and needs historical events, Kafka's log retention provides this. RabbitMQ deletes messages after consumption. Kafka also handles millions of events/sec (hotel search queries, price updates) where RabbitMQ tops out at ~50K/sec. <strong>When RabbitMQ wins:</strong> Simple task queues (send email, generate PDF) where you need routing, priority queues, and message-level TTL &mdash; features Kafka doesn't natively support.</p>
 
                 <h3>Delivery Semantics</h3>
                 <ul>
@@ -432,6 +443,7 @@
                     <li><strong>At-least-once:</strong> Retry until ack. May get duplicates. <strong>Most common in practice.</strong> Pair with idempotent consumers.</li>
                     <li><strong>Exactly-once:</strong> Kafka Transactions + idempotent producer. Heavy. Use for financial/booking workflows.</li>
                 </ul>
+                <p><strong>Why at-least-once + idempotent consumers is the practical default:</strong> Exactly-once sounds ideal but requires Kafka Transactions, which add latency and complexity. In practice, <em>at-least-once delivery + idempotent consumer</em> achieves the same outcome more simply: the consumer uses a unique event_id to deduplicate. For bookings: if the "booking confirmed" event is delivered twice, the consumer checks <code>IF NOT EXISTS booking_id</code> before processing. This is how Stripe, PayPal, and Agoda handle it.</p>
 
                 <h3>Key Patterns</h3>
                 <ul>
@@ -440,6 +452,7 @@
                     <li><strong>Outbox Pattern:</strong> Write event to DB outbox table in same transaction as business data. Poller/CDC publishes to broker. Solves dual-write problem.</li>
                     <li><strong>DLQ (Dead Letter Queue):</strong> Failed messages after N retries go to DLQ. Alert, inspect, replay when fixed.</li>
                 </ul>
+                <p><strong>Why the outbox pattern is essential for booking systems:</strong> When a booking is confirmed, you need to (1) update the DB and (2) publish an event to Kafka. If you do these as separate operations, a crash between them means either the booking is saved but no event is published (agent never notified), or the event is published but the DB write failed (phantom notification). The outbox pattern writes the event to an <code>outbox</code> table <em>in the same DB transaction</em> as the booking, then a separate poller/CDC publishes to Kafka. This guarantees the event is published if and only if the booking committed.</p>
             </div>
 
             <!-- ============================================ -->
@@ -460,6 +473,7 @@
                     <tr><td><strong>Idempotency Key</strong></td><td>Client sends unique key; server deduplicates</td><td>Payment APIs, booking creation, any non-idempotent operation</td></tr>
                     <tr><td><strong>Graceful Degradation</strong></td><td>Return cached/partial data when dependency is down</td><td>Non-critical features, read-heavy paths</td></tr>
                 </table>
+                <p><strong>Why circuit breakers prevent cascading failures:</strong> Without a circuit breaker, when the payment service is down (responding in 30s instead of 200ms), every booking request waits 30s, holding a thread/connection. With 100 concurrent bookings, all 100 threads are blocked waiting for payment, and now the booking service can't handle <em>any</em> requests &mdash; including search and inventory queries that don't need payment. The circuit breaker detects the failure (5 consecutive timeouts), opens the circuit, and fails fast (returns an error in 1ms) so the booking service stays alive for non-payment operations. <strong>Why timeouts must always be set:</strong> A missing timeout is an implicit "wait forever" &mdash; any external dependency can hold your resources indefinitely. Default: 3-5s for internal services, 10-30s for external APIs.</p>
 
                 <h3>Retry Storm Prevention</h3>
                 <ul>
@@ -475,6 +489,7 @@
                     <li><strong>Request coalescing:</strong> Single-flight / singleflight pattern &mdash; one goroutine fetches, others wait.</li>
                     <li><strong>Stale-while-revalidate:</strong> Serve stale cache while refreshing in background.</li>
                 </ul>
+                <p><strong>Why jitter is critical (not just backoff):</strong> Without jitter, if 1000 agents all fail at the same time and retry with backoff (1s, 2s, 4s), all 1000 retry simultaneously at t=1s, then t=3s, then t=7s &mdash; synchronized waves that repeatedly overwhelm the recovering service. Jitter randomizes each retry (&plusmn;25%), spreading the load. This is the difference between a service that recovers in 10s and one stuck in a failure loop for minutes.</p>
             </div>
 
             <!-- ============================================ -->
@@ -491,6 +506,7 @@
                     <tr><td><strong>Trophy</strong></td><td>Few unit, many integration, some E2E</td><td>Full-stack apps, APIs (Kent C. Dodds)</td></tr>
                     <tr><td><strong>Diamond</strong></td><td>Few unit, many integration, few E2E</td><td>Data pipelines, middleware</td></tr>
                 </table>
+                <p><strong>Why the trophy shape for booking APIs:</strong> Unit tests for a booking service have low value &mdash; mocking the DB, cache, and payment gateway tests mostly your mocking code, not real behavior. Integration tests with Testcontainers (real Postgres, real Redis) catch the real bugs: "does this query actually work?", "does the transaction rollback correctly?", "does the optimistic lock retry?" The trophy shape invests testing time where bugs actually hide &mdash; at service boundaries and integration points.</p>
 
                 <h3>By Level</h3>
                 <ul>
@@ -508,6 +524,7 @@
                     <li><strong>Fake:</strong> Working implementation (in-memory DB, fake S3). Best for integration tests.</li>
                     <li><strong>Spy:</strong> Records calls for later assertion. Middle ground between stub and mock.</li>
                 </ul>
+                <p><strong>Why contract tests matter for agent APIs:</strong> When Agoda changes <code>GET /v1/bookings</code> response format (e.g., renames <code>hotel_name</code> to <code>property_name</code>), contract tests catch this <em>before deployment</em> because each agent has a consumer contract describing expected fields. Without contract tests, the change ships, agents parse <code>null</code> for hotel_name, and bookings break silently across all partners. <strong>Why chaos testing for booking systems:</strong> "Does our circuit breaker actually work when the payment service times out?" is a question only chaos testing can answer. Unit tests mock the timeout; chaos tests inject real latency via Toxiproxy and verify the system degrades gracefully.</p>
             </div>
 
             <!-- ============================================ -->
@@ -535,6 +552,7 @@
                     <li><strong>Swallowed Exceptions:</strong> Empty catch blocks. Fix: log, rethrow, or handle meaningfully.</li>
                     <li><strong>Hardcoded Config:</strong> URLs, timeouts, feature flags in code. Fix: externalize to config/env vars.</li>
                 </ul>
+                <p><strong>Why swallowed exceptions are the #1 code review flag:</strong> An empty <code>catch(Exception e) {}</code> in a booking flow means a payment failure is silently ignored &mdash; the customer gets a "booking confirmed" response while their payment actually failed. In production, this surfaces as revenue loss weeks later when reconciliation fails. <strong>Why N+1 is critical for agent APIs:</strong> An agent fetching 500 bookings with N+1 queries generates 501 DB queries instead of 2 (one batch fetch + one join). At 100 agents polling every minute, that's 50,100 queries/min vs 200 &mdash; the difference between a healthy DB and connection pool exhaustion.</p>
 
                 <h3>Staff-Level Review Practices</h3>
                 <ul>
@@ -544,6 +562,7 @@
                     <li>Check <strong>observability</strong> &mdash; are there logs/metrics/traces for the new code path?</li>
                     <li>Consider <strong>rollback safety</strong> &mdash; can this change be reverted without data migration?</li>
                 </ul>
+                <p><strong>Why staff-level reviews focus on "what happens when this fails":</strong> Junior reviewers check if code is correct when things go well. Staff reviewers check what happens when the payment gateway returns garbage, the DB connection pool is exhausted, or a race condition hits. Automated tools (linters, formatters) handle style &mdash; humans should focus on failure modes, architectural fit, and operational impact. Asking "can this be deployed and rolled back independently?" is a staff-level question that prevents incidents.</p>
             </div>
 
             <!-- ============================================ -->
@@ -574,6 +593,7 @@
                     <li><strong>RED</strong> (for request-driven services): <strong>R</strong>ate (req/s), <strong>E</strong>rrors (error rate), <strong>D</strong>uration (latency histogram).</li>
                     <li><strong>USE</strong> (for resources): <strong>U</strong>tilization (% busy), <strong>S</strong>aturation (queue depth), <strong>E</strong>rrors (error count).</li>
                 </ul>
+                <p><strong>Why RED over custom metrics:</strong> Every request-driven service has the same three failure modes: too many errors, too slow, or too little throughput. RED (Rate, Errors, Duration) standardizes this so you can build one dashboard template for all services. Custom metrics like "bookings per minute" are <em>business metrics</em> layered on top. <strong>Why SLO burn rate alerting, not threshold alerting:</strong> A threshold alert ("error rate &gt; 1%") fires too late or too early. A burn rate alert says "at the current error rate, you'll exhaust your monthly error budget in 6 hours" &mdash; it tells you <em>urgency</em>, not just <em>state</em>. You can ignore a 2% error rate that's been stable for months (within budget) but must act on a 0.5% spike that's burning budget 10x faster than normal.</p>
 
                 <h3>Production Readiness Checklist</h3>
                 <ul>
