@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform Engineering Cheat Sheet - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <style>
+        /* Collapse sidebar by default on cheat sheet for max width */
+        .sidebar {
+            position: fixed;
+            left: -280px;
+            top: 60px;
+            z-index: 150;
+            transition: left 0.3s ease;
+        }
+        .sidebar.open {
+            left: 0;
+        }
+        .sidebar-toggle {
+            display: block !important;
+        }
+        .sidebar-overlay.open {
+            display: block;
+        }
+
+        /* Print button */
+        .print-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 100;
+        }
+        .print-btn:hover {
+            background: var(--primary-hover);
+        }
+        @media print {
+            .sidebar, .navbar, .sidebar-toggle, .print-btn { display: none !important; }
+            .main-content-wide { margin: 0 !important; max-width: 100% !important; }
+            .cs-section { break-inside: avoid; page-break-inside: avoid; }
+        }
+
+        /* TOC grid */
+        .toc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .toc-link {
+            padding: 0.5rem 0.75rem;
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            text-decoration: none;
+            color: var(--text-color);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .toc-link:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Cheat sheet sections */
+        .cs-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .cs-section h2 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+            margin-bottom: 1rem;
+            font-size: 1.4rem;
+        }
+        .cs-section h3 {
+            color: var(--text-color);
+            margin: 1rem 0 0.5rem 0;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+        .cs-section h3::before {
+            content: "\25B8 ";
+            color: var(--primary-color);
+        }
+        .cs-section ul {
+            margin: 0;
+            padding-left: 1.2rem;
+        }
+        .cs-section li {
+            margin-bottom: 0.3rem;
+            line-height: 1.5;
+        }
+        .cs-section strong {
+            color: var(--primary-color);
+        }
+        .cs-section code {
+            background: var(--code-bg, #1e1e1e);
+            color: #e2e8f0;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+
+        /* Comparison tables */
+        .cs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: 0.75rem 0;
+        }
+        .cs-table th {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.5rem 0.75rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        .cs-table td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: top;
+        }
+        .cs-table tr:nth-child(even) td {
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        /* Interview experience section */
+        .interview-exp {
+            background: linear-gradient(135deg, rgba(234, 179, 8, 0.08) 0%, rgba(249, 115, 22, 0.08) 100%);
+            border: 2px solid rgba(234, 179, 8, 0.3);
+        }
+        .interview-exp h2 {
+            color: #eab308;
+            border-bottom-color: #eab308;
+        }
+        .interview-exp strong {
+            color: #eab308;
+        }
+
+        .sub-round {
+            background: rgba(0,0,0,0.03);
+            border-left: 3px solid var(--primary-color);
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+            border-radius: 0 6px 6px 0;
+        }
+        .sub-round h3::before {
+            content: "";
+        }
+
+        .tip-box {
+            background: rgba(34, 197, 94, 0.1);
+            border-left: 3px solid #22c55e;
+            padding: 0.75rem 1rem;
+            margin: 0.75rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .warn-box {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            padding: 0.75rem 1rem;
+            margin: 0.75rem 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        /* Two-column layout for some sections */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            .two-col { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <!-- Left Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <nav class="sidebar-nav">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Getting Started</div>
+                    <a href="index.html" class="sidebar-link">Introduction</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Fundamentals &amp; API Design</div>
+                    <a href="module-01.html" class="sidebar-link" data-module="1"><span class="sidebar-link-number">1</span>Platform Eng Fundamentals</a>
+                    <a href="module-02.html" class="sidebar-link" data-module="2"><span class="sidebar-link-number">2</span>API Design &amp; Contracts</a>
+                    <a href="module-03.html" class="sidebar-link" data-module="3"><span class="sidebar-link-number">3</span>Pagination, Rate Limiting &amp; Gateways</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Connectivity &amp; Reliability</div>
+                    <a href="module-04.html" class="sidebar-link" data-module="4"><span class="sidebar-link-number">4</span>Webhooks &amp; Event-Driven</a>
+                    <a href="module-05.html" class="sidebar-link" data-module="5"><span class="sidebar-link-number">5</span>Message Brokers &amp; Pub/Sub</a>
+                    <a href="module-06.html" class="sidebar-link" data-module="6"><span class="sidebar-link-number">6</span>Resilience Patterns</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Testing &amp; QA</div>
+                    <a href="module-07.html" class="sidebar-link" data-module="7"><span class="sidebar-link-number">7</span>Testing Strategy &amp; Unit Tests</a>
+                    <a href="module-08.html" class="sidebar-link" data-module="8"><span class="sidebar-link-number">8</span>Integration &amp; Contract Testing</a>
+                    <a href="module-09.html" class="sidebar-link" data-module="9"><span class="sidebar-link-number">9</span>E2E &amp; Chaos Testing</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Code Review &amp; Security</div>
+                    <a href="module-10.html" class="sidebar-link" data-module="10"><span class="sidebar-link-number">10</span>Review: Correctness &amp; Perf</a>
+                    <a href="module-11.html" class="sidebar-link" data-module="11"><span class="sidebar-link-number">11</span>Review: Security &amp; Staff Practices</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Observability &amp; Production</div>
+                    <a href="module-12.html" class="sidebar-link" data-module="12"><span class="sidebar-link-number">12</span>Observability &amp; Prod Readiness</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Scenarios &amp; Mock Interviews</div>
+                    <a href="module-13.html" class="sidebar-link" data-module="13"><span class="sidebar-link-number">13</span>Scenario Thinking Part 1</a>
+                    <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
+                    <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Resources</div>
+                    <a href="cheat-sheet.html" class="sidebar-link active">Cheat Sheet</a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Mobile sidebar toggle -->
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Main Content -->
+        <main class="main-content-wide" style="max-width: 1400px;">
+            <h1>Platform Engineering Cheat Sheet</h1>
+            <p class="text-muted mb-3">Quick reference across all 15 modules + real Agoda platform round interview experience. Use Ctrl+P / Cmd+P to print as PDF.</p>
+
+            <!-- Table of Contents -->
+            <div class="toc-grid">
+                <a href="#fundamentals" class="toc-link">1. Platform Fundamentals</a>
+                <a href="#api-design" class="toc-link">2. API Design</a>
+                <a href="#pagination-gateways" class="toc-link">3. Pagination &amp; Gateways</a>
+                <a href="#connectivity" class="toc-link">4. Connectivity Patterns</a>
+                <a href="#message-brokers" class="toc-link">5. Message Brokers</a>
+                <a href="#resilience" class="toc-link">6. Resilience Patterns</a>
+                <a href="#testing" class="toc-link">7. Testing Strategy</a>
+                <a href="#code-review" class="toc-link">8. Code Review</a>
+                <a href="#observability" class="toc-link">9. Observability</a>
+                <a href="#agoda-experience" class="toc-link" style="border-color: #eab308; color: #eab308;">Agoda Platform Round</a>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 1. Platform Fundamentals -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="fundamentals">
+                <h2>1. Platform Fundamentals</h2>
+                <p><em>Modules 1 &mdash; Platform as product, Conway's Law, Team Topologies</em></p>
+
+                <h3>Platform Eng vs SRE vs DevOps vs Infra Eng</h3>
+                <table class="cs-table">
+                    <tr><th>Role</th><th>Focus</th><th>Customers</th><th>Key Metric</th></tr>
+                    <tr><td><strong>Platform Eng</strong></td><td>Internal Developer Platform (IDP) &mdash; golden paths, self-service</td><td>Internal developers</td><td>Developer productivity, adoption rate</td></tr>
+                    <tr><td><strong>SRE</strong></td><td>Reliability, SLOs, error budgets, incident response</td><td>End users (via uptime)</td><td>SLO attainment, MTTR</td></tr>
+                    <tr><td><strong>DevOps</strong></td><td>CI/CD, culture, breaking down silos</td><td>Dev + Ops teams</td><td>Deployment frequency, lead time</td></tr>
+                    <tr><td><strong>Infra Eng</strong></td><td>Compute, storage, networking, bare metal/cloud</td><td>All engineering</td><td>Cost efficiency, provisioning speed</td></tr>
+                </table>
+
+                <h3>Key Concepts</h3>
+                <ul>
+                    <li><strong>Internal Developer Platform (IDP):</strong> Self-service layer over infra &mdash; templates, CI/CD, observability, secrets. Think Backstage, Humanitec.</li>
+                    <li><strong>Platform-as-Product:</strong> Treat the platform like a product with users (devs), feedback loops, SLOs, roadmaps, and adoption metrics.</li>
+                    <li><strong>Conway's Law:</strong> System architecture mirrors org communication structure. Use it intentionally (Inverse Conway Maneuver).</li>
+                    <li><strong>Team Topologies:</strong> Stream-aligned teams (deliver value), Platform teams (reduce cognitive load), Enabling teams (coach), Complicated-subsystem teams (deep expertise).</li>
+                    <li><strong>Golden Paths vs Golden Cages:</strong> Golden paths = recommended defaults that teams can deviate from. Golden cages = mandatory constraints. Prefer paths; use cages only for compliance/security.</li>
+                </ul>
+
+                <h3>Staff-Level Thinking</h3>
+                <ul>
+                    <li><strong>Build vs Buy vs Skip:</strong> Build only when you have unique requirements + team capacity. Buy when commodity. Skip when YAGNI.</li>
+                    <li><strong>Measure platform ROI:</strong> (Hours saved/team/week &times; teams &times; rate &times; 52) + incident reduction + compliance savings - platform team cost.</li>
+                    <li><strong>Adoption &gt; Features:</strong> A platform nobody uses is a waste. Measure adoption, satisfaction (CSAT/NPS), and time-to-first-deploy.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 2. API Design -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="api-design">
+                <h2>2. API Design &amp; Contracts</h2>
+                <p><em>Module 2 &mdash; REST vs gRPC vs GraphQL, versioning, error handling</em></p>
+
+                <h3>Protocol Comparison</h3>
+                <table class="cs-table">
+                    <tr><th>Aspect</th><th>REST</th><th>gRPC</th><th>GraphQL</th></tr>
+                    <tr><td><strong>Format</strong></td><td>JSON (text)</td><td>Protobuf (binary)</td><td>JSON (text)</td></tr>
+                    <tr><td><strong>Transport</strong></td><td>HTTP/1.1+</td><td>HTTP/2 (required)</td><td>HTTP/1.1+</td></tr>
+                    <tr><td><strong>Streaming</strong></td><td>SSE only</td><td>Bidirectional</td><td>Subscriptions (WS)</td></tr>
+                    <tr><td><strong>Schema</strong></td><td>OpenAPI (optional)</td><td>Protobuf (required)</td><td>SDL (required)</td></tr>
+                    <tr><td><strong>Best For</strong></td><td>Public APIs, CRUD, browser clients</td><td>Internal microservices, low latency</td><td>Mobile/frontend with varied data needs</td></tr>
+                    <tr><td><strong>Versioning</strong></td><td>URL path or header</td><td>Package versioning</td><td>Schema evolution (additive)</td></tr>
+                </table>
+
+                <h3>API Versioning Strategies</h3>
+                <ul>
+                    <li><strong>URL Path:</strong> <code>/v1/bookings</code> &mdash; simple, visible, but hard to sunset. Best for public APIs.</li>
+                    <li><strong>Header:</strong> <code>Accept: application/vnd.api.v2+json</code> &mdash; cleaner URLs, harder to test in browser.</li>
+                    <li><strong>Query Param:</strong> <code>?version=2</code> &mdash; easy but pollutes caching.</li>
+                    <li><strong>Content Negotiation:</strong> Combine media type + version. Most RESTful but complex.</li>
+                </ul>
+
+                <h3>Error Handling Best Practices</h3>
+                <ul>
+                    <li>Use standard HTTP status codes: 400 (bad input), 401 (unauthenticated), 403 (forbidden), 404 (not found), 409 (conflict), 422 (validation), 429 (rate limited), 500 (server error), 503 (unavailable).</li>
+                    <li>Return structured error bodies: <code>{"error": {"code": "BOOKING_CONFLICT", "message": "...", "details": [...]}}</code></li>
+                    <li>Never leak stack traces or internal IDs in production error responses.</li>
+                    <li>Use <strong>idempotency keys</strong> for POST/PUT to safely retry: <code>Idempotency-Key: &lt;uuid&gt;</code></li>
+                </ul>
+
+                <h3>Schema Evolution</h3>
+                <ul>
+                    <li><strong>Protobuf:</strong> Add fields (new tag numbers), never reuse deleted tags, use <code>reserved</code>.</li>
+                    <li><strong>Avro:</strong> Reader/writer schema resolution, supports defaults for new fields.</li>
+                    <li><strong>JSON Schema:</strong> Additive changes safe; removing/renaming fields = breaking.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 3. Pagination, Rate Limiting & Gateways -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="pagination-gateways">
+                <h2>3. Pagination, Rate Limiting &amp; API Gateways</h2>
+                <p><em>Module 3 &mdash; Cursor vs offset, rate limiting algorithms, gateway patterns</em></p>
+
+                <h3>Pagination Strategies</h3>
+                <table class="cs-table">
+                    <tr><th>Strategy</th><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+                    <tr><td><strong>Offset</strong></td><td>Simple, random access</td><td>Skips/dupes on mutation, slow at deep offsets (<code>OFFSET 100000</code>)</td><td>Admin dashboards, small datasets</td></tr>
+                    <tr><td><strong>Cursor (opaque)</strong></td><td>Stable with mutations, fast</td><td>No random page access</td><td>Feeds, timelines, infinite scroll</td></tr>
+                    <tr><td><strong>Keyset</strong></td><td>Fast with index, stable</td><td>Requires sortable unique column</td><td>Large tables, time-series</td></tr>
+                </table>
+
+                <h3>Rate Limiting Algorithms</h3>
+                <table class="cs-table">
+                    <tr><th>Algorithm</th><th>How It Works</th><th>Pros</th><th>Cons</th></tr>
+                    <tr><td><strong>Token Bucket</strong></td><td>Tokens refill at fixed rate; each request costs 1 token</td><td>Allows bursts, simple</td><td>Memory per user</td></tr>
+                    <tr><td><strong>Leaky Bucket</strong></td><td>Requests queued, processed at fixed rate</td><td>Smooth output rate</td><td>Bursts get queued/dropped</td></tr>
+                    <tr><td><strong>Fixed Window</strong></td><td>Counter resets each window (e.g. per minute)</td><td>Simple, low memory</td><td>Burst at window boundary (2x spike)</td></tr>
+                    <tr><td><strong>Sliding Window Log</strong></td><td>Track timestamps of each request</td><td>Precise</td><td>Memory-heavy</td></tr>
+                    <tr><td><strong>Sliding Window Counter</strong></td><td>Weighted average of current + previous window</td><td>Low memory, smooth</td><td>Approximate</td></tr>
+                </table>
+
+                <h3>API Gateway Patterns</h3>
+                <ul>
+                    <li><strong>Edge Gateway:</strong> Rate limiting, auth, TLS termination, request routing (Kong, AWS API Gateway).</li>
+                    <li><strong>BFF (Backend for Frontend):</strong> Per-client gateways (mobile BFF, web BFF) that aggregate/transform backend calls.</li>
+                    <li><strong>Service Mesh Sidecar:</strong> Envoy/Istio &mdash; mTLS, retries, circuit breaking at service-to-service layer.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 4. Connectivity Patterns -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="connectivity">
+                <h2>4. Connectivity Patterns</h2>
+                <p><em>Module 4 &mdash; Webhooks, polling, SSE, WebSockets</em></p>
+
+                <h3>Connectivity Comparison</h3>
+                <table class="cs-table">
+                    <tr><th>Pattern</th><th>Direction</th><th>Latency</th><th>Complexity</th><th>Best For</th></tr>
+                    <tr><td><strong>Short Polling</strong></td><td>Client &rarr; Server</td><td>High (poll interval)</td><td>Low</td><td>Simple status checks, legacy systems</td></tr>
+                    <tr><td><strong>Long Polling</strong></td><td>Client &rarr; Server (held open)</td><td>Medium</td><td>Medium</td><td>Chat (fallback), notifications</td></tr>
+                    <tr><td><strong>SSE</strong></td><td>Server &rarr; Client (one-way)</td><td>Low</td><td>Low</td><td>Live feeds, dashboards, stock tickers</td></tr>
+                    <tr><td><strong>WebSockets</strong></td><td>Bidirectional</td><td>Very low</td><td>High</td><td>Chat, gaming, collaborative editing</td></tr>
+                    <tr><td><strong>Webhooks</strong></td><td>Server &rarr; Server (push)</td><td>Near real-time</td><td>Medium</td><td>Payment callbacks, CI/CD, integrations</td></tr>
+                </table>
+
+                <h3>Webhook Design Checklist</h3>
+                <ul>
+                    <li><strong>HMAC Verification:</strong> Sign payload with shared secret; receiver verifies <code>X-Signature-256</code> header.</li>
+                    <li><strong>Retry with Exponential Backoff:</strong> Retry on 5xx / timeout. Cap at ~5 retries. Use jitter.</li>
+                    <li><strong>Idempotency:</strong> Include unique <code>event_id</code>; receiver deduplicates using idempotency store.</li>
+                    <li><strong>Timeout:</strong> Expect response within 5-30s. If receiver needs longer, return 202 Accepted and process async.</li>
+                    <li><strong>Dead Letter Queue:</strong> After max retries, push to DLQ for manual inspection / replay.</li>
+                </ul>
+
+                <h3>Authentication Types (for API connectivity)</h3>
+                <ul>
+                    <li><strong>API Key:</strong> Simple, per-client key in header. Easy to implement, hard to rotate. Use for internal/trusted services.</li>
+                    <li><strong>OAuth 2.0 + JWT:</strong> Token-based. Access tokens (short-lived) + refresh tokens (long-lived). Standard for user-facing APIs.</li>
+                    <li><strong>mTLS:</strong> Mutual TLS with client certificates. Strongest for service-to-service. Used in service meshes.</li>
+                    <li><strong>HMAC Signatures:</strong> Sign request body/timestamp with shared secret. Used by Stripe, GitHub webhooks.</li>
+                    <li><strong>Session-based:</strong> Server-side session with cookie. Stateful, doesn't scale horizontally without sticky sessions or shared session store (Redis).</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 5. Message Brokers -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="message-brokers">
+                <h2>5. Message Brokers &amp; Pub/Sub</h2>
+                <p><em>Module 5 &mdash; Kafka vs RabbitMQ vs SQS, delivery semantics, event sourcing</em></p>
+
+                <h3>Broker Comparison</h3>
+                <table class="cs-table">
+                    <tr><th>Feature</th><th>Kafka</th><th>RabbitMQ</th><th>SQS/SNS</th></tr>
+                    <tr><td><strong>Model</strong></td><td>Distributed log (pull)</td><td>Message queue (push)</td><td>Managed queue (pull)</td></tr>
+                    <tr><td><strong>Ordering</strong></td><td>Per-partition</td><td>Per-queue (FIFO mode)</td><td>FIFO queues available</td></tr>
+                    <tr><td><strong>Throughput</strong></td><td>Millions/sec</td><td>~50K/sec</td><td>~3K/sec (FIFO)</td></tr>
+                    <tr><td><strong>Retention</strong></td><td>Days/weeks (configurable)</td><td>Until consumed</td><td>14 days max</td></tr>
+                    <tr><td><strong>Replay</strong></td><td>Yes (offset reset)</td><td>No (once consumed, gone)</td><td>No</td></tr>
+                    <tr><td><strong>Best For</strong></td><td>Event streaming, analytics, CDC</td><td>Task queues, routing, RPC</td><td>Serverless, simple async</td></tr>
+                </table>
+
+                <h3>Delivery Semantics</h3>
+                <ul>
+                    <li><strong>At-most-once:</strong> Fire and forget. May lose messages. Fastest. Use for metrics/logs where loss is tolerable.</li>
+                    <li><strong>At-least-once:</strong> Retry until ack. May get duplicates. <strong>Most common in practice.</strong> Pair with idempotent consumers.</li>
+                    <li><strong>Exactly-once:</strong> Kafka Transactions + idempotent producer. Heavy. Use for financial/booking workflows.</li>
+                </ul>
+
+                <h3>Key Patterns</h3>
+                <ul>
+                    <li><strong>Event Sourcing:</strong> Store events as source of truth, derive state. Great for audit trails (bookings, payments).</li>
+                    <li><strong>CQRS:</strong> Separate read/write models. Write to event log, project into read-optimized views.</li>
+                    <li><strong>Outbox Pattern:</strong> Write event to DB outbox table in same transaction as business data. Poller/CDC publishes to broker. Solves dual-write problem.</li>
+                    <li><strong>DLQ (Dead Letter Queue):</strong> Failed messages after N retries go to DLQ. Alert, inspect, replay when fixed.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 6. Resilience Patterns -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="resilience">
+                <h2>6. Resilience Patterns</h2>
+                <p><em>Module 6 &mdash; Retry, circuit breaker, bulkhead, idempotency</em></p>
+
+                <h3>Pattern Quick Reference</h3>
+                <table class="cs-table">
+                    <tr><th>Pattern</th><th>What It Does</th><th>When to Use</th></tr>
+                    <tr><td><strong>Retry + Jitter</strong></td><td>Retry failed calls with exponential backoff + random jitter</td><td>Transient failures (network blips, 503s)</td></tr>
+                    <tr><td><strong>Circuit Breaker</strong></td><td>Stop calling failing service; fail fast. States: Closed &rarr; Open &rarr; Half-Open</td><td>Prevent cascade failures, protect downstream</td></tr>
+                    <tr><td><strong>Bulkhead</strong></td><td>Isolate resources (thread pools, connection pools) per dependency</td><td>Prevent one slow service from starving others</td></tr>
+                    <tr><td><strong>Timeout</strong></td><td>Set max wait time for external calls</td><td>Always. Every external call needs a timeout.</td></tr>
+                    <tr><td><strong>Backpressure</strong></td><td>Slow down producers when consumers can't keep up</td><td>Streaming, queue-based systems</td></tr>
+                    <tr><td><strong>Idempotency Key</strong></td><td>Client sends unique key; server deduplicates</td><td>Payment APIs, booking creation, any non-idempotent operation</td></tr>
+                    <tr><td><strong>Graceful Degradation</strong></td><td>Return cached/partial data when dependency is down</td><td>Non-critical features, read-heavy paths</td></tr>
+                </table>
+
+                <h3>Retry Storm Prevention</h3>
+                <ul>
+                    <li>Use <strong>exponential backoff</strong>: 1s, 2s, 4s, 8s... with <strong>jitter</strong> (randomize &plusmn;25%).</li>
+                    <li>Set <strong>max retries</strong> (typically 3-5) and a <strong>max backoff cap</strong> (e.g. 30s).</li>
+                    <li>Circuit breaker prevents retries when service is known to be down.</li>
+                    <li>Coordinate retry budgets across fleet (e.g. max 10% of requests can be retries).</li>
+                </ul>
+
+                <h3>Thundering Herd Mitigation</h3>
+                <ul>
+                    <li><strong>Jitter on cache TTL:</strong> Randomize expiry so not all keys expire simultaneously.</li>
+                    <li><strong>Request coalescing:</strong> Single-flight / singleflight pattern &mdash; one goroutine fetches, others wait.</li>
+                    <li><strong>Stale-while-revalidate:</strong> Serve stale cache while refreshing in background.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 7. Testing Strategy -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="testing">
+                <h2>7. Testing Strategy</h2>
+                <p><em>Modules 7-9 &mdash; Pyramid, unit, integration, contract, E2E, chaos</em></p>
+
+                <h3>Testing Shapes</h3>
+                <table class="cs-table">
+                    <tr><th>Shape</th><th>Distribution</th><th>Best For</th></tr>
+                    <tr><td><strong>Pyramid</strong></td><td>Many unit &gt; some integration &gt; few E2E</td><td>Backend services, microservices</td></tr>
+                    <tr><td><strong>Trophy</strong></td><td>Few unit, many integration, some E2E</td><td>Full-stack apps, APIs (Kent C. Dodds)</td></tr>
+                    <tr><td><strong>Diamond</strong></td><td>Few unit, many integration, few E2E</td><td>Data pipelines, middleware</td></tr>
+                </table>
+
+                <h3>By Level</h3>
+                <ul>
+                    <li><strong>Unit Tests:</strong> Test pure logic in isolation. Mock external deps. Fast (&lt;1ms each). Use property-based testing for edge cases.</li>
+                    <li><strong>Integration Tests:</strong> Real DB (Testcontainers), real HTTP calls. Test service boundaries. Pact for consumer-driven contracts.</li>
+                    <li><strong>Contract Tests:</strong> Provider verifies consumer contracts. Prevents breaking API changes across teams.</li>
+                    <li><strong>E2E Tests:</strong> Full user flows (Playwright/Cypress). Expensive, flaky. Keep minimal; focus on critical paths.</li>
+                    <li><strong>Chaos Testing:</strong> Inject failures in production/staging (Toxiproxy, Chaos Monkey). Verify resilience patterns actually work.</li>
+                </ul>
+
+                <h3>Test Doubles</h3>
+                <ul>
+                    <li><strong>Stub:</strong> Returns canned responses. Use for simple dependency replacement.</li>
+                    <li><strong>Mock:</strong> Verifies interactions (was method X called with args Y?). Use sparingly &mdash; couples test to implementation.</li>
+                    <li><strong>Fake:</strong> Working implementation (in-memory DB, fake S3). Best for integration tests.</li>
+                    <li><strong>Spy:</strong> Records calls for later assertion. Middle ground between stub and mock.</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 8. Code Review -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="code-review">
+                <h2>8. Code Review</h2>
+                <p><em>Modules 10-11 &mdash; Correctness, performance, security, staff practices</em></p>
+
+                <h3>Review Dimensions</h3>
+                <table class="cs-table">
+                    <tr><th>Dimension</th><th>What to Look For</th></tr>
+                    <tr><td><strong>Correctness</strong></td><td>Off-by-one errors, null handling, boundary conditions, race conditions, logic errors</td></tr>
+                    <tr><td><strong>Performance</strong></td><td>N+1 queries, missing indexes, unbounded collections, unnecessary allocations, O(n^2) hidden in loops</td></tr>
+                    <tr><td><strong>Security</strong></td><td>SQL injection, XSS, SSRF, hardcoded secrets, missing auth checks, insecure deserialization</td></tr>
+                    <tr><td><strong>Maintainability</strong></td><td>Naming, single responsibility, coupling, test coverage, dead code</td></tr>
+                    <tr><td><strong>Design</strong></td><td>Right pattern? SOLID violations? Appropriate abstraction level? Extensibility needed?</td></tr>
+                </table>
+
+                <h3>Common Anti-Patterns to Spot</h3>
+                <ul>
+                    <li><strong>N+1 Query:</strong> Fetching related records in a loop instead of JOIN or batch fetch. Fix: eager loading or <code>WHERE id IN (...)</code>.</li>
+                    <li><strong>Race Condition:</strong> Check-then-act without locking. Fix: optimistic locking (version column), pessimistic lock, or atomic operations.</li>
+                    <li><strong>God Class:</strong> One class doing everything. Fix: extract responsibilities into focused classes.</li>
+                    <li><strong>Swallowed Exceptions:</strong> Empty catch blocks. Fix: log, rethrow, or handle meaningfully.</li>
+                    <li><strong>Hardcoded Config:</strong> URLs, timeouts, feature flags in code. Fix: externalize to config/env vars.</li>
+                </ul>
+
+                <h3>Staff-Level Review Practices</h3>
+                <ul>
+                    <li>Review for <strong>architectural alignment</strong> &mdash; does this PR move us toward or away from target architecture?</li>
+                    <li>Suggest <strong>design patterns</strong> where appropriate (Strategy, Observer, Factory) &mdash; don't just say "fix this."</li>
+                    <li>Evaluate <strong>error handling strategy</strong> &mdash; is it consistent with the service's error contract?</li>
+                    <li>Check <strong>observability</strong> &mdash; are there logs/metrics/traces for the new code path?</li>
+                    <li>Consider <strong>rollback safety</strong> &mdash; can this change be reverted without data migration?</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- 9. Observability -->
+            <!-- ============================================ -->
+            <div class="cs-section" id="observability">
+                <h2>9. Observability &amp; Production Readiness</h2>
+                <p><em>Module 12 &mdash; Logs, metrics, traces, SLI/SLO, alerting</em></p>
+
+                <h3>Three Pillars</h3>
+                <table class="cs-table">
+                    <tr><th>Pillar</th><th>What</th><th>Tools</th><th>When to Use</th></tr>
+                    <tr><td><strong>Logs</strong></td><td>Structured events (JSON). Include trace_id, user_id, request_id.</td><td>ELK, Loki, CloudWatch</td><td>Debugging, audit trails</td></tr>
+                    <tr><td><strong>Metrics</strong></td><td>Numeric time-series. Counters, gauges, histograms.</td><td>Prometheus, Datadog, CloudWatch</td><td>Alerting, dashboards, SLO tracking</td></tr>
+                    <tr><td><strong>Traces</strong></td><td>Distributed request flow across services. Spans with timing.</td><td>Jaeger, Zipkin, OpenTelemetry</td><td>Latency debugging, dependency mapping</td></tr>
+                </table>
+
+                <h3>SLI / SLO / Error Budget</h3>
+                <ul>
+                    <li><strong>SLI (Service Level Indicator):</strong> What you measure &mdash; e.g. "% of requests completing in &lt;200ms", "% of requests returning non-5xx".</li>
+                    <li><strong>SLO (Service Level Objective):</strong> Target for SLI &mdash; e.g. "99.9% of requests succeed" (allows ~8.7 hours downtime/year).</li>
+                    <li><strong>Error Budget:</strong> 100% - SLO = budget for risk. When budget exhausted, freeze deployments and focus on reliability.</li>
+                    <li><strong>SLA (Service Level Agreement):</strong> External contract with consequences. SLO should be stricter than SLA.</li>
+                </ul>
+
+                <h3>RED &amp; USE Methods</h3>
+                <ul>
+                    <li><strong>RED</strong> (for request-driven services): <strong>R</strong>ate (req/s), <strong>E</strong>rrors (error rate), <strong>D</strong>uration (latency histogram).</li>
+                    <li><strong>USE</strong> (for resources): <strong>U</strong>tilization (% busy), <strong>S</strong>aturation (queue depth), <strong>E</strong>rrors (error count).</li>
+                </ul>
+
+                <h3>Production Readiness Checklist</h3>
+                <ul>
+                    <li>Structured logging with correlation IDs</li>
+                    <li>Health check endpoints (<code>/health</code>, <code>/ready</code>)</li>
+                    <li>Dashboards for RED metrics per service</li>
+                    <li>Alerts on SLO burn rate (not just thresholds)</li>
+                    <li>Runbooks linked to each alert</li>
+                    <li>Graceful shutdown handling (drain connections, finish in-flight requests)</li>
+                    <li>Feature flags for safe rollout</li>
+                    <li>Rollback plan documented</li>
+                </ul>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- AGODA PLATFORM ROUND EXPERIENCE -->
+            <!-- ============================================ -->
+            <div class="cs-section interview-exp" id="agoda-experience">
+                <h2>Real Interview Experience: Agoda Platform Round</h2>
+                <p>Compiled from multiple verified candidate experiences (2024-2026) including staff, senior, and lead engineer levels. The platform round is a <strong>1-hour assessment</strong> that combines system design review, connectivity/API management, and code review into a single integrated round.</p>
+
+                <h3 style="color: #eab308;">Round Format &amp; Philosophy</h3>
+                <ul>
+                    <li><strong>Duration:</strong> 60 minutes, conducted by a Staff/Principal engineer.</li>
+                    <li><strong>Format:</strong> You are given a <strong>pre-built "non-robust" system</strong> (typically a booking or data-fetching service). Your job is to <strong>review, identify gaps, and improve</strong> &mdash; not build from scratch.</li>
+                    <li><strong>Why this format:</strong> At staff level, evaluating and improving existing architecture is as important as greenfield design. This simulates real senior engineering work.</li>
+                    <li><strong>Assessment style:</strong> Extensive "how / what / why / why not" grilling. Interviewers continuously challenge assumptions and highlight gaps intentionally to see how you reason under pressure.</li>
+                </ul>
+
+                <div class="warn-box">
+                    <strong>Key insight:</strong> Start with smaller problems first &mdash; this is the core of the round. Don't jump to big architectural changes before addressing obvious issues.
+                </div>
+
+                <!-- Sub-round 1: System Design -->
+                <div class="sub-round">
+                    <h3 style="color: #eab308;">Sub-round 1: System Design &mdash; Improve a Given Design (~20 min)</h3>
+                    <p><strong>Scenario:</strong> You're given an existing booking system architecture. The service handles hotel booking transactions in MySQL. The company is expanding to allow external booking agents (e.g. MakeMyTrip, Booking.com) to use the same booking service via REST APIs. The current design is intentionally naive.</p>
+
+                    <p><strong>What you're expected to identify and improve:</strong></p>
+                    <ul>
+                        <li><strong>Load Balancing:</strong> Single server &rarr; introduce LB (L4/L7), discuss health checks, sticky sessions vs stateless.</li>
+                        <li><strong>Rate Limiting:</strong> No rate limiting on new agent APIs &rarr; add token bucket / sliding window at API gateway level. Discuss per-client vs global limits.</li>
+                        <li><strong>Message Queue:</strong> Synchronous booking flow &rarr; introduce async processing (Kafka/RabbitMQ) for non-critical paths (notifications, analytics, agent callbacks). Discuss when sync vs async is appropriate.</li>
+                        <li><strong>Caching:</strong> Every request hits DB &rarr; add read-through cache (Redis) for hotel inventory, price lookups. Discuss cache invalidation strategies (TTL, write-through, event-driven).</li>
+                        <li><strong>Database:</strong> Single MySQL &rarr; read replicas for agent queries, connection pooling, discuss sharding if scale warrants it.</li>
+                        <li><strong>Transaction Management:</strong> Race conditions on double-booking &rarr; optimistic locking (version column), pessimistic locking (SELECT FOR UPDATE), or reservation pattern (hold &rarr; confirm &rarr; expire).</li>
+                    </ul>
+
+                    <div class="tip-box">
+                        <strong>What worked:</strong> Candidates who structured their improvements from edge (LB, rate limiter) to core (DB, transactions) and explained trade-offs at each layer performed best. Always explain WHY, not just WHAT.
+                    </div>
+                </div>
+
+                <!-- Sub-round 2: Connectivity & REST API -->
+                <div class="sub-round">
+                    <h3 style="color: #eab308;">Sub-round 2: Connectivity &amp; REST API Management (~20 min)</h3>
+                    <p><strong>Focus:</strong> How do you manage robust, secure API connectivity for the agent integration? Interviewers test knowledge of plain vanilla HTTP fundamentals (no framework abstractions).</p>
+
+                    <p><strong>Topics covered:</strong></p>
+                    <ul>
+                        <li><strong>REST API Improvements:</strong> Missing versioning &rarr; add URL-path versioning (<code>/v1/bookings</code>). Missing pagination &rarr; cursor-based for listing endpoints. Missing idempotency &rarr; add idempotency keys for booking creation.</li>
+                        <li><strong>Authentication Types Discussion:</strong>
+                            <ul>
+                                <li>API Key &mdash; simple but hard to rotate, no scoping. Good for internal services.</li>
+                                <li>OAuth 2.0 Client Credentials &mdash; machine-to-machine, supports scopes, token expiry. Best for agent APIs.</li>
+                                <li>JWT &mdash; stateless validation, include claims (agent_id, permissions). Discuss access + refresh token lifecycle.</li>
+                                <li>mTLS &mdash; strongest service-to-service auth. Discuss certificate management overhead.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Secure Session Management:</strong>
+                            <ul>
+                                <li>Stateless JWT vs stateful sessions (Redis-backed). Tradeoffs: JWT = scalable but can't revoke easily; sessions = revocable but need shared store.</li>
+                                <li>Token rotation: short-lived access tokens (15 min) + refresh tokens (7 days) with rotation on each use.</li>
+                                <li>Secure cookie flags: <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Strict</code>.</li>
+                                <li>CSRF protection for session-based auth.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Connectivity Robustness:</strong> Discuss retry with exponential backoff for agent-to-Agoda calls, circuit breaker on Agoda side for external supplier calls, timeouts on all external dependencies.</li>
+                    </ul>
+
+                    <div class="tip-box">
+                        <strong>What worked:</strong> Discussing authentication as a spectrum (API Key &rarr; OAuth &rarr; mTLS) and recommending the right level for the agent use case (OAuth 2.0 Client Credentials + JWT). Showing awareness of token lifecycle management impressed interviewers.
+                    </div>
+                </div>
+
+                <!-- Sub-round 3: Code Review -->
+                <div class="sub-round">
+                    <h3 style="color: #eab308;">Sub-round 3: Code Review &mdash; Booking API (~20 min)</h3>
+                    <p><strong>Format:</strong> You're shown a basic booking API implementation (typically Java/Kotlin or Python). The code works but has many issues. You review it as you would a real PR.</p>
+
+                    <p><strong>Common issues to spot and suggest:</strong></p>
+                    <ul>
+                        <li><strong>Strategy Pattern:</strong> Large if/else chains for different booking types (hotel, flight, package) &rarr; suggest Strategy pattern to encapsulate booking logic per type. Makes adding new types (agent bookings) a new class, not a code change.</li>
+                        <li><strong>Error/Exception Handling:</strong>
+                            <ul>
+                                <li>Swallowed exceptions (empty catch blocks) &rarr; log and either rethrow or return meaningful error.</li>
+                                <li>Generic <code>catch(Exception e)</code> &rarr; catch specific exceptions, handle each appropriately.</li>
+                                <li>Missing validation at API boundary &rarr; validate input DTOs before business logic.</li>
+                                <li>No distinction between client errors (4xx) and server errors (5xx) in response mapping.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Database Issues:</strong>
+                            <ul>
+                                <li>N+1 queries (loading bookings then fetching hotel for each in a loop).</li>
+                                <li>Missing transaction boundaries (booking + payment not atomic).</li>
+                                <li>No connection pooling configuration.</li>
+                            </ul>
+                        </li>
+                        <li><strong>Concurrency:</strong> No handling of concurrent booking for same room &rarr; suggest optimistic locking with version field or database-level constraints.</li>
+                        <li><strong>Observability:</strong> No logging, no metrics, no trace context &rarr; add structured logging with booking_id, agent_id; emit latency/error metrics.</li>
+                        <li><strong>Security:</strong> Missing input sanitization, no rate limiting at endpoint level, no auth middleware check.</li>
+                    </ul>
+
+                    <div class="tip-box">
+                        <strong>What worked:</strong> Structuring feedback by severity (critical &rarr; major &rarr; minor), suggesting specific design patterns with reasoning (not just "use Strategy pattern" but explaining HOW it applies to the booking type problem), and connecting code issues to production impact (e.g. "this swallowed exception means we'll silently lose bookings").
+                    </div>
+                </div>
+
+                <!-- Tips Section -->
+                <h3 style="color: #eab308;">General Tips &amp; What Worked</h3>
+                <ul>
+                    <li><strong>Start small, go big:</strong> Begin with obvious low-hanging fruit (missing error handling, no rate limiter) before proposing architectural changes (event-driven migration, CQRS).</li>
+                    <li><strong>Communicate tradeoffs:</strong> For every suggestion, explain the tradeoff. "Adding a message queue decouples the booking confirmation from notification delivery, but adds operational complexity and potential consistency delay."</li>
+                    <li><strong>Depth over breadth:</strong> Agoda interviewers value understanding WHY a design choice matters. Saying "use Redis for caching" is weak; explaining cache invalidation strategy, TTL tuning, and what happens on cache failure is strong.</li>
+                    <li><strong>Respond well to pushback:</strong> The interviewer will intentionally challenge your suggestions. This tests how you handle disagreement. Acknowledge the concern, adjust if valid, or defend with evidence.</li>
+                    <li><strong>Proactively discuss complexity:</strong> Don't wait to be asked &mdash; mention time/space complexity of algorithms and O-notation of database operations.</li>
+                    <li><strong>Connect to metrics:</strong> Tie improvements back to measurable outcomes: "Adding circuit breakers would reduce cascade failures, improving our p99 latency SLO attainment from ~95% to &gt;99%."</li>
+                    <li><strong>Know the booking domain:</strong> Understand reservation patterns (hold/confirm/expire), double-booking prevention, eventual consistency in distributed booking systems, and payment idempotency.</li>
+                </ul>
+
+                <div class="warn-box">
+                    <strong>Common mistakes:</strong> Jumping to over-engineered solutions (microservices, event sourcing) before fixing basic issues. Not explaining WHY behind suggestions. Getting defensive when the interviewer challenges a decision. Ignoring the code review portion to spend too long on system design.
+                </div>
+
+                <h3 style="color: #eab308;">Overall Agoda Interview Process (Staff Level)</h3>
+                <table class="cs-table">
+                    <tr><th>Round</th><th>Duration</th><th>Focus</th></tr>
+                    <tr><td><strong>1. Online Assessment</strong></td><td>60-90 min</td><td>HackerRank &mdash; 2-3 DSA problems (medium-hard). LeetCode Top 75 style.</td></tr>
+                    <tr><td><strong>2. DSA Interview</strong></td><td>60 min</td><td>Live coding with interviewer. Algorithm design + complexity analysis.</td></tr>
+                    <tr><td><strong>3. Platform Round</strong></td><td>60 min</td><td>System design review + REST API/connectivity + code review (this page).</td></tr>
+                    <tr><td><strong>4. Manager Round</strong></td><td>60 min</td><td>Behavioral &mdash; mentorship, mistakes, experiments, tradeoffs, conflicts. Longest round.</td></tr>
+                </table>
+                <p><em>Note: Strong performance in early rounds can lead to skipping subsequent rounds. Agoda recruiters provide detailed prep guidance before each round.</em></p>
+            </div>
+
+            <!-- Back to course link -->
+            <div class="flex flex-between mt-4">
+                <a href="index.html" class="btn btn-secondary">&larr; Course Overview</a>
+                <a href="module-01.html" class="btn btn-primary">Start Module 1 &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <button class="print-btn" onclick="window.print()">Print / PDF</button>
+
+    <script src="../assets/js/app.js"></script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>
