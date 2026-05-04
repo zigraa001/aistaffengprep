@@ -71,6 +71,8 @@
                     <li>API gateway patterns, BFF, and service mesh considerations</li>
                     <li>Request routing, traffic shaping, and API composition</li>
                     <li>GraphQL-specific pagination with Relay connections</li>
+                    <li>Load balancing: L4 vs L7, algorithms, health checks, sticky sessions</li>
+                    <li>Caching strategies: cache-aside, write-through, invalidation, stampede prevention</li>
                 </ul>
             </div>
 
@@ -763,6 +765,473 @@ routes:
                     </ol>
 
                     <p><strong>Rule of thumb:</strong> If you can't explain what the gateway does in one sentence ("It handles auth, rate limiting, and routing"), it's doing too much.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Load Balancing Patterns</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is the difference between L4 and L7 load balancing, and when should you use each?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> L4 (Transport Layer) and L7 (Application Layer) load balancers operate at different OSI layers with fundamentally different capabilities:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Dimension</th><th>L4 (TCP/UDP)</th><th>L7 (HTTP/HTTPS)</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Operates on</strong></td><td>IP + port, TCP connections</td><td>HTTP headers, URL path, cookies, body</td></tr>
+                            <tr><td><strong>Routing decisions</strong></td><td>Source/dest IP, port</td><td>URL path, Host header, cookies, query params</td></tr>
+                            <tr><td><strong>Performance</strong></td><td>Very fast &mdash; no payload inspection</td><td>Slower &mdash; must parse HTTP</td></tr>
+                            <tr><td><strong>TLS</strong></td><td>Passes through (TLS termination at backend)</td><td>Terminates TLS, can inspect/modify HTTP</td></tr>
+                            <tr><td><strong>Features</strong></td><td>Simple routing, TCP health checks</td><td>Content-based routing, header injection, URL rewriting, WAF</td></tr>
+                            <tr><td><strong>Examples</strong></td><td>AWS NLB, HAProxy (TCP mode), IPVS</td><td>AWS ALB, Nginx, Envoy, HAProxy (HTTP mode)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>When to use each:</strong></p>
+                    <ul>
+                        <li><strong>L4:</strong> Non-HTTP protocols (gRPC without path routing, databases, custom TCP), extreme throughput requirements, simple round-robin distribution.</li>
+                        <li><strong>L7:</strong> HTTP APIs (most common), when you need path-based routing (<code>/api/bookings</code> vs <code>/api/users</code>), header-based routing (canary, A/B), or TLS termination at the LB.</li>
+                        <li><strong>Both:</strong> Many production setups use L4 at the edge (NLB for raw throughput) fronting L7 internally (ALB/Envoy for smart routing).</li>
+                    </ul>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    Client[Clients] --> NLB[L4 NLB - TCP distribution]
+    NLB --> ALB1[L7 ALB - Region A]
+    NLB --> ALB2[L7 ALB - Region B]
+    ALB1 --> |/api/bookings| BS1[Booking Service]
+    ALB1 --> |/api/inventory| IS1[Inventory Service]
+    ALB2 --> |/api/bookings| BS2[Booking Service]
+    ALB2 --> |/api/inventory| IS2[Inventory Service]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main load balancing algorithms and their tradeoffs?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Algorithm</th><th>How It Works</th><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Round Robin</strong></td>
+                                <td>Distribute requests sequentially across servers</td>
+                                <td>Simplest, even distribution with equal servers</td>
+                                <td>Ignores server load/capacity differences</td>
+                                <td>Homogeneous server pools</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Weighted Round Robin</strong></td>
+                                <td>Round robin with weights (e.g., 3:1 ratio)</td>
+                                <td>Handles heterogeneous capacity</td>
+                                <td>Weights are static, doesn't react to load</td>
+                                <td>Mixed instance sizes (4-core vs 8-core)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Least Connections</strong></td>
+                                <td>Route to server with fewest active connections</td>
+                                <td>Adapts to variable request durations</td>
+                                <td>Slightly more overhead to track connections</td>
+                                <td>Long-lived connections, variable latency</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Least Response Time</strong></td>
+                                <td>Route to server with lowest recent latency</td>
+                                <td>Accounts for actual server health</td>
+                                <td>Requires latency tracking, cold-start bias</td>
+                                <td>Latency-sensitive services</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Consistent Hashing</strong></td>
+                                <td>Hash request key to server on hash ring</td>
+                                <td>Session affinity without state, minimal redistribution on scale</td>
+                                <td>Uneven distribution without virtual nodes</td>
+                                <td>Caching layers, stateful services, Kafka partition assignment</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Random with Two Choices</strong></td>
+                                <td>Pick 2 random servers, route to less loaded one</td>
+                                <td>Near-optimal distribution, simple, no global state</td>
+                                <td>Slightly worse than least-connections in theory</td>
+                                <td>Large-scale distributed LBs (Netflix uses this)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Staff-level insight:</strong> In most booking systems, <strong>least connections</strong> is the default choice because booking requests have variable latency (DB lookups, payment calls). Consistent hashing is used for cache layers where you want the same hotel_id to always hit the same cache shard.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do health checks work, and what is the difference between liveness and readiness?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Health checks determine whether a backend should receive traffic. There are two types of health checks and two types of probes:</p>
+
+                    <p><strong>Health check types:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Type</th><th>How It Works</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Active</strong></td>
+                                <td>LB periodically sends requests to <code>/health</code> endpoint</td>
+                                <td>Proactive detection, configurable interval</td>
+                                <td>Extra load on backends, delayed detection (depends on interval)</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Passive</strong></td>
+                                <td>LB monitors real traffic responses (e.g., consecutive 5xx = unhealthy)</td>
+                                <td>Zero overhead, detects issues from real user perspective</td>
+                                <td>Needs traffic to detect issues, slower for low-traffic servers</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Kubernetes-style probes:</strong></p>
+                    <ul>
+                        <li><strong>Liveness probe (<code>/health/live</code>):</strong> "Is the process alive?" If it fails, the container is restarted. Should check only that the process is running, NOT external dependencies.</li>
+                        <li><strong>Readiness probe (<code>/health/ready</code>):</strong> "Can this instance serve traffic?" Checks DB connectivity, cache reachability, warmup complete. If it fails, the instance is removed from the LB pool but NOT restarted.</li>
+                    </ul>
+
+                    <pre><code class="language-python"># Health check endpoints - booking service example
+@app.get("/health/live")
+async def liveness():
+    """Am I alive? Don't check external deps here."""
+    return {"status": "ok"}
+
+@app.get("/health/ready")
+async def readiness():
+    """Can I serve traffic? Check critical dependencies."""
+    checks = {}
+    try:
+        await db.execute("SELECT 1")
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "failed"
+        return JSONResponse(status_code=503, content={"status": "not ready", "checks": checks})
+
+    try:
+        await redis.ping()
+        checks["cache"] = "ok"
+    except Exception:
+        checks["cache"] = "failed"
+        return JSONResponse(status_code=503, content={"status": "not ready", "checks": checks})
+
+    return {"status": "ready", "checks": checks}</code></pre>
+
+                    <p><strong>Common mistake:</strong> Putting DB checks in the liveness probe. If the database is down, all instances fail liveness, Kubernetes restarts them all, and now you have zero capacity AND a DB that's still down. Liveness should only detect <em>process-level</em> failures (deadlock, memory corruption).</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: Sticky sessions vs stateless design &mdash; what are the tradeoffs for booking systems?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Sticky sessions (session affinity) route all requests from the same client to the same backend server. This matters when server-side state exists.</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Approach</th><th>How</th><th>Pros</th><th>Cons</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Sticky Sessions</strong></td>
+                                <td>Cookie-based or IP-based affinity at LB</td>
+                                <td>Simple, no shared state needed, good for in-memory sessions</td>
+                                <td>Uneven load, instance failure loses sessions, scaling issues</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stateless + Shared Store</strong></td>
+                                <td>Store session in Redis/DB, any instance can serve</td>
+                                <td>Even load distribution, resilient to instance failure, easy scaling</td>
+                                <td>Additional infra (Redis), slight latency for session lookup</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>For booking systems (Agoda context):</strong> Always prefer <strong>stateless design</strong>. A multi-step booking flow (search &rarr; select &rarr; pay &rarr; confirm) should store intermediate state in Redis or DB, not in server memory. This allows:</p>
+                    <ul>
+                        <li>Horizontal scaling without session affinity complications</li>
+                        <li>Zero-downtime deployments (rolling restarts don't lose booking state)</li>
+                        <li>Load shedding &mdash; Agoda's private cloud approach can redirect traffic during spikes</li>
+                    </ul>
+
+                    <p><strong>When sticky sessions are acceptable:</strong> WebSocket connections (need to maintain connection to same server), in-memory caches that benefit from locality (but use consistent hashing instead), or legacy systems where refactoring session management is too costly.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Caching Strategies</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the main caching strategies and when should you use each?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> There are four fundamental caching strategies, each with different consistency and performance characteristics:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>Read Path</th><th>Write Path</th><th>Consistency</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Cache-Aside (Lazy Loading)</strong></td>
+                                <td>App checks cache &rarr; miss &rarr; fetch DB &rarr; populate cache</td>
+                                <td>App writes to DB, then invalidates/deletes cache</td>
+                                <td>Eventually consistent (stale reads possible)</td>
+                                <td>General-purpose, most common pattern</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Read-Through</strong></td>
+                                <td>Cache itself fetches from DB on miss (cache acts as proxy)</td>
+                                <td>Same as cache-aside</td>
+                                <td>Eventually consistent</td>
+                                <td>Simpler app code, CDN/proxy caches</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Write-Through</strong></td>
+                                <td>Same as read-through</td>
+                                <td>Writes go to cache first, cache writes to DB synchronously</td>
+                                <td>Strong (cache always has latest data)</td>
+                                <td>Read-heavy with strict consistency needs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Write-Behind (Write-Back)</strong></td>
+                                <td>Same as read-through</td>
+                                <td>Writes go to cache, cache asynchronously flushes to DB</td>
+                                <td>Weak (data loss risk if cache fails before flush)</td>
+                                <td>Write-heavy workloads, high throughput</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Cache-Aside (Most Common)"
+        A1[App] -->|1. Check cache| C1[Cache]
+        C1 -->|2. Miss| A1
+        A1 -->|3. Query DB| D1[(DB)]
+        A1 -->|4. Populate cache| C1
+    end
+                        </div>
+                    </div>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    subgraph "Write-Through"
+        A2[App] -->|1. Write| C2[Cache]
+        C2 -->|2. Sync write to DB| D2[(DB)]
+        C2 -->|3. Ack| A2
+    end
+                        </div>
+                    </div>
+
+                    <p><strong>Booking system recommendation:</strong> Use <strong>cache-aside</strong> for hotel inventory and price lookups (read-heavy, can tolerate short staleness), and <strong>write-through</strong> for session/cart data (must always be current). Never use write-behind for booking data &mdash; the data loss risk is unacceptable.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: How do you handle cache invalidation, and what are the tradeoffs between approaches?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Cache invalidation is famously one of the hardest problems in CS. There are three main approaches:</p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>How It Works</th><th>Pros</th><th>Cons</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>TTL-Based</strong></td>
+                                <td>Cache entries expire after a fixed time</td>
+                                <td>Simplest, self-healing, no coordination needed</td>
+                                <td>Stale data during TTL window, cache stampede on expiry</td>
+                                <td>Data that can tolerate bounded staleness</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Event-Driven</strong></td>
+                                <td>Invalidate on write events (via message queue or CDC)</td>
+                                <td>Near-real-time consistency, precise invalidation</td>
+                                <td>Complex infra (Kafka/CDC pipeline), event ordering issues</td>
+                                <td>Price updates, inventory changes</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Write-Through</strong></td>
+                                <td>Cache updated on every write</td>
+                                <td>Cache always current, no stale reads</td>
+                                <td>Write latency increases, wasted cache for rarely-read data</td>
+                                <td>Session data, frequently-read config</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># Event-driven invalidation example (booking system)
+# When a hotel updates prices, publish event to Kafka
+
+# Producer (hotel admin service):
+async def update_hotel_price(hotel_id: str, new_price: Decimal):
+    await db.execute(
+        "UPDATE hotel_prices SET price = $1 WHERE hotel_id = $2",
+        new_price, hotel_id
+    )
+    # Publish invalidation event
+    await kafka.produce("hotel-price-updates", {
+        "hotel_id": hotel_id,
+        "action": "price_updated",
+        "timestamp": datetime.utcnow().isoformat()
+    })
+
+# Consumer (cache invalidation worker):
+async def handle_price_update(event):
+    hotel_id = event["hotel_id"]
+    # Delete from cache - next read will fetch fresh from DB
+    await redis.delete(f"hotel:price:{hotel_id}")
+    # Also invalidate search result caches that include this hotel
+    await redis.delete(f"search:city:{hotel_city_id}:*")  # Pattern delete</code></pre>
+
+                    <p><strong>Practical approach for Agoda-style booking:</strong> Use TTL (5 min) as a safety net for all cached data, plus event-driven invalidation for price and inventory changes. This gives you near-real-time updates when the system is healthy, and bounded staleness (5 min max) if the event pipeline has issues.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What is cache stampede and how do you prevent it?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Cache stampede (thundering herd) happens when a popular cache key expires and many concurrent requests all miss the cache simultaneously, overwhelming the database.</p>
+
+                    <p><strong>Example:</strong> A popular hotel page is cached with TTL=60s. At expiry, 500 concurrent requests all miss cache and hit the DB. The DB query takes 200ms, so for 200ms you have 500 identical queries running.</p>
+
+                    <p><strong>Prevention strategies:</strong></p>
+
+                    <table>
+                        <thead>
+                            <tr><th>Strategy</th><th>How It Works</th><th>Complexity</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Request Coalescing (Singleflight)</strong></td>
+                                <td>First request fetches from DB; subsequent requests wait for the same result</td>
+                                <td>Low &mdash; Go has <code>singleflight</code>, Java use <code>CompletableFuture</code> caching</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Locking</strong></td>
+                                <td>Acquire distributed lock before fetching; others wait or return stale</td>
+                                <td>Medium &mdash; needs Redis lock, potential deadlocks</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stale-While-Revalidate</strong></td>
+                                <td>Serve stale cache while one request refreshes in background</td>
+                                <td>Low &mdash; store data with soft/hard TTL</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Probabilistic Early Expiration</strong></td>
+                                <td>Each request has a small random chance of refreshing before TTL expires</td>
+                                <td>Low &mdash; add random check before cache get</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># Stale-while-revalidate implementation
+import time, json, asyncio
+
+SOFT_TTL = 300    # 5 minutes - triggers background refresh
+HARD_TTL = 600    # 10 minutes - absolute expiry
+
+async def get_with_swr(key: str, fetch_fn):
+    """Cache with stale-while-revalidate pattern."""
+    raw = await redis.get(key)
+    if raw:
+        data = json.loads(raw)
+        if time.time() &lt; data["soft_expiry"]:
+            return data["value"]  # Fresh - return immediately
+        else:
+            # Stale but within hard TTL - return stale, refresh in background
+            asyncio.create_task(refresh_cache(key, fetch_fn))
+            return data["value"]
+
+    # Hard miss - must fetch synchronously
+    return await refresh_cache(key, fetch_fn)
+
+async def refresh_cache(key: str, fetch_fn):
+    """Fetch fresh data and update cache."""
+    value = await fetch_fn()
+    await redis.setex(key, HARD_TTL, json.dumps({
+        "value": value,
+        "soft_expiry": time.time() + SOFT_TTL
+    }))
+    return value</code></pre>
+
+                    <p><strong>Best practice for booking systems:</strong> Combine <strong>singleflight + stale-while-revalidate</strong>. Popular hotel pages get served instantly from stale cache while a single background request refreshes the data. This eliminates stampedes entirely.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Q: What are the cache eviction policies and where should caching happen in the stack?</span>
+                </div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong></p>
+
+                    <p><strong>Eviction policies</strong> (what to remove when cache is full):</p>
+                    <table>
+                        <thead>
+                            <tr><th>Policy</th><th>Evicts</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>LRU (Least Recently Used)</strong></td><td>Item not accessed for longest time</td><td>General-purpose, most common default (Redis <code>allkeys-lru</code>)</td></tr>
+                            <tr><td><strong>LFU (Least Frequently Used)</strong></td><td>Item accessed fewest times overall</td><td>Skewed access patterns (popular hotels stay cached)</td></tr>
+                            <tr><td><strong>FIFO</strong></td><td>Oldest item regardless of access</td><td>Simple use cases, time-series data</td></tr>
+                            <tr><td><strong>TTL-based</strong></td><td>Expired items first</td><td>Data with known freshness requirements</td></tr>
+                            <tr><td><strong>Random</strong></td><td>Random item</td><td>When all items have equal value</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Where to cache in the stack:</strong></p>
+                    <table>
+                        <thead>
+                            <tr><th>Layer</th><th>What to Cache</th><th>TTL</th><th>Technology</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td><strong>Client / Browser</strong></td><td>Static assets, API responses</td><td>Hours-days</td><td><code>Cache-Control</code> headers, Service Workers</td></tr>
+                            <tr><td><strong>CDN</strong></td><td>Images, static content, public API responses</td><td>Minutes-hours</td><td>CloudFront, Fastly, Akamai</td></tr>
+                            <tr><td><strong>API Gateway</strong></td><td>Auth tokens, rate limit counters, idempotency keys</td><td>Seconds-minutes</td><td>Built-in or Redis sidecar</td></tr>
+                            <tr><td><strong>Application (L1)</strong></td><td>Hot config, frequently used lookups</td><td>Seconds</td><td>In-process (Guava, Caffeine, lru_cache)</td></tr>
+                            <tr><td><strong>Distributed Cache (L2)</strong></td><td>DB query results, session data, computed aggregations</td><td>Minutes</td><td>Redis, Memcached</td></tr>
+                            <tr><td><strong>DB Query Cache</strong></td><td>Repeated identical queries</td><td>Auto-invalidated on write</td><td>MySQL query cache (deprecated), materialized views</td></tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Booking system caching strategy:</strong></p>
+                    <ul>
+                        <li><strong>Hotel metadata</strong> (name, address, amenities): CDN + L2 cache, TTL 1 hour. Rarely changes.</li>
+                        <li><strong>Prices:</strong> L2 cache only (Redis), TTL 5 min + event-driven invalidation. Changes frequently, must not be CDN-cached.</li>
+                        <li><strong>Availability/inventory:</strong> L2 cache, TTL 30s or real-time via write-through. Must be fresh for booking decisions.</li>
+                        <li><strong>Search results:</strong> L2 cache keyed on query hash, TTL 2 min. Acceptable to show slightly stale search results.</li>
+                    </ul>
                 </div>
             </div>
 

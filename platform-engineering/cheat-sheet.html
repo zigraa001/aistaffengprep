@@ -690,6 +690,30 @@
                     <div class="tip-box">
                         <strong>What worked:</strong> Structuring feedback by severity (critical &rarr; major &rarr; minor), suggesting specific design patterns with reasoning (not just "use Strategy pattern" but explaining HOW it applies to the booking type problem), and connecting code issues to production impact (e.g. "this swallowed exception means we'll silently lose bookings").
                     </div>
+
+                    <h3 style="color: #eab308;">Practice: Buggy Booking API (find the issues)</h3>
+                    <pre><code class="language-java">@PostMapping("/bookings")
+public ResponseEntity&lt;BookingDTO&gt; createBooking(@RequestBody BookingRequest req) {
+    if (req.getCheckIn().isAfter(req.getCheckOut())) {
+        return ResponseEntity.status(500).body(null);       // Bug: wrong status (should be 400/422)
+    }
+    Booking booking = new Booking(req);
+    bookingRepository.save(booking);
+
+    try {
+        paymentClient.charge(req.getPaymentInfo(), booking.getTotal());
+    } catch (Exception e) { /* TODO: handle later */ }      // Bug: swallowed payment exception
+
+    try {
+        emailService.sendConfirmation(booking);
+    } catch (Exception e) {
+        log.error("Email failed");                          // Bug: no exception object, no booking ID
+    }
+
+    bookingRepository.save(booking);
+    return ResponseEntity.ok(booking.toDTO());
+}</code></pre>
+                    <p><strong>Key issues:</strong> (1) 500 for validation error &rarr; use 422, (2) swallowed payment exception &rarr; booking saved but unpaid, (3) log.error missing <code>e</code> and <code>booking.getId()</code>, (4) no transaction boundary across two saves, (5) sync email in request path &rarr; move to async queue, (6) no concurrency control &rarr; double-booking possible.</p>
                 </div>
 
                 <!-- Tips Section -->
@@ -706,6 +730,21 @@
 
                 <div class="warn-box">
                     <strong>Common mistakes:</strong> Jumping to over-engineered solutions (microservices, event sourcing) before fixing basic issues. Not explaining WHY behind suggestions. Getting defensive when the interviewer challenges a decision. Ignoring the code review portion to spend too long on system design.
+                </div>
+
+                <h3 style="color: #eab308;">Answer Structure Template: Edge &rarr; App &rarr; Data &rarr; Async</h3>
+                <p>When asked to "improve this system," use this progression to structure your answer. Start with the smallest, highest-impact fixes and work inward:</p>
+                <table class="cs-table">
+                    <tr><th>Layer</th><th>What to Address</th><th>Example Improvements</th></tr>
+                    <tr><td><strong>1. Edge</strong></td><td>Traffic management, security perimeter</td><td>Add LB + rate limiter, per-agent limits, TLS termination, WAF</td></tr>
+                    <tr><td><strong>2. API</strong></td><td>Contract quality, safety</td><td>Versioning (<code>/v1/</code>), pagination, idempotency keys, OAuth 2.0 auth, structured errors</td></tr>
+                    <tr><td><strong>3. Caching</strong></td><td>Read optimization</td><td>Redis for inventory/prices, cache-aside + event-driven invalidation, stampede prevention</td></tr>
+                    <tr><td><strong>4. Async</strong></td><td>Decouple non-critical paths</td><td>Kafka for notifications, analytics, agent callbacks. DLQ for failures.</td></tr>
+                    <tr><td><strong>5. Database</strong></td><td>Consistency, scaling</td><td>Optimistic locking, reservation pattern, read replicas, connection pooling</td></tr>
+                    <tr><td><strong>6. Observability</strong></td><td>Operational readiness</td><td>Structured logs with booking_id, RED metrics, health checks, alerting on SLO burn rate</td></tr>
+                </table>
+                <div class="tip-box">
+                    <strong>Pro tip:</strong> At each layer, state the problem, propose the fix, explain the tradeoff, and connect to a measurable outcome. Example: "Currently every request hits the DB (problem). Adding Redis cache-aside for hotel lookups (fix) trades slight staleness for 5x throughput (tradeoff), reducing p99 search latency from 500ms to 50ms (outcome)."
                 </div>
 
                 <h3 style="color: #eab308;">Overall Agoda Interview Process (Staff Level)</h3>

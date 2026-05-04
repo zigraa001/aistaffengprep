@@ -34,6 +34,9 @@
                 <li>Database anti-patterns and reviewing migrations</li>
                 <li>"Spot the Bug" exercises with real code snippets</li>
                 <li>PR culture, constructive feedback, and staff-level review standards</li>
+                <li>Exception handling patterns: swallowed exceptions, 4xx vs 5xx mapping, structured errors</li>
+                <li>Concurrency control: optimistic/pessimistic locking, reservation pattern, double-booking prevention</li>
+                <li>Connection pooling: sizing, pool exhaustion, read replicas, replication lag</li>
             </ul></div>
 
             <h2>Review Dimensions</h2>
@@ -317,6 +320,516 @@ async def update_user_profile(user_id: str, data: dict):
                         <li><strong>Missing context</strong> &mdash; Is the PR description sufficient? Will the next person understand why this change was made?</li>
                     </ul>
                     <p><strong>What to delegate to automation:</strong> Style, formatting, import ordering, unused variables, simple type errors. Configure linters and formatters in CI so humans don't waste time on these.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Exception Handling Patterns</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: Why are swallowed exceptions dangerous, and what patterns should you use instead?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> A swallowed exception (empty catch block) silently discards errors, leading to data loss, corrupted state, or silent failures that are extremely hard to debug in production.</p>
+
+                    <pre><code class="language-java">// BAD: Swallowed exception - payment failure is silently ignored!
+public BookingResponse createBooking(BookingRequest request) {
+    Booking booking = bookingRepo.save(request.toEntity());
+    try {
+        paymentService.charge(booking.getId(), request.getAmount());
+    } catch (Exception e) {
+        // Nothing here! If payment fails, booking is created but unpaid.
+        // Customer thinks they booked, hotel thinks they didn't pay.
+    }
+    return BookingResponse.from(booking);
+}
+
+// GOOD: Handle, log, and propagate appropriately
+public BookingResponse createBooking(BookingRequest request) {
+    Booking booking = bookingRepo.save(request.toEntity());
+    try {
+        paymentService.charge(booking.getId(), request.getAmount());
+    } catch (PaymentDeclinedException e) {
+        // Client error - card declined. Rollback booking, return 422.
+        bookingRepo.cancel(booking.getId());
+        throw new BookingPaymentFailedException("Payment declined", e);
+    } catch (PaymentTimeoutException e) {
+        // Transient error - mark booking as PENDING_PAYMENT for retry
+        booking.setStatus(BookingStatus.PENDING_PAYMENT);
+        bookingRepo.save(booking);
+        log.warn("Payment timeout for booking={}, will retry", booking.getId(), e);
+        retryQueue.enqueue(booking.getId());
+        return BookingResponse.pending(booking);
+    } catch (Exception e) {
+        // Unexpected error - log full context, return 500
+        log.error("Unexpected payment error for booking={}", booking.getId(), e);
+        bookingRepo.cancel(booking.getId());
+        throw new InternalServerException("Booking failed due to payment error", e);
+    }
+    return BookingResponse.from(booking);
+}</code></pre>
+
+                    <p><strong>Exception handling rules:</strong></p>
+                    <ol>
+                        <li><strong>Never use empty catch blocks.</strong> At minimum, log the exception.</li>
+                        <li><strong>Catch specific exceptions</strong> &mdash; handle each failure mode differently.</li>
+                        <li><strong>Re-throw or wrap</strong> when you can't fully handle it. Don't swallow and return a success response.</li>
+                        <li><strong>Preserve the original exception</strong> as the cause when wrapping (<code>new CustomException("msg", e)</code>).</li>
+                        <li><strong>Log at the right level:</strong> Business errors (declined payment) = WARN. Unexpected errors = ERROR. Never log and re-throw the same exception at multiple layers (log once at the boundary).</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How should exceptions map to HTTP status codes (4xx vs 5xx)?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The distinction between 4xx and 5xx is critical: <strong>4xx means the client did something wrong</strong> (and should change the request), <strong>5xx means the server failed</strong> (and retrying might work).</p>
+
+                    <table>
+                        <thead><tr><th>Exception Type</th><th>HTTP Status</th><th>Retryable?</th><th>Example</th></tr></thead>
+                        <tbody>
+                            <tr><td>Validation error</td><td><strong>400</strong> Bad Request</td><td>No (fix input)</td><td>Missing required field, invalid date range</td></tr>
+                            <tr><td>Authentication failure</td><td><strong>401</strong> Unauthorized</td><td>No (re-authenticate)</td><td>Expired token, invalid API key</td></tr>
+                            <tr><td>Authorization failure</td><td><strong>403</strong> Forbidden</td><td>No (insufficient permissions)</td><td>Agent trying to cancel another agent's booking</td></tr>
+                            <tr><td>Resource not found</td><td><strong>404</strong> Not Found</td><td>No</td><td>Booking ID doesn't exist</td></tr>
+                            <tr><td>Business rule violation</td><td><strong>409</strong> Conflict</td><td>No (resolve conflict)</td><td>Room already booked, double-booking attempt</td></tr>
+                            <tr><td>Input validation (semantic)</td><td><strong>422</strong> Unprocessable</td><td>No (fix input)</td><td>Check-out before check-in date</td></tr>
+                            <tr><td>Rate limited</td><td><strong>429</strong> Too Many Requests</td><td>Yes (after delay)</td><td>Agent exceeded request quota</td></tr>
+                            <tr><td>Unexpected server error</td><td><strong>500</strong> Internal Error</td><td>Yes (with backoff)</td><td>NullPointerException, unhandled exception</td></tr>
+                            <tr><td>Dependency failure</td><td><strong>502</strong> Bad Gateway</td><td>Yes (with backoff)</td><td>Payment gateway returned invalid response</td></tr>
+                            <tr><td>Service unavailable</td><td><strong>503</strong> Unavailable</td><td>Yes (after Retry-After)</td><td>DB connection pool exhausted, maintenance</td></tr>
+                            <tr><td>Dependency timeout</td><td><strong>504</strong> Gateway Timeout</td><td>Yes (with backoff)</td><td>Payment gateway took &gt;30s to respond</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-python"># Structured error response template
+{
+    "error": {
+        "code": "BOOKING_CONFLICT",
+        "message": "Room 204 is already booked for the requested dates",
+        "details": [
+            {
+                "field": "room_id",
+                "reason": "Room unavailable from 2024-03-15 to 2024-03-18"
+            }
+        ],
+        "request_id": "req_abc123",
+        "timestamp": "2024-03-10T14:30:00Z"
+    }
+}</code></pre>
+
+                    <p><strong>Anti-pattern:</strong> Returning 200 OK with an error in the body (<code>{"success": false, "error": "..."}</code>). This breaks HTTP clients, monitoring, and retry logic that depends on status codes.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #6: Booking API with swallowed payment exception</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-java">@PostMapping("/bookings")
+public ResponseEntity&lt;BookingDTO&gt; createBooking(@RequestBody BookingRequest req) {
+    // Validate dates
+    if (req.getCheckIn().isAfter(req.getCheckOut())) {
+        return ResponseEntity.status(500).body(null);  // Bug #1
+    }
+
+    Booking booking = new Booking(req);
+    bookingRepository.save(booking);
+
+    try {
+        PaymentResult result = paymentClient.charge(req.getPaymentInfo(), booking.getTotal());
+        booking.setPaymentId(result.getId());
+    } catch (Exception e) {
+        // "We'll handle this later"  // Bug #2
+    }
+
+    try {
+        emailService.sendConfirmation(booking);
+    } catch (Exception e) {
+        log.error("Email failed");  // Bug #3
+    }
+
+    bookingRepository.save(booking);
+    return ResponseEntity.ok(booking.toDTO());
+}</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>Wrong status code for validation:</strong> <code>500</code> for a client error (check-in after check-out). Should be <code>400</code> or <code>422</code>. Also returns null body with no error message.</li>
+                        <li><strong>Swallowed payment exception:</strong> If payment fails, the booking is saved as confirmed but unpaid. Customer thinks they booked; hotel has no payment. This is a <strong>silent data corruption bug</strong>. Fix: rollback booking or mark as PENDING_PAYMENT.</li>
+                        <li><strong>Missing exception context:</strong> <code>log.error("Email failed")</code> doesn't include the exception object (<code>e</code>) or the booking ID. When this fails in production, you have no stack trace and no way to identify which booking's email failed. Fix: <code>log.error("Email failed for booking={}", booking.getId(), e)</code></li>
+                        <li><strong>No transaction boundary:</strong> Two <code>save()</code> calls without a transaction. If the second save fails, you have a partially saved booking.</li>
+                        <li><strong>Email in request path:</strong> Email sending is synchronous in the booking request. If the email service is slow, the API response is slow. Move to async (message queue).</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Concurrency Control &amp; Locking</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How does optimistic locking work, and when should you use it?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Optimistic locking assumes conflicts are rare. Instead of locking the row, you check at write time whether anyone else modified it since you read it, using a <strong>version column</strong>.</p>
+
+                    <pre><code class="language-sql">-- Schema: room_inventory table with version column
+CREATE TABLE room_inventory (
+    room_id     BIGINT PRIMARY KEY,
+    hotel_id    BIGINT NOT NULL,
+    available   INT NOT NULL,
+    version     INT NOT NULL DEFAULT 0,
+    updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Optimistic lock: update only if version matches what we read
+UPDATE room_inventory
+SET available = available - 1,
+    version = version + 1,
+    updated_at = NOW()
+WHERE room_id = 42
+  AND version = 5          -- version we read earlier
+  AND available &gt; 0;       -- business rule: can't go negative
+
+-- If rows_affected = 0, someone else modified it first → retry or fail</code></pre>
+
+                    <pre><code class="language-java">// Java/JPA implementation
+@Entity
+public class RoomInventory {
+    @Id
+    private Long roomId;
+    private int available;
+
+    @Version  // JPA handles optimistic locking automatically
+    private int version;
+}
+
+// Service layer
+@Transactional
+public BookingResult bookRoom(Long roomId) {
+    RoomInventory room = roomRepo.findById(roomId)
+        .orElseThrow(() -&gt; new RoomNotFoundException(roomId));
+
+    if (room.getAvailable() &lt;= 0) {
+        throw new NoAvailabilityException(roomId);
+    }
+
+    room.setAvailable(room.getAvailable() - 1);
+    try {
+        roomRepo.save(room);  // JPA checks version on flush
+    } catch (OptimisticLockingFailureException e) {
+        // Another transaction modified this room - retry
+        throw new ConcurrentBookingException("Room was modified, please retry", e);
+    }
+    return BookingResult.success();
+}</code></pre>
+
+                    <p><strong>When to use optimistic locking:</strong></p>
+                    <ul>
+                        <li>Conflicts are <strong>rare</strong> (most updates succeed without contention)</li>
+                        <li>You can afford to <strong>retry</strong> on conflict</li>
+                        <li>Read-heavy workloads where pessimistic locks would cause unnecessary blocking</li>
+                    </ul>
+
+                    <p><strong>When NOT to use:</strong> High-contention scenarios (e.g., last room available, flash sales). Optimistic locking will cause many retries, wasting resources. Use pessimistic locking instead.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: When is pessimistic locking necessary, and how do you avoid deadlocks?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Pessimistic locking acquires a database lock on the row before reading, preventing other transactions from modifying it until the lock is released.</p>
+
+                    <pre><code class="language-sql">-- Pessimistic lock: SELECT FOR UPDATE
+BEGIN;
+SELECT * FROM room_inventory
+WHERE room_id = 42
+FOR UPDATE;  -- Acquires row-level lock, other txns wait
+
+-- Now we have exclusive access to this row
+UPDATE room_inventory
+SET available = available - 1
+WHERE room_id = 42 AND available &gt; 0;
+
+COMMIT;  -- Lock released</code></pre>
+
+                    <p><strong>When to use pessimistic locking:</strong></p>
+                    <ul>
+                        <li><strong>High contention:</strong> Multiple concurrent transactions frequently update the same row (last room, popular hotel)</li>
+                        <li><strong>Must-succeed operations:</strong> When retry is expensive or not feasible (payment processing)</li>
+                        <li><strong>Multi-row updates:</strong> When you need to lock multiple related rows atomically</li>
+                    </ul>
+
+                    <p><strong>Deadlock prevention:</strong></p>
+                    <ol>
+                        <li><strong>Always lock in consistent order:</strong> If you need to lock rooms 42 and 57, always lock the lower ID first.</li>
+                        <li><strong>Keep transactions short:</strong> Lock &rarr; update &rarr; commit. Never do HTTP calls or slow operations while holding a lock.</li>
+                        <li><strong>Set lock timeout:</strong> <code>SET lock_timeout = '5s';</code> so transactions don't wait forever.</li>
+                        <li><strong>Use NOWAIT or SKIP LOCKED:</strong></li>
+                    </ol>
+
+                    <pre><code class="language-sql">-- NOWAIT: Fail immediately if row is locked (don't wait)
+SELECT * FROM room_inventory WHERE room_id = 42 FOR UPDATE NOWAIT;
+-- Throws error immediately if locked - good for user-facing APIs
+
+-- SKIP LOCKED: Skip locked rows, process unlocked ones (queue pattern)
+SELECT * FROM booking_queue
+WHERE status = 'pending'
+ORDER BY created_at
+LIMIT 10
+FOR UPDATE SKIP LOCKED;
+-- Multiple workers can process different rows concurrently</code></pre>
+
+                    <p><strong>Optimistic vs Pessimistic &mdash; decision guide:</strong></p>
+                    <table>
+                        <thead><tr><th>Scenario</th><th>Recommended</th><th>Why</th></tr></thead>
+                        <tbody>
+                            <tr><td>General room booking (low contention)</td><td>Optimistic</td><td>Most bookings are for different rooms</td></tr>
+                            <tr><td>Last room available (high contention)</td><td>Pessimistic</td><td>Many users competing for same row</td></tr>
+                            <tr><td>Flash sale / limited inventory</td><td>Pessimistic + SKIP LOCKED</td><td>Queue-style processing of high-demand items</td></tr>
+                            <tr><td>Updating user profile</td><td>Optimistic</td><td>One user rarely has concurrent updates</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: What is the reservation pattern (hold &rarr; confirm &rarr; expire)?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> The reservation pattern is a two-phase approach for booking systems where you temporarily hold a resource before confirming. This is the standard pattern at Agoda, Booking.com, and airline reservation systems.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+stateDiagram-v2
+    [*] --> Available
+    Available --> Held : User selects room
+    Held --> Confirmed : Payment succeeds
+    Held --> Available : Hold expires (TTL) or user cancels
+    Confirmed --> Cancelled : User cancels within policy
+    Cancelled --> Available : Room released
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python">class ReservationService:
+    HOLD_TTL_SECONDS = 900  # 15-minute hold
+
+    async def hold_room(self, room_id: str, user_id: str) -&gt; Reservation:
+        """Phase 1: Temporarily hold the room."""
+        # Atomic check-and-hold using optimistic locking
+        result = await db.execute("""
+            UPDATE room_inventory
+            SET status = 'held',
+                held_by = $1,
+                held_until = NOW() + INTERVAL '15 minutes',
+                version = version + 1
+            WHERE room_id = $2
+              AND status = 'available'
+              AND version = $3
+            RETURNING *
+        """, user_id, room_id, expected_version)
+
+        if not result:
+            raise RoomUnavailableException(room_id)
+
+        # Schedule expiry cleanup
+        await redis.setex(f"hold:{room_id}", self.HOLD_TTL_SECONDS, user_id)
+        return Reservation(room_id=room_id, status="held", expires_at=result.held_until)
+
+    async def confirm_reservation(self, room_id: str, user_id: str, payment_id: str):
+        """Phase 2: Confirm after payment succeeds."""
+        result = await db.execute("""
+            UPDATE room_inventory
+            SET status = 'confirmed',
+                payment_id = $1,
+                confirmed_at = NOW()
+            WHERE room_id = $2
+              AND held_by = $3
+              AND status = 'held'
+              AND held_until &gt; NOW()
+        """, payment_id, room_id, user_id)
+
+        if not result:
+            raise HoldExpiredException("Hold expired, please try again")
+
+    async def expire_holds(self):
+        """Background job: release expired holds."""
+        await db.execute("""
+            UPDATE room_inventory
+            SET status = 'available', held_by = NULL, held_until = NULL
+            WHERE status = 'held' AND held_until &lt; NOW()
+        """)</code></pre>
+
+                    <p><strong>Why this pattern works for bookings:</strong></p>
+                    <ul>
+                        <li><strong>Prevents double-booking:</strong> Room is marked 'held' atomically, so only one user can hold it</li>
+                        <li><strong>No abandoned locks:</strong> TTL ensures rooms are released if user abandons the flow</li>
+                        <li><strong>Payment safety:</strong> Payment is charged only after the hold is confirmed, not before</li>
+                        <li><strong>User experience:</strong> Users see "held for 15 minutes" countdown, creating urgency</li>
+                    </ul>
+
+                    <p><strong>Double-booking prevention combo:</strong> Use <strong>UNIQUE constraint</strong> on <code>(room_id, date, status='confirmed')</code> + <strong>optimistic locking</strong> on the inventory table. The unique constraint is the last line of defense if the application-level check has a race condition.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Spot the Bug #7: Concurrent room booking with race condition</span></div>
+                <div class="collapsible-content">
+                    <pre><code class="language-python">async def book_room(room_id: str, user_id: str, dates: DateRange):
+    # Check availability
+    room = await db.fetch_one(
+        "SELECT * FROM rooms WHERE id = $1", room_id
+    )
+    if room["status"] != "available":
+        raise RoomUnavailableError()
+
+    # Check no overlapping bookings
+    existing = await db.fetch_one("""
+        SELECT id FROM bookings
+        WHERE room_id = $1 AND check_in &lt; $3 AND check_out &gt; $2
+    """, room_id, dates.check_in, dates.check_out)
+
+    if existing:
+        raise RoomUnavailableError()
+
+    # Create booking
+    booking = await db.execute("""
+        INSERT INTO bookings (room_id, user_id, check_in, check_out, status)
+        VALUES ($1, $2, $3, $4, 'confirmed')
+    """, room_id, user_id, dates.check_in, dates.check_out)
+
+    # Update room status
+    await db.execute(
+        "UPDATE rooms SET status = 'booked' WHERE id = $1", room_id
+    )
+
+    return booking</code></pre>
+                    <p><strong>Bugs found:</strong></p>
+                    <ol>
+                        <li><strong>Classic TOCTOU race condition:</strong> Between checking availability (SELECT) and creating the booking (INSERT), another concurrent request can also pass the check and create a booking. Two users book the same room. Fix: wrap in a transaction with <code>SELECT FOR UPDATE</code>, or use optimistic locking.</li>
+                        <li><strong>No transaction:</strong> The INSERT and UPDATE are separate operations. If the UPDATE fails, you have a booking with no room status change. Wrap in a single transaction.</li>
+                        <li><strong>No database constraint:</strong> There's no unique constraint preventing overlapping bookings at the DB level. The application check is necessary but not sufficient. Add an exclusion constraint: <code>EXCLUDE USING gist (room_id WITH =, daterange(check_in, check_out) WITH &amp;&amp;)</code>.</li>
+                        <li><strong>Room status is redundant and inconsistent:</strong> Maintaining a <code>status</code> column on the rooms table AND checking the bookings table creates two sources of truth. If they diverge (which they will, given bug #2), you'll have phantom availability or phantom bookings.</li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Connection Pooling &amp; Database Scaling</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you size a connection pool, and what happens when it's exhausted?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Connection pool sizing is critical for database performance. Too few connections = requests waiting; too many = database overwhelmed.</p>
+
+                    <p><strong>HikariCP formula</strong> (industry standard starting point):</p>
+                    <pre><code class="language-text">pool_size = (core_count * 2) + effective_spindle_count
+
+Example: 4-core server with SSD (no spindles):
+  pool_size = (4 * 2) + 1 = 9 connections
+
+For a typical web app on an 8-core server:
+  pool_size = (8 * 2) + 1 = 17 connections</code></pre>
+
+                    <p><strong>Why fewer connections is often better:</strong> PostgreSQL performance degrades with too many connections due to lock contention and context switching. A pool of 20 connections handling 10,000 req/s will outperform 200 connections because:</p>
+                    <ul>
+                        <li>Each connection has overhead (~10MB RAM in PostgreSQL)</li>
+                        <li>Connection acquisition/release is fast, but transactions should be short</li>
+                        <li>CPU context switching between 200 active queries is expensive</li>
+                    </ul>
+
+                    <p><strong>Pool exhaustion symptoms:</strong></p>
+                    <table>
+                        <thead><tr><th>Symptom</th><th>Diagnosis</th><th>Fix</th></tr></thead>
+                        <tbody>
+                            <tr><td>Requests timing out with "Connection pool exhausted"</td><td>All connections in use, wait queue full</td><td>Find slow queries holding connections; increase pool only if queries are fast</td></tr>
+                            <tr><td>Latency spikes in p99 but p50 normal</td><td>Some requests waiting for pool connections</td><td>Check for long-running transactions, missing indexes</td></tr>
+                            <tr><td>Connection count at max but DB CPU is low</td><td>Connections held by slow application code (not DB)</td><td>Ensure connections are returned immediately after query, not held during HTTP calls</td></tr>
+                        </tbody>
+                    </table>
+
+                    <pre><code class="language-yaml"># HikariCP configuration (Spring Boot)
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 17        # Based on formula
+      minimum-idle: 5              # Keep 5 warm connections
+      connection-timeout: 3000     # 3s max wait for connection
+      idle-timeout: 600000         # 10 min idle before release
+      max-lifetime: 1800000        # 30 min max connection lifetime
+      leak-detection-threshold: 30000  # Warn if connection held >30s</code></pre>
+
+                    <p><strong>Common mistake:</strong> Setting pool size to 100+ "just in case." This actually harms performance because the database can't efficiently handle that many concurrent queries. Start with the formula, measure, and adjust based on actual <code>pool.active</code> and <code>pool.pending</code> metrics.</p>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: When should you use read replicas, and what are the pitfalls?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Read replicas duplicate data from a primary (write) database to one or more secondary (read-only) instances, scaling read capacity horizontally.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    APP[Application] -->|Writes| PRIMARY[(Primary DB)]
+    APP -->|Reads| REPLICA1[(Read Replica 1)]
+    APP -->|Reads| REPLICA2[(Read Replica 2)]
+    PRIMARY -->|Async Replication| REPLICA1
+    PRIMARY -->|Async Replication| REPLICA2
+                        </div>
+                    </div>
+
+                    <p><strong>When to use read replicas:</strong></p>
+                    <ul>
+                        <li>Read-heavy workloads (e.g., agent queries for hotel availability, price lookups)</li>
+                        <li>Reporting/analytics queries that shouldn't impact transactional performance</li>
+                        <li>Geographic distribution (replica in each region for lower latency)</li>
+                    </ul>
+
+                    <p><strong>Replication lag awareness:</strong></p>
+                    <pre><code class="language-python"># Pattern: Read-your-writes consistency
+class BookingService:
+    def __init__(self, primary_db, replica_db):
+        self.primary = primary_db
+        self.replica = replica_db
+
+    async def create_booking(self, data):
+        # Write to primary
+        booking = await self.primary.execute(
+            "INSERT INTO bookings (...) VALUES (...) RETURNING *", ...
+        )
+        return booking
+
+    async def get_booking(self, booking_id, user_id, just_created=False):
+        # If user just created this booking, read from primary
+        # to avoid "where did my booking go?" due to replication lag
+        db = self.primary if just_created else self.replica
+        return await db.fetch_one(
+            "SELECT * FROM bookings WHERE id = $1", booking_id
+        )
+
+    async def search_hotels(self, query):
+        # Search queries always go to replica - slight lag is OK
+        return await self.replica.fetch_all(
+            "SELECT * FROM hotels WHERE ...", ...
+        )</code></pre>
+
+                    <p><strong>Replication lag pitfalls:</strong></p>
+                    <ul>
+                        <li><strong>Read-after-write inconsistency:</strong> User creates a booking, then immediately views "My Bookings" from a replica that hasn't replicated yet &rarr; booking appears missing. Fix: route post-write reads to primary for a short window.</li>
+                        <li><strong>Stale inventory:</strong> Room booked on primary but replica still shows "available" &rarr; user tries to book an unavailable room. Fix: critical availability checks must use primary.</li>
+                        <li><strong>Monitoring lag:</strong> Track <code>pg_stat_replication</code> (PostgreSQL) or <code>Seconds_Behind_Master</code> (MySQL). Alert if lag exceeds 5s.</li>
+                    </ul>
+
+                    <p><strong>Connection pool monitoring metrics:</strong></p>
+                    <table>
+                        <thead><tr><th>Metric</th><th>Alert Threshold</th><th>What It Means</th></tr></thead>
+                        <tbody>
+                            <tr><td><code>pool.active</code></td><td>&gt;80% of max</td><td>Most connections in use, approaching exhaustion</td></tr>
+                            <tr><td><code>pool.pending</code></td><td>&gt;0 sustained</td><td>Requests waiting for connections &mdash; pool too small or queries too slow</td></tr>
+                            <tr><td><code>pool.idle</code></td><td>&lt;2</td><td>No headroom for burst traffic</td></tr>
+                            <tr><td><code>connection.wait_time</code></td><td>&gt;100ms p99</td><td>Significant time spent waiting for pool</td></tr>
+                            <tr><td><code>replication.lag_seconds</code></td><td>&gt;5s</td><td>Replicas are falling behind, stale reads likely</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

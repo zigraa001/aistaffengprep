@@ -33,6 +33,7 @@
                 <li>Full walkthrough scenarios for webhook platforms, event-driven migrations, and payment testing</li>
                 <li>How to structure interview answers for scenario questions</li>
                 <li>Common mistakes and clarifying questions to always ask</li>
+                <li>Agoda-format "Improve This Booking System" exercise with Edge &rarr; App &rarr; Data &rarr; Async progression</li>
             </ul></div>
 
             <h2>The Framework</h2>
@@ -256,6 +257,143 @@ graph LR
                         </tbody>
                     </table>
                     <p><strong>Tip:</strong> If the interviewer wants to go deep on something, follow their lead. The time allocation is a guide, not a rule. Reading the interviewer's signals is a staff-level skill itself.</p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <h2>Agoda-Format Scenario: Improve This Booking System</h2>
+            <!-- ============================================ -->
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Scenario 5: You're given this naive booking system. Identify gaps and improve it.</span></div>
+                <div class="collapsible-content">
+                    <p><strong>Context:</strong> Agoda's platform round presents a deliberately naive system and asks you to improve it layer by layer. This exercise simulates that format exactly.</p>
+
+                    <p><strong>Current system (intentionally problematic):</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    AGENTS[Booking Agents - MakeMyTrip, Booking.com] -->|REST API - no auth| APP[Single App Server - no LB]
+    APP -->|Direct queries - no pooling| DB[(MySQL - single instance)]
+    APP -->|Sync calls| EMAIL[Email Service]
+    APP -->|Sync calls| ANALYTICS[Analytics Service]
+                        </div>
+                    </div>
+
+                    <p><strong>Problems with this design:</strong> Single point of failure, no authentication, no rate limiting, no caching, synchronous processing for everything, no observability, no concurrency control.</p>
+
+                    <h4>Structured Improvement: Edge &rarr; Application &rarr; Data &rarr; Async</h4>
+
+                    <p><strong>Step 1: Edge Layer (Load Balancer + Rate Limiter)</strong></p>
+                    <ul>
+                        <li><strong>Add L7 load balancer</strong> (ALB/Nginx) in front of multiple app server instances</li>
+                        <li>Health checks: readiness probe that checks DB + Redis connectivity</li>
+                        <li><strong>Rate limiting at gateway:</strong> Per-agent limits (e.g., MakeMyTrip gets 1000 req/min, smaller agents get 100 req/min). Use token bucket algorithm in Redis.</li>
+                        <li><strong>Measurable outcome:</strong> Eliminates single point of failure. 99.9% uptime SLO now achievable with 3+ instances.</li>
+                    </ul>
+
+                    <p><strong>Step 2: API Layer (Versioning, Pagination, Idempotency, Auth)</strong></p>
+                    <ul>
+                        <li><strong>API versioning:</strong> <code>/v1/bookings</code> &mdash; allows breaking changes in v2 without disrupting existing agents</li>
+                        <li><strong>Pagination:</strong> Cursor-based for <code>GET /v1/bookings</code> listing (agents may have millions of bookings)</li>
+                        <li><strong>Idempotency keys:</strong> <code>Idempotency-Key</code> header on <code>POST /v1/bookings</code> &mdash; prevents duplicate bookings on retry</li>
+                        <li><strong>Authentication:</strong> OAuth 2.0 Client Credentials flow for agent-to-Agoda auth. Each agent gets a client_id + secret, receives JWT access tokens (15-min expiry) with scopes (<code>bookings:write</code>, <code>bookings:read</code>).</li>
+                        <li><strong>Measurable outcome:</strong> Safe API evolution, no duplicate bookings, authenticated + authorized access only.</li>
+                    </ul>
+
+                    <p><strong>Step 3: Caching Layer</strong></p>
+                    <ul>
+                        <li><strong>Redis cache for inventory/price lookups:</strong> Hotel metadata (TTL 1h), prices (TTL 5min + event-driven invalidation), search results (TTL 2min)</li>
+                        <li><strong>Cache stampede prevention:</strong> Singleflight pattern for popular hotels + stale-while-revalidate</li>
+                        <li><strong>Cache invalidation:</strong> TTL as safety net, event-driven invalidation via Kafka when prices/inventory change</li>
+                        <li><strong>Measurable outcome:</strong> 80%+ cache hit rate, DB load reduced by ~5x, p99 latency for search queries drops from ~500ms to ~50ms.</li>
+                    </ul>
+
+                    <p><strong>Step 4: Async Processing</strong></p>
+                    <ul>
+                        <li><strong>Message queue (Kafka)</strong> for non-critical paths: booking confirmations, email notifications, analytics events, agent callbacks</li>
+                        <li><strong>Booking flow:</strong> Create booking &rarr; return 201 immediately &rarr; async: send email, notify agent webhook, publish analytics event</li>
+                        <li><strong>Dead letter queue:</strong> Failed messages go to DLQ after 3 retries. Alert on DLQ depth &gt; 0.</li>
+                        <li><strong>Measurable outcome:</strong> Booking API latency drops from ~2s (with sync email + analytics) to ~200ms. Email/analytics failures no longer block bookings.</li>
+                    </ul>
+
+                    <p><strong>Step 5: Database Layer</strong></p>
+                    <ul>
+                        <li><strong>Optimistic locking</strong> with version column on room inventory for booking concurrency control</li>
+                        <li><strong>Reservation pattern:</strong> Hold (15 min TTL) &rarr; Confirm (after payment) &rarr; Expire (background job releases expired holds)</li>
+                        <li><strong>Read replicas</strong> for agent query traffic (search, booking history). Write queries to primary only.</li>
+                        <li><strong>Connection pooling:</strong> HikariCP with <code>pool_size = cores * 2 + 1</code>. Monitor active/pending connections.</li>
+                        <li><strong>Measurable outcome:</strong> Zero double-bookings. DB can handle 10x read traffic via replicas.</li>
+                    </ul>
+
+                    <p><strong>Step 6: Observability</strong></p>
+                    <ul>
+                        <li><strong>Structured logging:</strong> Every log line includes <code>booking_id</code>, <code>agent_id</code>, <code>request_id</code>, <code>trace_id</code></li>
+                        <li><strong>Metrics:</strong> RED metrics per endpoint, cache hit ratio, connection pool utilization, replication lag</li>
+                        <li><strong>Health checks:</strong> <code>/health/live</code> (process alive) + <code>/health/ready</code> (DB + Redis reachable)</li>
+                        <li><strong>Measurable outcome:</strong> MTTR drops from hours to minutes with correlated logs + traces.</li>
+                    </ul>
+
+                    <p><strong>Improved architecture:</strong></p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TB
+    AGENTS[Booking Agents] -->|OAuth 2.0 + JWT| GW[API Gateway - rate limiting, auth]
+    GW --> LB[L7 Load Balancer]
+    LB --> APP1[App Server 1]
+    LB --> APP2[App Server 2]
+    LB --> APP3[App Server 3]
+    APP1 --> REDIS[(Redis Cache)]
+    APP1 --> PRIMARY[(MySQL Primary)]
+    APP1 --> KAFKA[Kafka]
+    PRIMARY -->|Async Replication| REPLICA[(Read Replicas)]
+    APP2 --> REDIS
+    APP2 --> REPLICA
+    APP2 --> KAFKA
+    KAFKA --> NOTIFY[Notification Worker]
+    KAFKA --> ANALYTICS_W[Analytics Worker]
+    KAFKA --> CALLBACK[Agent Callback Worker]
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Q: How do you handle follow-up pushback questions on the booking system improvements?</span></div>
+                <div class="collapsible-content">
+                    <p><strong>A:</strong> Agoda interviewers will challenge each improvement. Here are common pushback questions with sample answers:</p>
+
+                    <table>
+                        <thead><tr><th>Pushback Question</th><th>Sample Answer</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <td><em>"Adding Kafka is overkill. Why not just use a simple queue?"</em></td>
+                                <td>"For just email notifications, SQS would suffice. But we also need event replay for analytics reprocessing and audit trails, and Kafka gives us that plus multi-consumer support. If the team lacks Kafka expertise, SQS + SNS is a perfectly valid starting point."</td>
+                            </tr>
+                            <tr>
+                                <td><em>"What if Redis goes down? Your entire cache layer fails."</em></td>
+                                <td>"Cache should be a performance optimization, not a dependency. The app falls back to DB on cache miss or Redis failure. We'd use Redis Sentinel or Cluster for HA, and the cache-aside pattern means the system degrades gracefully &mdash; slower but still functional."</td>
+                            </tr>
+                            <tr>
+                                <td><em>"Optimistic locking means customers get retry errors. That's bad UX."</em></td>
+                                <td>"We handle retries transparently at the application layer (retry 2-3 times before surfacing an error). For high-contention scenarios (last room), we switch to pessimistic locking or the reservation pattern where the hold is guaranteed. The user never sees a version conflict."</td>
+                            </tr>
+                            <tr>
+                                <td><em>"How do you ensure read replicas don't serve stale inventory?"</em></td>
+                                <td>"Critical availability checks (before booking) always go to the primary. Only read-heavy, staleness-tolerant queries (search results, booking history) use replicas. We monitor replication lag and route to primary if lag exceeds 2 seconds."</td>
+                            </tr>
+                            <tr>
+                                <td><em>"Your 15-minute hold timer &mdash; what if users complain it's too short?"</em></td>
+                                <td>"15 minutes is an industry standard (airlines use 20-30 min). Making it configurable per hotel is possible but adds complexity. The tradeoff is: longer holds = more inventory locked = fewer rooms available to other customers. We'd A/B test to find the optimal duration."</td>
+                            </tr>
+                            <tr>
+                                <td><em>"This is a lot of changes. How would you prioritize?"</em></td>
+                                <td>"Phase 1 (week 1-2): Auth + rate limiting (security first). Phase 2 (week 3-4): Connection pooling + read replicas (stability). Phase 3 (week 5-8): Caching + async processing (performance). Phase 4 (week 9-12): Observability + reservation pattern (operational maturity)."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <p><strong>Key principle:</strong> When pushed back, don't just defend &mdash; <strong>acknowledge the tradeoff</strong>, explain when the simpler alternative is appropriate, and justify your choice for <em>this specific context</em>.</p>
                 </div>
             </div>
 
