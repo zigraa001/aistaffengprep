@@ -122,86 +122,7 @@
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Getting Started</div>
-                    <a href="index.html" class="sidebar-link">Introduction</a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Foundations</div>
-                    <a href="module-01.html" class="sidebar-link" data-module="1">
-                        <span class="sidebar-link-number">1</span>Setup + Core Math
-                    </a>
-                    <a href="module-02.html" class="sidebar-link" data-module="2">
-                        <span class="sidebar-link-number">2</span>Terminology + MNIST
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">LLM Deep Dive</div>
-                    <a href="module-03.html" class="sidebar-link" data-module="3">
-                        <span class="sidebar-link-number">3</span>LLM Basics
-                    </a>
-                    <a href="module-04.html" class="sidebar-link" data-module="4">
-                        <span class="sidebar-link-number">4</span>Attention Mechanisms
-                    </a>
-                    <a href="module-05.html" class="sidebar-link" data-module="5">
-                        <span class="sidebar-link-number">5</span>LLM Coding: GPT
-                    </a>
-                    <a href="module-06.html" class="sidebar-link" data-module="6">
-                        <span class="sidebar-link-number">6</span>Training at Scale
-                    </a>
-                    <a href="module-07.html" class="sidebar-link" data-module="7">
-                        <span class="sidebar-link-number">7</span>Optimization Hacks
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">RAG &amp; Retrieval</div>
-                    <a href="module-08.html" class="sidebar-link" data-module="8">
-                        <span class="sidebar-link-number">8</span>RAG Fundamentals
-                    </a>
-                    <a href="module-09.html" class="sidebar-link active" data-module="9">
-                        <span class="sidebar-link-number">9</span>RAG Implementation
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Agents &amp; Systems</div>
-                    <a href="module-10.html" class="sidebar-link" data-module="10">
-                        <span class="sidebar-link-number">10</span>AI Agents
-                    </a>
-                    <a href="module-11.html" class="sidebar-link" data-module="11">
-                        <span class="sidebar-link-number">11</span>Context Engineering
-                    </a>
-                    <a href="module-12.html" class="sidebar-link" data-module="12">
-                        <span class="sidebar-link-number">12</span>AI Engineering
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Advanced Topics</div>
-                    <a href="module-13.html" class="sidebar-link" data-module="13">
-                        <span class="sidebar-link-number">13</span>Thinking Models
-                    </a>
-                    <a href="module-14.html" class="sidebar-link" data-module="14">
-                        <span class="sidebar-link-number">14</span>Multi-modal Models
-                    </a>
-                </div>
-
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Capstone &amp; Career</div>
-                    <a href="module-15.html" class="sidebar-link" data-module="15">
-                        <span class="sidebar-link-number">15</span>Capstone Project
-                    </a>
-                    <a href="module-16.html" class="sidebar-link" data-module="16">
-                        <span class="sidebar-link-number">16</span>Career Goals
-                    </a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -2316,6 +2237,1237 @@ print(f"Hit Rate@3: {hit_rate_at_k([q['retrieved_relevances'] for q in queries],
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION: RAG EVAL DEEP DIVE -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">RAG Evaluation Deep Dive</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Diagnostic Workflow: Score Is Low — What Do You Fix?</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The power of separating retrieval metrics from generation metrics is that each tells you <em>where</em> to focus your debugging effort. Here is the diagnostic decision tree every staff engineer should know:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    Start[RAG Quality Issue Detected] --> F{Faithfulness<br/>score low?}
+    F -->|Yes| FC{Context Recall<br/>also low?}
+    FC -->|Yes| Fix1["Retrieval problem<br/>Fix: better chunking, reranking,<br/>increase k, hybrid search"]
+    FC -->|No| Fix2["Generation problem<br/>Fix: stronger system prompt,<br/>add 'only use provided context',<br/>lower temperature"]
+    F -->|No| AR{Answer Relevancy<br/>low?}
+    AR -->|Yes| Fix3["Generation problem<br/>Fix: prompt engineering,<br/>few-shot examples,<br/>constrained output format"]
+    AR -->|No| CP{Context Precision<br/>low?}
+    CP -->|Yes| Fix4["Ranking problem<br/>Fix: add reranker,<br/>tune BM25/dense weights,<br/>filter by metadata"]
+    CP -->|No| Fix5["System is healthy<br/>Monitor for drift"]
+
+    style Fix1 fill:#e74c3c,color:#fff
+    style Fix2 fill:#f39c12,color:#fff
+    style Fix3 fill:#f39c12,color:#fff
+    style Fix4 fill:#3498db,color:#fff
+    style Fix5 fill:#2ecc71,color:#fff
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Metric-to-Fix Mapping</h4>
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Symptom</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Metric(s) Affected</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Root Cause</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Fix</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LLM makes claims not in context</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Faithfulness &lt; 0.8</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">LLM relying on parametric knowledge</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add "answer ONLY from context" instruction; lower temperature to 0.1-0.3; add citations</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Correct info exists but LLM misses it</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Faithfulness OK, Answer Relevancy &lt; 0.7</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">"Lost in the middle" or context too long</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Reduce k; reorder chunks by relevance; use smaller, focused chunks</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Top chunks are irrelevant</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Context Precision &lt; 0.6</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Weak retrieval ranking</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add cross-encoder reranker; tune hybrid search weights; add metadata filters</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Ground-truth info not retrieved at all</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Context Recall &lt; 0.7</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Chunking splits key info; embedding model weak for domain</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Increase k; use hybrid search; try domain-specific embedding model; adjust chunk size</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Query phrasing mismatch</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Hit Rate@5 &lt; 0.8</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Query-document vocabulary gap</td>
+                                <td style="padding:0.5rem; border:1px solid rgba(255,255,255,0.1);">Add query rewriting (HyDE, multi-query); hybrid search with BM25</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="interview-tip">
+                        <strong>Staff-Level Insight:</strong> In an interview, don't just say "I'd run RAGAS." Walk through the diagnostic: "First I'd check faithfulness to separate retrieval vs generation failures, then I'd look at context precision to understand if it's a ranking problem, and context recall to see if we're missing documents entirely. Each failure mode has a different fix."
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Building Eval Datasets: Synthetic + Golden</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The biggest blocker for RAG evaluation is not having an eval dataset. You need <code>(question, ground_truth_answer, relevant_chunks)</code> triples. Manually creating these is expensive. The solution: <strong>use an LLM to generate synthetic eval data from your own documents</strong>.</p>
+
+                    <h4>The Synthetic Generation Pipeline</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Your Document<br/>Corpus"] --> B["Sample Chunks<br/>(stratified)"]
+    B --> C["LLM generates<br/>Q&A pairs<br/>per chunk"]
+    C --> D["Human reviews<br/>~10% sample"]
+    D --> E["Filter low-quality<br/>pairs"]
+    E --> F["Eval Dataset<br/>(100-500 pairs)"]
+                        </div>
+                    </div>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import json
+from openai import OpenAI
+
+client = OpenAI()
+
+def generate_eval_pairs(chunks: list[str], pairs_per_chunk: int = 2) -&gt; list[dict]:
+    """Generate synthetic (question, answer, context) triples from document chunks."""
+    eval_pairs = []
+
+    for chunk in chunks:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            temperature=0.7,
+            messages=[{
+                "role": "system",
+                "content": """You are an eval dataset generator. Given a document chunk,
+generate question-answer pairs that a user might ask.
+
+Rules:
+- Questions should be diverse: factual, comparative, procedural, edge-case
+- Answers must be FULLY answerable from the chunk alone
+- Include one 'hard' question that requires synthesis across the chunk
+- Output JSON array: [{"question": "...", "answer": "..."}]"""
+            }, {
+                "role": "user",
+                "content": f"Generate {pairs_per_chunk} Q&amp;A pairs from this chunk:\n\n{chunk}"
+            }],
+            response_format={"type": "json_object"}
+        )
+
+        pairs = json.loads(response.choices[0].message.content)
+        for pair in pairs.get("pairs", pairs.get("qa_pairs", [])):
+            eval_pairs.append({
+                "question": pair["question"],
+                "ground_truth": pair["answer"],
+                "relevant_context": chunk
+            })
+
+    return eval_pairs
+
+# Stratified sampling: pick chunks from different sections/topics
+sampled_chunks = stratified_sample(all_chunks, n=50, by="section")
+eval_dataset = generate_eval_pairs(sampled_chunks, pairs_per_chunk=3)
+print(f"Generated {len(eval_dataset)} eval pairs from {len(sampled_chunks)} chunks")</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Quality Control for Synthetic Datasets</h4>
+                    <ul>
+                        <li><strong>Self-consistency filter</strong>: Run the generated question through your RAG pipeline. If it retrieves the source chunk in top-3, the question is well-formed. If not, discard it.</li>
+                        <li><strong>Difficulty stratification</strong>: Tag each pair as easy (single fact lookup), medium (requires combining two sentences), or hard (requires reasoning across the chunk). Ensure your eval set has all three.</li>
+                        <li><strong>Human review 10-20%</strong>: Have a domain expert review a random sample. Check that answers are correct and questions are realistic. Calculate inter-annotator agreement if using multiple reviewers.</li>
+                        <li><strong>Adversarial pairs</strong>: Add questions that should NOT be answerable from your corpus (expected answer: "I don't have information about that"). This tests hallucination resistance.</li>
+                    </ul>
+
+                    <div class="key-insight">
+                        <strong>How many eval pairs?</strong> Start with <strong>100-200 pairs</strong> for initial development. Scale to <strong>500+</strong> for production eval gates. Update the dataset quarterly as your corpus evolves. Track coverage: what % of your document sections have at least one eval pair?
+                    </div>
+
+                    <h4 class="mt-3">From Synthetic to Golden: The Curation Pipeline</h4>
+                    <p>Synthetic datasets get you started, but <strong>golden datasets</strong> are the ground truth you trust for production gates. The difference: golden datasets are <em>human-curated, domain-expert verified, and versioned alongside your code</em>.</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Production<br/>Traffic Logs"] --> B["Sample diverse<br/>real queries"]
+    B --> C["Domain experts<br/>write reference<br/>answers"]
+    C --> D["Adversarial<br/>augmentation"]
+    D --> E["Version in git<br/>tag with corpus<br/>version"]
+    E --> F["Golden Dataset<br/>(versioned)"]
+    F --> G["Quarterly<br/>staleness review"]
+    G -->|stale pairs| C
+                        </div>
+                    </div>
+
+                    <p><strong>Step 1: Seed from production traffic.</strong> Sample real user queries from logs (stratified by topic, difficulty, and query type). These are more realistic than LLM-generated questions because they reflect actual user language, typos, and edge cases.</p>
+
+                    <p><strong>Step 2: Expert annotation.</strong> Have domain experts write reference answers for each query. Provide a rubric:</p>
+                    <ul>
+                        <li>Answer must be fully supported by the current corpus</li>
+                        <li>Include the specific chunks that contain the answer (for context recall evaluation)</li>
+                        <li>Flag queries that are unanswerable from the corpus (these become adversarial test cases)</li>
+                        <li>Rate difficulty: easy (single lookup), medium (multi-hop), hard (reasoning required)</li>
+                    </ul>
+
+                    <p><strong>Step 3: Adversarial augmentation.</strong> Add questions designed to break your pipeline:</p>
+                    <ul>
+                        <li>Questions about topics NOT in your corpus (test hallucination resistance)</li>
+                        <li>Questions with ambiguous phrasing (test robustness)</li>
+                        <li>Questions requiring information from multiple chunks (test multi-hop retrieval)</li>
+                        <li>Questions with common misconceptions as premises (test correction ability)</li>
+                    </ul>
+
+                    <p><strong>Step 4: Version and track.</strong> Store the golden dataset in git alongside your code. Tag each version with the corpus version it was created against.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import json
+from datetime import datetime
+
+class GoldenDatasetManager:
+    """Manage versioned golden eval datasets alongside your RAG corpus."""
+
+    def __init__(self, dataset_path: str):
+        self.dataset_path = dataset_path
+        self.dataset = self._load()
+
+    def _load(self) -&gt; dict:
+        with open(self.dataset_path) as f:
+            return json.load(f)
+
+    def check_staleness(self, current_corpus_version: str) -&gt; list[dict]:
+        """Flag eval pairs that may be stale after a corpus update."""
+        stale = []
+        for pair in self.dataset["pairs"]:
+            if pair["corpus_version"] != current_corpus_version:
+                stale.append(pair)
+        return stale
+
+    def coverage_report(self) -&gt; dict:
+        """Check what % of document types and question types are covered."""
+        doc_types = set(p.get("doc_type", "unknown") for p in self.dataset["pairs"])
+        q_types = set(p.get("question_type", "unknown") for p in self.dataset["pairs"])
+        difficulties = [p.get("difficulty", "unknown") for p in self.dataset["pairs"]]
+
+        return {
+            "total_pairs": len(self.dataset["pairs"]),
+            "document_types_covered": list(doc_types),
+            "question_types": list(q_types),
+            "difficulty_distribution": {
+                d: difficulties.count(d) for d in set(difficulties)
+            },
+            "adversarial_pairs": sum(
+                1 for p in self.dataset["pairs"] if p.get("is_adversarial", False)
+            ),
+            "corpus_version": self.dataset.get("corpus_version", "unknown"),
+            "last_reviewed": self.dataset.get("last_reviewed", "never"),
+        }
+
+# Example golden dataset format (store as rag_golden_dataset.json)
+golden_dataset_schema = {
+    "corpus_version": "v2.3.1",
+    "last_reviewed": "2026-03-15",
+    "pairs": [
+        {
+            "id": "gold-001",
+            "question": "What is the maximum retry count for failed payments?",
+            "ground_truth": "Failed payments are retried up to 3 times over 7 days.",
+            "relevant_chunks": ["payments/retry-policy.md#section-2"],
+            "question_type": "factual",
+            "difficulty": "easy",
+            "doc_type": "policy",
+            "corpus_version": "v2.3.1",
+            "is_adversarial": False,
+            "annotator": "domain-expert-1"
+        },
+        {
+            "id": "gold-042",
+            "question": "Does the system support cryptocurrency payments?",
+            "ground_truth": "NOT_ANSWERABLE",
+            "relevant_chunks": [],
+            "question_type": "out-of-scope",
+            "difficulty": "adversarial",
+            "doc_type": None,
+            "corpus_version": "v2.3.1",
+            "is_adversarial": True,
+            "annotator": "domain-expert-2"
+        }
+    ]
+}</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Coverage Metrics for Eval Datasets</h4>
+                    <table class="security-table">
+                        <thead>
+                            <tr>
+                                <th>Coverage Dimension</th>
+                                <th>Target</th>
+                                <th>How to Measure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Document type coverage</strong></td>
+                                <td>&gt;80% of doc categories have &ge;1 eval pair</td>
+                                <td>Map each eval pair to its source doc type, check gaps</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Question type diversity</strong></td>
+                                <td>Mix of factual, comparative, procedural, adversarial</td>
+                                <td>Tag each pair, verify no single type &gt;50%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Difficulty balance</strong></td>
+                                <td>~40% easy, ~35% medium, ~25% hard</td>
+                                <td>Difficulty tags from annotators</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Adversarial ratio</strong></td>
+                                <td>10-20% of dataset should be unanswerable</td>
+                                <td>Count pairs with <code>is_adversarial: true</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Freshness</strong></td>
+                                <td>100% of pairs match current corpus version</td>
+                                <td>Compare <code>corpus_version</code> field to current version</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>When to update your golden dataset:</strong> After any corpus update, run <code>check_staleness()</code>. If &gt;10% of pairs are stale, trigger a review cycle. Also update after major product changes, new feature launches, or when production monitoring reveals query patterns not covered by existing pairs.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Running RAGAS + DeepEval for RAG Systems</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The custom <code>RAGEvaluator</code> class above is good for understanding the mechanics. In production, use established frameworks that handle edge cases, provide better LLM-as-judge prompts, and integrate with CI/CD.</p>
+
+                    <h4>RAGAS: End-to-End RAG Evaluation</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python">from ragas import evaluate
+from ragas.metrics import (
+    faithfulness,
+    answer_relevancy,
+    context_precision,
+    context_recall,
+    answer_correctness,   # NEW: compares to ground truth
+    answer_similarity,    # NEW: semantic similarity to reference
+)
+from ragas.llms import LangchainLLMWrapper
+from ragas.embeddings import LangchainEmbeddingsWrapper
+from datasets import Dataset
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+
+# Configure evaluator LLM (use a strong model for judging)
+evaluator_llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o"))
+evaluator_embeddings = LangchainEmbeddingsWrapper(OpenAIEmbeddings())
+
+# Prepare your data - run each question through your RAG pipeline first
+eval_data = {
+    "question": [],
+    "answer": [],            # Your RAG pipeline's actual output
+    "contexts": [],          # The chunks your retriever returned
+    "ground_truth": [],      # Reference answers from eval dataset
+}
+
+for item in eval_dataset:
+    # Run your actual RAG pipeline
+    result = my_rag_pipeline.query(item["question"])
+
+    eval_data["question"].append(item["question"])
+    eval_data["answer"].append(result["answer"])
+    eval_data["contexts"].append(result["retrieved_chunks"])
+    eval_data["ground_truth"].append(item["ground_truth"])
+
+dataset = Dataset.from_dict(eval_data)
+
+# Run evaluation
+results = evaluate(
+    dataset=dataset,
+    metrics=[
+        faithfulness,
+        answer_relevancy,
+        context_precision,
+        context_recall,
+        answer_correctness,
+    ],
+    llm=evaluator_llm,
+    embeddings=evaluator_embeddings,
+)
+
+print(results)
+# {'faithfulness': 0.87, 'answer_relevancy': 0.91,
+#  'context_precision': 0.78, 'context_recall': 0.72,
+#  'answer_correctness': 0.83}
+
+# Per-question breakdown for debugging
+df = results.to_pandas()
+# Find worst-performing questions
+worst = df.nsmallest(10, 'faithfulness')
+print("Lowest faithfulness questions:")
+print(worst[['question', 'faithfulness', 'context_precision']])</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">DeepEval: pytest-style RAG Evals</h4>
+                    <div class="code-block">
+                        <pre><code class="language-python"># test_rag.py — run with: deepeval test run test_rag.py
+import pytest
+from deepeval import assert_test
+from deepeval.test_case import LLMTestCase
+from deepeval.metrics import (
+    FaithfulnessMetric,
+    AnswerRelevancyMetric,
+    ContextualPrecisionMetric,
+    ContextualRecallMetric,
+    HallucinationMetric,
+)
+
+faithfulness = FaithfulnessMetric(threshold=0.8, model="gpt-4o")
+relevancy = AnswerRelevancyMetric(threshold=0.7, model="gpt-4o")
+precision = ContextualPrecisionMetric(threshold=0.6, model="gpt-4o")
+recall = ContextualRecallMetric(threshold=0.7, model="gpt-4o")
+hallucination = HallucinationMetric(threshold=0.5, model="gpt-4o")
+
+@pytest.mark.parametrize("eval_case", load_eval_dataset("eval_data.json"))
+def test_rag_quality(eval_case):
+    """Test RAG quality for each eval case — fails if any metric below threshold."""
+    # Run your RAG pipeline
+    result = my_rag_pipeline.query(eval_case["question"])
+
+    test_case = LLMTestCase(
+        input=eval_case["question"],
+        actual_output=result["answer"],
+        retrieval_context=result["retrieved_chunks"],
+        expected_output=eval_case["ground_truth"],
+    )
+
+    assert_test(test_case, [faithfulness, relevancy, precision, recall, hallucination])
+
+def test_rag_no_hallucination_on_unknown():
+    """Test that RAG refuses to answer questions outside its knowledge."""
+    result = my_rag_pipeline.query("What is the airspeed velocity of a swallow?")
+    test_case = LLMTestCase(
+        input="What is the airspeed velocity of a swallow?",
+        actual_output=result["answer"],
+        retrieval_context=result["retrieved_chunks"],
+    )
+    # Should score HIGH on hallucination metric (= detected hallucination)
+    # because it shouldn't answer this from context
+    metric = HallucinationMetric(threshold=0.3, model="gpt-4o")
+    metric.measure(test_case)
+    assert "don't have" in result["answer"].lower() or metric.score &lt; 0.3</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Promptfoo: YAML-based RAG Eval</h4>
+                    <div class="code-block">
+                        <pre><code class="language-yaml"># promptfoo_rag_eval.yaml
+# Run with: promptfoo eval -c promptfoo_rag_eval.yaml
+description: RAG Pipeline Evaluation
+
+providers:
+  - id: python:rag_provider.py  # Your RAG pipeline wrapper
+
+tests:
+  - vars:
+      question: "What is the refund policy?"
+    assert:
+      - type: contains
+        value: "5 business days"
+      - type: llm-rubric
+        value: "Answer is grounded in the provided context and does not hallucinate"
+      - type: similar
+        value: "Refunds are processed within 5 business days of request"
+        threshold: 0.8
+
+  - vars:
+      question: "How do I contact support?"
+    assert:
+      - type: contains-any
+        value: ["email", "phone", "chat"]
+      - type: llm-rubric
+        value: "Answer provides specific contact methods mentioned in the documents"
+
+  - vars:
+      question: "What is the meaning of life?"  # Out-of-scope
+    assert:
+      - type: llm-rubric
+        value: "Answer acknowledges it cannot answer this from the available documents"
+      - type: not-contains
+        value: "42"  # Should not hallucinate</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Production RAG Monitoring &amp; CI/CD Eval Gates</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Evals aren't a one-time activity. RAG quality degrades over time as documents change, embeddings drift, and LLM providers update models. You need continuous monitoring and automated gates.</p>
+
+                    <h4>Continuous Production Monitoring</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["Production<br/>RAG Traffic"] --> B["Sample 1-5%<br/>of requests"]
+    B --> C["Run async<br/>RAGAS eval"]
+    C --> D["Log scores<br/>to dashboard"]
+    D --> E{Score drops<br/>&gt;5%?}
+    E -->|Yes| F["Alert on-call<br/>+ auto-triage"]
+    E -->|No| G["Continue<br/>monitoring"]
+                        </div>
+                    </div>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import random
+import asyncio
+from datetime import datetime
+
+class RAGProductionMonitor:
+    """Sample and evaluate production RAG requests continuously."""
+
+    def __init__(self, sample_rate: float = 0.02, alert_threshold: float = 0.05):
+        self.sample_rate = sample_rate  # 2% of traffic
+        self.alert_threshold = alert_threshold
+        self.baseline_scores = {}  # Loaded from last eval run
+        self.scores_buffer = []
+
+    async def maybe_evaluate(self, question: str, answer: str,
+                              contexts: list[str]) -&gt; dict | None:
+        """Probabilistically evaluate a production request."""
+        if random.random() &gt; self.sample_rate:
+            return None
+
+        # Run lightweight eval (faithfulness + relevancy only for speed)
+        scores = await self._run_eval(question, answer, contexts)
+        self.scores_buffer.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "question": question[:200],
+            "scores": scores,
+        })
+
+        # Check for degradation every 100 samples
+        if len(self.scores_buffer) &gt;= 100:
+            await self._check_degradation()
+            self.scores_buffer = []
+
+        return scores
+
+    async def _check_degradation(self):
+        """Compare current window to baseline. Alert if significant drop."""
+        import numpy as np
+        current = {
+            metric: np.mean([s["scores"][metric] for s in self.scores_buffer])
+            for metric in ["faithfulness", "answer_relevancy"]
+        }
+        for metric, current_score in current.items():
+            baseline = self.baseline_scores.get(metric, 0.85)
+            drop = baseline - current_score
+            if drop &gt; self.alert_threshold:
+                await self._send_alert(metric, baseline, current_score)</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">CI/CD Eval Gate for RAG Changes</h4>
+                    <p>Any change to your RAG pipeline — new chunking strategy, different embedding model, prompt update, k value change — should be gated by evals.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-yaml"># .github/workflows/rag-eval.yml
+name: RAG Eval Gate
+on:
+  pull_request:
+    paths:
+      - 'rag/**'              # RAG pipeline code
+      - 'prompts/**'          # System prompts
+      - 'config/rag.yaml'     # RAG configuration
+
+jobs:
+  rag-eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Install dependencies
+        run: pip install ragas deepeval openai
+
+      - name: Run RAG eval suite
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/run_rag_eval.py \
+            --dataset eval/rag_golden_dataset.json \
+            --output eval_results.json
+
+      - name: Check regression
+        run: |
+          python scripts/check_regression.py \
+            --current eval_results.json \
+            --baseline eval/baseline_scores.json \
+            --max-drop 0.03  # Fail if any metric drops &gt;3%
+
+      - name: Comment PR with results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('eval_results.json'));
+            const body = `## RAG Eval Results\n` +
+              `| Metric | Score | Baseline | Delta |\n` +
+              `|--------|-------|----------|-------|\n` +
+              Object.entries(results.scores).map(([k,v]) =&gt;
+                `| ${k} | ${v.toFixed(3)} | ${results.baseline[k].toFixed(3)} | ${(v - results.baseline[k]).toFixed(3)} |`
+              ).join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });</code></pre>
+                    </div>
+
+                    <div class="callout callout-warning">
+                        <div class="callout-title">Cost of RAG Evals</div>
+                        <p>Running RAGAS with LLM-as-judge costs ~$0.01-0.05 per eval pair (using GPT-4o). A 200-pair eval suite costs ~$2-10 per run. Budget for 2-4 runs per PR + daily production monitoring. This is cheap compared to shipping a broken RAG pipeline.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Citation Evaluation: Measuring Source Attribution Quality</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Many RAG systems generate citations (e.g., "[Source: doc.pdf, p.3]") but never verify whether those citations actually support the claims they're attached to. Citation accuracy appears in metrics tables but is rarely implemented. Here's how to do it properly.</p>
+
+                    <h4>Citation Eval Is a 3-Step Process</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A["RAG Output<br/>with citations"] --> B["1. Extract<br/>claims + citations"]
+    B --> C["2. Verify each<br/>citation supports<br/>its claim (NLI)"]
+    C --> D["3. Compute<br/>precision &amp; recall"]
+                        </div>
+                    </div>
+
+                    <ol>
+                        <li><strong>Extract citations from output.</strong> Parse the LLM's response to identify each claim and its associated citation. Use structured output (JSON mode) or regex patterns for bracket-style citations.</li>
+                        <li><strong>Verify each citation supports its claim.</strong> For each (claim, cited_source) pair, check whether the source text actually entails the claim. This is a Natural Language Inference (NLI) task.</li>
+                        <li><strong>Compute precision and recall.</strong> Citation precision = fraction of citations that correctly support their claims. Citation recall = fraction of claims in the answer that have a valid citation.</li>
+                    </ol>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">import re
+from dataclasses import dataclass
+from openai import OpenAI
+
+client = OpenAI()
+
+@dataclass
+class CitationResult:
+    claim: str
+    cited_source: str
+    source_text: str
+    is_supported: bool
+    confidence: float
+    explanation: str
+
+class CitationEvaluator:
+    """Evaluate whether citations in RAG output actually support their claims."""
+
+    def __init__(self, model: str = "gpt-4o"):
+        self.model = model
+
+    def extract_claims_with_citations(self, answer: str, sources: dict[str, str]) -&gt; list[dict]:
+        """Extract (claim, citation) pairs from a RAG answer.
+
+        Expects citations in the format [Source: key] or [1], [2], etc.
+        """
+        response = client.chat.completions.create(
+            model=self.model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[{
+                "role": "system",
+                "content": """Extract every factual claim from the answer and its associated citation.
+Return JSON: {"claims": [{"claim": "...", "citation_key": "..." or null}]}
+- A claim is a single factual statement.
+- citation_key is the source reference attached to that claim, or null if uncited."""
+            }, {
+                "role": "user",
+                "content": f"Answer:\n{answer}\n\nAvailable sources: {list(sources.keys())}"
+            }]
+        )
+        import json
+        return json.loads(response.choices[0].message.content)["claims"]
+
+    def verify_citation(self, claim: str, source_text: str) -&gt; dict:
+        """Check if a source text entails (supports) a claim using NLI."""
+        response = client.chat.completions.create(
+            model=self.model,
+            temperature=0,
+            response_format={"type": "json_object"},
+            messages=[{
+                "role": "system",
+                "content": """You are a citation verification judge. Given a claim and a source text,
+determine if the source text SUPPORTS the claim.
+
+Return JSON: {"verdict": "supported" | "not_supported" | "partial",
+              "confidence": 0.0-1.0, "explanation": "..."}
+
+Rules:
+- "supported": the source text clearly and directly entails the claim
+- "not_supported": the source text does not contain information supporting the claim
+- "partial": the source supports part of the claim but not all of it"""
+            }, {
+                "role": "user",
+                "content": f"Claim: {claim}\n\nSource text: {source_text}"
+            }]
+        )
+        import json
+        return json.loads(response.choices[0].message.content)
+
+    def evaluate(self, answer: str, sources: dict[str, str]) -&gt; dict:
+        """Full citation evaluation: extract claims, verify each, compute metrics."""
+        claims = self.extract_claims_with_citations(answer, sources)
+
+        results = []
+        cited_claims = 0
+        supported_citations = 0
+        total_claims = len(claims)
+
+        for item in claims:
+            claim = item["claim"]
+            citation_key = item.get("citation_key")
+
+            if citation_key and citation_key in sources:
+                cited_claims += 1
+                verification = self.verify_citation(claim, sources[citation_key])
+                is_supported = verification["verdict"] == "supported"
+                if is_supported:
+                    supported_citations += 1
+                results.append(CitationResult(
+                    claim=claim,
+                    cited_source=citation_key,
+                    source_text=sources[citation_key][:200],
+                    is_supported=is_supported,
+                    confidence=verification["confidence"],
+                    explanation=verification["explanation"],
+                ))
+            else:
+                results.append(CitationResult(
+                    claim=claim, cited_source=citation_key or "NONE",
+                    source_text="", is_supported=False,
+                    confidence=0.0, explanation="No citation provided",
+                ))
+
+        citation_precision = supported_citations / cited_claims if cited_claims &gt; 0 else 0.0
+        citation_recall = cited_claims / total_claims if total_claims &gt; 0 else 0.0
+        unsupported_rate = 1 - (supported_citations / total_claims) if total_claims &gt; 0 else 1.0
+
+        return {
+            "citation_precision": citation_precision,   # % of citations that are correct
+            "citation_recall": citation_recall,         # % of claims that have a citation
+            "unsupported_claim_rate": unsupported_rate, # % of claims without valid support
+            "total_claims": total_claims,
+            "cited_claims": cited_claims,
+            "supported_citations": supported_citations,
+            "details": results,
+        }
+
+# Usage
+evaluator = CitationEvaluator()
+result = evaluator.evaluate(
+    answer="The retry limit is 3 attempts [Source: retry-policy.md]. "
+           "Payments timeout after 30 seconds [Source: api-docs.md]. "
+           "The system uses Stripe for processing.",
+    sources={
+        "retry-policy.md": "Failed payments are retried up to 3 times over 7 days...",
+        "api-docs.md": "API requests have a 60-second timeout for all endpoints...",
+    }
+)
+# citation_precision: 0.5  (1 of 2 cited claims is actually supported)
+# citation_recall: 0.67    (2 of 3 claims have citations)
+# unsupported_claim_rate: 0.67 (only 1 of 3 claims is properly supported)</code></pre>
+                    </div>
+
+                    <div class="insight-box">
+                        <strong>Diagnostic workflow:</strong> Citation precision low? Your LLM is attaching wrong sources to claims &mdash; tighten the citation format instructions in your prompt and consider requiring the LLM to quote the relevant passage. Citation recall low? The LLM is making claims without citing sources &mdash; add explicit "cite every factual claim" instructions. Both low? Your retrieval may be returning irrelevant chunks, making it hard for the LLM to cite correctly.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How Grounding/Faithfulness Scoring Works Internally</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Faithfulness is the most cited RAG metric, but few practitioners understand <em>how</em> it's actually computed. Understanding the internals helps you debug low scores and build custom evaluators when RAGAS isn't enough.</p>
+
+                    <h4>The 3-Step Faithfulness Pipeline</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A["RAG Answer:<br/>'The retry limit is 3 and<br/>payments timeout after 30s'"] --> B["Step 1: Claim Extraction"]
+    B --> C["Claim 1: 'retry limit is 3'<br/>Claim 2: 'payments timeout after 30s'"]
+    C --> D["Step 2: NLI Verification<br/>(per claim vs context)"]
+    D --> E["Claim 1 vs context → ENTAILED ✓<br/>Claim 2 vs context → NOT ENTAILED ✗"]
+    E --> F["Step 3: Score = 1/2 = 0.50"]
+                        </div>
+                    </div>
+
+                    <p><strong>Step 1 &mdash; Claim extraction:</strong> Decompose the answer into atomic, independently verifiable claims. Each claim should express exactly one fact. RAGAS uses an LLM prompt like: <em>"Given a sentence, identify every distinct factual claim. Output each claim on a separate line."</em></p>
+
+                    <p><strong>Step 2 &mdash; NLI verification:</strong> For each claim, check whether it is <em>entailed</em> by the retrieved context. This is a textual entailment task. RAGAS sends each (claim, context) pair to an LLM judge asking: <em>"Does the context support this claim? Answer 'yes' or 'no'."</em></p>
+
+                    <p><strong>Step 3 &mdash; Scoring:</strong> Faithfulness = (number of supported claims) / (total claims). A score of 0.50 means half the claims in the answer are hallucinated.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">from openai import OpenAI
+from dataclasses import dataclass
+
+client = OpenAI()
+
+@dataclass
+class ClaimVerification:
+    claim: str
+    verdict: str       # "entailed" | "not_entailed"
+    evidence: str      # the passage from context that supports it (if any)
+    confidence: float
+
+class GroundingEvaluator:
+    """Faithfulness evaluator with claim-level breakdown.
+
+    This mirrors what RAGAS does internally, but gives you full visibility
+    into which claims pass and which fail.
+    """
+
+    def __init__(self, model: str = "gpt-4o"):
+        self.model = model
+
+    def extract_claims(self, answer: str) -&gt; list[str]:
+        """Decompose an answer into atomic factual claims."""
+        response = client.chat.completions.create(
+            model=self.model, temperature=0,
+            messages=[{
+                "role": "system",
+                "content": "Extract every atomic factual claim from the text. "
+                           "Each claim should be one independently verifiable fact. "
+                           "Output one claim per line, nothing else."
+            }, {"role": "user", "content": answer}]
+        )
+        return [c.strip() for c in response.choices[0].message.content.strip().split("\n") if c.strip()]
+
+    def verify_claim(self, claim: str, context: str) -&gt; ClaimVerification:
+        """Check if context entails a claim (NLI-based)."""
+        response = client.chat.completions.create(
+            model=self.model, temperature=0,
+            response_format={"type": "json_object"},
+            messages=[{
+                "role": "system",
+                "content": """Determine if the context ENTAILS the claim.
+Return JSON: {"verdict": "entailed" | "not_entailed",
+              "evidence": "quote from context if entailed, else empty string",
+              "confidence": 0.0-1.0}
+
+Rules:
+- "entailed": the context explicitly or clearly implies this claim
+- "not_entailed": the context does NOT contain information supporting this claim,
+  OR the claim contradicts the context"""
+            }, {
+                "role": "user",
+                "content": f"Claim: {claim}\n\nContext: {context}"
+            }]
+        )
+        import json
+        r = json.loads(response.choices[0].message.content)
+        return ClaimVerification(
+            claim=claim, verdict=r["verdict"],
+            evidence=r.get("evidence", ""), confidence=r["confidence"]
+        )
+
+    def evaluate(self, answer: str, context: str) -&gt; dict:
+        """Full faithfulness evaluation with claim-level breakdown."""
+        claims = self.extract_claims(answer)
+        verifications = [self.verify_claim(c, context) for c in claims]
+
+        supported = sum(1 for v in verifications if v.verdict == "entailed")
+        faithfulness = supported / len(claims) if claims else 0.0
+
+        return {
+            "faithfulness_score": faithfulness,
+            "total_claims": len(claims),
+            "supported_claims": supported,
+            "unsupported_claims": len(claims) - supported,
+            "claim_details": verifications,
+        }
+
+# Usage
+evaluator = GroundingEvaluator()
+result = evaluator.evaluate(
+    answer="The retry limit is 3 attempts. Payments timeout after 30 seconds. "
+           "The system processes refunds within 24 hours.",
+    context="Failed payments are retried up to 3 times over 7 days. "
+            "Refunds are processed within 5 business days of the request."
+)
+# faithfulness_score: 0.33 (only 1 of 3 claims is supported)
+# Claim 1 "retry limit is 3" → entailed ✓
+# Claim 2 "timeout after 30 seconds" → not_entailed ✗ (not in context)
+# Claim 3 "refunds within 24 hours" → not_entailed ✗ (context says 5 business days)</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">What RAGAS Does vs. What You Can Build Custom</h4>
+                    <table class="security-table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>RAGAS Built-in</th>
+                                <th>Custom GroundingEvaluator</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Claim extraction</td>
+                                <td>Sentence-level decomposition</td>
+                                <td>Atomic claim decomposition (finer-grained)</td>
+                            </tr>
+                            <tr>
+                                <td>NLI method</td>
+                                <td>LLM-as-judge with default prompts</td>
+                                <td>Customizable prompts, can use dedicated NLI models</td>
+                            </tr>
+                            <tr>
+                                <td>Claim-level detail</td>
+                                <td>Aggregate score only</td>
+                                <td>Full breakdown: which claims fail and why</td>
+                            </tr>
+                            <tr>
+                                <td>Evidence extraction</td>
+                                <td>Not provided</td>
+                                <td>Returns the supporting quote from context</td>
+                            </tr>
+                            <tr>
+                                <td>Cost</td>
+                                <td>2 LLM calls per eval pair</td>
+                                <td>1 + N calls (N = number of claims)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Calibration: What Faithfulness Scores Mean in Practice</h4>
+                    <table class="security-table">
+                        <thead>
+                            <tr>
+                                <th>Score Range</th>
+                                <th>What It Means</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>0.95 - 1.0</strong></td>
+                                <td>Excellent. Nearly all claims are grounded. Production-ready.</td>
+                                <td>Answer closely paraphrases the source documents with no added information.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>0.70 - 0.94</strong></td>
+                                <td>Acceptable with caveats. Some hallucinated details mixed with grounded facts.</td>
+                                <td>"The API rate limit is 100 req/s <em>(correct)</em> with automatic backoff <em>(not in context)</em>."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>0.30 - 0.69</strong></td>
+                                <td>Unreliable. More claims are hallucinated than grounded. Investigate immediately.</td>
+                                <td>LLM is supplementing context with training data. Lower temperature, add "only use provided context" instruction.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>0.0 - 0.29</strong></td>
+                                <td>Broken. The LLM is essentially ignoring context and generating from memory.</td>
+                                <td>Usually indicates the context isn't being injected into the prompt correctly, or the model is too weak to follow instructions.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>Word overlap is NOT faithfulness.</strong> The existing <code>check_claim_grounding</code> method in many tutorials uses token overlap between the answer and context. This is a weak proxy &mdash; it catches copy-paste but misses paraphrased hallucinations and accepts superficially similar but factually wrong claims. Always use NLI-based verification for production faithfulness scoring.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Meta-Evaluation: Evaluating Your Evals</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>You've built an eval pipeline. But <strong>how do you know your eval is actually measuring what you think?</strong> An eval that gives misleading scores is worse than no eval at all &mdash; it creates false confidence. Meta-evaluation is the practice of validating your evaluation pipeline itself.</p>
+
+                    <h4>The Meta-Eval Problem</h4>
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> Meta-evaluation is like calibrating a thermometer. A thermometer that reads 98.6&deg;F for everything looks like it's working, but it's useless. You calibrate by testing it against known temperatures (ice water = 32&deg;F, boiling = 212&deg;F). Similarly, you calibrate your eval by running it against known-good and known-bad examples.
+                    </div>
+
+                    <h4>Technique 1: Canary Tests (Sanity Checks)</h4>
+                    <p>Embed known-good and known-bad examples in your eval dataset and verify your eval correctly discriminates between them.</p>
+
+                    <div class="code-block">
+                        <pre><code class="language-python">class MetaEvaluator:
+    """Validate that your eval pipeline correctly distinguishes good from bad outputs."""
+
+    def __init__(self, eval_fn):
+        """eval_fn: callable that takes (question, answer, context) and returns a score dict."""
+        self.eval_fn = eval_fn
+
+    def run_canary_tests(self) -&gt; dict:
+        """Run known-good and known-bad examples through the eval pipeline."""
+        canaries = [
+            # Known-good: answer is perfectly grounded in context
+            {
+                "label": "perfect_grounding",
+                "expected_faithfulness": "high",  # &gt; 0.9
+                "question": "What is the refund policy?",
+                "answer": "Refunds are processed within 5 business days.",
+                "context": "Our refund policy: refunds are processed within 5 business days of request.",
+            },
+            # Known-bad: answer contradicts context
+            {
+                "label": "contradicts_context",
+                "expected_faithfulness": "low",  # &lt; 0.3
+                "question": "What is the refund policy?",
+                "answer": "Refunds are instant and processed immediately.",
+                "context": "Our refund policy: refunds are processed within 5 business days of request.",
+            },
+            # Known-bad: answer hallucinates facts not in context
+            {
+                "label": "hallucinated_facts",
+                "expected_faithfulness": "low",  # &lt; 0.5
+                "question": "What is the refund policy?",
+                "answer": "Refunds take 5 days. You can also get store credit instantly, "
+                          "and premium members get priority processing within 24 hours.",
+                "context": "Our refund policy: refunds are processed within 5 business days of request.",
+            },
+            # Edge case: empty context (should detect as unfaithful if answer has claims)
+            {
+                "label": "empty_context",
+                "expected_faithfulness": "low",
+                "question": "What is the pricing?",
+                "answer": "The basic plan costs $9.99/month.",
+                "context": "",
+            },
+        ]
+
+        results = []
+        for canary in canaries:
+            scores = self.eval_fn(canary["question"], canary["answer"], canary["context"])
+            faithfulness = scores.get("faithfulness", scores.get("faithfulness_score", 0))
+
+            expected = canary["expected_faithfulness"]
+            if expected == "high":
+                passed = faithfulness &gt; 0.85
+            else:
+                passed = faithfulness &lt; 0.5
+
+            results.append({
+                "label": canary["label"],
+                "expected": expected,
+                "actual_score": faithfulness,
+                "passed": passed,
+            })
+
+        passed_count = sum(1 for r in results if r["passed"])
+        return {
+            "canary_pass_rate": passed_count / len(results),
+            "results": results,
+            "verdict": "PASS" if passed_count == len(results) else "FAIL",
+        }
+
+    def compute_judge_correlation(
+        self, human_scores: list[float], llm_scores: list[float]
+    ) -&gt; dict:
+        """Compute correlation between LLM-as-judge and human annotations.
+
+        Use Spearman rank correlation (non-parametric, handles ordinal data).
+        """
+        from scipy.stats import spearmanr, kendalltau
+        import numpy as np
+
+        spearman_corr, spearman_p = spearmanr(human_scores, llm_scores)
+        kendall_corr, kendall_p = kendalltau(human_scores, llm_scores)
+
+        # Mean absolute error
+        mae = np.mean(np.abs(np.array(human_scores) - np.array(llm_scores)))
+
+        return {
+            "spearman_correlation": round(spearman_corr, 3),
+            "spearman_p_value": round(spearman_p, 4),
+            "kendall_tau": round(kendall_corr, 3),
+            "kendall_p_value": round(kendall_p, 4),
+            "mean_absolute_error": round(mae, 3),
+            "interpretation": (
+                "Strong agreement" if spearman_corr &gt; 0.7
+                else "Moderate agreement" if spearman_corr &gt; 0.4
+                else "Weak agreement — LLM judge may not be trustworthy"
+            ),
+        }
+
+# Usage
+meta = MetaEvaluator(eval_fn=my_rag_eval_function)
+
+# 1. Canary tests: does the eval distinguish good from bad?
+canary_results = meta.run_canary_tests()
+print(f"Canary pass rate: {canary_results['canary_pass_rate']:.0%}")
+# If this isn't 100%, your eval pipeline has a fundamental problem.
+
+# 2. Correlation with human judgment
+# (requires a human-annotated subset — typically 50-100 examples)
+correlation = meta.compute_judge_correlation(
+    human_scores=[0.9, 0.3, 0.7, 0.1, 0.8, ...],  # Human ratings
+    llm_scores=[0.85, 0.4, 0.65, 0.2, 0.75, ...],  # LLM judge ratings
+)
+print(f"Spearman correlation: {correlation['spearman_correlation']}")
+# Target: &gt; 0.7 for production use</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Technique 2: Detecting LLM-as-Judge Biases</h4>
+                    <p>LLM judges have systematic biases that can make your eval scores unreliable. You need to test for these explicitly.</p>
+
+                    <table class="security-table">
+                        <thead>
+                            <tr>
+                                <th>Bias Type</th>
+                                <th>Description</th>
+                                <th>How to Detect</th>
+                                <th>Mitigation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Position bias</strong></td>
+                                <td>Prefers the first or last option in comparisons</td>
+                                <td>Swap order of (A, B) pairs; scores should be the same</td>
+                                <td>Average scores across both orderings</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Verbosity bias</strong></td>
+                                <td>Rates longer answers higher regardless of quality</td>
+                                <td>Compare a concise correct answer vs a verbose wrong one</td>
+                                <td>Include length-controlled canary pairs in eval set</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Self-preference</strong></td>
+                                <td>GPT-4 rates GPT-4 outputs higher than equivalent human text</td>
+                                <td>Compare scores for human-written vs LLM-written answers of equal quality</td>
+                                <td>Use a different model family for judging than for generation</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Anchoring bias</strong></td>
+                                <td>Scores cluster around the example score if few-shot examples are provided</td>
+                                <td>Remove few-shot examples and compare score distributions</td>
+                                <td>Use zero-shot judging or calibrate few-shot examples carefully</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Sycophancy</strong></td>
+                                <td>Agrees with confident-sounding but wrong answers</td>
+                                <td>Include canaries with confident but incorrect claims</td>
+                                <td>Add explicit instruction: "Confidence of the answer is irrelevant to correctness"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Technique 3: Inter-Annotator Agreement (Human Eval Baseline)</h4>
+                    <p>When you use human evaluators (to validate your LLM judge), measure how much the humans agree with each other. If humans disagree, you can't expect an LLM judge to do better.</p>
+
+                    <div class="math-box">
+                        <strong>Cohen's Kappa (for 2 annotators):</strong><br><br>
+                        &kappa; = (p_observed - p_chance) / (1 - p_chance)<br><br>
+                        Where:<br>
+                        &bull; p_observed = fraction of items where both annotators agree<br>
+                        &bull; p_chance = expected agreement by random chance<br><br>
+                        <strong>Interpretation:</strong><br>
+                        &bull; &kappa; &gt; 0.8 = almost perfect agreement<br>
+                        &bull; &kappa; 0.6 - 0.8 = substantial agreement<br>
+                        &bull; &kappa; 0.4 - 0.6 = moderate agreement<br>
+                        &bull; &kappa; &lt; 0.4 = fair to poor — your task definition or rubric is ambiguous
+                    </div>
+
+                    <h4 class="mt-3">Eval Quality Scorecard</h4>
+                    <p>Use this scorecard to assess whether your eval pipeline is production-ready.</p>
+
+                    <table class="security-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Check</th>
+                                <th>Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Canary discrimination</strong></td>
+                                <td>Known-good scores &gt; 0.85, known-bad scores &lt; 0.5</td>
+                                <td>100% canary pass rate</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Human correlation</strong></td>
+                                <td>Spearman correlation between LLM judge and human scores</td>
+                                <td>&gt; 0.7</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Position bias</strong></td>
+                                <td>Score difference when swapping order &lt; 0.05</td>
+                                <td>&Delta; &lt; 0.05</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Verbosity bias</strong></td>
+                                <td>Short correct answer scores &ge; long incorrect answer</td>
+                                <td>Pass</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Dataset coverage</strong></td>
+                                <td>Eval covers &gt;80% of doc types, question types</td>
+                                <td>&gt;80%</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Reproducibility</strong></td>
+                                <td>Same inputs produce same scores (&plusmn;0.05) across runs</td>
+                                <td>Variance &lt; 0.05</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="danger-box">
+                        <strong>When LLM-as-judge fails silently:</strong> The most dangerous failure mode is when your eval scores look good but don't correlate with actual user satisfaction. This happens when your eval dataset doesn't represent real production traffic, or when the LLM judge has biases that align with your pipeline's failure modes (e.g., both the judge and the generator are verbose, so verbosity bias inflates faithfulness scores). Always close the loop: compare eval scores to production user feedback (thumbs up/down) monthly.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- SECTION 4: ACTIVE RECALL QUESTIONS -->
             <!-- ============================================ -->
             <h2 class="mt-4">4. Active Recall Questions</h2>
@@ -2373,6 +3525,46 @@ print(f"Hit Rate@3: {hit_rate_at_k([q['retrieved_relevances'] for q in queries],
                 <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
                 <div class="quiz-answer">
                     <strong>Answer:</strong> Avoid GPU batching when: (1) Latency is critical and you can't wait to accumulate a batch - single queries should process immediately, (2) Query volume is too low to form meaningful batches, (3) GPU memory is constrained and large batches cause OOM errors, (4) Queries have highly variable lengths causing padding inefficiency. In these cases, process queries individually or use smaller batch sizes with shorter timeouts.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q8: Your RAGAS faithfulness score is 0.72 but context recall is 0.91. What's the root cause and fix?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> High context recall (0.91) means the retriever IS finding the right documents. Low faithfulness (0.72) means the LLM is making claims not supported by those documents — a generation problem, not a retrieval problem. Fixes: (1) Add explicit "only use the provided context" instructions, (2) Lower temperature to 0.1-0.3, (3) Add citation requirements so the LLM must reference specific chunks, (4) Use a more instruction-following model, (5) Add a faithfulness check as a post-processing guardrail.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q9: How do you create an eval dataset for a RAG system when you have no labeled data?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> Use synthetic generation: (1) Sample chunks from your corpus stratified by topic/section, (2) Use a strong LLM (GPT-4o) to generate question-answer pairs from each chunk, (3) Filter with self-consistency — run generated questions through your pipeline and keep only those where the source chunk is retrieved in top-3, (4) Have a domain expert review 10-20% for quality control, (5) Add adversarial questions that should NOT be answerable. Start with 100-200 pairs for development, scale to 500+ for CI/CD gates.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q10: What should trigger a re-evaluation of your RAG pipeline in production?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> Triggers include: (1) Document corpus update (new/modified/deleted documents), (2) Embedding model change or version update, (3) LLM provider model update (e.g., GPT-4o version bump), (4) Chunking strategy or k-value change, (5) System prompt modification, (6) Production monitoring shows score drop >5% from baseline, (7) User feedback shows increased thumbs-down rate. Any of these should trigger the CI/CD eval gate. For provider model updates you may have no control over, use continuous monitoring to detect silent degradation.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q11: How would you evaluate whether your RAG system's citations are actually correct?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> Citation evaluation is a 3-step process: (1) Extract claims and their associated citations from the RAG output (using structured output or regex parsing), (2) For each (claim, cited_source) pair, verify whether the source text actually entails/supports the claim using NLI (Natural Language Inference) — either via an LLM-as-judge or a dedicated NLI model, (3) Compute citation precision (% of citations that correctly support their claims) and citation recall (% of claims that have a valid citation). Low citation precision means the LLM is attaching wrong sources; low citation recall means claims are being made without any source attribution. Both should be above 90% for trustworthy systems.
+                </div>
+            </div>
+
+            <div class="quiz-question">
+                <h4>Q12: Your LLM-as-judge eval scores look great (faithfulness 0.92) but users are still complaining about wrong answers. What could be going wrong and how do you debug it?</h4>
+                <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                <div class="quiz-answer">
+                    <strong>Answer:</strong> This is a meta-evaluation problem — your eval may not be measuring what you think. Debug steps: (1) Run canary tests: embed known-bad examples (hallucinated answers, contradictions) and verify the eval scores them low. If it doesn't, the eval is broken. (2) Check for LLM-as-judge biases: verbosity bias (long wrong answers score high), self-preference bias (GPT-4 rating GPT-4 output favorably), or sycophancy (confident-sounding wrong answers get high scores). (3) Compute correlation between eval scores and human judgment on a 50-100 sample subset — Spearman correlation should be >0.7. (4) Check if your eval dataset represents real production traffic — if your golden dataset only covers easy factual lookups but users ask complex multi-hop questions, your eval won't catch real failures. (5) Close the loop: compare eval scores to actual user feedback (thumbs up/down) to detect drift.
                 </div>
             </div>
 
@@ -3197,6 +4389,9 @@ if __name__ == "__main__":
                     <li><strong>Citation Tracking:</strong> Link generated claims to source documents for verifiability</li>
                     <li><strong>Production Optimization:</strong> Implement caching, batching, and error handling for scale</li>
                     <li><strong>Evaluation:</strong> Measure retrieval precision/recall, faithfulness, and latency</li>
+                    <li><strong>Citation Eval:</strong> Verify citations actually support their claims using NLI-based verification</li>
+                    <li><strong>Grounding Internals:</strong> Understand claim extraction → NLI verification → scoring pipeline</li>
+                    <li><strong>Meta-Evaluation:</strong> Validate your eval pipeline with canary tests, bias detection, and human correlation</li>
                 </ul>
 
                 <h4>Key Takeaways:</h4>
@@ -3251,6 +4446,7 @@ if __name__ == "__main__":
             });
         });
     </script>
+    <script src="sidebar.js"></script>
     <script src="../assets/js/navbar.js"></script>
 </body>
 </html>

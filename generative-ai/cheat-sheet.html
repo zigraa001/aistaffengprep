@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GenAI Engineering Cheat Sheet - Staff Engineer Prep</title>
+    <title>AI Engineering Cheat Sheet - Staff Engineer Prep</title>
     <link rel="stylesheet" href="../assets/css/style.css">
     <style>
         .cs-section {
@@ -135,35 +135,13 @@
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
 
     <div class="layout-with-sidebar">
-        <aside class="sidebar" id="sidebar">
-            <nav class="sidebar-nav">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Cheat Sheet</div>
-                    <a href="#toc" class="sidebar-link">Table of Contents</a>
-                    <a href="#transformers" class="sidebar-link">Transformers & Attention</a>
-                    <a href="#inference" class="sidebar-link">Inference Arithmetic</a>
-                    <a href="#parameters" class="sidebar-link">Generation Parameters</a>
-                    <a href="#rag" class="sidebar-link">RAG & Retrieval</a>
-                    <a href="#agents" class="sidebar-link">Agents</a>
-                    <a href="#optimization" class="sidebar-link">Optimization</a>
-                    <a href="#metrics" class="sidebar-link">Metrics Reference</a>
-                    <a href="#evals" class="sidebar-link">Evals & Fine-tuning</a>
-                    <a href="#ml-models" class="sidebar-link">Traditional ML</a>
-                    <a href="#tradeoffs" class="sidebar-link">AI Tradeoffs</a>
-                    <a href="#patterns" class="sidebar-link">AI-Native Patterns</a>
-                </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Course</div>
-                    <a href="index.html" class="sidebar-link">All Modules</a>
-                </div>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="sidebar"></aside>
 
         <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
         <main class="main-content">
-            <h1>GenAI Engineering Cheat Sheet</h1>
+            <h1>AI Engineering Cheat Sheet</h1>
             <p class="text-muted mb-3">Quick-reference for staff engineer interviews. All key formulas, numbers, metrics, and decision frameworks in one place.</p>
 
             <!-- TOC -->
@@ -179,6 +157,11 @@
                 <a href="#ml-models" class="toc-link">9. Traditional ML</a>
                 <a href="#tradeoffs" class="toc-link">10. AI Tradeoffs</a>
                 <a href="#patterns" class="toc-link">11. AI-Native Patterns</a>
+                <a href="#inference-platforms" class="toc-link">12. Inference Platforms</a>
+                <a href="#model-routing" class="toc-link">13. Model Routing</a>
+                <a href="#ai-observability" class="toc-link">14. AI Observability</a>
+                <a href="#cost-optimization" class="toc-link">15. Cost Optimization</a>
+                <a href="#eval-frameworks" class="toc-link">16. Eval Frameworks</a>
             </div>
 
             <!-- ─── 1. TRANSFORMERS ─── -->
@@ -734,6 +717,208 @@
                 <div class="info" style="margin-top:0.75rem;"><strong>Interview tip:</strong> When asked to design an AI-native system, always address: (1) fallback strategy when model fails, (2) eval pipeline, (3) cost at scale, (4) how the data flywheel works.</div>
             </div>
 
+            <!-- ─── 12. INFERENCE PLATFORMS ─── -->
+            <div id="inference-platforms" class="cs-section">
+                <h3>12. Inference Platforms</h3>
+                <div class="two-col">
+                    <div>
+                        <h4>Inference Servers</h4>
+                        <table class="metric-table">
+                            <tr><th>Server</th><th>Strengths</th><th>Best For</th></tr>
+                            <tr><td>vLLM</td><td>PagedAttention, continuous batching, highest throughput</td><td>Self-hosted production</td></tr>
+                            <tr><td>TensorRT-LLM</td><td>NVIDIA-optimized, INT4/INT8, fastest on NVIDIA GPUs</td><td>Max performance on NVIDIA</td></tr>
+                            <tr><td>TGI</td><td>HuggingFace ecosystem, easy setup, streaming</td><td>Quick deployments</td></tr>
+                            <tr><td>Triton</td><td>Multi-model, multi-framework, ensemble pipelines</td><td>Multi-model serving</td></tr>
+                            <tr><td>Ollama/llama.cpp</td><td>Local, CPU+GPU, GGUF format</td><td>Development, edge</td></tr>
+                        </table>
+                        <h4>Key Formulas</h4>
+                        <div class="formula">VRAM = model_params x bytes_per_param + KV_cache + overhead<br>KV_cache = batch_size x seq_len x 2 x n_layers x n_kv_heads x d_head x 2</div>
+                    </div>
+                    <div>
+                        <h4>Autoscaling Metrics</h4>
+                        <ul>
+                            <li><strong>GPU utilization</strong> &gt;80% = scale up</li>
+                            <li><strong>Queue depth</strong> &gt;10 = scale up</li>
+                            <li><strong>TTFT p99</strong> &gt;SLO = scale up</li>
+                            <li><strong>Cold start</strong>: 30-120s for large models; mitigate with pre-warming</li>
+                        </ul>
+                        <h4>Cost: Self-hosted vs Managed vs Serverless</h4>
+                        <table class="metric-table">
+                            <tr><th></th><th>Self-hosted</th><th>Managed</th><th>Serverless</th></tr>
+                            <tr><td>$/M tokens</td><td>$0.10-0.50</td><td>$0.50-3.00</td><td>$1.00-15.00</td></tr>
+                            <tr><td>Ops burden</td><td>High</td><td>Medium</td><td>None</td></tr>
+                            <tr><td>Min scale</td><td>1 GPU 24/7</td><td>1 instance</td><td>0 (pay per use)</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── 13. MODEL ROUTING ─── -->
+            <div id="model-routing" class="cs-section">
+                <h3>13. Model Routing &amp; Gateway</h3>
+                <div class="two-col">
+                    <div>
+                        <h4>Routing Strategies</h4>
+                        <table class="metric-table">
+                            <tr><th>Strategy</th><th>Signal</th><th>Use When</th></tr>
+                            <tr><td>Complexity-based</td><td>Query difficulty classifier</td><td>Cost reduction</td></tr>
+                            <tr><td>Cost-based</td><td>Budget remaining</td><td>Budget constraints</td></tr>
+                            <tr><td>Latency-based</td><td>SLA requirements</td><td>Real-time apps</td></tr>
+                            <tr><td>Quality-based</td><td>Task type strengths</td><td>Task-specific models</td></tr>
+                            <tr><td>Cascading</td><td>Confidence threshold</td><td>Best quality/cost ratio</td></tr>
+                        </table>
+                        <h4>Fallback Chain</h4>
+                        <ul>
+                            <li>Primary (Claude Sonnet) &rarr; Fallback (GPT-4o) &rarr; Emergency (Haiku)</li>
+                            <li>Circuit breaker: open after 5 failures in 60s; half-open after 30s</li>
+                            <li>Timeout: streaming 5s first token, non-streaming 30s total</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>Gateway Tools</h4>
+                        <table class="metric-table">
+                            <tr><th>Tool</th><th>Key Feature</th><th>Pricing</th></tr>
+                            <tr><td>LiteLLM</td><td>100+ providers, unified API</td><td>Open-source</td></tr>
+                            <tr><td>Portkey</td><td>Gateway + analytics + caching</td><td>Freemium</td></tr>
+                            <tr><td>OpenRouter</td><td>Multi-provider marketplace</td><td>Pay-per-use</td></tr>
+                            <tr><td>Martian</td><td>Intelligent auto-routing</td><td>Enterprise</td></tr>
+                        </table>
+                        <h4>Cost Impact</h4>
+                        <ul>
+                            <li>Route 80% of traffic to cheap model = <strong>60-80% cost reduction</strong></li>
+                            <li>Quality loss with good routing: <strong>&lt;2%</strong></li>
+                            <li>Added latency from router: <strong>&lt;10ms</strong></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── 14. AI OBSERVABILITY ─── -->
+            <div id="ai-observability" class="cs-section">
+                <h3>14. AI Observability</h3>
+                <div class="two-col">
+                    <div>
+                        <h4>LLM-Specific Metrics</h4>
+                        <table class="metric-table">
+                            <tr><th>Metric</th><th>Definition</th><th>Target</th></tr>
+                            <tr><td>TTFT</td><td>Time to first token</td><td>&lt;300ms (chat)</td></tr>
+                            <tr><td>ITL</td><td>Inter-token latency</td><td>&lt;50ms</td></tr>
+                            <tr><td>Tokens/sec</td><td>Output generation speed</td><td>&gt;30 (chat)</td></tr>
+                            <tr><td>Cost/request</td><td>Input + output token cost</td><td>Track trends</td></tr>
+                            <tr><td>Cache hit rate</td><td>Prompt cache reuse %</td><td>&gt;30%</td></tr>
+                            <tr><td>Hallucination rate</td><td>Unfaithful responses %</td><td>&lt;2%</td></tr>
+                        </table>
+                        <h4>Why Traditional APM Fails</h4>
+                        <ul>
+                            <li>HTTP 200 + hallucinated response = silent failure</li>
+                            <li>Latency varies 10x based on output length</li>
+                            <li>Cost is per-token, not per-request</li>
+                            <li>Quality requires semantic evaluation</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>Observability Platforms</h4>
+                        <table class="metric-table">
+                            <tr><th>Platform</th><th>Focus</th><th>Open-source?</th></tr>
+                            <tr><td>LangSmith</td><td>Tracing for LangChain</td><td>No (freemium)</td></tr>
+                            <tr><td>Arize Phoenix</td><td>LLM traces + evals</td><td>Yes</td></tr>
+                            <tr><td>Braintrust</td><td>Evals + logging</td><td>No (freemium)</td></tr>
+                            <tr><td>W&amp;B Weave</td><td>Experiment tracking</td><td>No (freemium)</td></tr>
+                            <tr><td>OpenTelemetry</td><td>Generic instrumentation</td><td>Yes (CNCF)</td></tr>
+                        </table>
+                        <h4>Drift Detection</h4>
+                        <ul>
+                            <li><strong>Input drift</strong>: embedding cosine similarity vs baseline &lt;0.8 = alert</li>
+                            <li><strong>Output drift</strong>: eval score drops &gt;5% = investigate</li>
+                            <li><strong>Provider changes</strong>: re-run eval suite after model version updates</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── 15. COST OPTIMIZATION ─── -->
+            <div id="cost-optimization" class="cs-section">
+                <h3>15. Cost Optimization</h3>
+                <div class="two-col">
+                    <div>
+                        <h4>Token Pricing (per 1M tokens, 2025)</h4>
+                        <table class="metric-table">
+                            <tr><th>Model</th><th>Input</th><th>Output</th></tr>
+                            <tr><td>GPT-4o</td><td>$2.50</td><td>$10.00</td></tr>
+                            <tr><td>GPT-4o-mini</td><td>$0.15</td><td>$0.60</td></tr>
+                            <tr><td>Claude Sonnet 4</td><td>$3.00</td><td>$15.00</td></tr>
+                            <tr><td>Claude Haiku 3.5</td><td>$0.80</td><td>$4.00</td></tr>
+                            <tr><td>Gemini 2.5 Flash</td><td>$0.15</td><td>$0.60</td></tr>
+                            <tr><td>Llama 3.3 70B (self-hosted)</td><td>~$0.10</td><td>~$0.10</td></tr>
+                        </table>
+                        <h4>Cost Formula</h4>
+                        <div class="formula">Monthly cost = (avg_input_tokens x input_price + avg_output_tokens x output_price) x requests_per_month / 1M</div>
+                    </div>
+                    <div>
+                        <h4>Cost Reduction Techniques</h4>
+                        <table class="metric-table">
+                            <tr><th>Technique</th><th>Savings</th><th>Effort</th></tr>
+                            <tr><td>Prompt compression</td><td>20-40%</td><td>Low</td></tr>
+                            <tr><td>Semantic caching</td><td>30-60%</td><td>Medium</td></tr>
+                            <tr><td>Model routing/tiering</td><td>60-80%</td><td>Medium</td></tr>
+                            <tr><td>Batch API</td><td>50%</td><td>Low</td></tr>
+                            <tr><td>Fine-tuned small model</td><td>80-95%</td><td>High</td></tr>
+                            <tr><td>Prompt caching</td><td>50-90% on cached portion</td><td>Low</td></tr>
+                        </table>
+                        <h4>Break-even: Fine-tuning</h4>
+                        <div class="formula">Break-even requests = training_cost / (big_model_cost - small_model_cost) per request</div>
+                        <div class="info">Typical break-even: 50K-500K requests. Fine-tune when volume justifies upfront cost.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ─── 16. EVAL FRAMEWORKS ─── -->
+            <div id="eval-frameworks" class="cs-section">
+                <h3>16. Eval Frameworks Deep Dive</h3>
+                <div class="two-col">
+                    <div>
+                        <h4>Framework Comparison</h4>
+                        <table class="metric-table">
+                            <tr><th>Framework</th><th>Style</th><th>Key Feature</th></tr>
+                            <tr><td>DeepEval</td><td>pytest-style</td><td>14+ built-in metrics</td></tr>
+                            <tr><td>Promptfoo</td><td>CLI + YAML</td><td>Red-teaming, CI/CD</td></tr>
+                            <tr><td>RAGAS</td><td>Python lib</td><td>RAG-specific metrics</td></tr>
+                            <tr><td>Braintrust</td><td>Platform</td><td>Logging + evals + datasets</td></tr>
+                            <tr><td>OpenAI Evals</td><td>Python lib</td><td>Open-source, extensible</td></tr>
+                        </table>
+                        <h4>LLM-as-Judge</h4>
+                        <ul>
+                            <li>Use strong model (Opus/GPT-4o) to grade weaker model output</li>
+                            <li><strong>Position bias</strong>: randomize order; run each pair twice</li>
+                            <li>Correlation with human: 0.8+ when rubric is detailed</li>
+                            <li>Cost: ~$0.01-0.05 per judgment</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h4>CI/CD Eval Gates</h4>
+                        <ul>
+                            <li>Run eval suite on every prompt/code change in CI</li>
+                            <li>Block deploy if quality score drops &gt;X% vs baseline</li>
+                            <li>Version eval datasets alongside code</li>
+                            <li>Use <code>promptfoo eval --ci</code> or <code>deepeval test run</code></li>
+                        </ul>
+                        <h4>Human Eval</h4>
+                        <table class="metric-table">
+                            <tr><th>Metric</th><th>Formula</th><th>Good</th></tr>
+                            <tr><td>Cohen's Kappa</td><td>Inter-annotator agreement</td><td>&gt;0.6</td></tr>
+                            <tr><td>Krippendorff's Alpha</td><td>Multi-rater agreement</td><td>&gt;0.67</td></tr>
+                        </table>
+                        <h4>Eval Checklist</h4>
+                        <ul>
+                            <li>50+ test cases minimum per eval dimension</li>
+                            <li>Include edge cases, adversarial inputs, multilingual</li>
+                            <li>Track eval scores over time (dashboards)</li>
+                            <li>Re-evaluate after provider model updates</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <!-- Navigation -->
             <div class="flex flex-between mt-4">
                 <a href="index.html" class="btn btn-secondary">&larr; Back to Modules</a>
@@ -773,5 +958,6 @@
         });
     </script>
     <script src="../assets/js/navbar.js"></script>
+    <script src="sidebar.js"></script>
 </body>
 </html>

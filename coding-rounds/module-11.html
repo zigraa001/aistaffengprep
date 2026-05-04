@@ -7,6 +7,295 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* ── Monotonic Stack Visualizer ── */
+        .mono-viz-container {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 28px 24px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            color: #e0e0e0;
+        }
+        .mono-viz-container h4 {
+            color: #a78bfa;
+            margin: 0 0 18px;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .mono-viz-array {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .mono-viz-cell {
+            width: 46px;
+            height: 46px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            background: #0f3460;
+            border: 2px solid #1a4a7a;
+            transition: background 0.3s, border-color 0.3s, transform 0.25s;
+            position: relative;
+        }
+        .mono-viz-cell .cell-val {
+            font-size: 1.15rem;
+            font-weight: bold;
+            color: #c7d2fe;
+        }
+        .mono-viz-cell .cell-idx {
+            font-size: 0.6rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+        .mono-viz-cell.current {
+            background: #4c1d95;
+            border-color: #7c3aed;
+            transform: translateY(-4px);
+        }
+        .mono-viz-cell.popped {
+            background: #7f1d1d;
+            border-color: #ef4444;
+            transform: scale(0.92);
+        }
+        .mono-viz-cell.answered {
+            background: #14532d;
+            border-color: #22c55e;
+        }
+        .mono-viz-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        .mono-viz-stack-area {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            min-height: 70px;
+            padding: 10px 12px;
+            background: #0a0a1a;
+            border-radius: 8px;
+            border: 1px solid #2d2d5e;
+            margin-bottom: 14px;
+        }
+        .mono-viz-stack-cell {
+            width: 46px;
+            height: 46px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #312e81;
+            border: 2px solid #4f46e5;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .mono-viz-stack-cell .cell-val { color: #a5f3fc; }
+        .mono-viz-result-area {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .mono-viz-result-cell {
+            width: 46px;
+            height: 46px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1c1c2e;
+            border: 2px dashed #374151;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: #6b7280;
+            transition: all 0.35s;
+        }
+        .mono-viz-result-cell.filled {
+            background: #14532d;
+            border: 2px solid #22c55e;
+            color: #86efac;
+        }
+        .mono-viz-message {
+            min-height: 22px;
+            font-size: 0.85rem;
+            color: #fbbf24;
+            margin: 10px 0 14px;
+            font-style: italic;
+        }
+        .mono-viz-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .mono-viz-btn {
+            padding: 8px 18px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .mono-viz-btn:active { transform: scale(0.96); }
+        .mono-viz-btn.step  { background: #4f46e5; color: #fff; }
+        .mono-viz-btn.anim  { background: #059669; color: #fff; }
+        .mono-viz-btn.reset { background: #374151; color: #d1d5db; }
+        .mono-viz-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .mono-viz-cell,
+            .mono-viz-stack-cell,
+            .mono-viz-result-cell { transition: none !important; transform: none !important; }
+        }
+
+        /* ── Sliding Window Deque Visualization ── */
+        .deque-viz-container {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            color: #e0e0e0;
+            overflow-x: auto;
+        }
+        .deque-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        .deque-table th {
+            background: #0f3460;
+            color: #a78bfa;
+            padding: 8px 10px;
+            text-align: left;
+            letter-spacing: 0.05em;
+        }
+        .deque-table td {
+            padding: 7px 10px;
+            border-bottom: 1px solid #1e1e3a;
+            vertical-align: middle;
+        }
+        .deque-table tr:nth-child(even) td { background: #0d0d22; }
+        .deque-chip {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: bold;
+            margin: 1px 2px;
+        }
+        .chip-idx  { background: #312e81; color: #a5b4fc; border: 1px solid #4f46e5; }
+        .chip-val  { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+        .chip-out  { background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; }
+        .chip-evict{ background: #78350f; color: #fcd34d; border: 1px solid #d97706; }
+        .chip-max  { background: #14532d; color: #86efac; border: 1px solid #22c55e; }
+
+        /* ── Expression Evaluation Table ── */
+        .expr-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin: 16px 0;
+        }
+        .expr-table th {
+            background: #0f3460;
+            color: #a78bfa;
+            padding: 9px 12px;
+            text-align: left;
+        }
+        .expr-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1e293b;
+            font-family: 'Courier New', monospace;
+        }
+        .expr-table tr:nth-child(even) td { background: #0d0d22; }
+        .expr-token-op    { color: #fb923c; font-weight: bold; }
+        .expr-token-num   { color: #34d399; font-weight: bold; }
+        .expr-highlight   { background: #1e1b4b !important; }
+
+        /* ── Flashcard styles ── */
+        .flashcard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 14px;
+            margin-top: 14px;
+        }
+        .flashcard {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .flashcard:hover { border-color: #4f46e5; }
+        .flashcard .fc-q {
+            font-size: 0.88rem;
+            color: #a5b4fc;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .flashcard .fc-a {
+            font-size: 0.84rem;
+            color: #86efac;
+            display: none;
+            border-top: 1px solid #1e293b;
+            padding-top: 10px;
+            margin-top: 8px;
+        }
+        .flashcard.revealed .fc-a { display: block; }
+        .flashcard .fc-toggle {
+            font-size: 0.72rem;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+
+        /* ── Trade-off comparison table ── */
+        .tradeoff-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            font-size: 0.85rem;
+        }
+        .tradeoff-table th {
+            background: #0f3460;
+            color: #c7d2fe;
+            padding: 9px 12px;
+            text-align: left;
+        }
+        .tradeoff-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .tradeoff-table tr:nth-child(even) td { background: #080818; }
+        .good  { color: #34d399; }
+        .bad   { color: #f87171; }
+        .neutral { color: #fbbf24; }
+
+        /* ── Amortized analysis box ── */
+        .analysis-box {
+            background: #0c1929;
+            border-left: 4px solid #4f46e5;
+            border-radius: 0 8px 8px 0;
+            padding: 16px 20px;
+            margin: 16px 0;
+        }
+        .analysis-box p { margin: 6px 0; }
+        .analysis-box .math {
+            font-family: 'Courier New', monospace;
+            background: #1e1b4b;
+            border-radius: 4px;
+            padding: 2px 6px;
+            color: #a5b4fc;
+        }
+    </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
@@ -104,6 +393,8 @@
                 <li>Evaluate expressions using operator stacks (Reverse Polish Notation, Basic Calculator)</li>
                 <li>Use monotonic deques for sliding window problems in O(n)</li>
                 <li>Design augmented data structures (MinStack, Queue-from-Stacks)</li>
+                <li>Understand amortized O(1) analysis rigorously and explain it in interviews</li>
+                <li>Recognize real-world stack/queue patterns in production systems</li>
             </ul>
         </div>
 
@@ -122,7 +413,7 @@
 
                 <p><strong>Why O(n)?</strong> Each element is pushed at most once and popped at most once, so across all iterations the total work is 2n = O(n).</p>
 
-                <h4>Template: Next Greater Element</h4>
+                <h4>Template: Next Greater Element (Python)</h4>
 <pre><code class="language-python">def next_greater(nums):
     """For each element, find the next element that is strictly greater."""
     n = len(nums)
@@ -142,15 +433,95 @@
 # result =        [4, 2, 4,-1,-1]
 </code></pre>
 
+                <h4>Template: Next Greater Element (Java)</h4>
+<pre><code class="language-java">import java.util.Arrays;
+import java.util.ArrayDeque;
+import java.util.Deque;
+
+public int[] nextGreater(int[] nums) {
+    int n = nums.length;
+    int[] result = new int[n];
+    Arrays.fill(result, -1);
+    // ArrayDeque as a stack — stores indices; values are monotonically decreasing
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+
+    for (int i = 0; i &lt; n; i++) {
+        while (!stack.isEmpty() &amp;&amp; nums[stack.peek()] &lt; nums[i]) {
+            int idx = stack.pop();
+            result[idx] = nums[i];
+        }
+        stack.push(i);
+    }
+    return result;
+}
+// Example: nums = [2, 1, 2, 4, 3]
+// result =        [4, 2, 4,-1,-1]
+</code></pre>
+
                 <p><strong>Key insight:</strong> The stack stores <em>indices</em> (not values) so we can write answers back to the correct position. The stack's values are monotonically decreasing: when we encounter a larger element, everything smaller gets its answer.</p>
 
                 <h4>Variant Table</h4>
-                <table style="width:100%; border-collapse:collapse; margin-top:12px;"><thead><tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);"><th style="padding:8px; text-align:left;">Find what?</th><th style="padding:8px; text-align:left;">Stack order</th><th style="padding:8px; text-align:left;">Scan direction</th></tr></thead><tbody>
-                    <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Next Greater</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Decreasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Left to right</td></tr>
-                    <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Next Smaller</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Increasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Left to right</td></tr>
-                    <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Previous Greater</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Decreasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">L-to-R (answer = stack top)</td></tr>
-                    <tr><td style="padding:8px;">Previous Smaller</td><td style="padding:8px;">Increasing</td><td style="padding:8px;">L-to-R (answer = stack top)</td></tr>
-                </tbody></table>
+                <table style="width:100%; border-collapse:collapse; margin-top:12px;">
+                    <thead><tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                        <th style="padding:8px; text-align:left;">Find what?</th>
+                        <th style="padding:8px; text-align:left;">Stack order</th>
+                        <th style="padding:8px; text-align:left;">Scan direction</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Next Greater</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Decreasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Left to right</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Next Smaller</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Increasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Left to right</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid var(--border-color);">Previous Greater</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">Decreasing</td><td style="padding:8px; border-bottom:1px solid var(--border-color);">L-to-R (answer = stack top)</td></tr>
+                        <tr><td style="padding:8px;">Previous Smaller</td><td style="padding:8px;">Increasing</td><td style="padding:8px;">L-to-R (answer = stack top)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ── Interactive Monotonic Stack Visualization ── -->
+        <div class="mono-viz-container" id="monoViz">
+            <h4>Interactive: Next Greater Element — [2, 1, 2, 4, 3]</h4>
+
+            <div class="mono-viz-label">Input Array</div>
+            <div class="mono-viz-array" id="mvInputArray"></div>
+
+            <div class="mono-viz-message" id="mvMessage">Press Step or Animate to begin.</div>
+
+            <div class="mono-viz-label">Stack (indices, bottom &rarr; top; values are decreasing)</div>
+            <div class="mono-viz-stack-area" id="mvStack">
+                <span style="color:#374151; font-size:0.8rem; align-self:center;">(empty)</span>
+            </div>
+
+            <div class="mono-viz-label">Result Array</div>
+            <div class="mono-viz-result-area" id="mvResult"></div>
+
+            <div class="mono-viz-controls" style="margin-top:16px;">
+                <button class="mono-viz-btn step"  id="mvStepBtn"  onclick="mvStep()">Step &rarr;</button>
+                <button class="mono-viz-btn anim"  id="mvAnimBtn"  onclick="mvAnimate()">Animate</button>
+                <button class="mono-viz-btn reset" id="mvResetBtn" onclick="mvReset()">Reset</button>
+            </div>
+        </div>
+
+        <!-- ── Amortized Analysis Deep Dive ── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Why O(n)? — Amortized Analysis Deep Dive</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>A common interview follow-up: "The inner <code>while</code> loop can execute multiple times. Isn't this O(n²)?" Here is the formal amortized argument.</p>
+
+                <div class="analysis-box">
+                    <p><strong>Claim:</strong> The total number of push + pop operations across the entire loop is at most <span class="math">2n</span>.</p>
+                    <p><strong>Proof by accounting:</strong></p>
+                    <p>1. Each element <code>nums[i]</code> is pushed onto the stack <em>exactly once</em> (line: <code>stack.append(i)</code>).</p>
+                    <p>2. Each element can be popped <em>at most once</em> — once it is removed it is never pushed again.</p>
+                    <p>3. Therefore: total pushes &le; n, total pops &le; n, total operations &le; <span class="math">2n</span>.</p>
+                    <p>4. Amortized cost per iteration = <span class="math">2n / n = O(1)</span>. The loop body is <span class="math">O(1)</span> amortized, making the full algorithm <span class="math">O(n)</span>.</p>
+                </div>
+
+                <p><strong>Potential function view (for the curious):</strong> Assign a "credit" of 2 to each element when it is pushed. One credit pays for the push; the other is held in reserve. When the element is later popped, it uses its reserve credit. Since every element was given exactly 2 credits, total cost = 2n credits used = O(n).</p>
+
+                <p><strong>What this means in an interview:</strong> Don't be intimidated by the nested loop. Prove it by saying: "Each element is pushed once and popped at most once, giving at most 2n total stack operations regardless of the number of loop iterations." Interviewers at FAANG will expect you to state this unprompted for Hard-difficulty monotonic stack problems.</p>
             </div>
         </div>
 
@@ -173,6 +544,26 @@
         stack.append(i)
 
     return answer
+</code></pre>
+
+                <h4>Java</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+public int[] dailyTemperatures(int[] temperatures) {
+    int n = temperatures.length;
+    int[] answer = new int[n];           // default 0
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;(); // indices
+
+    for (int i = 0; i &lt; n; i++) {
+        while (!stack.isEmpty() &amp;&amp; temperatures[stack.peek()] &lt; temperatures[i]) {
+            int idx = stack.pop();
+            answer[idx] = i - idx;       // days until warmer
+        }
+        stack.push(i);
+    }
+    return answer;
+}
 </code></pre>
             </div>
         </div>
@@ -202,6 +593,27 @@
     return max_area
 </code></pre>
                 <p><strong>Key insight:</strong> When we pop index <code>j</code>, the current <code>i</code> is the next smaller to the right, and <code>stack[-1]</code> after popping is the previous smaller to the left. The width of the rectangle with height <code>heights[j]</code> is <code>i - stack[-1] - 1</code>.</p>
+
+                <h4>Java</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+public int largestRectangleArea(int[] heights) {
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+    int maxArea = 0;
+    // Append a sentinel 0 logically by extending the loop to n
+    for (int i = 0; i &lt;= heights.length; i++) {
+        int h = (i == heights.length) ? 0 : heights[i];
+        while (!stack.isEmpty() &amp;&amp; heights[stack.peek()] &gt; h) {
+            int height = heights[stack.pop()];
+            int width = stack.isEmpty() ? i : i - stack.peek() - 1;
+            maxArea = Math.max(maxArea, height * width);
+        }
+        stack.push(i);
+    }
+    return maxArea;
+}
+</code></pre>
             </div>
         </div>
 
@@ -231,6 +643,27 @@
 
     return len(stack) == 0
 </code></pre>
+
+                <h4>Java</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+
+public boolean isValid(String s) {
+    Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+    Map&lt;Character, Character&gt; match = Map.of(')', '(', ']', '[', '}', '{');
+
+    for (char ch : s.toCharArray()) {
+        if (match.containsKey(ch)) {
+            if (stack.isEmpty() || stack.peek() != match.get(ch)) return false;
+            stack.pop();
+        } else {
+            stack.push(ch);
+        }
+    }
+    return stack.isEmpty();
+}
+</code></pre>
             </div>
         </div>
 
@@ -258,6 +691,35 @@
     return result
 </code></pre>
 
+                <h4>Generate Parentheses (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayList;
+import java.util.List;
+
+public List&lt;String&gt; generateParenthesis(int n) {
+    List&lt;String&gt; result = new ArrayList&lt;&gt;();
+    backtrack(result, new StringBuilder(), 0, 0, n);
+    return result;
+}
+
+private void backtrack(List&lt;String&gt; result, StringBuilder current,
+                        int open, int close, int n) {
+    if (current.length() == 2 * n) {
+        result.add(current.toString());
+        return;
+    }
+    if (open &lt; n) {
+        current.append('(');
+        backtrack(result, current, open + 1, close, n);
+        current.deleteCharAt(current.length() - 1);
+    }
+    if (close &lt; open) {
+        current.append(')');
+        backtrack(result, current, open, close + 1, n);
+        current.deleteCharAt(current.length() - 1);
+    }
+}
+</code></pre>
+
                 <h4>Minimum Remove to Make Valid (LC 1249)</h4>
                 <p>Use a stack to track indices of unmatched parentheses, then rebuild the string without them.</p>
 <pre><code class="language-python">def minRemoveToMakeValid(s):
@@ -276,6 +738,39 @@
     indices_to_remove.update(stack)  # remaining unmatched '('
     return ''.join(ch for i, ch in enumerate(s) if i not in indices_to_remove)
 </code></pre>
+
+                <h4>Minimum Remove to Make Valid (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Set;
+
+public String minRemoveToMakeValid(String s) {
+    Set&lt;Integer&gt; toRemove = new HashSet&lt;&gt;();
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;(); // unmatched '(' indices
+
+    for (int i = 0; i &lt; s.length(); i++) {
+        char ch = s.charAt(i);
+        if (ch == '(') {
+            stack.push(i);
+        } else if (ch == ')') {
+            if (!stack.isEmpty()) {
+                stack.pop();           // matched pair
+            } else {
+                toRemove.add(i);       // unmatched ')'
+            }
+        }
+    }
+    // remaining stack entries are unmatched '('
+    while (!stack.isEmpty()) toRemove.add(stack.pop());
+
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i &lt; s.length(); i++) {
+        if (!toRemove.contains(i)) sb.append(s.charAt(i));
+    }
+    return sb.toString();
+}
+</code></pre>
             </div>
         </div>
 
@@ -284,13 +779,91 @@
         <!-- ============================================================ -->
         <h2 class="mt-4">3. Expression Evaluation</h2>
 
+        <!-- Expression evaluation step-by-step diagram -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>How Operator Precedence Works — "3 + 2 * 4" Step-by-Step</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Before diving into code, understand what a stack-based evaluator must do when operator precedence is in play (relevant for LC 227: Basic Calculator II). The algorithm: when we see an operator, peek at the operator on the stack. If the stack operator has <em>higher or equal</em> precedence, pop and evaluate first.</p>
+
+                <p>Expression: <strong style="color:#fbbf24; font-family:monospace;">3 + 2 * 4</strong> &rarr; expected result: <strong style="color:#34d399;">11</strong></p>
+
+                <table class="expr-table">
+                    <thead><tr>
+                        <th>Step</th><th>Token</th><th>Action</th><th>Operand Stack</th><th>Operator Stack</th><th>Notes</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr class="expr-highlight">
+                            <td>1</td>
+                            <td><span class="expr-token-num">3</span></td>
+                            <td>Push operand</td>
+                            <td><code>[3]</code></td>
+                            <td><code>[]</code></td>
+                            <td>Numbers always go on the operand stack</td>
+                        </tr>
+                        <tr>
+                            <td>2</td>
+                            <td><span class="expr-token-op">+</span></td>
+                            <td>Stack empty, push operator</td>
+                            <td><code>[3]</code></td>
+                            <td><code>[+]</code></td>
+                            <td>Nothing to compare against yet</td>
+                        </tr>
+                        <tr class="expr-highlight">
+                            <td>3</td>
+                            <td><span class="expr-token-num">2</span></td>
+                            <td>Push operand</td>
+                            <td><code>[3, 2]</code></td>
+                            <td><code>[+]</code></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>4</td>
+                            <td><span class="expr-token-op">*</span></td>
+                            <td>Peek: <code>+</code> has lower precedence than <code>*</code> &rarr; push <code>*</code></td>
+                            <td><code>[3, 2]</code></td>
+                            <td><code>[+, *]</code></td>
+                            <td>Do not yet evaluate <code>+</code></td>
+                        </tr>
+                        <tr class="expr-highlight">
+                            <td>5</td>
+                            <td><span class="expr-token-num">4</span></td>
+                            <td>Push operand</td>
+                            <td><code>[3, 2, 4]</code></td>
+                            <td><code>[+, *]</code></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td>6</td>
+                            <td>EOL</td>
+                            <td>Drain stacks: pop <code>*</code>, pop <code>4</code> and <code>2</code>, compute 2*4=8, push 8</td>
+                            <td><code>[3, 8]</code></td>
+                            <td><code>[+]</code></td>
+                            <td>Higher-precedence operator evaluated first</td>
+                        </tr>
+                        <tr class="expr-highlight">
+                            <td>7</td>
+                            <td>EOL</td>
+                            <td>Pop <code>+</code>, pop <code>8</code> and <code>3</code>, compute 3+8=11, push 11</td>
+                            <td><code>[11]</code></td>
+                            <td><code>[]</code></td>
+                            <td>Final answer: 11</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p><strong>Key takeaway:</strong> LC 224 (Basic Calculator with parentheses) uses a sign-folding trick instead of explicit precedence tracking because it only involves <code>+</code> and <code>-</code>, which have equal precedence. LC 227 (with <code>*</code> and <code>/</code>) requires the comparison above.</p>
+            </div>
+        </div>
+
         <div class="collapsible open">
             <div class="collapsible-header">
                 <span>LC 150: Reverse Polish Notation &amp; LC 224: Basic Calculator</span>
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <h4>Reverse Polish Notation (RPN)</h4>
+                <h4>Reverse Polish Notation (Python)</h4>
                 <p>RPN eliminates the need for parentheses and operator precedence. Operands go on the stack; operators pop two operands and push the result.</p>
 <pre><code class="language-python">def evalRPN(tokens):
     stack = []
@@ -311,7 +884,35 @@
     return stack[0]
 </code></pre>
 
-                <h4>Basic Calculator (LC 224) &mdash; handles +, -, (, )</h4>
+                <h4>Reverse Polish Notation (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Set;
+
+public int evalRPN(String[] tokens) {
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+    Set&lt;String&gt; ops = Set.of("+", "-", "*", "/");
+
+    for (String token : tokens) {
+        if (ops.contains(token)) {
+            int b = stack.pop();  // second operand
+            int a = stack.pop();  // first operand — order matters for - and /
+            int result = switch (token) {
+                case "+" -&gt; a + b;
+                case "-" -&gt; a - b;
+                case "*" -&gt; a * b;
+                default  -&gt; (int)(a / (double) b);  // truncate toward zero
+            };
+            stack.push(result);
+        } else {
+            stack.push(Integer.parseInt(token));
+        }
+    }
+    return stack.pop();
+}
+</code></pre>
+
+                <h4>Basic Calculator (LC 224) &mdash; handles +, -, (, ) (Python)</h4>
                 <p>The trick: use a <code>sign</code> stack. When we enter parentheses, push the current sign. When we hit <code>)</code>, pop it. This avoids needing to recursively evaluate sub-expressions.</p>
 <pre><code class="language-python">def calculate(s):
     stack = [1]  # sign stack; 1 = positive context
@@ -334,6 +935,35 @@
             stack.pop()
 
     return result + sign * num
+</code></pre>
+
+                <h4>Basic Calculator (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+public int calculate(String s) {
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+    stack.push(1);          // initial positive context
+    int result = 0, num = 0, sign = 1;
+
+    for (char ch : s.toCharArray()) {
+        if (Character.isDigit(ch)) {
+            num = num * 10 + (ch - '0');
+        } else if (ch == '+' || ch == '-') {
+            result += sign * num;
+            num = 0;
+            sign = stack.peek() * (ch == '+' ? 1 : -1);
+        } else if (ch == '(') {
+            stack.push(sign);   // save sign context before entering parens
+        } else if (ch == ')') {
+            result += sign * num;
+            num = 0;
+            stack.pop();        // restore outer sign context
+        }
+        // spaces are ignored
+    }
+    return result + sign * num;
+}
 </code></pre>
             </div>
         </div>
@@ -375,7 +1005,160 @@ def maxSlidingWindow(nums, k):
 
     return result
 </code></pre>
+
+                <h4>Java</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+public int[] maxSlidingWindow(int[] nums, int k) {
+    int n = nums.length;
+    int[] result = new int[n - k + 1];
+    Deque&lt;Integer&gt; dq = new ArrayDeque&lt;&gt;(); // stores indices; decreasing values
+
+    for (int i = 0; i &lt; n; i++) {
+        // Evict indices outside the current window
+        while (!dq.isEmpty() &amp;&amp; dq.peekFirst() &lt; i - k + 1) {
+            dq.pollFirst();
+        }
+        // Remove indices with smaller values from the back (they can never be max)
+        while (!dq.isEmpty() &amp;&amp; nums[dq.peekLast()] &lt;= nums[i]) {
+            dq.pollLast();
+        }
+        dq.offerLast(i);
+
+        if (i &gt;= k - 1) {
+            result[i - k + 1] = nums[dq.peekFirst()];
+        }
+    }
+    return result;
+}
+</code></pre>
                 <p><strong>Interview tip:</strong> Interviewers often ask "why not a heap?" A max-heap gives O(n log k) because you cannot efficiently remove elements that leave the window. The deque avoids this by eagerly discarding elements that can never be the answer.</p>
+            </div>
+        </div>
+
+        <!-- ── Sliding Window Deque State Visualization ── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Deque State Walkthrough — nums=[3,1,3,5,3,6,7] k=3</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Trace the deque's index contents and the corresponding values as the window slides. The deque always stores indices such that their values are <strong>monotonically decreasing</strong>. The front is always the current window's maximum.</p>
+
+                <div class="deque-viz-container">
+                    <table class="deque-table">
+                        <thead><tr>
+                            <th>i</th><th>nums[i]</th><th>Action</th><th>Deque (indices)</th><th>Deque values</th><th>Window max</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr>
+                                <td>0</td><td><span class="deque-chip chip-val">3</span></td>
+                                <td>Push index 0</td>
+                                <td><span class="deque-chip chip-idx">0</span></td>
+                                <td><span class="deque-chip chip-val">3</span></td>
+                                <td>—</td>
+                            </tr>
+                            <tr>
+                                <td>1</td><td><span class="deque-chip chip-val">1</span></td>
+                                <td>nums[0]=3 &gt; 1 → keep; push index 1</td>
+                                <td><span class="deque-chip chip-idx">0</span><span class="deque-chip chip-idx">1</span></td>
+                                <td><span class="deque-chip chip-val">3</span><span class="deque-chip chip-val">1</span></td>
+                                <td>—</td>
+                            </tr>
+                            <tr>
+                                <td>2</td><td><span class="deque-chip chip-val">3</span></td>
+                                <td>nums[1]=1 &le; 3 → <span class="deque-chip chip-out">pop 1</span>; nums[0]=3 = 3 → <span class="deque-chip chip-out">pop 0</span>; push 2. i=k-1: emit max</td>
+                                <td><span class="deque-chip chip-idx">2</span></td>
+                                <td><span class="deque-chip chip-val">3</span></td>
+                                <td><span class="deque-chip chip-max">3</span></td>
+                            </tr>
+                            <tr>
+                                <td>3</td><td><span class="deque-chip chip-val">5</span></td>
+                                <td>nums[2]=3 &le; 5 → <span class="deque-chip chip-out">pop 2</span>; push 3</td>
+                                <td><span class="deque-chip chip-idx">3</span></td>
+                                <td><span class="deque-chip chip-val">5</span></td>
+                                <td><span class="deque-chip chip-max">5</span></td>
+                            </tr>
+                            <tr>
+                                <td>4</td><td><span class="deque-chip chip-val">3</span></td>
+                                <td>Front idx 3 still in window [2..4]; nums[3]=5 &gt; 3 → keep; push 4</td>
+                                <td><span class="deque-chip chip-idx">3</span><span class="deque-chip chip-idx">4</span></td>
+                                <td><span class="deque-chip chip-val">5</span><span class="deque-chip chip-val">3</span></td>
+                                <td><span class="deque-chip chip-max">5</span></td>
+                            </tr>
+                            <tr>
+                                <td>5</td><td><span class="deque-chip chip-val">6</span></td>
+                                <td><span class="deque-chip chip-out">pop 4</span>, <span class="deque-chip chip-out">pop 3</span> (both &le; 6); push 5</td>
+                                <td><span class="deque-chip chip-idx">5</span></td>
+                                <td><span class="deque-chip chip-val">6</span></td>
+                                <td><span class="deque-chip chip-max">6</span></td>
+                            </tr>
+                            <tr>
+                                <td>6</td><td><span class="deque-chip chip-val">7</span></td>
+                                <td><span class="deque-chip chip-out">pop 5</span> (&le; 7); push 6</td>
+                                <td><span class="deque-chip chip-idx">6</span></td>
+                                <td><span class="deque-chip chip-val">7</span></td>
+                                <td><span class="deque-chip chip-max">7</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="color:#9ca3af; font-size:0.8rem; margin-top:12px;">
+                        <span class="deque-chip chip-out">Red chips</span> = popped (smaller, will never be a future max).
+                        <span class="deque-chip chip-max">Green chips</span> = current window maximum (front of deque).
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Deque vs Heap Trade-offs ── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Deque vs Heap Trade-offs</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>For Sliding Window Maximum (and related problems), two data structures are candidates. Here is why the deque wins:</p>
+
+                <table class="tradeoff-table">
+                    <thead><tr>
+                        <th>Property</th><th>Monotonic Deque</th><th>Max-Heap (lazy deletion)</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr>
+                            <td>Time complexity</td>
+                            <td class="good">O(n) total, amortized O(1)/element</td>
+                            <td class="bad">O(n log k) — each heap operation is O(log k)</td>
+                        </tr>
+                        <tr>
+                            <td>Space complexity</td>
+                            <td class="good">O(k) — deque holds at most k indices</td>
+                            <td class="neutral">O(n) — stale entries accumulate until lazily removed</td>
+                        </tr>
+                        <tr>
+                            <td>Eviction of expired elements</td>
+                            <td class="good">O(1) — simply check front index</td>
+                            <td class="bad">O(log k) lazy pop on each query</td>
+                        </tr>
+                        <tr>
+                            <td>Supports window minimum also?</td>
+                            <td class="good">Yes — flip to increasing deque</td>
+                            <td class="bad">Need a separate min-heap; hard to do simultaneously</td>
+                        </tr>
+                        <tr>
+                            <td>Implementation complexity</td>
+                            <td class="neutral">Moderate — two-ended invariant to maintain</td>
+                            <td class="neutral">Moderate — need to track "valid" vs "stale" entries</td>
+                        </tr>
+                        <tr>
+                            <td>Works for arbitrary queries (not just adjacent windows)?</td>
+                            <td class="bad">No — must process left-to-right sequentially</td>
+                            <td class="good">Yes — heap supports arbitrary queries</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <p><strong>When to choose heap:</strong> If you need top-k elements from overlapping but non-sequential queries, or if window boundaries are not monotone (e.g., variable-length windows where you shrink from the left non-trivially), a heap with lazy deletion is more flexible, despite the O(log k) overhead.</p>
             </div>
         </div>
 
@@ -390,7 +1173,7 @@ def maxSlidingWindow(nums, k):
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <h4>Min Stack &mdash; O(1) getMin</h4>
+                <h4>Min Stack &mdash; O(1) getMin (Python)</h4>
                 <p>Keep a parallel stack that tracks the running minimum. Each entry in the min stack corresponds to "what is the minimum if the main stack has this many elements?"</p>
 <pre><code class="language-python">class MinStack:
     def __init__(self):
@@ -413,7 +1196,36 @@ def maxSlidingWindow(nums, k):
         return self.min_stack[-1]
 </code></pre>
 
-                <h4>Queue Using Two Stacks &mdash; Amortized O(1)</h4>
+                <h4>Min Stack (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+class MinStack {
+    private final Deque&lt;Integer&gt; stack    = new ArrayDeque&lt;&gt;();
+    private final Deque&lt;Integer&gt; minStack = new ArrayDeque&lt;&gt;(); // parallel min tracker
+
+    public void push(int val) {
+        stack.push(val);
+        int minVal = minStack.isEmpty() ? val : Math.min(val, minStack.peek());
+        minStack.push(minVal);
+    }
+
+    public void pop() {
+        stack.pop();
+        minStack.pop();
+    }
+
+    public int top() {
+        return stack.peek();
+    }
+
+    public int getMin() {
+        return minStack.peek();
+    }
+}
+</code></pre>
+
+                <h4>Queue Using Two Stacks &mdash; Amortized O(1) (Python)</h4>
                 <p><strong>Why this works:</strong> Stack A (input) collects pushes. Stack B (output) serves pops. We only transfer A to B (reversing order) when B is empty. Each element is moved at most once, so amortized cost per operation is O(1).</p>
 <pre><code class="language-python">class MyQueue:
     def __init__(self):
@@ -439,7 +1251,67 @@ def maxSlidingWindow(nums, k):
             while self.stack_in:
                 self.stack_out.append(self.stack_in.pop())
 </code></pre>
+
+                <h4>Queue Using Two Stacks (Java)</h4>
+<pre><code class="language-java">import java.util.ArrayDeque;
+import java.util.Deque;
+
+class MyQueue {
+    private final Deque&lt;Integer&gt; stackIn  = new ArrayDeque&lt;&gt;();
+    private final Deque&lt;Integer&gt; stackOut = new ArrayDeque&lt;&gt;();
+
+    public void push(int x) {
+        stackIn.push(x);
+    }
+
+    public int pop() {
+        transfer();
+        return stackOut.pop();
+    }
+
+    public int peek() {
+        transfer();
+        return stackOut.peek();
+    }
+
+    public boolean empty() {
+        return stackIn.isEmpty() &amp;&amp; stackOut.isEmpty();
+    }
+
+    // Transfer only when stackOut is exhausted — each element moves at most once
+    private void transfer() {
+        if (stackOut.isEmpty()) {
+            while (!stackIn.isEmpty()) {
+                stackOut.push(stackIn.pop());
+            }
+        }
+    }
+}
+</code></pre>
                 <p><strong>Real-world usage:</strong> This pattern appears in message queues where producers and consumers operate at different rates. Kafka's segment architecture is conceptually similar: writes go to the active segment, reads come from older sealed segments.</p>
+            </div>
+        </div>
+
+        <!-- ── Real-World Stack/Queue Usage at Scale ── -->
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Real-World Stack/Queue Usage at Scale</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>Understanding how stacks and queues appear in production systems helps you contextualise interview answers and gives you strong "why does this matter?" narrative.</p>
+
+                <h4>1. Browser JavaScript Call Stack (V8 Engine)</h4>
+                <p>V8, Chrome's JavaScript engine, maintains a <strong>call stack</strong> that is a literal hardware-aligned stack. Each function call pushes a <em>stack frame</em> containing: the return address, local variables, and the caller's frame pointer. The default stack size in Node.js is approximately <strong>~15,000 frames</strong> (configurable via <code>--stack-size</code>). Exceeding this causes a <code>RangeError: Maximum call stack size exceeded</code>. This is why recursive algorithms that could be O(n) deep — e.g., naive tree DFS on a 100k-node linked list — need to be converted to iterative using an explicit stack. In performance-critical V8 code, engineers use trampolines or continuation-passing style to avoid deep stacks.</p>
+
+                <h4>2. Undo/Redo in Editors — Command Pattern + Two Stacks</h4>
+                <p>Every serious editor (VS Code, IntelliJ, Google Docs) uses two stacks for undo/redo. The key design is the <strong>Command Pattern</strong>: each user action is an object implementing <code>execute()</code> and <code>undo()</code>. On an action, push to the undo stack and clear the redo stack. On Ctrl-Z, pop from undo, call <code>undo()</code>, push to redo stack. On Ctrl-Y, reverse. VS Code's implementation (<code>EditStack</code> in <code>editorUndoRedoService.ts</code>) groups commands into "elements" with configurable time-based coalescing, but the underlying structure is two stacks. The undo stack is bounded (VS Code defaults to 1000 operations) to prevent unbounded memory growth — a real engineering trade-off.</p>
+
+                <h4>3. Kafka Consumer Offset Management — Queue Semantics</h4>
+                <p>Apache Kafka's consumer group model is a distributed queue abstraction. Each <strong>partition</strong> is an ordered log (queue). Consumers track their position via <strong>offsets</strong> — an integer pointer to the next message to consume. Committing an offset is analogous to "dequeuing". Kafka does not physically remove messages on consume; instead it advances the consumer's offset pointer and retains data for a configurable <code>log.retention.ms</code>. This enables "rewind" (set offset to an earlier position) and multi-consumer patterns (different consumer groups have independent offsets on the same partition). The compacted topic variant turns the queue into a key-value store with exactly-once semantics — relevant when you need idempotent state machines at scale (e.g., Flink checkpointing state into Kafka).</p>
+
+                <h4>4. React Reconciliation — Stack-Based Fiber Traversal</h4>
+                <p>React 16+ uses the <strong>Fiber architecture</strong>, which replaced the original synchronous recursive reconciler with an iterative, stack-based work loop. Before Fiber, reconciliation used the JavaScript call stack (recursive), which meant once started it could not be paused — causing dropped frames for large trees. Fiber assigns each React element a "fiber node" (a work unit) and maintains an explicit <strong>work-in-progress tree</strong> with a pointer to the next fiber to process. The scheduler uses a priority queue (min-heap by expiry time) to decide which fibers to process next, and the traversal itself uses a linked-list stack (child → sibling → return pointers). This lets React <em>pause</em> reconciliation mid-tree, yield to the browser, and resume — the essence of Concurrent Mode. The explicit stack replaces the implicit call stack, giving React full control over scheduling.</p>
             </div>
         </div>
 
@@ -454,23 +1326,119 @@ def maxSlidingWindow(nums, k):
                 <span class="collapsible-icon">&#9660;</span>
             </div>
             <div class="collapsible-content">
-                <table style="width:100%; border-collapse:collapse;"><thead><tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);"><th style="padding:8px; text-align:left;">Pattern</th><th style="padding:8px;">#</th><th style="padding:8px; text-align:left;">Problem</th><th style="padding:8px;">Diff</th><th style="padding:8px; text-align:left;">Key Idea</th></tr></thead><tbody>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">739</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Daily Temperatures</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Next greater (distance)</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">84</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Largest Rectangle in Histogram</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Prev/next smaller one pass</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">496</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Next Greater Element I</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">HashMap + mono stack</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">42</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Trapping Rain Water</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Stack or two pointers</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">85</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Maximal Rectangle</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">LC 84 applied row-by-row</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">20</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Valid Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Match open/close with stack</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">22</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Generate Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Backtrack with open/close counts</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">1249</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Min Remove to Make Valid</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Track unmatched indices</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">32</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Longest Valid Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Stack of indices, last unmatched</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Expression</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">150</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Evaluate RPN</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Operand stack, pop two on op</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Expression</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">224</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Basic Calculator</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Sign stack for nested parens</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Deque</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">239</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Sliding Window Maximum</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic deque, pop both ends</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Design</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">155</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Min Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parallel min-tracking stack</td></tr>
-                    <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Design</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">232</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Queue using Stacks</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Two stacks, amortized O(1)</td></tr>
-                    <tr><td style="padding:6px;">Design</td><td style="padding:6px;">225</td><td style="padding:6px;">Stack using Queues</td><td style="padding:6px;">Easy</td><td style="padding:6px;">Rotate queue after each push</td></tr>
-                </tbody></table>
+                <table style="width:100%; border-collapse:collapse;">
+                    <thead><tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                        <th style="padding:8px; text-align:left;">Pattern</th>
+                        <th style="padding:8px;">#</th>
+                        <th style="padding:8px; text-align:left;">Problem</th>
+                        <th style="padding:8px;">Diff</th>
+                        <th style="padding:8px; text-align:left;">Key Idea</th>
+                    </tr></thead>
+                    <tbody>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">739</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Daily Temperatures</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Next greater (distance)</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">84</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Largest Rectangle in Histogram</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Prev/next smaller one pass</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">496</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Next Greater Element I</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">HashMap + mono stack</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">42</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Trapping Rain Water</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Stack or two pointers</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">85</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Maximal Rectangle</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">LC 84 applied row-by-row</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">20</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Valid Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Match open/close with stack</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">22</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Generate Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Backtrack with open/close counts</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">1249</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Min Remove to Make Valid</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Track unmatched indices</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">32</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Longest Valid Parentheses</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Stack of indices, last unmatched</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Expression</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">150</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Evaluate RPN</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Operand stack, pop two on op</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Expression</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">224</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Basic Calculator</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Sign stack for nested parens</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Deque</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">239</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Sliding Window Maximum</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Hard</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Monotonic deque, pop both ends</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Design</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">155</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Min Stack</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Med</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Parallel min-tracking stack</td></tr>
+                        <tr><td style="padding:6px; border-bottom:1px solid var(--border-color);">Design</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">232</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Queue using Stacks</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Easy</td><td style="padding:6px; border-bottom:1px solid var(--border-color);">Two stacks, amortized O(1)</td></tr>
+                        <tr><td style="padding:6px;">Design</td><td style="padding:6px;">225</td><td style="padding:6px;">Stack using Queues</td><td style="padding:6px;">Easy</td><td style="padding:6px;">Rotate queue after each push</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- FLASHCARDS                                                    -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">7. Flashcards</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>6 Key Concept Flashcards (click to reveal answer)</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p style="font-size:0.85rem; color:var(--text-muted);">Click any card to reveal the answer. Use these for spaced-repetition review — export to Anki by copying Q/A pairs.</p>
+                <div class="flashcard-grid">
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q1: What order does a monotonic stack for "next greater element" maintain?</div>
+                        <div class="fc-a">Decreasing from bottom to top. When a larger element arrives, smaller elements are popped (they found their next greater).</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q2: Why is amortized time O(1) per element in a monotonic stack?</div>
+                        <div class="fc-a">Each element is pushed exactly once and popped at most once. Total operations &le; 2n, so amortized cost = O(1).</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q3: In LC 84 (Largest Rectangle), what does the stack top represent after popping?</div>
+                        <div class="fc-a">The previous smaller element to the left of the popped bar. Combined with the current index (next smaller to the right), it gives the rectangle width.</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q4: Why use a deque instead of a heap for Sliding Window Maximum?</div>
+                        <div class="fc-a">Deque achieves O(n) total — elements that can never be the max are eagerly discarded. A heap cannot efficiently remove out-of-window elements, giving O(n log k).</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q5: In the Two-Stack Queue, why is the amortized pop cost O(1)?</div>
+                        <div class="fc-a">Each element is transferred from stack_in to stack_out at most once. Over n operations, total transfer work is O(n).</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                    <div class="flashcard" onclick="this.classList.toggle('revealed')">
+                        <div class="fc-q">Q6: What does the sign stack in Basic Calculator (LC 224) track?</div>
+                        <div class="fc-a">The cumulative sign context from nested parentheses. Entering '(' pushes the current sign; ')' pops it, handling expressions like -(3+2) correctly.</div>
+                        <div class="fc-toggle">Click to reveal &darr;</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- INTERVIEW FOLLOW-UP QUESTIONS                                 -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">8. Interview Follow-Up Questions</h2>
+
+        <div class="collapsible open">
+            <div class="collapsible-header">
+                <span>Common Follow-Ups Interviewers Ask</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>These questions are frequently used to probe depth after you code a correct solution. Prepare concise but substantive answers.</p>
+
+                <div class="analysis-box" style="margin-bottom:14px;">
+                    <p><strong>Q: Can you solve Trapping Rain Water with a stack? What about two pointers? Compare the approaches.</strong></p>
+                    <p>Both are O(n) time. The <strong>monotonic stack</strong> approach processes water in horizontal layers: pop when a taller bar is found, and calculate water trapped between the popped bar and the new bar. It's intuitive but uses O(n) space for the stack. The <strong>two-pointer</strong> approach uses O(1) space and is generally preferred: maintain left and right pointers, and track <code>max_left</code> / <code>max_right</code>. Move the pointer on the side with the smaller max — that side's trapped water is determined. The stack approach is easier to extend to variants (e.g., 2D Trapping Rain Water is solved by a min-heap, analogously).</p>
+                </div>
+
+                <div class="analysis-box" style="margin-bottom:14px;">
+                    <p><strong>Q: How would you extend MinStack to support O(1) getMax as well?</strong></p>
+                    <p>Add a second parallel stack <code>max_stack</code> that mirrors <code>min_stack</code> but tracks the running maximum. On <code>push(val)</code>: <code>max_stack.push(max(val, max_stack.top()))</code>. On <code>pop()</code>: pop both stacks. <code>getMax()</code> returns <code>max_stack.top()</code>. Both stacks remain synchronized with the main stack. Space doubles from O(n) to O(n) (same asymptotic class, just 3x the stacks). If memory is severely constrained, you can use a "store only on change" optimization: push to min/max stack only when the new value is a new extremum, and store (value, count) pairs. This reduces space for repetitive sequences.</p>
+                </div>
+
+                <div class="analysis-box" style="margin-bottom:14px;">
+                    <p><strong>Q: What if the sliding window needs both min AND max? Can you still do O(n)?</strong></p>
+                    <p>Yes. Maintain <strong>two</strong> monotonic deques simultaneously: one decreasing (for max) and one increasing (for min). Both are updated identically to the single-deque approach — add the new index, evict from the front if outside window, and maintain order from the back. Each deque operation is still O(1) amortized, so the combined algorithm is O(n). This is used in problems like "Longest Subarray with Bounded Max and Min" (LC 1438).</p>
+                </div>
+
+                <div class="analysis-box" style="margin-bottom:14px;">
+                    <p><strong>Q: How would you implement a thread-safe queue? What synchronization primitives would you use?</strong></p>
+                    <p>In Java: use <code>java.util.concurrent.LinkedBlockingQueue</code> (bounded) or <code>ConcurrentLinkedQueue</code> (unbounded, non-blocking). The blocking variant uses <strong>ReentrantLock</strong> with two <code>Condition</code> objects (<code>notEmpty</code>, <code>notFull</code>) — producer waits on <code>notFull</code>, consumer waits on <code>notEmpty</code>. The non-blocking variant uses <strong>CAS (Compare-And-Swap)</strong> on a tail pointer (Michael-Scott queue algorithm), avoiding lock overhead at the cost of ABA-problem complexity. In Python, <code>queue.Queue</code> uses a <code>threading.Condition</code> internally. In Go, a channel is a built-in thread-safe queue with configurable buffering. Key trade-off: blocking queues are simpler but can cause thread starvation under contention; lock-free queues scale better but are harder to implement correctly.</p>
+                </div>
+
+                <div class="analysis-box">
+                    <p><strong>Q: In Largest Rectangle in Histogram, what happens if there are duplicate heights?</strong></p>
+                    <p>The algorithm still works correctly. When we use <code>&gt;</code> (strictly greater) as the pop condition, duplicate heights are kept on the stack and only popped when a strictly smaller bar arrives. The final rectangle for duplicates will be computed when the last occurrence is popped — at that point the width spans all consecutive duplicates. If you use <code>&ge;</code>, duplicates are popped earlier but the computation still yields the correct max area, because the width calculation <code>i - stack[-1] - 1</code> adjusts accordingly. Both versions are correct; the <code>&gt;</code> variant is slightly more intuitive.</p>
+                </div>
             </div>
         </div>
 
@@ -485,15 +1453,143 @@ def maxSlidingWindow(nums, k):
         <!-- ============================================================ -->
         <div class="flex flex-between mt-4">
             <a href="module-10.html" class="btn btn-secondary">&larr; Module 10</a>
-            <button class="btn btn-primary" onclick="completeModule()">Mark Complete &rarr;</button>
+            <a href="module-12.html" class="btn btn-primary">Module 12 &rarr;</a>
         </div>
         </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="../assets/js/app.js"></script>
     <script>
+        // ── Monotonic Stack Visualizer ─────────────────────────────────
+        (function() {
+            const INPUT  = [2, 1, 2, 4, 3];
+            const n      = INPUT.length;
+
+            let stack    = [];   // holds indices
+            let result   = new Array(n).fill(-1);
+            let cursor   = 0;    // next index to process (outer loop)
+            let phase    = 'pop'; // 'pop' | 'push' — sub-steps within one outer iteration
+            let done     = false;
+            let animTimer = null;
+
+            function renderInput(activeIdx, poppedIdxSet) {
+                const el = document.getElementById('mvInputArray');
+                el.innerHTML = '';
+                INPUT.forEach((v, i) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'mono-viz-cell';
+                    if (i === activeIdx) cell.classList.add('current');
+                    if (poppedIdxSet && poppedIdxSet.has(i)) cell.classList.add('popped');
+                    if (result[i] !== -1) cell.classList.add('answered');
+                    cell.innerHTML = `<span class="cell-val">${v}</span><span class="cell-idx">[${i}]</span>`;
+                    el.appendChild(cell);
+                });
+            }
+
+            function renderStack() {
+                const el = document.getElementById('mvStack');
+                if (stack.length === 0) {
+                    el.innerHTML = '<span style="color:#374151; font-size:0.8rem; align-self:center;">(empty)</span>';
+                    return;
+                }
+                el.innerHTML = '';
+                stack.forEach(idx => {
+                    const cell = document.createElement('div');
+                    cell.className = 'mono-viz-stack-cell';
+                    cell.innerHTML = `<span class="cell-val">${INPUT[idx]}</span><span class="cell-idx">[${idx}]</span>`;
+                    el.appendChild(cell);
+                });
+            }
+
+            function renderResult() {
+                const el = document.getElementById('mvResult');
+                el.innerHTML = '';
+                result.forEach((v, i) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'mono-viz-result-cell' + (v !== -1 ? ' filled' : '');
+                    cell.textContent = v === -1 ? '?' : v;
+                    el.appendChild(cell);
+                });
+            }
+
+            function setMessage(msg) {
+                document.getElementById('mvMessage').textContent = msg;
+            }
+
+            function render(activeIdx, poppedSet) {
+                renderInput(activeIdx, poppedSet);
+                renderStack();
+                renderResult();
+            }
+
+            window.mvReset = function() {
+                if (animTimer) { clearTimeout(animTimer); animTimer = null; }
+                stack  = [];
+                result = new Array(n).fill(-1);
+                cursor = 0;
+                phase  = 'pop';
+                done   = false;
+                document.getElementById('mvStepBtn').disabled  = false;
+                document.getElementById('mvAnimBtn').disabled  = false;
+                setMessage('Press Step or Animate to begin.');
+                render(-1, null);
+            };
+
+            // One logical step: either pop one element that found its answer, or push current index
+            window.mvStep = function() {
+                if (done) { setMessage('Done! All elements processed.'); return; }
+
+                const i = cursor;
+                const v = INPUT[i];
+
+                // Try popping: if stack top is smaller than current value
+                if (stack.length > 0 && INPUT[stack[stack.length - 1]] < v) {
+                    const poppedIdx = stack.pop();
+                    result[poppedIdx] = v;
+                    setMessage(`i=${i} (val=${v}): Pop index ${poppedIdx} (val=${INPUT[poppedIdx]}) → next greater = ${v}`);
+                    render(i, new Set([poppedIdx]));
+                    return;
+                }
+
+                // Push current index, advance cursor
+                stack.push(i);
+                setMessage(`i=${i} (val=${v}): No smaller on stack top → push index ${i}`);
+                render(i, null);
+                cursor++;
+
+                if (cursor === n) {
+                    // Flush remaining (they have no next greater)
+                    done = true;
+                    document.getElementById('mvStepBtn').disabled = true;
+                    document.getElementById('mvAnimBtn').disabled = true;
+                    setMessage('All elements processed. Remaining stack indices have no next greater (result = -1).');
+                    render(-1, null);
+                }
+            };
+
+            window.mvAnimate = function() {
+                if (done) { mvReset(); }
+                document.getElementById('mvStepBtn').disabled = true;
+                document.getElementById('mvAnimBtn').disabled = true;
+
+                const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                const delay = prefersReduced ? 0 : 650;
+
+                function tick() {
+                    if (done) return;
+                    mvStep();
+                    if (!done) animTimer = setTimeout(tick, delay);
+                }
+                tick();
+            };
+
+            // Initial render
+            render(-1, null);
+        })();
+
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize Mermaid
             mermaid.initialize({ startOnLoad: true, theme: 'dark' });
@@ -572,6 +1668,12 @@ def maxSlidingWindow(nums, k):
                     ],
                     correct: 1,
                     explanation: "The sign stack records whether the current parenthesized context is positive or negative. For example, -(3+2) means everything inside is negated. Pushing the sign on '(' and popping on ')' handles arbitrary nesting."
+                },
+                {
+                    question: "In the amortized analysis of a monotonic stack over n elements, what is the maximum total number of push + pop operations?",
+                    options: ["n", "n log n", "2n", "n²"],
+                    correct: 2,
+                    explanation: "Each element is pushed at most once (n pushes total) and popped at most once (n pops total). Maximum total operations = 2n, giving O(1) amortized per element and O(n) overall."
                 }
             ];
 

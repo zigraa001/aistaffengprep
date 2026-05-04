@@ -7,6 +7,200 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        /* ── Interactive Trie Builder ───────────────────────────────────── */
+        #trie-demo {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 16px;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #trie-demo h4 {
+            margin: 0 0 16px;
+            color: #a78bfa;
+            font-size: 1rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+        }
+        .trie-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .trie-controls input {
+            flex: 1;
+            min-width: 140px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #4c4f69;
+            background: #0f0f1a;
+            color: #e0e0e0;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        .trie-controls input:focus {
+            border-color: #a78bfa;
+        }
+        .trie-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .trie-btn:active { transform: scale(0.97); }
+        .trie-btn.insert  { background: #7c3aed; color: #fff; }
+        .trie-btn.search  { background: #0e7490; color: #fff; }
+        .trie-btn.clear   { background: #6b7280; color: #fff; }
+        .trie-btn:hover.insert  { background: #6d28d9; }
+        .trie-btn:hover.search  { background: #0c6578; }
+        .trie-btn:hover.clear   { background: #4b5563; }
+        #trie-status {
+            min-height: 24px;
+            font-size: 0.88rem;
+            margin-bottom: 8px;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+        }
+        #trie-status.found    { color: #4ade80; border-left: 3px solid #4ade80; }
+        #trie-status.notfound { color: #f87171; border-left: 3px solid #f87171; }
+        #trie-status.info     { color: #93c5fd; border-left: 3px solid #93c5fd; }
+        #trie-canvas-container {
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 400px;
+        }
+        #trie-canvas {
+            display: block;
+        }
+        .trie-word-list {
+            margin-top: 12px;
+            font-size: 0.82rem;
+            color: #9ca3af;
+        }
+        .trie-word-list span {
+            display: inline-block;
+            background: rgba(124,58,237,0.2);
+            border: 1px solid rgba(124,58,237,0.4);
+            border-radius: 4px;
+            padding: 2px 8px;
+            margin: 2px;
+            color: #c4b5fd;
+        }
+
+        /* Flashcard section */
+        .flashcard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 16px;
+            margin-top: 12px;
+        }
+        .flashcard {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            perspective: 800px;
+            cursor: pointer;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            min-height: 120px;
+            transition: transform 0.5s;
+            transform-style: preserve-3d;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .flashcard-inner { transition: none; }
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front,
+        .flashcard-back {
+            position: absolute;
+            width: 100%;
+            min-height: 120px;
+            backface-visibility: hidden;
+            padding: 16px;
+            box-sizing: border-box;
+            border-radius: 10px;
+        }
+        .flashcard-front {
+            background: linear-gradient(135deg, #1e1b4b, #1e3a5f);
+        }
+        .flashcard-back {
+            background: linear-gradient(135deg, #14532d, #1e3a5f);
+            transform: rotateY(180deg);
+        }
+        .flashcard-front .fc-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #a78bfa;
+            margin-bottom: 8px;
+        }
+        .flashcard-back .fc-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #4ade80;
+            margin-bottom: 8px;
+        }
+        .flashcard-front p,
+        .flashcard-back p {
+            margin: 0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        .fc-hint {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        /* Interview follow-up section */
+        .followup-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .followup-list li {
+            padding: 12px 16px;
+            border-left: 3px solid #7c3aed;
+            background: rgba(124,58,237,0.06);
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .followup-answer {
+            display: none;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+        }
+        .followup-list li.open .followup-answer {
+            display: block;
+        }
+        .followup-toggle {
+            font-size: 0.8rem;
+            color: #a78bfa;
+            cursor: pointer;
+            margin-top: 6px;
+            user-select: none;
+        }
+        .followup-toggle:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
     <nav class="navbar" id="main-navbar" data-base="../"></nav>
@@ -90,14 +284,17 @@
         <div class="card mt-3">
             <h3>Learning Objectives</h3>
             <ul>
-                <li>Implement a Trie with insert, search, startsWith, and delete operations</li>
+                <li>Implement a Trie with insert, search, startsWith, and delete operations in both Python and Java</li>
                 <li>Understand memory trade-offs: hashmap children vs fixed-size array children</li>
                 <li>Solve classic trie interview problems (Word Search II, Design Add and Search Words)</li>
                 <li>Build and query a Segment Tree for range-sum queries with point updates</li>
                 <li>Implement a Fenwick Tree (Binary Indexed Tree) and know when to prefer it</li>
+                <li>Use two Fenwick Trees to support range updates with point queries</li>
+                <li>Understand how tries power real-world systems at Google, Redis, and Elasticsearch scale</li>
                 <li>Understand probabilistic and skip-list data structures at a conceptual level</li>
             </ul>
         </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 1: Trie Implementation                               -->
         <!-- ============================================================ -->
@@ -181,6 +378,71 @@ class Trie:
         _delete(self.root, word, 0)
         return True</code></pre>
                 </div>
+
+                <h4 class="mt-3">Full Implementation (Java)</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">import java.util.HashMap;
+import java.util.Map;
+
+class TrieNode {
+    Map&lt;Character, TrieNode&gt; children = new HashMap&lt;&gt;();
+    boolean isEnd = false;
+}
+
+class Trie {
+    private final TrieNode root = new TrieNode();
+
+    public void insert(String word) {
+        TrieNode node = root;
+        for (char ch : word.toCharArray()) {
+            node.children.putIfAbsent(ch, new TrieNode());
+            node = node.children.get(ch);
+        }
+        node.isEnd = true;
+    }
+
+    public boolean search(String word) {
+        TrieNode node = find(word);
+        return node != null &amp;&amp; node.isEnd;
+    }
+
+    public boolean startsWith(String prefix) {
+        return find(prefix) != null;
+    }
+
+    private TrieNode find(String prefix) {
+        TrieNode node = root;
+        for (char ch : prefix.toCharArray()) {
+            if (!node.children.containsKey(ch)) return null;
+            node = node.children.get(ch);
+        }
+        return node;
+    }
+
+    public boolean delete(String word) {
+        return deleteHelper(root, word, 0);
+    }
+
+    // Returns true if the current node can be pruned
+    private boolean deleteHelper(TrieNode node, String word, int depth) {
+        if (depth == word.length()) {
+            if (!node.isEnd) return false;
+            node.isEnd = false;
+            return node.children.isEmpty();
+        }
+        char ch = word.charAt(depth);
+        TrieNode child = node.children.get(ch);
+        if (child == null) return false;
+        boolean shouldPrune = deleteHelper(child, word, depth + 1);
+        if (shouldPrune) {
+            node.children.remove(ch);
+            return !node.isEnd &amp;&amp; node.children.isEmpty();
+        }
+        return false;
+    }
+}</code></pre>
+                </div>
+
                 <h4 class="mt-3">Memory: Hashmap vs Array Children</h4>
                 <table style="width:100%; border-collapse:collapse; margin-top:8px;">
                     <thead>
@@ -199,6 +461,27 @@ class Trie:
                 <p class="mt-2"><strong>Rule of thumb:</strong> Use hashmap in interviews (cleaner code, handles any character set). Use array in competitive programming or when the alphabet is known and small.</p>
             </div>
         </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 1b: Interactive Trie Builder                         -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">Interactive Trie Builder</h2>
+        <p>Type a word and press <strong>Insert</strong> to watch the trie grow. Use <strong>Search</strong> to highlight the path (green = found, red = not found). Pre-loaded with ["app", "apple", "api", "bat", "ball"].</p>
+        <div id="trie-demo">
+            <h4>Live Trie Visualizer</h4>
+            <div class="trie-controls">
+                <input type="text" id="trie-input" placeholder="Enter a word..." maxlength="20" autocomplete="off" />
+                <button class="trie-btn insert" onclick="trieInsert()">Insert</button>
+                <button class="trie-btn search" onclick="trieSearch()">Search</button>
+                <button class="trie-btn clear"  onclick="trieClear()">Clear</button>
+            </div>
+            <div id="trie-status" class="info">Pre-loaded with: app, apple, api, bat, ball</div>
+            <div id="trie-canvas-container">
+                <canvas id="trie-canvas" width="760" height="340"></canvas>
+            </div>
+            <div class="trie-word-list" id="trie-word-list"></div>
+        </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 2: Trie Problems                                     -->
         <!-- ============================================================ -->
@@ -211,6 +494,7 @@ class Trie:
             <div class="collapsible-content">
                 <p><strong>Problem:</strong> Design a data structure that supports <code>addWord(word)</code> and <code>search(word)</code> where <code>search</code> can contain <code>.</code> as a wildcard matching any single character.</p>
                 <p><strong>Key insight:</strong> Standard trie insert; for search, when you hit a <code>.</code>, branch into all children recursively.</p>
+                <h4>Python</h4>
                 <div class="code-block">
                     <pre><code class="language-python">class WordDictionary:
     def __init__(self):
@@ -236,6 +520,38 @@ class Trie:
             return dfs(node.children[word[i]], i + 1)
         return dfs(self.root, 0)</code></pre>
                 </div>
+                <h4 class="mt-3">Java</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">class WordDictionary {
+    private final TrieNode root = new TrieNode();
+
+    public void addWord(String word) {
+        TrieNode node = root;
+        for (char ch : word.toCharArray()) {
+            node.children.putIfAbsent(ch, new TrieNode());
+            node = node.children.get(ch);
+        }
+        node.isEnd = true;
+    }
+
+    public boolean search(String word) {
+        return dfs(root, word, 0);
+    }
+
+    private boolean dfs(TrieNode node, String word, int i) {
+        if (i == word.length()) return node.isEnd;
+        char ch = word.charAt(i);
+        if (ch == '.') {
+            for (TrieNode child : node.children.values()) {
+                if (dfs(child, word, i + 1)) return true;
+            }
+            return false;
+        }
+        TrieNode child = node.children.get(ch);
+        return child != null &amp;&amp; dfs(child, word, i + 1);
+    }
+}</code></pre>
+                </div>
                 <p><strong>Time:</strong> O(L) for addWord. O(26^L) worst case for search with all dots, but in practice much faster due to pruning.</p>
             </div>
         </div>
@@ -247,6 +563,7 @@ class Trie:
             <div class="collapsible-content">
                 <p><strong>Problem:</strong> Given an m&times;n board of characters and a list of words, find all words that can be formed by sequentially adjacent cells (no cell reused per word).</p>
                 <p><strong>Why trie:</strong> A naive approach searches for each word independently (O(words &times; m&times;n &times; 4^L)). Building a trie of all target words lets you search for all words simultaneously in a single board traversal.</p>
+                <h4>Python</h4>
                 <div class="code-block">
                     <pre><code class="language-python">def findWords(board, words):
     root = TrieNode()
@@ -285,7 +602,60 @@ class Trie:
             dfs(r, c, root)
     return result</code></pre>
                 </div>
-                <p><strong>Optimization:</strong> The <code>del node.children[ch]</code> prune step is critical. Without it, you repeatedly explore dead branches. This brings the solution from TLE to accepted.</p>
+                <h4 class="mt-3">Java</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">import java.util.*;
+
+class Solution {
+    private static class WNode {
+        Map&lt;Character, WNode&gt; children = new HashMap&lt;&gt;();
+        String word = null;
+    }
+
+    public List&lt;String&gt; findWords(char[][] board, String[] words) {
+        WNode root = new WNode();
+        for (String w : words) {
+            WNode node = root;
+            for (char ch : w.toCharArray()) {
+                node.children.putIfAbsent(ch, new WNode());
+                node = node.children.get(ch);
+            }
+            node.word = w;
+        }
+
+        List&lt;String&gt; result = new ArrayList&lt;&gt;();
+        int rows = board.length, cols = board[0].length;
+
+        for (int r = 0; r &lt; rows; r++)
+            for (int c = 0; c &lt; cols; c++)
+                dfs(board, r, c, root, result);
+
+        return result;
+    }
+
+    private void dfs(char[][] board, int r, int c, WNode node, List&lt;String&gt; result) {
+        if (r &lt; 0 || r &gt;= board.length || c &lt; 0 || c &gt;= board[0].length) return;
+        char ch = board[r][c];
+        if (ch == '#' || !node.children.containsKey(ch)) return;
+
+        WNode child = node.children.get(ch);
+        if (child.word != null) {
+            result.add(child.word);
+            child.word = null;  // deduplicate
+        }
+
+        board[r][c] = '#';
+        int[][] dirs = {{0,1},{0,-1},{1,0},{-1,0}};
+        for (int[] d : dirs)
+            dfs(board, r + d[0], c + d[1], child, result);
+        board[r][c] = ch;
+
+        if (child.children.isEmpty())  // prune dead branch
+            node.children.remove(ch);
+    }
+}</code></pre>
+                </div>
+                <p><strong>Optimization:</strong> The <code>del node.children[ch]</code> / <code>node.children.remove(ch)</code> prune step is critical. Without it, you repeatedly explore dead branches. This brings the solution from TLE to accepted.</p>
             </div>
         </div>
         <div class="collapsible">
@@ -296,6 +666,7 @@ class Trie:
             <div class="collapsible-content">
                 <p><strong>Problem:</strong> Given an array of products and a search word, after each character typed return the top 3 lexicographically smallest matches.</p>
                 <p><strong>Approach:</strong> Sort products, build a trie, store sorted words at each node (or collect via DFS). Alternatively, use binary search on the sorted list for each prefix &mdash; simpler and often preferred in interviews.</p>
+                <h4>Python</h4>
                 <div class="code-block">
                     <pre><code class="language-python">def suggestedProducts(products, searchWord):
     products.sort()
@@ -312,9 +683,39 @@ class Trie:
         result.append(suggestions)
     return result</code></pre>
                 </div>
+                <h4 class="mt-3">Java</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">import java.util.*;
+
+class Solution {
+    public List&lt;List&lt;String&gt;&gt; suggestedProducts(String[] products, String searchWord) {
+        Arrays.sort(products);
+        List&lt;List&lt;String&gt;&gt; result = new ArrayList&lt;&gt;();
+        String prefix = "";
+
+        for (char ch : searchWord.toCharArray()) {
+            prefix += ch;
+            // Binary search: find leftmost candidate
+            int lo = 0, hi = products.length;
+            while (lo &lt; hi) {
+                int mid = (lo + hi) / 2;
+                if (products[mid].compareTo(prefix) &lt; 0) lo = mid + 1;
+                else hi = mid;
+            }
+            List&lt;String&gt; suggestions = new ArrayList&lt;&gt;();
+            for (int j = lo; j &lt; Math.min(lo + 3, products.length); j++) {
+                if (products[j].startsWith(prefix)) suggestions.add(products[j]);
+            }
+            result.add(suggestions);
+        }
+        return result;
+    }
+}</code></pre>
+                </div>
                 <p><strong>Interview tip:</strong> Mention both approaches. The trie approach is O(total chars) to build but O(1) per prefix lookup. The binary search approach is O(n log n) sort + O(L log n) per query. For a one-shot query, binary search wins; for a persistent autocomplete service, the trie wins.</p>
             </div>
         </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 3: Segment Tree                                      -->
         <!-- ============================================================ -->
@@ -339,7 +740,7 @@ graph TD
                     </div>
                     <p style="text-align:center; font-size:0.9em; color:var(--text-muted);">Segment tree for array [1, 2, 3, 4]. Each node stores the sum of its range.</p>
                 </div>
-                <h4>Compact Array-Based Implementation</h4>
+                <h4>Compact Array-Based Implementation (Python)</h4>
                 <div class="code-block">
                     <pre><code class="language-python">class SegmentTree:
     """Range sum queries + point updates in O(log n)."""
@@ -376,10 +777,51 @@ graph TD
             r //= 2
         return res</code></pre>
                 </div>
+                <h4 class="mt-3">Compact Array-Based Implementation (Java)</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">class SegmentTree {
+    private final int n;
+    private final int[] tree;
+
+    public SegmentTree(int[] nums) {
+        n = nums.length;
+        tree = new int[2 * n];
+        // Fill leaves
+        for (int i = 0; i &lt; n; i++) tree[n + i] = nums[i];
+        // Build internal nodes bottom-up
+        for (int i = n - 1; i &gt; 0; i--) tree[i] = tree[2*i] + tree[2*i+1];
+    }
+
+    /** Set nums[i] = val. O(log n). */
+    public void update(int i, int val) {
+        i += n;
+        tree[i] = val;
+        while (i &gt; 1) {
+            i /= 2;
+            tree[i] = tree[2*i] + tree[2*i+1];
+        }
+    }
+
+    /** Return sum of nums[l..r] inclusive. O(log n). */
+    public int query(int l, int r) {
+        int res = 0;
+        l += n;
+        r += n + 1;
+        while (l &lt; r) {
+            if ((l &amp; 1) == 1) res += tree[l++];
+            if ((r &amp; 1) == 1) res += tree[--r];
+            l /= 2;
+            r /= 2;
+        }
+        return res;
+    }
+}</code></pre>
+                </div>
                 <p><strong>Complexity:</strong> Build O(n), query O(log n), update O(log n). Space O(2n) = O(n).</p>
                 <p><strong>Why this implementation?</strong> The iterative bottom-up approach (often called "Codeforces-style") avoids recursion overhead and is half the code of the recursive version. Node <code>i</code>'s children are <code>2i</code> and <code>2i+1</code>. Leaves are at indices <code>[n, 2n)</code>.</p>
             </div>
         </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 4: Fenwick Tree (BIT)                                -->
         <!-- ============================================================ -->
@@ -391,7 +833,7 @@ graph TD
             </div>
             <div class="collapsible-content">
                 <p>A Fenwick tree supports <strong>prefix sum queries</strong> and <strong>point updates</strong> both in O(log n), using only a flat array of size n+1. It is simpler and has lower constant factors than a segment tree, but less general (no lazy propagation, harder to adapt to min/max).</p>
-                <h4>Implementation</h4>
+                <h4>Implementation (Python)</h4>
                 <div class="code-block">
                     <pre><code class="language-python">class FenwickTree:
     """1-indexed Binary Indexed Tree for prefix sums."""
@@ -417,6 +859,38 @@ graph TD
         """Return sum [l..r] (1-indexed)."""
         return self.query(r) - self.query(l - 1)</code></pre>
                 </div>
+                <h4 class="mt-3">Implementation (Java)</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">class FenwickTree {
+    private final int n;
+    private final int[] tree;
+
+    public FenwickTree(int n) {
+        this.n = n;
+        this.tree = new int[n + 1];
+    }
+
+    /** Add delta to position i (1-indexed). O(log n). */
+    public void update(int i, int delta) {
+        for (; i &lt;= n; i += i &amp; (-i))
+            tree[i] += delta;
+    }
+
+    /** Prefix sum [1..i] (1-indexed). O(log n). */
+    public int query(int i) {
+        int s = 0;
+        for (; i &gt; 0; i -= i &amp; (-i))
+            s += tree[i];
+        return s;
+    }
+
+    /** Range sum [l..r] (1-indexed). O(log n). */
+    public int rangeQuery(int l, int r) {
+        return query(r) - query(l - 1);
+    }
+}</code></pre>
+                </div>
+
                 <h4 class="mt-3">Segment Tree vs Fenwick Tree</h4>
                 <table style="width:100%; border-collapse:collapse; margin-top:8px;">
                     <thead>
@@ -439,6 +913,124 @@ graph TD
                 <p class="mt-2"><strong>When to choose:</strong> If you only need prefix sums + point updates, prefer Fenwick (simpler, faster). If you need range min/max, lazy propagation, or arbitrary range operations, use a segment tree.</p>
             </div>
         </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 4b: Range Update with Fenwick Tree                   -->
+        <!-- ============================================================ -->
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>Range Update + Point Query with Two Fenwick Trees</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <p>A standard Fenwick tree does <em>point update + range query</em>. But sometimes you need the opposite: <strong>add delta to all elements in [l, r]</strong> (range update) and then read the value at a single index (point query). This is the "difference array" trick applied to a BIT.</p>
+
+                <h4>The Idea: Difference Array BIT</h4>
+                <p>Define a difference array <code>D</code> where <code>D[i] = A[i] - A[i-1]</code>. Then <code>A[i] = prefix_sum(D, i)</code>. A range update <code>A[l..r] += delta</code> becomes two point updates on D:</p>
+                <ul>
+                    <li><code>D[l] += delta</code> — starts the addition at index l</li>
+                    <li><code>D[r+1] -= delta</code> — cancels it after index r</li>
+                </ul>
+                <p>Point query <code>A[i]</code> becomes a prefix sum on D up to i.</p>
+
+                <h4 class="mt-3">When Range Update + Point Query &gt; Point Update + Range Query</h4>
+                <table style="width:100%; border-collapse:collapse; margin-top:8px;">
+                    <thead>
+                        <tr style="background:var(--card-bg); border-bottom:2px solid var(--border-color);">
+                            <th style="padding:10px; text-align:left;">Scenario</th>
+                            <th style="padding:10px; text-align:left;">Better Choice</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td style="padding:8px;">Apply promotions to all items in a price range, then query individual prices</td><td style="padding:8px;">Range Update + Point Query</td></tr>
+                        <tr><td style="padding:8px;">Count elements in a value range after point insertions</td><td style="padding:8px;">Point Update + Range Query</td></tr>
+                        <tr><td style="padding:8px;">Accumulate votes in a score range, then read final score per user</td><td style="padding:8px;">Range Update + Point Query</td></tr>
+                        <tr><td style="padding:8px;">Sliding window frequency counts</td><td style="padding:8px;">Point Update + Range Query</td></tr>
+                    </tbody>
+                </table>
+
+                <h4 class="mt-3">Python: Range Update + Point Query</h4>
+                <div class="code-block">
+                    <pre><code class="language-python">class FenwickRangeUpdate:
+    """1-indexed BIT supporting range [l,r] += delta and point query."""
+    def __init__(self, n):
+        self.n = n
+        self.bit = [0] * (n + 2)   # extra slot for r+1
+
+    def _add(self, i, delta):
+        while i &lt;= self.n:
+            self.bit[i] += delta
+            i += i &amp; (-i)
+
+    def _prefix(self, i):
+        s = 0
+        while i &gt; 0:
+            s += self.bit[i]
+            i -= i &amp; (-i)
+        return s
+
+    def range_update(self, l, r, delta):
+        """Add delta to all A[l..r]."""
+        self._add(l, delta)
+        self._add(r + 1, -delta)
+
+    def point_query(self, i):
+        """Return A[i] after all updates."""
+        return self._prefix(i)
+
+
+# Example usage
+bit = FenwickRangeUpdate(10)
+bit.range_update(2, 5, 3)   # A[2..5] += 3
+bit.range_update(4, 8, 1)   # A[4..8] += 1
+print(bit.point_query(4))   # 4 (3 + 1)
+print(bit.point_query(6))   # 1</code></pre>
+                </div>
+
+                <h4 class="mt-3">Java: Range Update + Point Query</h4>
+                <div class="code-block">
+                    <pre><code class="language-java">class FenwickRangeUpdate {
+    private final int n;
+    private final long[] bit;
+
+    public FenwickRangeUpdate(int n) {
+        this.n = n;
+        this.bit = new long[n + 2];
+    }
+
+    private void add(int i, long delta) {
+        for (; i &lt;= n; i += i &amp; (-i))
+            bit[i] += delta;
+    }
+
+    private long prefix(int i) {
+        long s = 0;
+        for (; i &gt; 0; i -= i &amp; (-i))
+            s += bit[i];
+        return s;
+    }
+
+    /** Add delta to all positions in [l, r] (1-indexed). O(log n). */
+    public void rangeUpdate(int l, int r, long delta) {
+        add(l, delta);
+        add(r + 1, -delta);
+    }
+
+    /** Return the value at position i after all updates. O(log n). */
+    public long pointQuery(int i) {
+        return prefix(i);
+    }
+
+    // --- If you also need range sum queries after range updates ---
+    // Use the two-BIT technique: maintain bit1 and bit2 such that
+    // prefix_sum(A, i) = bit1.prefix(i) * i - bit2.prefix(i)
+}</code></pre>
+                </div>
+
+                <p><strong>Two-BIT technique for range update + range query:</strong> If you need BOTH range updates AND range sum queries simultaneously, maintain two BITs. The identity is: <code>sum(A[1..i]) = prefix(B1, i) * i - prefix(B2, i)</code> where B1 and B2 are auxiliary BITs updated according to a mathematical derivation. This is an advanced technique rarely needed in interviews but good to know exists.</p>
+            </div>
+        </div>
+
         <!-- ============================================================ -->
         <!-- SECTION 5: Advanced DS Overview                              -->
         <!-- ============================================================ -->
@@ -473,10 +1065,62 @@ graph TD
                 </table>
             </div>
         </div>
+
         <!-- ============================================================ -->
-        <!-- SECTION 6: LeetCode Problem Table                            -->
+        <!-- SECTION 6: Real-World Applications at Scale                  -->
         <!-- ============================================================ -->
-        <h2 class="mt-4">6. LeetCode Problem Table</h2>
+        <h2 class="mt-4">6. Real-World Applications at Scale</h2>
+        <div class="collapsible">
+            <div class="collapsible-header">
+                <span>How Tries and Advanced DS Power Production Systems</span>
+                <span class="collapsible-icon">&#9660;</span>
+            </div>
+            <div class="collapsible-content">
+                <h4>Lucene / Elasticsearch &mdash; FST (Finite State Transducer)</h4>
+                <p>Apache Lucene, the engine beneath Elasticsearch, stores its inverted index terms in a <strong>Finite State Transducer</strong> &mdash; a compressed trie variant that maps terms to file offsets with dramatically less memory than a naive trie. Key properties:</p>
+                <ul>
+                    <li>Shared prefixes <em>and</em> shared suffixes are deduplicated, unlike a standard trie that only shares prefixes.</li>
+                    <li>An FST over 1 million terms can fit in a few MB vs hundreds of MB for a hash map.</li>
+                    <li>Prefix queries (autocomplete), range queries ("all terms starting with 'ab'...'az'"), and fuzzy search with edit distance all operate efficiently on the FST.</li>
+                    <li>At Elasticsearch scale (100 billion documents, petabytes of data), the FST lives in OS page cache and is traversed on every search.</li>
+                </ul>
+                <p><strong>Interview relevance:</strong> When asked "how would you design an autocomplete for a search engine," mentioning FSTs as a production-grade compressed trie signals depth beyond textbook knowledge.</p>
+
+                <h4 class="mt-3">Redis Sorted Sets &mdash; Skip Lists</h4>
+                <p>Redis implements its <code>ZSET</code> (sorted set) using a skip list + hash map combo:</p>
+                <ul>
+                    <li>The skip list provides O(log n) rank queries and range scans by score.</li>
+                    <li>The hash map provides O(1) score lookups by member name.</li>
+                    <li>Memory overhead: ~64 bytes per element (4 forward pointers on average at level 1/4 promotion probability).</li>
+                    <li>Common production usage: leaderboards, rate limiting with sliding windows, geospatial indexing (via <code>GEOADD</code> which encodes lat/lng as a sorted score).</li>
+                </ul>
+                <p>Redis chose skip lists over balanced BSTs because they are simpler to implement correctly in a single-threaded async event loop, and range operations translate naturally to forward pointer traversal.</p>
+
+                <h4 class="mt-3">T9 Predictive Text &mdash; Digit-Path Trie</h4>
+                <p>T9 (Text on 9 keys) maps digit sequences to words. The phone keypad assigns 3-4 letters per digit (2=abc, 3=def, …). A production T9 implementation:</p>
+                <ul>
+                    <li>Builds a trie over a 60,000-word dictionary.</li>
+                    <li>Augments each node with the digit sequence that reaches it.</li>
+                    <li>Query for digit sequence "4663" returns all words with path d-o-m/n/e/f &mdash; "good", "gone", "home", etc.</li>
+                    <li>Modern implementations add frequency weights so the most commonly typed word appears first, a good interview follow-up: "how would you rank suggestions?"</li>
+                </ul>
+
+                <h4 class="mt-3">IP Routing Tables &mdash; Patricia Tries (Radix Trees)</h4>
+                <p>Every internet router performs a <strong>longest prefix match</strong> on the destination IP address to find the next hop. With millions of route prefixes, performance is critical:</p>
+                <ul>
+                    <li>A standard binary trie over 32-bit IPv4 addresses has depth 32, each level a 0/1 branch.</li>
+                    <li>A <strong>Patricia trie</strong> (radix tree) collapses single-child chains into single edges labeled with the skipped bits, reducing depth to O(number of distinct prefixes) instead of 32.</li>
+                    <li>Linux kernel's <code>fib_trie</code> uses a Level-Compressed Trie (LC-Trie) that achieves ~4 memory accesses per lookup in practice.</li>
+                    <li>Hardware routers use TCAM (Ternary Content Addressable Memory) for sub-nanosecond lookup, but software fallback always uses a radix tree.</li>
+                </ul>
+                <p><strong>Connection to interviews:</strong> "Design a URL router" or "implement wildcard route matching" &mdash; both are radix tree problems at their core.</p>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 7: LeetCode Problem Table                            -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">7. LeetCode Problem Table</h2>
         <div class="card">
             <table style="width:100%; border-collapse:collapse;">
                 <thead>
@@ -503,6 +1147,138 @@ graph TD
                 </tbody>
             </table>
         </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 8: Interview Follow-Up Questions                     -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">8. Interview Follow-Up Questions</h2>
+        <div class="card">
+            <p style="margin-bottom:12px; color:var(--text-muted); font-size:0.9rem;">Click "Show Guidance" on each to reveal a sample answer direction.</p>
+            <ul class="followup-list" id="followup-list">
+                <li>
+                    <strong>How would you implement autocomplete with ranking (not just lexicographic order)?</strong>
+                    <div class="followup-toggle" onclick="toggleFollowup(this)">Show Guidance &darr;</div>
+                    <div class="followup-answer">
+                        Store a frequency/score at each end-of-word node. During prefix traversal, collect all terminal nodes reachable from the prefix node and return the top-k by score. For production systems, store the top-k pre-computed at every internal node (updated incrementally on each query). This trades memory (O(n * k) extra) for O(L + k) query time. Alternatively, use a min-heap of size k during DFS to avoid materializing all candidates.
+                    </div>
+                </li>
+                <li>
+                    <strong>What's the space complexity of a trie vs a hash set for storing N words of average length L?</strong>
+                    <div class="followup-toggle" onclick="toggleFollowup(this)">Show Guidance &darr;</div>
+                    <div class="followup-answer">
+                        A trie uses O(N &times; L) nodes in the worst case (no shared prefixes), but O(total unique characters) in the best case when all words share a long common prefix. Each node is ~56 bytes in Python (dict overhead). A hash set uses O(N &times; L) bytes for the string storage plus O(N) for the set entries. In practice, tries use more memory than hash sets when words have short or no shared prefixes, but win on prefix query operations. For competitive programming, array[26] trie nodes are 208 bytes each &mdash; allocating 100k nodes = ~20MB, usually within limits.
+                    </div>
+                </li>
+                <li>
+                    <strong>How would you handle deletion in a segment tree with lazy propagation?</strong>
+                    <div class="followup-toggle" onclick="toggleFollowup(this)">Show Guidance &darr;</div>
+                    <div class="followup-answer">
+                        In a lazy segment tree, each node carries a "pending" tag representing deferred updates to its subtree. On deletion (range update to subtract), you apply the lazy tag to the node's aggregate value and push it down to children before recursing. The push-down step is: child.lazy += parent.lazy; child.value += child.lazy * child.range_size; parent.lazy = 0. Point deletions without lazy are O(log n). The key invariant is that lazy tags accumulate and are only resolved (pushed down) when you need to access a node's children.
+                    </div>
+                </li>
+                <li>
+                    <strong>Can you use a Fenwick tree for range minimum queries? Why or why not?</strong>
+                    <div class="followup-toggle" onclick="toggleFollowup(this)">Show Guidance &darr;</div>
+                    <div class="followup-answer">
+                        Not natively, and this is a key limitation. Fenwick trees work by decomposing prefix sums using the lowest-set-bit trick, which relies on the additive inverse (subtraction). Minimum has no inverse: min(l, r) cannot be computed from prefix_min(r) - prefix_min(l-1) because minimum is not invertible. You can build a Fenwick tree for prefix minimums (minimum of A[1..i]), but this only supports point updates in one direction (decreasing) and the range query is limited to [1..i]. For arbitrary range min queries with updates, a Segment tree is the correct structure.
+                    </div>
+                </li>
+                <li>
+                    <strong>How does a radix tree (Patricia trie) improve on a standard trie?</strong>
+                    <div class="followup-toggle" onclick="toggleFollowup(this)">Show Guidance &darr;</div>
+                    <div class="followup-answer">
+                        A standard trie has a node for every character, creating long chains of single-child nodes for words with unique suffixes. A Patricia trie (Practical Algorithm to Retrieve Information Coded in Alphanumeric, or more commonly just "radix tree") collapses every chain of single-child nodes into a single edge labeled with the entire substring. This reduces: (1) node count from O(total characters) to O(number of keys); (2) tree height from O(max key length) to O(number of keys); (3) memory significantly for sparse key sets. The tradeoff is that edge labels can be variable-length strings, complicating implementation. Patricia tries are used in Linux kernel routing tables, Go's standard library HTTP router, and the Rust regex engine.
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- SECTION 9: Flashcards                                        -->
+        <!-- ============================================================ -->
+        <h2 class="mt-4">9. Flashcards</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:4px;">Click any card to flip it and reveal the answer.</p>
+        <div class="flashcard-grid">
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>What is the time complexity of searching for a word of length L in a trie?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>O(L), independent of the number of words stored. Each character traverses one edge.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>When should you use <code>array[26]</code> children vs <code>HashMap</code> children in a trie?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>Array for known small alphabets (lowercase only) &mdash; O(1) worst-case lookup, cache-friendly. HashMap for sparse/large alphabets (Unicode, URLs) &mdash; less memory waste.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>Why is pruning critical in Word Search II (LC 212)?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>Without pruning empty trie branches after finding words, DFS repeatedly explores dead-end paths, causing TLE on large inputs.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>When should you prefer a Fenwick tree over a Segment tree?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>When you only need prefix sums + point updates. Fenwick is simpler (~15 lines), has lower constant factors, and uses less memory (n+1 vs 2n&ndash;4n).</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>What does <code>i &amp; (-i)</code> compute in a Fenwick tree?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>The lowest set bit of <code>i</code>. It determines the range of indices each tree node is responsible for, and controls the parent traversal in update/query.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                <div class="flashcard-inner">
+                    <div class="flashcard-front">
+                        <div class="fc-label">Question</div>
+                        <p>What error type can a Bloom filter produce?</p>
+                        <div class="fc-hint">Tap to reveal answer</div>
+                    </div>
+                    <div class="flashcard-back">
+                        <div class="fc-label">Answer</div>
+                        <p>False positives only. If it says "not present," that is guaranteed correct. If it says "present," there is a small probability it is wrong.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ============================================================ -->
         <!-- QUIZ                                                         -->
         <!-- ============================================================ -->
@@ -518,9 +1294,295 @@ graph TD
         </div>
         </main>
     </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
     <script src="../assets/js/app.js"></script>
+
+    <!-- ================================================================ -->
+    <!-- Interactive Trie Builder JS                                       -->
+    <!-- ================================================================ -->
+    <script>
+    (function () {
+        // ── Data model ───────────────────────────────────────────────────
+        function makeNode() {
+            return { children: {}, isEnd: false, x: 0, y: 0 };
+        }
+
+        const PRELOADED = ['app', 'apple', 'api', 'bat', 'ball'];
+        let trieRoot = makeNode();
+        let insertedWords = [];
+        let highlightPath = [];  // array of {node, ch, found}
+        let highlightResult = null; // 'found' | 'notfound' | null
+
+        function insertWord(word) {
+            word = word.toLowerCase().replace(/[^a-z]/g, '');
+            if (!word) return false;
+            if (insertedWords.includes(word)) return false;
+            let node = trieRoot;
+            for (const ch of word) {
+                if (!node.children[ch]) node.children[ch] = makeNode();
+                node = node.children[ch];
+            }
+            node.isEnd = true;
+            insertedWords.push(word);
+            return true;
+        }
+
+        function searchWord(word) {
+            word = word.toLowerCase().replace(/[^a-z]/g, '');
+            highlightPath = [];
+            let node = trieRoot;
+            highlightPath.push({ node, ch: '', isEnd: node.isEnd });
+            for (const ch of word) {
+                if (!node.children[ch]) {
+                    highlightResult = 'notfound';
+                    return false;
+                }
+                node = node.children[ch];
+                highlightPath.push({ node, ch, isEnd: node.isEnd });
+            }
+            highlightResult = node.isEnd ? 'found' : 'notfound';
+            return node.isEnd;
+        }
+
+        // ── Layout: assign x,y to each node via BFS ──────────────────────
+        function layoutTrie() {
+            const LEVEL_H = 64;
+            const NODE_R = 16;
+            // Compute subtree widths
+            function subtreeWidth(node) {
+                const kids = Object.keys(node.children);
+                if (kids.length === 0) return 1;
+                return kids.reduce((s, k) => s + subtreeWidth(node.children[k]), 0);
+            }
+            function assignPositions(node, depth, leftOffset) {
+                const sw = subtreeWidth(node);
+                node.x = (leftOffset + sw / 2) * (NODE_R * 2 + 8);
+                node.y = depth * LEVEL_H + NODE_R + 8;
+                let cursor = leftOffset;
+                for (const ch of Object.keys(node.children).sort()) {
+                    const child = node.children[ch];
+                    assignPositions(child, depth + 1, cursor);
+                    cursor += subtreeWidth(child);
+                }
+            }
+            assignPositions(trieRoot, 0, 0);
+        }
+
+        // ── Canvas renderer ───────────────────────────────────────────────
+        const canvas = document.getElementById('trie-canvas');
+        const ctx    = canvas.getContext('2d');
+
+        const COLOR_NODE_DEFAULT  = '#2d2060';
+        const COLOR_NODE_END      = '#166534';
+        const COLOR_GLOW_END      = '#4ade80';
+        const COLOR_EDGE          = '#6b7280';
+        const COLOR_TEXT          = '#e0e0e0';
+        const COLOR_ROOT_RING     = '#a78bfa';
+        const COLOR_HIGHLIGHT_FOUND    = '#4ade80';
+        const COLOR_HIGHLIGHT_NOTFOUND = '#f87171';
+        const NODE_R = 16;
+        const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function isInHighlightPath(node) {
+            return highlightPath.some(h => h.node === node);
+        }
+
+        function drawNode(node, ch, parentNode) {
+            const inPath = isInHighlightPath(node);
+            const pathColor = highlightResult === 'found' ? COLOR_HIGHLIGHT_FOUND : COLOR_HIGHLIGHT_NOTFOUND;
+
+            // Draw edge from parent
+            if (parentNode) {
+                ctx.beginPath();
+                ctx.moveTo(parentNode.x, parentNode.y);
+                ctx.lineTo(node.x, node.y);
+                ctx.strokeStyle = inPath ? pathColor : COLOR_EDGE;
+                ctx.lineWidth = inPath ? 2.5 : 1.5;
+                ctx.stroke();
+
+                // Edge label (character)
+                const mx = (parentNode.x + node.x) / 2;
+                const my = (parentNode.y + node.y) / 2;
+                ctx.fillStyle = inPath ? pathColor : '#9ca3af';
+                ctx.font = '11px monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(ch, mx + 8, my);
+            }
+
+            // Glow for end-of-word
+            if (node.isEnd) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, NODE_R + 4, 0, Math.PI * 2);
+                ctx.strokeStyle = inPath ? pathColor : COLOR_GLOW_END;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Node circle
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, NODE_R, 0, Math.PI * 2);
+            if (inPath) {
+                ctx.fillStyle = pathColor;
+            } else if (node.isEnd) {
+                ctx.fillStyle = COLOR_NODE_END;
+            } else {
+                ctx.fillStyle = COLOR_NODE_DEFAULT;
+            }
+            ctx.fill();
+
+            // Root ring
+            if (!parentNode) {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, NODE_R + 2, 0, Math.PI * 2);
+                ctx.strokeStyle = inPath ? pathColor : COLOR_ROOT_RING;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            // Label
+            ctx.fillStyle = inPath ? '#0a1a0a' : COLOR_TEXT;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(ch || 'R', node.x, node.y);
+        }
+
+        function collectNodes(node) {
+            // Returns array of {node, ch, parent}
+            const result = [];
+            function walk(n, c, p) {
+                result.push({ node: n, ch: c, parent: p });
+                for (const k of Object.keys(n.children).sort()) {
+                    walk(n.children[k], k, n);
+                }
+            }
+            walk(node, '', null);
+            return result;
+        }
+
+        function computeCanvasSize() {
+            let maxX = 0, maxY = 0;
+            const all = collectNodes(trieRoot);
+            for (const { node } of all) {
+                if (node.x > maxX) maxX = node.x;
+                if (node.y > maxY) maxY = node.y;
+            }
+            return { w: Math.max(maxX + NODE_R + 20, 400), h: Math.max(maxY + NODE_R + 20, 120) };
+        }
+
+        function render() {
+            layoutTrie();
+            const { w, h } = computeCanvasSize();
+            canvas.width  = w;
+            canvas.height = h;
+
+            ctx.clearRect(0, 0, w, h);
+
+            const all = collectNodes(trieRoot);
+            for (const { node, ch, parent } of all) {
+                drawNode(node, ch, parent);
+            }
+        }
+
+        // ── Public interface ─────────────────────────────────────────────
+        window.trieInsert = function () {
+            const input = document.getElementById('trie-input');
+            const word  = input.value.trim();
+            const status = document.getElementById('trie-status');
+            if (!word) {
+                status.textContent = 'Please enter a word.';
+                status.className = 'info';
+                return;
+            }
+            highlightPath = [];
+            highlightResult = null;
+            const ok = insertWord(word);
+            if (ok) {
+                status.textContent = `Inserted "${word}".`;
+                status.className = 'info';
+            } else {
+                status.textContent = `"${word}" is already in the trie (or invalid).`;
+                status.className = 'info';
+            }
+            input.value = '';
+            updateWordList();
+            render();
+        };
+
+        window.trieSearch = function () {
+            const input  = document.getElementById('trie-input');
+            const word   = input.value.trim();
+            const status = document.getElementById('trie-status');
+            if (!word) {
+                status.textContent = 'Please enter a word to search.';
+                status.className = 'info';
+                return;
+            }
+            const found = searchWord(word);
+            if (found) {
+                status.textContent = `"${word}" FOUND in the trie.`;
+                status.className = 'found';
+            } else {
+                status.textContent = `"${word}" NOT found in the trie.`;
+                status.className = 'notfound';
+            }
+            render();
+        };
+
+        window.trieClear = function () {
+            trieRoot = makeNode();
+            insertedWords = [];
+            highlightPath = [];
+            highlightResult = null;
+            // Reload preloaded words
+            for (const w of PRELOADED) insertWord(w);
+            const status = document.getElementById('trie-status');
+            status.textContent = 'Trie cleared and reset to pre-loaded words.';
+            status.className = 'info';
+            updateWordList();
+            render();
+        };
+
+        // Allow pressing Enter in input
+        document.getElementById('trie-input').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') window.trieInsert();
+        });
+
+        function updateWordList() {
+            const el = document.getElementById('trie-word-list');
+            if (insertedWords.length === 0) {
+                el.innerHTML = '';
+                return;
+            }
+            el.innerHTML = 'Words in trie: ' + insertedWords.map(w =>
+                `<span>${w}</span>`).join('');
+        }
+
+        // Init
+        for (const w of PRELOADED) insertWord(w);
+        updateWordList();
+        render();
+    })();
+    </script>
+
+    <!-- ================================================================ -->
+    <!-- Follow-up toggle JS                                               -->
+    <!-- ================================================================ -->
+    <script>
+    function toggleFollowup(btn) {
+        const li = btn.closest('li');
+        const open = li.classList.toggle('open');
+        btn.innerHTML = open ? 'Hide Guidance &uarr;' : 'Show Guidance &darr;';
+    }
+    </script>
+
+    <!-- ================================================================ -->
+    <!-- Quiz JS                                                           -->
+    <!-- ================================================================ -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const quizQuestions = [
@@ -568,6 +1630,17 @@ graph TD
                     ],
                     correct: 2,
                     explanation: "In the compact iterative segment tree, the array has size 2n. Leaves are stored at indices [n, 2n), and internal nodes at [1, n). Index 0 is unused. Node i's children are at 2i and 2i+1."
+                },
+                {
+                    question: "What does i & (-i) compute and why is it used in Fenwick trees?",
+                    options: [
+                        "The highest set bit — used to navigate to the parent node",
+                        "The lowest set bit — determines the range each node covers and controls traversal",
+                        "The bitwise NOT — used to invert the index for backward traversal",
+                        "The index modulo n — used to wrap around the circular array"
+                    ],
+                    correct: 1,
+                    explanation: "i & (-i) isolates the lowest set bit of i. In a Fenwick tree, this value determines how many indices the node at position i is responsible for. During update, you add this value to advance to the parent. During query, you subtract it to move to the predecessor prefix."
                 }
             ];
 
