@@ -238,10 +238,6 @@
                     <a href="module-14.html" class="sidebar-link" data-module="14"><span class="sidebar-link-number">14</span>Scenario Thinking Part 2</a>
                     <a href="module-15.html" class="sidebar-link" data-module="15"><span class="sidebar-link-number">15</span>Mock Interviews</a>
                 </div>
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Resources</div>
-                    <a href="cheat-sheet.html" class="sidebar-link active">Cheat Sheet</a>
-                </div>
             </nav>
         </aside>
 
@@ -293,7 +289,7 @@
                     <li><strong>Team Topologies:</strong> Stream-aligned teams (deliver value), Platform teams (reduce cognitive load), Enabling teams (coach), Complicated-subsystem teams (deep expertise).</li>
                     <li><strong>Golden Paths vs Golden Cages:</strong> Golden paths = recommended defaults that teams can deviate from. Golden cages = mandatory constraints. Prefer paths; use cages only for compliance/security.</li>
                 </ul>
-                <p><strong>Why "Platform-as-Product" wins:</strong> Teams that treat infra as a <em>mandate</em> get low adoption and shadow IT. Treating it as a <em>product</em> means you gather feedback, track NPS, and iterate. Google's internal Borg adoption succeeded because teams <em>chose</em> it (golden path), not because they were forced. Conway's Law matters because if your booking team and payment team can't communicate, their services won't integrate cleanly either &mdash; fix the org to fix the architecture.</p>
+                <p><strong>Why "Platform-as-Product" wins:</strong> Teams that treat infra as a <em>mandate</em> get low adoption and shadow IT. Treating it as a <em>product</em> means you gather feedback, track NPS, and iterate. Spotify's Backstage adoption succeeded because teams <em>chose</em> it over alternatives &mdash; it solved real pain (service catalog fragmentation) and the team iterated based on internal feedback. Conway's Law matters because if your booking team and payment team can't communicate, their services won't integrate cleanly either &mdash; fix the org to fix the architecture.</p>
 
                 <h3>Staff-Level Thinking</h3>
                 <ul>
@@ -315,12 +311,12 @@
                     <tr><th>Aspect</th><th>REST</th><th>gRPC</th><th>GraphQL</th></tr>
                     <tr><td><strong>Format</strong></td><td>JSON (text)</td><td>Protobuf (binary)</td><td>JSON (text)</td></tr>
                     <tr><td><strong>Transport</strong></td><td>HTTP/1.1+</td><td>HTTP/2 (required)</td><td>HTTP/1.1+</td></tr>
-                    <tr><td><strong>Streaming</strong></td><td>SSE only</td><td>Bidirectional</td><td>Subscriptions (WS)</td></tr>
+                    <tr><td><strong>Streaming</strong></td><td>SSE (primary), chunked responses</td><td>Bidirectional</td><td>Subscriptions (WS)</td></tr>
                     <tr><td><strong>Schema</strong></td><td>OpenAPI (optional)</td><td>Protobuf (required)</td><td>SDL (required)</td></tr>
                     <tr><td><strong>Best For</strong></td><td>Public APIs, CRUD, browser clients</td><td>Internal microservices, low latency</td><td>Mobile/frontend with varied data needs</td></tr>
                     <tr><td><strong>Versioning</strong></td><td>URL path or header</td><td>Package versioning</td><td>Schema evolution (additive)</td></tr>
                 </table>
-                <p><strong>Why REST for agent APIs (Agoda context):</strong> External booking agents (MakeMyTrip, Booking.com) use REST because it's universally understood, works through all proxies/firewalls, and agents already have HTTP client libraries. gRPC would give ~10x smaller payloads and bidirectional streaming, but requires protobuf tooling that external agents may not have. <strong>Why GraphQL isn't ideal here:</strong> Agents need predictable, documented endpoints with strict contracts &mdash; not flexible querying that could accidentally over-fetch sensitive data or create expensive queries.</p>
+                <p><strong>Why REST for agent APIs (Agoda context):</strong> External booking agents (MakeMyTrip, Booking.com) use REST because it's universally understood, works through all proxies/firewalls, and agents already have HTTP client libraries. gRPC would give ~3-10x smaller payloads (varies by data type) and bidirectional streaming, but requires protobuf tooling that external agents may not have. <strong>Why GraphQL isn't ideal here:</strong> Agents need predictable, documented endpoints with strict contracts &mdash; not flexible querying that could accidentally over-fetch sensitive data or create expensive queries.</p>
 
                 <h3>API Versioning Strategies</h3>
                 <ul>
@@ -338,7 +334,7 @@
                     <li>Never leak stack traces or internal IDs in production error responses.</li>
                     <li>Use <strong>idempotency keys</strong> for POST/PUT to safely retry: <code>Idempotency-Key: &lt;uuid&gt;</code></li>
                 </ul>
-                <p><strong>Why idempotency keys are non-negotiable for bookings:</strong> Network failures happen. An agent sends <code>POST /v1/bookings</code>, the server processes it, but the response is lost. The agent retries. Without an idempotency key, the customer gets double-booked and double-charged. With an idempotency key, the server returns the same response as the first call. Stripe, PayPal, and Agoda all require this for payment/booking endpoints.</p>
+                <p><strong>Why idempotency keys are non-negotiable for bookings:</strong> Network failures happen. An agent sends <code>POST /v1/bookings</code>, the server processes it, but the response is lost. The agent retries. Without an idempotency key, the customer gets double-booked and double-charged. With an idempotency key, the server returns the same response as the first call. Stripe requires this for payment endpoints. PayPal uses request IDs for similar deduplication. Booking systems like Agoda's benefit from this pattern.</p>
 
                 <h3>Schema Evolution</h3>
                 <ul>
@@ -373,7 +369,7 @@
                     <tr><td><strong>Sliding Window Log</strong></td><td>Track timestamps of each request</td><td>Precise</td><td>Memory-heavy</td></tr>
                     <tr><td><strong>Sliding Window Counter</strong></td><td>Weighted average of current + previous window</td><td>Low memory, smooth</td><td>Approximate</td></tr>
                 </table>
-                <p><strong>Why token bucket is the default:</strong> Real traffic is bursty &mdash; an agent might send 50 requests in 1 second, then nothing for 10 seconds. Token bucket allows this burst (up to bucket capacity) while enforcing an average rate. Fixed window can't handle this &mdash; it either allows the burst and has no protection at window boundaries, or blocks legitimate burst traffic. Sliding window counter is the production upgrade (Cloudflare uses it) because it's O(1) memory and 99.9% accurate, but token bucket is easier to explain in an interview and conceptually simpler.</p>
+                <p><strong>Why token bucket is the default:</strong> Real traffic is bursty &mdash; an agent might send 50 requests in 1 second, then nothing for 10 seconds. Token bucket allows this burst (up to bucket capacity) while enforcing an average rate. Fixed window can't handle this &mdash; it either allows the burst and has no protection at window boundaries, or blocks legitimate burst traffic. Sliding window counter is the production upgrade (Cloudflare uses it) because it's O(1) memory and very accurate in practice, but token bucket is easier to explain in an interview and conceptually simpler.</p>
 
                 <h3>API Gateway Patterns</h3>
                 <ul>
@@ -413,13 +409,13 @@
 
                 <h3>Authentication Types (for API connectivity)</h3>
                 <ul>
-                    <li><strong>API Key:</strong> Simple, per-client key in header. Easy to implement, hard to rotate. Use for internal/trusted services.</li>
+                    <li><strong>API Key:</strong> Simple, per-client key in header. Easy to implement, but lacks built-in scoping and expiration &mdash; you'd have to build these yourself. Use for internal/trusted services.</li>
                     <li><strong>OAuth 2.0 + JWT:</strong> Token-based. Access tokens (short-lived) + refresh tokens (long-lived). Standard for user-facing APIs.</li>
                     <li><strong>mTLS:</strong> Mutual TLS with client certificates. Strongest for service-to-service. Used in service meshes.</li>
                     <li><strong>HMAC Signatures:</strong> Sign request body/timestamp with shared secret. Used by Stripe, GitHub webhooks.</li>
                     <li><strong>Session-based:</strong> Server-side session with cookie. Stateful, doesn't scale horizontally without sticky sessions or shared session store (Redis).</li>
                 </ul>
-                <p><strong>Why OAuth 2.0 Client Credentials for agent APIs:</strong> API keys are easy but can't be scoped (an agent with one key gets access to everything) and can't expire gracefully. OAuth Client Credentials gives each agent a client_id + secret, they exchange it for a JWT with specific scopes (<code>bookings:write</code>, <code>inventory:read</code>), and the token expires in 15 minutes. If an agent is compromised, revoke their client_id &mdash; all their tokens immediately become invalid. <strong>Why not mTLS for agents:</strong> Certificate management is operationally heavy for external partners who may not have TLS expertise. Reserve mTLS for internal service-to-service.</p>
+                <p><strong>Why OAuth 2.0 Client Credentials for agent APIs:</strong> API keys lack built-in scoping and expiration mechanisms &mdash; you'd have to build these yourself, whereas OAuth provides them as part of the protocol. OAuth Client Credentials gives each agent a client_id + secret, they exchange it for a JWT with specific scopes (<code>bookings:write</code>, <code>inventory:read</code>), and the token expires in 15 minutes. If an agent is compromised, revoke their client_id &mdash; new tokens can't be issued. Existing JWTs remain valid until expiry (15 min max), which is why short-lived access tokens are critical. For immediate revocation, use a token blocklist at the gateway. <strong>Why not mTLS for agents:</strong> Certificate management is operationally heavy for external partners who may not have TLS expertise. Reserve mTLS for internal service-to-service.</p>
             </div>
 
             <!-- ============================================ -->
@@ -434,12 +430,12 @@
                     <tr><th>Feature</th><th>Kafka</th><th>RabbitMQ</th><th>SQS/SNS</th></tr>
                     <tr><td><strong>Model</strong></td><td>Distributed log (pull)</td><td>Message queue (push)</td><td>Managed queue (pull)</td></tr>
                     <tr><td><strong>Ordering</strong></td><td>Per-partition</td><td>Per-queue (FIFO mode)</td><td>FIFO queues available</td></tr>
-                    <tr><td><strong>Throughput</strong></td><td>Millions/sec</td><td>~50K/sec</td><td>~3K/sec (FIFO)</td></tr>
+                    <tr><td><strong>Throughput</strong></td><td>Millions/sec</td><td>~50K/sec</td><td>~3K/sec (FIFO, per group with batching)</td></tr>
                     <tr><td><strong>Retention</strong></td><td>Days/weeks (configurable)</td><td>Until consumed</td><td>14 days max</td></tr>
-                    <tr><td><strong>Replay</strong></td><td>Yes (offset reset)</td><td>No (once consumed, gone)</td><td>No</td></tr>
+                    <tr><td><strong>Replay</strong></td><td>Yes (offset reset)</td><td>Limited (Streams feature supports offset-based replay since v3.9, but not as mature as Kafka)</td><td>No</td></tr>
                     <tr><td><strong>Best For</strong></td><td>Event streaming, analytics, CDC</td><td>Task queues, routing, RPC</td><td>Serverless, simple async</td></tr>
                 </table>
-                <p><strong>Why Kafka for booking events (not RabbitMQ):</strong> Booking events need <em>replay</em> &mdash; when analytics reprocesses last month's data, or when a new service joins and needs historical events, Kafka's log retention provides this. RabbitMQ deletes messages after consumption. Kafka also handles millions of events/sec (hotel search queries, price updates) where RabbitMQ tops out at ~50K/sec. <strong>When RabbitMQ wins:</strong> Simple task queues (send email, generate PDF) where you need routing, priority queues, and message-level TTL &mdash; features Kafka doesn't natively support.</p>
+                <p><strong>Why Kafka for booking events (not RabbitMQ):</strong> Booking events need <em>replay</em> &mdash; when analytics reprocesses last month's data, or when a new service joins and needs historical events, Kafka's log retention provides this. Classic RabbitMQ queues delete messages after consumption (Streams support replay but are less mature). Kafka also handles millions of events/sec (hotel search queries, price updates) where RabbitMQ tops out at ~50K/sec. <strong>When RabbitMQ wins:</strong> Simple task queues (send email, generate PDF) where you need routing, priority queues, and message-level TTL &mdash; features Kafka doesn't natively support.</p>
 
                 <h3>Delivery Semantics</h3>
                 <ul>
@@ -447,7 +443,7 @@
                     <li><strong>At-least-once:</strong> Retry until ack. May get duplicates. <strong>Most common in practice.</strong> Pair with idempotent consumers.</li>
                     <li><strong>Exactly-once:</strong> Kafka Transactions + idempotent producer. Heavy. Use for financial/booking workflows.</li>
                 </ul>
-                <p><strong>Why at-least-once + idempotent consumers is the practical default:</strong> Exactly-once sounds ideal but requires Kafka Transactions, which add latency and complexity. In practice, <em>at-least-once delivery + idempotent consumer</em> achieves the same outcome more simply: the consumer uses a unique event_id to deduplicate. For bookings: if the "booking confirmed" event is delivered twice, the consumer checks <code>IF NOT EXISTS booking_id</code> before processing. This is how Stripe, PayPal, and Agoda handle it.</p>
+                <p><strong>Why at-least-once + idempotent consumers is the practical default:</strong> Exactly-once sounds ideal but requires Kafka Transactions, which add latency and complexity. In practice, <em>at-least-once delivery + idempotent consumer</em> achieves the same outcome more simply: the consumer uses a unique event_id to deduplicate. For bookings: if the "booking confirmed" event is delivered twice, the consumer checks <code>IF NOT EXISTS booking_id</code> before processing. This is how Stripe handles payment idempotency (well-documented). The pattern is standard across booking and payment systems.</p>
 
                 <h3>Key Patterns</h3>
                 <ul>
@@ -481,7 +477,7 @@
 
                 <h3>Retry Storm Prevention</h3>
                 <ul>
-                    <li>Use <strong>exponential backoff</strong>: 1s, 2s, 4s, 8s... with <strong>jitter</strong> (randomize &plusmn;25%).</li>
+                    <li>Use <strong>exponential backoff</strong>: 1s, 2s, 4s, 8s... with <strong>full jitter</strong> (randomize between 0 and the full backoff value &mdash; AWS recommended).</li>
                     <li>Set <strong>max retries</strong> (typically 3-5) and a <strong>max backoff cap</strong> (e.g. 30s).</li>
                     <li>Circuit breaker prevents retries when service is known to be down.</li>
                     <li>Coordinate retry budgets across fleet (e.g. max 10% of requests can be retries).</li>
@@ -493,7 +489,7 @@
                     <li><strong>Request coalescing:</strong> Single-flight / singleflight pattern &mdash; one goroutine fetches, others wait.</li>
                     <li><strong>Stale-while-revalidate:</strong> Serve stale cache while refreshing in background.</li>
                 </ul>
-                <p><strong>Why jitter is critical (not just backoff):</strong> Without jitter, if 1000 agents all fail at the same time and retry with backoff (1s, 2s, 4s), all 1000 retry simultaneously at t=1s, then t=3s, then t=7s &mdash; synchronized waves that repeatedly overwhelm the recovering service. Jitter randomizes each retry (&plusmn;25%), spreading the load. This is the difference between a service that recovers in 10s and one stuck in a failure loop for minutes.</p>
+                <p><strong>Why jitter is critical (not just backoff):</strong> Without jitter, if 1000 agents all fail at the same time and retry with backoff (1s, 2s, 4s), all 1000 retry simultaneously at t=1s, then t=3s, then t=7s &mdash; synchronized waves that repeatedly overwhelm the recovering service. Full jitter randomizes each retry between 0 and the backoff value, spreading the load. This is the difference between a service that recovers in 10s and one stuck in a failure loop for minutes.</p>
             </div>
 
             <!-- ============================================ -->
@@ -510,7 +506,7 @@
                     <tr><td><strong>Trophy</strong></td><td>Few unit, many integration, some E2E</td><td>Full-stack apps, APIs (Kent C. Dodds)</td></tr>
                     <tr><td><strong>Diamond</strong></td><td>Few unit, many integration, few E2E</td><td>Data pipelines, middleware</td></tr>
                 </table>
-                <p><strong>Why the trophy shape for booking APIs:</strong> Unit tests for a booking service have low value &mdash; mocking the DB, cache, and payment gateway tests mostly your mocking code, not real behavior. Integration tests with Testcontainers (real Postgres, real Redis) catch the real bugs: "does this query actually work?", "does the transaction rollback correctly?", "does the optimistic lock retry?" The trophy shape invests testing time where bugs actually hide &mdash; at service boundaries and integration points.</p>
+                <p><strong>Why the trophy shape for booking APIs:</strong> Unit tests that mock the DB, cache, and payment gateway test mostly your mocking code, not real behavior. (But unit tests for pure business logic &mdash; pricing rules, date range validation, discount calculations &mdash; are still very valuable and fast.) Integration tests with Testcontainers (real Postgres, real Redis) catch the real bugs: "does this query actually work?", "does the transaction rollback correctly?", "does the optimistic lock retry?" The trophy shape invests testing time where bugs actually hide &mdash; at service boundaries and integration points.</p>
 
                 <h3>By Level</h3>
                 <ul>
@@ -777,7 +773,7 @@ public ResponseEntity&lt;BookingDTO&gt; createBooking(@RequestBody BookingReques
                     <tr><td><strong>1. Online Assessment</strong></td><td>60-90 min</td><td>HackerRank &mdash; 2-3 DSA problems (medium-hard). LeetCode Top 75 style.</td></tr>
                     <tr><td><strong>2. DSA Interview</strong></td><td>60 min</td><td>Live coding with interviewer. Algorithm design + complexity analysis.</td></tr>
                     <tr><td><strong>3. Platform Round</strong></td><td>60 min</td><td>System design review + REST API/connectivity + code review (this page).</td></tr>
-                    <tr><td><strong>4. Manager Round</strong></td><td>60 min</td><td>Behavioral &mdash; mentorship, mistakes, experiments, tradeoffs, conflicts. Longest round.</td></tr>
+                    <tr><td><strong>4. Manager Round</strong></td><td>60 min</td><td>Behavioral &mdash; mentorship, mistakes, experiments, tradeoffs, conflicts. Most discussion-heavy round.</td></tr>
                 </table>
                 <p><em>Note: Strong performance in early rounds can lead to skipping subsequent rounds. Agoda recruiters provide detailed prep guidance before each round.</em></p>
             </div>

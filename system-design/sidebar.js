@@ -90,7 +90,8 @@
                 { href: sdBase + probBase + 'notification-system.html', text: 'Notification System' },
                 { href: sdBase + probBase + 'distributed-cache.html', text: 'Distributed Cache' },
                 { href: sdBase + probBase + 'payment-system.html', text: 'Payment System' },
-                { href: sdBase + probBase + 'ride-sharing.html', text: 'Ride-Sharing (Uber)' }
+                { href: sdBase + probBase + 'ride-sharing.html', text: 'Ride-Sharing (Uber)' },
+                { href: sdBase + probBase + 'ai-incident-mgmt.html', text: 'AI Incident Management' }
             ]
         },
         {

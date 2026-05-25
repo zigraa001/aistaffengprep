@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design AI-Powered Incident Management - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sd-sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: AI-Powered Incident Management System</h1>
+            <p class="text-muted">Examples: PagerDuty Copilot, ServiceNow AIOps, Datadog Watchdog, Custom PRX Agent Systems</p>
+
+            <div class="card mt-3" style="background: var(--danger-bg);">
+                <strong>Difficulty:</strong> Hard (Staff-Level) | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 1. REQUIREMENTS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Alert ingestion:</strong> Receive alerts from PagerDuty, Datadog, Grafana, CloudWatch (multi-source, normalized)</li>
+                        <li><strong>Automated triage:</strong> Classify severity, deduplicate correlated alerts, route to correct pipeline</li>
+                        <li><strong>AI-powered diagnosis:</strong> Agent investigates using logs (Splunk/ELK), metrics (Prometheus/Grafana), traces (Jaeger), and CMDB</li>
+                        <li><strong>Remediation execution:</strong> Suggest or auto-execute fixes (restart, scale, rollback) with approval workflow</li>
+                        <li><strong>Post-incident summarization:</strong> Generate timeline, root cause analysis, and action items automatically</li>
+                        <li><strong>Multi-agent orchestration:</strong> Triage, diagnostic, remediation, and summary agents with shared state</li>
+                        <li><strong>Human-in-the-loop:</strong> Approval gates for high-risk actions, escalation for low-confidence diagnoses</li>
+                        <li><strong>Runbook integration:</strong> RAG over runbook library for automated playbook execution</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Latency:</strong> Initial triage &lt; 30s, full diagnosis &lt; 5 min, remediation &lt; 10 min</li>
+                        <li><strong>Availability:</strong> 99.99% &mdash; must be more reliable than systems it monitors</li>
+                        <li><strong>Safety:</strong> No automated action without approval for P1/P2 incidents. Zero tolerance for making incidents worse.</li>
+                        <li><strong>Auditability:</strong> Immutable log of every agent decision and action (SOX/SOC2 compliant)</li>
+                        <li><strong>Cost:</strong> Optimized LLM usage &mdash; small model for triage, large model for complex diagnosis</li>
+                        <li><strong>Scalability:</strong> Handle 10K alerts/day with burst capacity for cascading failures</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 2. CAPACITY ESTIMATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">2. Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Numbers</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Alerts/day</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">10,000 (85% noise, deduped to ~1,500 incidents)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Investigations/day</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">500 (require AI diagnosis)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Remediations/day</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">50 (require automated action)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>LLM calls/investigation</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">~5 (triage + diagnosis + remediation plan)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Token budget/day</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">~2M tokens (500 investigations x 4K tokens avg)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>Storage</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">~10 GB/day (audit logs, incident artifacts, agent traces)</td></tr>
+                        <tr><td style="padding: 0.5rem; border: 1px solid var(--border-color);"><strong>LLM cost</strong></td><td style="padding: 0.5rem; border: 1px solid var(--border-color);">~$30/day (tiered: mini for triage, GPT-4o for diagnosis)</td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 3. HIGH-LEVEL ARCHITECTURE -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">3. High-Level Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Alert Sources"
+        PD[PagerDuty] & DD[Datadog] & GF[Grafana] & CW[CloudWatch]
+    end
+
+    subgraph "Ingestion Layer"
+        Webhook[Webhook Receivers]
+        Normalizer[Alert Normalizer]
+        Dedup[Deduplication Engine]
+        Queue[Alert Queue - Kafka]
+    end
+
+    subgraph "Agent Orchestration"
+        Triage[Triage Agent<br/>GPT-4o-mini]
+        Diagnostic[Diagnostic Agent<br/>GPT-4o]
+        Remediation[Remediation Agent<br/>GPT-4o]
+        Summary[Summary Agent<br/>GPT-4o]
+        SharedState[(Shared State<br/>Redis)]
+    end
+
+    subgraph "Production Tool Layer"
+        Splunk[Splunk/ELK]
+        Prom[Prometheus]
+        CMDB[CMDB]
+        K8s[Kubernetes]
+        Runbooks[Runbook RAG<br/>Vector DB]
+    end
+
+    subgraph "Safety Layer"
+        Validators[Validator Pipeline]
+        Approval[Approval Service<br/>Slack Integration]
+        CB[Circuit Breakers]
+        Audit[(Audit Log<br/>Postgres)]
+    end
+
+    subgraph "Output"
+        SN[ServiceNow Ticket]
+        Slack[Slack Notification]
+        Dashboard[Ops Dashboard]
+    end
+
+    PD & DD & GF & CW --> Webhook
+    Webhook --> Normalizer --> Dedup --> Queue
+
+    Queue --> Triage
+    Triage --> SharedState
+    Triage --> Diagnostic
+    Diagnostic --> Splunk & Prom & CMDB & Runbooks
+    Diagnostic --> SharedState
+    Diagnostic --> Remediation
+
+    Remediation --> Validators
+    Validators --> Approval
+    Approval --> K8s
+    Remediation --> CB
+    Remediation --> Summary
+
+    Summary --> SN & Slack & Dashboard
+    Triage & Diagnostic & Remediation & Summary --> Audit
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 4. DEEP DIVE: AGENT ORCHESTRATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">4. Deep Dive: Agent Orchestration</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Multi-Agent Pipeline</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Q as Alert Queue
+    participant T as Triage Agent
+    participant L as Log Agent
+    participant M as Metric Agent
+    participant D as Diagnostic Agent
+    participant R as Remediation Agent
+    participant H as Human (Slack)
+    participant S as Summary Agent
+    participant SS as Shared State
+
+    Q->>T: New alert batch (deduped)
+    T->>SS: severity=P1, category=error_spike
+    T->>T: Should investigate? (yes/no)
+
+    par Parallel Data Gathering (5s SLO)
+        T->>L: Query error logs (last 15m)
+        T->>M: Query metrics (CPU, mem, latency)
+    end
+
+    L->>SS: log_findings
+    M->>SS: metric_findings
+
+    SS->>D: All findings available
+    D->>D: Synthesize: correlate logs + metrics + topology
+    D->>SS: root_cause, confidence=0.87
+
+    alt confidence >= 0.85
+        D->>R: Execute remediation plan
+        R->>R: Validate via pipeline
+        R->>H: Approve rollback? (HIGH risk)
+        H-->>R: Approved
+        R->>SS: action=rollback, status=executing
+    else confidence < 0.85
+        D->>H: Escalate: uncertain diagnosis
+    end
+
+    R->>S: Generate post-incident report
+    S->>SS: Summary posted to ServiceNow
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Key Design Decisions</h4>
+                    <ul>
+                        <li><strong>Shared state (Redis):</strong> All agents read/write a shared context keyed by incident_id. Enables parallel investigation and prevents duplicate work.</li>
+                        <li><strong>Model routing:</strong> Triage uses GPT-4o-mini (fast, cheap). Diagnosis uses GPT-4o (accurate). Summary can use either based on incident complexity.</li>
+                        <li><strong>Parallel execution:</strong> Log and metric agents run in parallel (5s SLO). Use <code>asyncio.wait</code> with timeout; proceed with partial results if one source times out.</li>
+                        <li><strong>Conflict resolution:</strong> If log agent says "deployment regression" but metric agent says "traffic spike," the diagnostic agent weighs evidence quality and may request additional data.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 5. DEEP DIVE: SAFETY -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">5. Deep Dive: Safety &amp; Governance</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Safety Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    Agent[Agent Proposes Action] --> V1[Format Validator]
+                    V1 --> V2[Command Safety Check]
+                    V2 --> V3[Blast Radius Check]
+                    V3 --> Risk{Risk Level}
+
+                    Risk -->|LOW| Auto[Auto-Execute]
+                    Risk -->|MEDIUM| TeamApproval[Team Lead via Slack]
+                    Risk -->|HIGH| SREApproval[SRE Lead + Manager]
+                    Risk -->|CRITICAL| VPApproval[VP + War Room]
+
+                    TeamApproval -->|Approved| Canary
+                    SREApproval -->|Approved| Canary
+                    VPApproval -->|Approved| Canary
+
+                    Canary[Canary 5%] --> Monitor{Metrics OK?}
+                    Monitor -->|Yes| Expand[Expand 25% → 100%]
+                    Monitor -->|No| Rollback[Auto-Rollback]
+                        </div>
+                    </div>
+
+                    <h4>Safety Principles</h4>
+                    <ul>
+                        <li><strong>Least privilege:</strong> Each agent gets scoped credentials. Triage = read-only. Remediation = write to specific services only, time-limited.</li>
+                        <li><strong>Circuit breakers:</strong> If remediation agent causes 3 failures in 30 min, disable auto-remediation globally. Require human override to re-enable.</li>
+                        <li><strong>Immutable audit trail:</strong> Hash-chained log of every agent decision, tool call, LLM prompt/response, and approval. SOX/SOC2 compliant.</li>
+                        <li><strong>Deterministic fallback:</strong> When LLM is unavailable, fall back to rule-based pattern matching for known incident types. Escalate unknown types to human.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 6. SCALING & PERFORMANCE -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">6. Scaling &amp; Performance</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Performance Optimization</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Optimization</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Classical ML pre-filter</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Anomaly detection + alert dedup before LLM</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reduce LLM calls by 70%</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Semantic caching</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cache diagnosis for similar alert patterns</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">50% cache hit rate, save ~$15/day</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model routing</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Mini for triage, full model for complex diagnosis</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10x cost reduction for triage, 3x faster</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Parallel tool calls</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Query logs, metrics, CMDB simultaneously</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data gathering: 5s vs 12s sequential</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Horizontal scaling</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Kafka consumer groups for agent workers</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Handle burst during cascading failures</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 7. FAILURE MODES -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">7. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM provider outage</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-provider routing (OpenAI &rarr; Anthropic &rarr; on-prem fallback). Rule-based triage as last resort.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wrong diagnosis &rarr; wrong fix</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Confidence thresholds, staged rollout (canary catches bad fixes), auto-rollback on metric degradation.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Remediation makes things worse</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Canary stage (5%) catches this. Auto-rollback. Circuit breaker disables that remediation type.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Circular alerts (agent action triggers new alert)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dedup window: suppress alerts for same service within 10 min of agent action. Max actions/incident.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent platform itself is down</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Separate infrastructure (different cluster/region). No shared dependencies. Graceful degradation to manual workflow. Self-monitoring by humans.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Alert storm (cascading failure, 1000x normal volume)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Kafka backpressure, aggressive dedup, rate-limit LLM calls, batch similar alerts into single investigation.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- 8. INTERVIEW TIPS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">8. Interview Tips</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Question</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="border-left: 4px solid #34d399; background: var(--success-bg);">
+                        <h4>Do</h4>
+                        <ul>
+                            <li>Start with requirements and constraints, not the AI part</li>
+                            <li>Lead with safety: "Before I discuss agent capabilities, let me address how we prevent the agent from making incidents worse"</li>
+                            <li>Discuss how to make the system more reliable than what it monitors (separate infra, no shared deps)</li>
+                            <li>Show cost awareness: model routing, semantic caching, classical ML pre-filtering</li>
+                            <li>Mention graceful degradation: system should still work as a dashboard without AI</li>
+                        </ul>
+                    </div>
+                    <div class="card mt-2" style="border-left: 4px solid #f87171; background: var(--error-bg);">
+                        <h4>Don't</h4>
+                        <ul>
+                            <li>Jump straight to "we'll use GPT-4 to fix production" without safety discussion</li>
+                            <li>Design the system assuming the LLM is always correct</li>
+                            <li>Ignore the "agent platform availability" problem</li>
+                            <li>Forget audit trails and compliance (especially for financial firms)</li>
+                            <li>Over-automate: not every incident should be auto-remediated</li>
+                        </ul>
+                    </div>
+
+                    <div class="card mt-3">
+                        <h4>Key Talking Points for Staff Level</h4>
+                        <ul>
+                            <li><strong>Classical ML + GenAI unification:</strong> "Anomaly detection models feed alerts into the agent pipeline. The ML model detects, the agent reasons."</li>
+                            <li><strong>Progressive trust model:</strong> "Start read-only (Phase 1: diagnosis assistance). Then suggest actions (Phase 2). Then auto-execute low-risk (Phase 3). Full automation is Phase 4, only after months of data."</li>
+                            <li><strong>Measurable outcomes:</strong> "Success metric is MTTR reduction, not AI accuracy. If MTTR drops from 45 min to 12 min with 80% diagnosis accuracy, that's a win."</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-between mt-4">
+                <a href="../module-06.html" class="btn btn-secondary">&larr; Back to Problems Hub</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+    <script>
+        const sidebar = document.getElementById('sd-sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        }
+    </script>
+    <script src="../sidebar.js"></script>
+    <script src="../../assets/js/navbar.js"></script>
+</body>
+</html>

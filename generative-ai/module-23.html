@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 23: AI Agents for Production Operations - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .ops-hero {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            color: white;
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .ops-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .ops-stat {
+            background: rgba(255,255,255,0.07);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .ops-stat .value {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .ops-stat .label {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.65);
+            margin-top: 0.3rem;
+        }
+        .integration-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        .integration-card h5 { color: #4facfe; margin-bottom: 0.5rem; }
+        .severity-p1 { color: #f87171; font-weight: 700; }
+        .severity-p2 { color: #fbbf24; font-weight: 700; }
+        .severity-p3 { color: #34d399; font-weight: 700; }
+        .timeline-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin: 1rem 0;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border-radius: 0.5rem;
+            border-left: 3px solid #4facfe;
+        }
+        .timeline-step .step-num {
+            background: #4facfe;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .flashcard { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0; }
+        .flashcard .fc-q { font-weight: 600; color: #8b5cf6; margin-bottom: 0.5rem; }
+        .flashcard .fc-a { color: var(--text-secondary); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 23: AI Agents for Production Operations</h1>
+            <p class="text-muted">Automated Diagnostics, Remediation, Change Orchestration, and Incident Summarization</p>
+
+            <div class="card mt-3">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Connect AI agents to production tools (PagerDuty, Splunk, Grafana, ServiceNow)</li>
+                    <li>Build automated diagnostic pipelines: log analysis, metric correlation, root cause identification</li>
+                    <li>Implement safe remediation with approval gates, staged rollouts, and rollback triggers</li>
+                    <li>Design change orchestration workflows for agent-initiated production changes</li>
+                    <li>Generate post-incident summaries with timeline reconstruction and action items</li>
+                    <li>Understand the end-to-end flow: alert &rarr; diagnose &rarr; remediate &rarr; summarize</li>
+                </ul>
+            </div>
+
+            <div class="ops-hero">
+                <h3 style="color: white; margin-bottom: 1rem;">The Production Ops AI Landscape</h3>
+                <p>Production teams handle thousands of alerts daily. Most follow known patterns. AI agents can automate triage, diagnosis, and remediation for these patterns &mdash; freeing humans for novel incidents.</p>
+                <div class="ops-stat-grid">
+                    <div class="ops-stat">
+                        <div class="value">70%</div>
+                        <div class="label">Incidents follow known patterns</div>
+                    </div>
+                    <div class="ops-stat">
+                        <div class="value">45min</div>
+                        <div class="label">Avg MTTR before AI</div>
+                    </div>
+                    <div class="ops-stat">
+                        <div class="value">12min</div>
+                        <div class="label">Avg MTTR with AI assist</div>
+                    </div>
+                    <div class="ops-stat">
+                        <div class="value">85%</div>
+                        <div class="label">Alert noise (non-actionable)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 1: PRODUCTION RUNTIME INTEGRATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">1. Production Runtime Integration</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Integration Is the Hard Part</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(79, 172, 254, 0.1), rgba(0, 242, 254, 0.1)); border-left: 4px solid #4facfe;">
+                        <h4>The Real Challenge</h4>
+                        <p>Building an LLM agent is easy. Connecting it to production systems safely is hard. Every integration needs:</p>
+                        <ul>
+                            <li><strong>Authentication:</strong> Scoped API keys, service accounts, OAuth tokens</li>
+                            <li><strong>Rate limiting:</strong> Don't DDoS your own monitoring systems</li>
+                            <li><strong>Error handling:</strong> Graceful degradation when an API is down</li>
+                            <li><strong>Data filtering:</strong> Don't send sensitive data (PII, credentials) to LLM providers</li>
+                        </ul>
+                    </div>
+
+                    <h4 class="mt-3">Integration Architecture</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Alert Sources"
+        PD[PagerDuty]
+        DD[Datadog]
+        GF[Grafana]
+    end
+    subgraph "AI Agent Platform"
+        Ingest[Alert Ingestion]
+        Triage[Triage Agent]
+        Diag[Diagnostic Agent]
+        Remed[Remediation Agent]
+        Summary[Summary Agent]
+    end
+    subgraph "Production Tools"
+        Splunk[Splunk / ELK]
+        Metrics[Prometheus / Grafana]
+        CMDB[CMDB / Service Catalog]
+        K8s[Kubernetes API]
+        Jenkins[Jenkins / ArgoCD]
+        SN[ServiceNow]
+    end
+    subgraph "Safety Layer"
+        Approval[Approval Service]
+        Audit[Audit Log]
+        CB[Circuit Breaker]
+    end
+
+    PD --> Ingest
+    DD --> Ingest
+    GF --> Ingest
+    Ingest --> Triage
+    Triage --> Diag
+    Diag --> Splunk
+    Diag --> Metrics
+    Diag --> CMDB
+    Diag --> Remed
+    Remed --> Approval
+    Approval --> K8s
+    Approval --> Jenkins
+    Remed --> Summary
+    Summary --> SN
+    Remed --> Audit
+    CB --> Remed
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Tool Implementations (MCP / Function Calling)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Each production system becomes a tool the agent can call. Use MCP servers or OpenAI function-calling format:</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Production tool implementations for AI agents."""
+import httpx
+from datetime import datetime, timedelta
+from typing import Optional
+
+
+class PagerDutyTool:
+    """Agent tool for PagerDuty alert management."""
+
+    def __init__(self, api_key: str, base_url: str = "https://api.pagerduty.com"):
+        self.client = httpx.AsyncClient(
+            base_url=base_url,
+            headers={"Authorization": f"Token token={api_key}",
+                     "Content-Type": "application/json"},
+            timeout=10.0,
+        )
+
+    async def get_incident(self, incident_id: str) -&gt; dict:
+        """Fetch incident details including timeline and assignments."""
+        resp = await self.client.get(f"/incidents/{incident_id}")
+        resp.raise_for_status()
+        incident = resp.json()["incident"]
+        return {
+            "id": incident["id"],
+            "title": incident["title"],
+            "status": incident["status"],
+            "urgency": incident["urgency"],
+            "service": incident["service"]["summary"],
+            "created_at": incident["created_at"],
+            "assignments": [a["assignee"]["summary"] for a in incident.get("assignments", [])],
+            "alert_count": incident.get("alert_counts", {}).get("all", 0),
+        }
+
+    async def get_recent_alerts(self, service_id: str, since_minutes: int = 30) -&gt; list:
+        """Get recent alerts for a service."""
+        since = (datetime.utcnow() - timedelta(minutes=since_minutes)).isoformat() + "Z"
+        resp = await self.client.get("/alerts", params={
+            "service_ids[]": service_id, "since": since, "sort_by": "created_at:desc"
+        })
+        resp.raise_for_status()
+        return [{"id": a["id"], "summary": a["summary"], "severity": a["severity"]["value"],
+                 "created_at": a["created_at"]}
+                for a in resp.json().get("alerts", [])]
+
+    async def acknowledge_incident(self, incident_id: str, agent_id: str) -&gt; dict:
+        """Acknowledge an incident (agent takes ownership)."""
+        resp = await self.client.put(f"/incidents/{incident_id}", json={
+            "incident": {"type": "incident_reference", "status": "acknowledged"}
+        })
+        resp.raise_for_status()
+        return {"status": "acknowledged", "by": agent_id}
+
+
+class SplunkTool:
+    """Agent tool for querying Splunk logs."""
+
+    def __init__(self, base_url: str, token: str):
+        self.client = httpx.AsyncClient(
+            base_url=base_url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=30.0,
+        )
+
+    async def search_logs(self, query: str, earliest: str = "-15m",
+                          latest: str = "now", max_results: int = 100) -&gt; dict:
+        """Execute a Splunk search and return results."""
+        search_query = f"search {query} | head {max_results}"
+        resp = await self.client.post("/services/search/jobs", data={
+            "search": search_query,
+            "earliest_time": earliest,
+            "latest_time": latest,
+            "output_mode": "json",
+            "exec_mode": "oneshot",
+        })
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        return {
+            "query": query,
+            "result_count": len(results),
+            "results": results[:max_results],
+            "time_range": f"{earliest} to {latest}",
+        }
+
+    async def get_error_summary(self, service: str, minutes: int = 15) -&gt; dict:
+        """Get error log summary for a service."""
+        query = f'index=production service="{service}" level=ERROR | stats count by message | sort -count'
+        return await self.search_logs(query, earliest=f"-{minutes}m")
+
+
+class GrafanaTool:
+    """Agent tool for querying Grafana metrics."""
+
+    def __init__(self, base_url: str, api_key: str):
+        self.client = httpx.AsyncClient(
+            base_url=base_url,
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=15.0,
+        )
+
+    async def query_metric(self, query: str, start: str = "now-15m",
+                           end: str = "now", step: str = "30s") -&gt; dict:
+        """Query a Prometheus metric via Grafana proxy."""
+        resp = await self.client.get("/api/datasources/proxy/1/api/v1/query_range", params={
+            "query": query, "start": start, "end": end, "step": step,
+        })
+        resp.raise_for_status()
+        data = resp.json()["data"]["result"]
+        return {
+            "query": query,
+            "series_count": len(data),
+            "data": [{
+                "labels": series["metric"],
+                "values": [(ts, float(val)) for ts, val in series["values"][-10:]],
+            } for series in data[:5]],
+        }
+
+    async def get_service_health(self, service: str) -&gt; dict:
+        """Get key health metrics for a service."""
+        metrics = {}
+        for name, query in [
+            ("error_rate", f'rate(http_requests_total{{service="{service}",status=~"5.."}}[5m])'),
+            ("latency_p99", f'histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{{service="{service}"}}[5m]))'),
+            ("cpu_usage", f'rate(container_cpu_usage_seconds_total{{pod=~"{service}.*"}}[5m])'),
+            ("memory_usage", f'container_memory_usage_bytes{{pod=~"{service}.*"}}'),
+        ]:
+            try:
+                result = await self.query_metric(query)
+                if result["data"]:
+                    latest_value = result["data"][0]["values"][-1][1] if result["data"][0]["values"] else None
+                    metrics[name] = latest_value
+            except Exception:
+                metrics[name] = None
+        return {"service": service, "metrics": metrics}
+
+
+# Register tools for OpenAI function calling format
+PRODUCTION_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_logs",
+            "description": "Search production logs in Splunk for a service. Use to find error patterns, stack traces, and anomalies.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Splunk search query"},
+                    "service": {"type": "string", "description": "Service name to search"},
+                    "minutes": {"type": "integer", "description": "Look back N minutes", "default": 15},
+                },
+                "required": ["query", "service"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_service_health",
+            "description": "Get current health metrics (error rate, latency, CPU, memory) for a service from Grafana.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "service": {"type": "string", "description": "Service name"},
+                },
+                "required": ["service"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_incident",
+            "description": "Get PagerDuty incident details including timeline, assignments, and alert count.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "incident_id": {"type": "string", "description": "PagerDuty incident ID"},
+                },
+                "required": ["incident_id"],
+            },
+        },
+    },
+]</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 2: AUTOMATED DIAGNOSTICS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">2. Automated Diagnostics</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Diagnostic Agent Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A diagnostic agent follows a structured investigation workflow, similar to how an experienced SRE would triage an incident:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant Alert as PagerDuty Alert
+    participant Triage as Triage Agent
+    participant Log as Log Analysis Agent
+    participant Metric as Metric Correlation Agent
+    participant Diag as Diagnosis Synthesizer
+    participant State as Shared State
+
+    Alert->>Triage: New P1 alert: "High error rate on auth-service"
+    Triage->>State: Write: severity=P1, service=auth-service
+    Triage->>Triage: Classify: latency? error? resource? deployment?
+
+    par Parallel Investigation
+        Triage->>Log: Analyze error logs for auth-service (last 15m)
+        Triage->>Metric: Check CPU, memory, latency, error rate
+    end
+
+    Log->>State: Write: error_pattern="OOM in token-validator", count=2847
+    Metric->>State: Write: memory=95%, cpu=45%, latency_p99=12s
+
+    Diag->>State: Read all findings
+    Diag->>Diag: Correlate: OOM errors + 95% memory = memory leak
+    Diag->>State: Write: root_cause="memory leak in token-validator"
+    Diag->>State: Write: confidence=0.87, evidence=[logs, metrics]
+                        </div>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">"""Diagnostic Agent: investigates production incidents."""
+import asyncio
+import json
+from dataclasses import dataclass, field
+from typing import Optional
+from openai import AsyncOpenAI
+
+
+@dataclass
+class DiagnosticResult:
+    root_cause: str
+    confidence: float
+    evidence: list[dict]
+    suggested_remediation: str
+    affected_services: list[str]
+    timeline: list[dict]
+
+
+class DiagnosticAgent:
+    """Diagnoses production incidents using logs, metrics, and service topology."""
+
+    def __init__(self, splunk: 'SplunkTool', grafana: 'GrafanaTool', llm_client: AsyncOpenAI):
+        self.splunk = splunk
+        self.grafana = grafana
+        self.llm = llm_client
+        self.system_prompt = """You are a production diagnostics agent. Given an alert and
+investigation data (logs, metrics, service topology), identify the root cause.
+
+Rules:
+1. Always cite specific evidence (log lines, metric values, timestamps)
+2. Assign a confidence score (0.0-1.0) based on evidence strength
+3. If confidence < 0.6, explicitly say "insufficient evidence, recommend human investigation"
+4. Never guess without evidence - say "unknown" rather than speculate
+5. Consider common patterns: memory leaks, deployment regressions, dependency failures,
+   configuration changes, traffic spikes, certificate expiry
+
+Output JSON:
+{
+    "root_cause": "description of root cause",
+    "confidence": 0.85,
+    "evidence": [{"source": "logs|metrics|topology", "detail": "..."}],
+    "suggested_remediation": "recommended fix",
+    "affected_services": ["service1", "service2"]
+}"""
+
+    async def investigate(self, alert: dict) -&gt; DiagnosticResult:
+        """Run a full diagnostic investigation for an alert."""
+        service = alert["service"]
+        timeline = [{"ts": alert["created_at"], "event": f"Alert: {alert['title']}"}]
+
+        # Phase 1: Parallel data gathering
+        log_task = asyncio.create_task(self._gather_logs(service))
+        metric_task = asyncio.create_task(self._gather_metrics(service))
+
+        try:
+            logs, metrics = await asyncio.wait_for(
+                asyncio.gather(log_task, metric_task, return_exceptions=True),
+                timeout=10.0,  # 10s budget for data gathering
+            )
+        except asyncio.TimeoutError:
+            logs = {"error": "log query timed out"}
+            metrics = {"error": "metric query timed out"}
+
+        timeline.append({"ts": "now", "event": "Data gathering complete"})
+
+        # Phase 2: LLM-powered diagnosis
+        diagnosis_prompt = f"""Investigate this production alert:
+
+Alert: {json.dumps(alert, indent=2)}
+
+Log Analysis Results:
+{json.dumps(logs, indent=2)}
+
+Metric Analysis Results:
+{json.dumps(metrics, indent=2)}
+
+Identify the root cause with evidence."""
+
+        response = await self.llm.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": diagnosis_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,  # Low temperature for factual analysis
+        )
+
+        result = json.loads(response.choices[0].message.content)
+        timeline.append({"ts": "now", "event": f"Diagnosis: {result['root_cause']}"})
+
+        return DiagnosticResult(
+            root_cause=result["root_cause"],
+            confidence=result["confidence"],
+            evidence=result["evidence"],
+            suggested_remediation=result["suggested_remediation"],
+            affected_services=result.get("affected_services", [service]),
+            timeline=timeline,
+        )
+
+    async def _gather_logs(self, service: str) -&gt; dict:
+        """Gather and summarize error logs."""
+        errors = await self.splunk.get_error_summary(service, minutes=15)
+        recent = await self.splunk.search_logs(
+            f'service="{service}" level=ERROR', earliest="-5m", max_results=20
+        )
+        return {"error_summary": errors, "recent_errors": recent}
+
+    async def _gather_metrics(self, service: str) -&gt; dict:
+        """Gather key health metrics."""
+        return await self.grafana.get_service_health(service)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Log Analysis Patterns</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What the Log Analysis Agent Looks For</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pattern</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Indicators</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Common Root Cause</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Error spike</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10x increase in ERROR logs in 5 min</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bad deployment, config change, dependency failure</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OOM pattern</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"OutOfMemoryError", "OOMKilled", memory growth in metrics</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory leak, undersized containers, cache bloat</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Timeout cascade</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multiple services showing timeout errors simultaneously</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Downstream dependency failure, network issue</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Connection exhaustion</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"connection pool exhausted", "too many connections"</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DB connection leak, missing pool limits</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deployment correlation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Errors start exactly when deployment completed</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Code regression, missing env var, config mismatch</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 3: AUTOMATED REMEDIATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">3. Automated Remediation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Safe Remediation Patterns</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                        <h4>The Cardinal Rule</h4>
+                        <p><strong>An agent that makes things worse is worse than no agent at all.</strong> Every remediation action must have: a dry-run mode, an approval gate (for high-severity), a blast-radius limit, and an automatic rollback trigger.</p>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">"""Remediation Agent with safety controls."""
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional, Callable
+import asyncio
+
+
+class RiskLevel(Enum):
+    LOW = "low"          # Read-only, info gathering
+    MEDIUM = "medium"    # Restart pods, clear cache
+    HIGH = "high"        # Scale infra, modify config
+    CRITICAL = "critical"  # Rollback deployment, failover
+
+
+class ApprovalStatus(Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+    TIMED_OUT = "timed_out"
+    AUTO_APPROVED = "auto_approved"
+
+
+@dataclass
+class RemediationAction:
+    name: str
+    description: str
+    risk_level: RiskLevel
+    execute_fn: Callable
+    rollback_fn: Optional[Callable] = None
+    dry_run_fn: Optional[Callable] = None
+    blast_radius: str = "single-pod"  # single-pod, single-service, multi-service, cluster
+
+
+class RemediationAgent:
+    """Executes remediation actions with safety controls."""
+
+    APPROVAL_REQUIRED = {RiskLevel.HIGH, RiskLevel.CRITICAL}
+    AUTO_APPROVE_TIMEOUT = 300  # 5 minutes
+
+    def __init__(self, approval_service, audit_logger, circuit_breaker):
+        self.approval = approval_service
+        self.audit = audit_logger
+        self.circuit_breaker = circuit_breaker
+
+    async def execute(self, action: RemediationAction, incident_id: str,
+                      diagnosis: 'DiagnosticResult') -&gt; dict:
+        """Execute a remediation action with full safety pipeline."""
+
+        # Step 0: Circuit breaker check
+        if not self.circuit_breaker.is_healthy(action.name):
+            self.audit.log(incident_id, "blocked", f"Circuit breaker open for {action.name}")
+            return {"status": "blocked", "reason": "circuit_breaker_open"}
+
+        # Step 1: Dry run
+        if action.dry_run_fn:
+            dry_result = await action.dry_run_fn()
+            self.audit.log(incident_id, "dry_run", str(dry_result))
+            if dry_result.get("would_fail"):
+                return {"status": "aborted", "reason": "dry_run_failed", "detail": dry_result}
+
+        # Step 2: Approval gate
+        if action.risk_level in self.APPROVAL_REQUIRED:
+            approval = await self._request_approval(action, incident_id, diagnosis)
+            if approval != ApprovalStatus.APPROVED:
+                self.audit.log(incident_id, "approval_denied", approval.value)
+                return {"status": "approval_denied", "approval": approval.value}
+
+        # Step 3: Execute with monitoring
+        self.audit.log(incident_id, "executing", action.description)
+        try:
+            result = await asyncio.wait_for(action.execute_fn(), timeout=60.0)
+            self.audit.log(incident_id, "executed", str(result))
+
+            # Step 4: Verify remediation worked
+            verification = await self._verify_remediation(action, incident_id)
+            if not verification["healthy"]:
+                # Auto-rollback if verification fails
+                if action.rollback_fn:
+                    self.audit.log(incident_id, "rolling_back", "Verification failed")
+                    await action.rollback_fn()
+                    self.circuit_breaker.record_failure(action.name)
+                    return {"status": "rolled_back", "reason": "verification_failed"}
+
+            self.circuit_breaker.record_success(action.name)
+            return {"status": "success", "result": result, "verification": verification}
+
+        except asyncio.TimeoutError:
+            self.audit.log(incident_id, "timeout", f"{action.name} timed out after 60s")
+            self.circuit_breaker.record_failure(action.name)
+            return {"status": "timeout"}
+
+        except Exception as e:
+            self.audit.log(incident_id, "error", str(e))
+            self.circuit_breaker.record_failure(action.name)
+            if action.rollback_fn:
+                await action.rollback_fn()
+            return {"status": "error", "error": str(e)}
+
+    async def _request_approval(self, action, incident_id, diagnosis) -&gt; ApprovalStatus:
+        """Request human approval for high-risk actions."""
+        request = {
+            "incident_id": incident_id,
+            "action": action.name,
+            "risk_level": action.risk_level.value,
+            "blast_radius": action.blast_radius,
+            "description": action.description,
+            "diagnosis_confidence": diagnosis.confidence,
+            "root_cause": diagnosis.root_cause,
+        }
+        return await self.approval.request(request, timeout=self.AUTO_APPROVE_TIMEOUT)
+
+    async def _verify_remediation(self, action, incident_id) -&gt; dict:
+        """Check if remediation resolved the issue (wait, then re-check metrics)."""
+        await asyncio.sleep(30)  # Wait 30s for metrics to settle
+        # Re-check the health metrics that triggered the alert
+        return {"healthy": True, "check": "metrics_improved"}
+
+
+# Common remediation actions
+REMEDIATION_CATALOG = {
+    "restart_pods": RemediationAction(
+        name="restart_pods",
+        description="Rolling restart of pods for the affected service",
+        risk_level=RiskLevel.MEDIUM,
+        execute_fn=lambda: k8s_rolling_restart("auth-service"),
+        rollback_fn=None,  # Restart is idempotent
+        blast_radius="single-service",
+    ),
+    "scale_up": RemediationAction(
+        name="scale_up",
+        description="Scale service from current replica count to +50%",
+        risk_level=RiskLevel.MEDIUM,
+        execute_fn=lambda: k8s_scale("auth-service", replicas=6),
+        rollback_fn=lambda: k8s_scale("auth-service", replicas=4),
+        blast_radius="single-service",
+    ),
+    "rollback_deployment": RemediationAction(
+        name="rollback_deployment",
+        description="Rollback to previous known-good deployment",
+        risk_level=RiskLevel.HIGH,
+        execute_fn=lambda: k8s_rollback("auth-service"),
+        rollback_fn=None,
+        blast_radius="single-service",
+    ),
+    "clear_cache": RemediationAction(
+        name="clear_cache",
+        description="Flush Redis cache for the affected service",
+        risk_level=RiskLevel.MEDIUM,
+        execute_fn=lambda: redis_flush("auth-service-cache"),
+        rollback_fn=None,
+        blast_radius="single-service",
+    ),
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 4: CHANGE ORCHESTRATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">4. Change Orchestration</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Approval Workflows &amp; Staged Rollouts</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Risk-Based Approval Routing</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    Action[Agent Proposes Action] --> Risk{Risk Assessment}
+    Risk -->|LOW: read-only| Auto[Auto-Execute]
+    Risk -->|MEDIUM: restart/scale| Team[Team Lead Approval]
+    Risk -->|HIGH: rollback/config| Manager[Manager + SRE Lead]
+    Risk -->|CRITICAL: failover| VP[VP Approval + War Room]
+
+    Team -->|Approved| Canary[Canary Deploy 5%]
+    Manager -->|Approved| Canary
+    VP -->|Approved| Canary
+
+    Canary --> Monitor{Monitor 5 min}
+    Monitor -->|Healthy| Expand[Expand to 25%]
+    Monitor -->|Degraded| Rollback[Auto-Rollback]
+
+    Expand --> Monitor2{Monitor 5 min}
+    Monitor2 -->|Healthy| Full[Full Rollout]
+    Monitor2 -->|Degraded| Rollback
+                        </div>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">"""Change orchestration with staged rollout."""
+
+
+class ChangeOrchestrator:
+    """Manages staged rollout of agent-initiated changes."""
+
+    STAGES = [
+        {"name": "canary", "percentage": 5, "duration_sec": 300},
+        {"name": "partial", "percentage": 25, "duration_sec": 300},
+        {"name": "majority", "percentage": 75, "duration_sec": 180},
+        {"name": "full", "percentage": 100, "duration_sec": 0},
+    ]
+
+    def __init__(self, deployer, monitor, audit_logger):
+        self.deployer = deployer
+        self.monitor = monitor
+        self.audit = audit_logger
+
+    async def staged_rollout(self, change: dict, incident_id: str) -&gt; dict:
+        """Execute a change through progressive stages with automatic rollback."""
+        baseline_metrics = await self.monitor.snapshot(change["service"])
+
+        for stage in self.STAGES:
+            self.audit.log(incident_id, "stage_start",
+                           f"{stage['name']}: {stage['percentage']}%")
+
+            # Apply change to percentage of traffic/pods
+            await self.deployer.apply(change, percentage=stage["percentage"])
+
+            if stage["duration_sec"] == 0:
+                break  # Final stage, no monitoring needed
+
+            # Monitor for degradation
+            degraded = await self._monitor_stage(
+                change["service"], baseline_metrics, stage["duration_sec"]
+            )
+
+            if degraded:
+                self.audit.log(incident_id, "rollback",
+                               f"Degradation detected at {stage['name']} stage")
+                await self.deployer.rollback(change)
+                return {
+                    "status": "rolled_back",
+                    "failed_stage": stage["name"],
+                    "reason": degraded,
+                }
+
+            self.audit.log(incident_id, "stage_passed", stage["name"])
+
+        return {"status": "completed", "stages_passed": len(self.STAGES)}
+
+    async def _monitor_stage(self, service: str, baseline: dict,
+                              duration_sec: int) -&gt; Optional[str]:
+        """Monitor service health during a rollout stage."""
+        check_interval = 30  # Check every 30 seconds
+        checks = duration_sec // check_interval
+
+        for _ in range(checks):
+            await asyncio.sleep(check_interval)
+            current = await self.monitor.snapshot(service)
+
+            # Compare against baseline with thresholds
+            if current["error_rate"] &gt; baseline["error_rate"] * 2:
+                return f"Error rate doubled: {current['error_rate']:.2%} vs baseline {baseline['error_rate']:.2%}"
+            if current["latency_p99"] &gt; baseline["latency_p99"] * 1.5:
+                return f"P99 latency 1.5x: {current['latency_p99']:.0f}ms vs baseline {baseline['latency_p99']:.0f}ms"
+
+        return None  # No degradation detected</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 5: POST-INCIDENT SUMMARIZATION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">5. Post-Incident Summarization</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Automated Incident Reports</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>After remediation, the summary agent generates a structured post-incident report from raw data:</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Post-incident summarization agent."""
+
+
+class IncidentSummarizer:
+    """Generates structured post-incident reports."""
+
+    SUMMARY_PROMPT = """Generate a post-incident summary from the following data.
+
+Format as:
+## Incident Summary
+- **Service:** ...
+- **Duration:** ...
+- **Severity:** ...
+- **Impact:** ...
+
+## Timeline
+| Time | Event |
+|------|-------|
+| ... | ... |
+
+## Root Cause
+[2-3 sentences explaining the root cause with evidence]
+
+## Remediation
+[What was done to fix it]
+
+## Action Items
+- [ ] [Preventive action 1]
+- [ ] [Preventive action 2]
+- [ ] [Preventive action 3]
+
+## Lessons Learned
+[What we should do differently next time]
+
+Be factual. Cite specific metrics and timestamps. No speculation."""
+
+    def __init__(self, llm_client):
+        self.llm = llm_client
+
+    async def summarize(self, incident_data: dict) -&gt; str:
+        """Generate post-incident summary from collected data."""
+        context = f"""Incident Data:
+Alert: {json.dumps(incident_data.get('alert', {}), indent=2)}
+
+Diagnostic Findings:
+- Root cause: {incident_data.get('diagnosis', {}).get('root_cause', 'Unknown')}
+- Confidence: {incident_data.get('diagnosis', {}).get('confidence', 0)}
+- Evidence: {json.dumps(incident_data.get('diagnosis', {}).get('evidence', []), indent=2)}
+
+Remediation Actions:
+{json.dumps(incident_data.get('remediation_log', []), indent=2)}
+
+Timeline:
+{json.dumps(incident_data.get('timeline', []), indent=2)}
+
+Metrics Before: {json.dumps(incident_data.get('metrics_before', {}), indent=2)}
+Metrics After: {json.dumps(incident_data.get('metrics_after', {}), indent=2)}"""
+
+        response = await self.llm.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": self.SUMMARY_PROMPT},
+                {"role": "user", "content": context},
+            ],
+            temperature=0.2,
+        )
+        return response.choices[0].message.content</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 6: END-TO-END CASE STUDY -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">6. End-to-End Case Study</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full Pipeline: Alert &rarr; Diagnose &rarr; Remediate &rarr; Summarize</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.1)); border-left: 4px solid #11998e;">
+                        <h4>Scenario: Auth-Service Memory Leak</h4>
+                        <p><strong>3:42 AM:</strong> PagerDuty fires P1 alert: "auth-service error rate &gt; 5%, latency P99 &gt; 10s"</p>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">1</div>
+                        <div>
+                            <strong>Triage Agent (3s)</strong>
+                            <p>Classifies alert: severity=P1, category=error+latency, service=auth-service. Checks: is this a known pattern? Similar to past OOM incidents (85% match).</p>
+                        </div>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">2</div>
+                        <div>
+                            <strong>Parallel Data Gathering (5s)</strong>
+                            <p>Log Agent queries Splunk: finds 2,847 OOMKilled errors in last 15 min, all from token-validator pod. Metric Agent queries Grafana: memory at 95%, CPU at 45%, latency P99 at 12s.</p>
+                        </div>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">3</div>
+                        <div>
+                            <strong>Diagnosis Agent (8s)</strong>
+                            <p>Correlates findings: OOM errors + high memory + normal CPU = memory leak (not traffic spike). Checks deployment history: new version deployed 2 hours ago. Confidence: 0.87.</p>
+                        </div>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">4</div>
+                        <div>
+                            <strong>Remediation Agent (2s + approval wait)</strong>
+                            <p>Proposes: rollback to previous deployment (risk=HIGH). Dry run passes. Sends approval request to on-call SRE via Slack. SRE approves in 45 seconds.</p>
+                        </div>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">5</div>
+                        <div>
+                            <strong>Staged Rollout (5 min)</strong>
+                            <p>Canary rollback (5% of pods): error rate drops. Expand to 25%, then 100%. Memory drops to 40%. Error rate returns to baseline.</p>
+                        </div>
+                    </div>
+
+                    <div class="timeline-step">
+                        <div class="step-num">6</div>
+                        <div>
+                            <strong>Summary Agent (10s)</strong>
+                            <p>Generates post-incident report with timeline, root cause ("memory leak in token-validator introduced in v2.3.1"), remediation steps, and action items. Posts to ServiceNow and Slack.</p>
+                        </div>
+                    </div>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Total time: ~7 minutes</strong> (vs. 45 min average without AI). On-call SRE spent 45 seconds on approval instead of 45 minutes debugging.
+                    </div>
+
+                    <div class="diagram-container mt-3">
+                        <div class="mermaid">
+sequenceDiagram
+    participant PD as PagerDuty
+    participant T as Triage
+    participant L as Log Agent
+    participant M as Metric Agent
+    participant D as Diagnosis
+    participant R as Remediation
+    participant SRE as On-Call SRE
+    participant K8s as Kubernetes
+    participant S as Summary
+
+    PD->>T: P1: auth-service error rate > 5%
+    Note over T: 3s - Classify & match patterns
+
+    par Parallel (5s)
+        T->>L: Query error logs
+        T->>M: Query metrics
+    end
+
+    L-->>D: 2847 OOM errors in token-validator
+    M-->>D: Memory 95%, CPU 45%
+
+    Note over D: 8s - Correlate & diagnose
+    D-->>R: Root cause: memory leak (conf: 0.87)
+
+    R->>SRE: Approve rollback? (risk: HIGH)
+    SRE-->>R: Approved (45s)
+
+    R->>K8s: Rolling rollback to v2.3.0
+    Note over K8s: 5 min staged rollout
+
+    K8s-->>R: Rollback complete, metrics healthy
+    R->>S: Generate incident report
+    S-->>PD: Post summary, resolve incident
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 7: PRODUCTION CONSIDERATIONS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">7. Production Considerations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Making It Real: What Breaks in Production</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Failure Modes and Mitigations</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure Mode</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM provider is down</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent can't diagnose</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rule-based fallback: pattern matching on known incident types. Route to human immediately.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wrong diagnosis</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wrong remediation applied</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Confidence threshold (block &lt; 0.6). Staged rollout catches bad fixes. Auto-rollback on degradation.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Remediation makes it worse</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extended outage</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Canary stage catches this. Auto-rollback if metrics degrade. Circuit breaker disables that remediation type.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Circular alerts</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent action triggers new alert &rarr; agent loops</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dedup window: ignore alerts for same service within 10 min of agent action. Max actions per incident.</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Splunk/Grafana timeout</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Incomplete investigation</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Proceed with partial data + lower confidence. Note which data sources failed in the diagnosis.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">The Agent Must Be More Reliable Than What It Monitors</h4>
+                    <div class="card" style="border-left: 4px solid #ef4444; background: var(--error-bg);">
+                        <ul>
+                            <li><strong>Separate infrastructure:</strong> Agent platform runs on different cluster/cloud than production services</li>
+                            <li><strong>No shared dependencies:</strong> If the database is down, the agent shouldn't also be down</li>
+                            <li><strong>Graceful degradation:</strong> If AI is unavailable, system should still function as a dashboard/alert router</li>
+                            <li><strong>Self-monitoring:</strong> The agent platform has its own health checks and alerts (monitored by humans, not by itself)</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 8: INTERVIEW PREP -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">8. Interview Prep</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Common Interview Questions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <h4>"How would you design an AI agent that can safely restart production services?"</h4>
+                        <p><strong>What they're looking for:</strong> Safety-first thinking. You should discuss: scoped permissions (agent can only restart specific services), dry-run mode, approval gates for high-risk actions, staged rollout (canary first), automatic rollback on degradation, circuit breaker to disable agent if too many failures, and immutable audit trail.</p>
+                        <p><strong>Red flag:</strong> Jumping straight to the LLM prompt without discussing safety controls.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>"How do you ensure an AI diagnostic agent gives the right root cause?"</h4>
+                        <p><strong>Key points:</strong> Confidence scoring with thresholds, evidence-based diagnosis (cite specific logs/metrics), validation against known patterns, human escalation when confidence is low, feedback loop from resolution outcomes to improve future diagnoses.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>"What happens when the LLM hallucinates during incident response?"</h4>
+                        <p><strong>Answer framework:</strong> Multiple defense layers: (1) structured output validation (JSON schema), (2) evidence verification (does the cited log line actually exist?), (3) confidence thresholds, (4) staged execution (wrong diagnosis caught during canary), (5) deterministic fallback for known patterns, (6) human-in-the-loop for anything above medium risk.</p>
+                    </div>
+
+                    <div class="card mt-2">
+                        <h4>"How do you handle the chicken-and-egg problem of the agent platform itself having an outage?"</h4>
+                        <p><strong>Answer:</strong> Infrastructure separation (different cluster/region), no shared dependencies with monitored services, graceful degradation to manual workflow, self-monitoring with human-only alerting for the agent platform itself. The agent platform should have a higher availability SLO than any service it monitors.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 9: FLASHCARDS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">9. Flashcard Suggestions</h2>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What are the four safety controls every agent remediation action must have?</div>
+                <div class="fc-a">A: (1) Dry-run mode to test without executing, (2) Approval gate for high-risk actions, (3) Blast-radius limit (scope to single service/pod), (4) Automatic rollback trigger if metrics degrade after execution.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What is a circular alert and how do you prevent it?</div>
+                <div class="fc-a">A: When an agent's remediation action triggers a new alert, which triggers the agent again, creating an infinite loop. Prevent with: dedup window (ignore alerts for same service within N minutes of agent action), max actions per incident limit, and circuit breaker on repeated failures.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: Why must the agent platform be on separate infrastructure from monitored services?</div>
+                <div class="fc-a">A: If they share infrastructure, the same failure that triggers the alert can also take down the agent. Example: if a database outage causes the incident and the agent's state store is on the same database, the agent can't function. The agent must be more reliable than what it monitors.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What is the SLO budget breakdown for an agent diagnostic pipeline?</div>
+                <div class="fc-a">A: Triage: 3s (small model, cached patterns). Data gathering: 5s (parallel tool calls). Diagnosis: 10s (streaming, semantic cache). Remediation plan: 5s (template + LLM fill). Total: 30s SLO with 7s buffer for retries.</div>
+            </div>
+
+            <div class="flashcard">
+                <div class="fc-q">Q: What determines whether an agent action needs human approval?</div>
+                <div class="fc-a">A: Risk level and blast radius. LOW risk (read-only): auto-execute. MEDIUM (restart pods, clear cache): team lead approval. HIGH (rollback deployment, config change): manager + SRE lead. CRITICAL (failover, data migration): VP approval + war room. Also consider diagnosis confidence: if &lt; 0.85, escalate regardless of risk level.</div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 10: QUIZ -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">10. Quiz</h2>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">1. An agent diagnoses a memory leak with 0.72 confidence and proposes a rolling restart (MEDIUM risk). Should it auto-execute?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> It depends on your confidence threshold policy. With 0.72 confidence, most production systems would require human review (typical auto-execute threshold is 0.85). Even though MEDIUM risk normally allows team-lead approval, the low confidence should escalate the decision. Best practice: present the diagnosis and proposed action to the on-call engineer with the evidence, let them decide.</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">2. Your agent successfully restarts pods to fix an OOM issue, but the same alert fires again 20 minutes later. What went wrong and what should the agent do?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> The restart treated the symptom (OOM), not the root cause (memory leak). The agent should: (1) recognize this is a recurring pattern (same alert, same service, recent remediation), (2) escalate to a different remediation strategy (rollback deployment instead of restart), (3) if it already tried rollback, escalate to human with full context. The circuit breaker should track that "restart_pods" failed for this service, preventing the same ineffective action.</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">3. During a canary rollback at 5%, you notice error rate dropped for the canary pods but overall service error rate is unchanged. Why?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> The remaining 95% of pods are still on the bad version. The canary result is actually positive &mdash; it confirms the rollback helps. The staged rollout should proceed to the next stage (25%). If at 25% the overall error rate starts dropping proportionally, that's strong confirmation. If overall metrics don't improve even at 25%, the root cause may not be the deployment.</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">4. Why should you use parallel tool calls for data gathering instead of sequential?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> Under a 30s SLO, sequential calls to Splunk (2s) + Grafana (1.5s) + CMDB (0.5s) = 4s. In parallel: max(2s, 1.5s, 0.5s) = 2s. This saves 2s which is meaningful when every second counts during a P1 incident. Additionally, if one source times out, you still have data from the others (partial results are better than no results).</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">5. Name three things an immutable audit trail for agent actions should capture.</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> (1) The triggering alert/event with full context. (2) Every LLM prompt and response (what the agent "thought"). (3) Every tool call with inputs and outputs (what data the agent saw). (4) The diagnosis with confidence score and evidence. (5) The approval request and response (who approved, when). (6) The action executed and its result. (7) Verification metrics before and after. This enables full reconstruction of agent decision-making for compliance and post-incident review.</p>
+                </div>
+            </details>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-22.html" class="btn btn-secondary">&larr; Previous: Career Goals</a>
+                <a href="module-24.html" class="btn btn-primary">Next: Classical ML for Ops &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        }
+    </script>
+    <script src="sidebar.js"></script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>

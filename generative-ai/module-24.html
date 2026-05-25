@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 24: Classical ML for Production Operations - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .ml-hero {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            color: white;
+            border: 1px solid rgba(56, 239, 125, 0.3);
+        }
+        .algo-comparison {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        .algo-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+        }
+        .algo-card h5 { color: #4facfe; margin-bottom: 0.5rem; }
+        .algo-card .pros { color: #34d399; font-size: 0.85rem; }
+        .algo-card .cons { color: #f87171; font-size: 0.85rem; }
+        .flashcard { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0; }
+        .flashcard .fc-q { font-weight: 600; color: #8b5cf6; margin-bottom: 0.5rem; }
+        .flashcard .fc-a { color: var(--text-secondary); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 24: Classical ML for Production Operations</h1>
+            <p class="text-muted">Time-Series Forecasting, Anomaly Detection, and Unifying Classical ML with Agentic AI</p>
+
+            <div class="card mt-3">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Time-series forecasting: ARIMA, Prophet, LSTM for capacity planning and traffic prediction</li>
+                    <li>Anomaly detection: Isolation Forest, DBSCAN, autoencoders for real-time monitoring</li>
+                    <li>Statistical modeling: change-point detection, survival analysis, Bayesian methods</li>
+                    <li>Unifying classical ML outputs as tools for AI agents</li>
+                    <li>Feature engineering for production metrics and logs</li>
+                    <li>Model lifecycle: training, versioning, drift detection, retraining</li>
+                </ul>
+            </div>
+
+            <div class="ml-hero">
+                <h3 style="color: white; margin-bottom: 1rem;">Why Classical ML Matters for AI Agents</h3>
+                <p>LLMs are great at reasoning, but terrible at math and pattern detection in time-series data. Classical ML models excel where LLMs fail: detecting subtle anomalies in millions of metric data points, forecasting traffic trends, and identifying statistical patterns. The winning architecture <strong>unifies</strong> both: classical ML detects, LLM agents reason and act.</p>
+                <div class="diagram-container mt-2">
+                    <div class="mermaid">
+flowchart LR
+    subgraph "Classical ML (Detection)"
+        TS[Time-Series Model] -->|"forecast breach"| Trigger
+        AD[Anomaly Detector] -->|"anomaly score > threshold"| Trigger
+        CP[Change-Point Detector] -->|"distribution shift"| Trigger
+    end
+    Trigger[Alert Trigger] --> Agent[AI Agent]
+    subgraph "Agentic AI (Reasoning + Action)"
+        Agent --> Diagnose[Diagnose Root Cause]
+        Agent --> Remediate[Execute Fix]
+        Agent --> Summarize[Post-Incident Report]
+    end
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 1: TIME-SERIES FORECASTING -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">1. Time-Series Forecasting</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Why Forecasting Matters for Operations</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="border-left: 4px solid #4facfe; background: linear-gradient(135deg, rgba(79, 172, 254, 0.1), rgba(0, 242, 254, 0.1));">
+                        <h4>Use Cases</h4>
+                        <ul>
+                            <li><strong>Capacity planning:</strong> "Will we need more pods next Tuesday at 2pm?" (forecast request volume)</li>
+                            <li><strong>Cost forecasting:</strong> "At current growth, what's our cloud bill in 3 months?"</li>
+                            <li><strong>Proactive alerting:</strong> "Latency will breach SLO in 2 hours at current trend" (predict before it breaks)</li>
+                            <li><strong>Traffic shaping:</strong> "Scale up at 7am because we predict a 3x traffic spike"</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>ARIMA / SARIMA</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Intuition</h4>
+                    <p>ARIMA = AutoRegressive Integrated Moving Average. It models a time series as a combination of:</p>
+                    <ul>
+                        <li><strong>AR (AutoRegressive):</strong> Current value depends on past values. "Tomorrow's traffic looks like today's traffic."</li>
+                        <li><strong>I (Integrated):</strong> Differencing to make non-stationary data stationary. "Remove the trend first."</li>
+                        <li><strong>MA (Moving Average):</strong> Current value depends on past forecast errors. "Correct for recent prediction mistakes."</li>
+                    </ul>
+                    <p>Parameters: <code>ARIMA(p, d, q)</code> where p=AR order, d=differencing order, q=MA order. SARIMA adds seasonal components: <code>SARIMA(p,d,q)(P,D,Q,s)</code> where s=seasonal period.</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""ARIMA/SARIMA for request volume forecasting."""
+import pandas as pd
+import numpy as np
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.stattools import adfuller
+import warnings
+warnings.filterwarnings('ignore')
+
+
+def check_stationarity(series: pd.Series) -&gt; dict:
+    """Augmented Dickey-Fuller test for stationarity."""
+    result = adfuller(series.dropna())
+    return {
+        "adf_statistic": result[0],
+        "p_value": result[1],
+        "is_stationary": result[1] &lt; 0.05,
+        "suggestion": "No differencing needed" if result[1] &lt; 0.05
+                      else "Apply differencing (d=1)"
+    }
+
+
+def fit_sarima(data: pd.Series, forecast_hours: int = 24) -&gt; dict:
+    """Fit SARIMA model to hourly metrics data and forecast."""
+    # Auto-determine differencing
+    d = 0 if check_stationarity(data)["is_stationary"] else 1
+
+    # Fit SARIMA with hourly seasonality (s=24)
+    model = SARIMAX(
+        data,
+        order=(2, d, 1),           # (p, d, q) - AR(2), MA(1)
+        seasonal_order=(1, 1, 1, 24),  # Daily seasonality
+        enforce_stationarity=False,
+        enforce_invertibility=False,
+    )
+    results = model.fit(disp=False)
+
+    # Forecast
+    forecast = results.get_forecast(steps=forecast_hours)
+    mean = forecast.predicted_mean
+    ci = forecast.conf_int(alpha=0.05)
+
+    return {
+        "forecast": mean.values.tolist(),
+        "lower_bound": ci.iloc[:, 0].values.tolist(),
+        "upper_bound": ci.iloc[:, 1].values.tolist(),
+        "aic": results.aic,
+        "forecast_hours": forecast_hours,
+    }
+
+
+# Usage: forecast next 24 hours of request volume
+# data = pd.read_csv("hourly_requests.csv", index_col="timestamp", parse_dates=True)
+# result = fit_sarima(data["request_count"], forecast_hours=24)
+# if max(result["forecast"]) &gt; CAPACITY_THRESHOLD:
+#     alert("Predicted capacity breach in next 24h")</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Prophet (Meta)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Why Prophet</h4>
+                    <p>Prophet decomposes time series into trend + seasonality + holidays. Much simpler to use than ARIMA, handles missing data, and is great for business metrics with known seasonal patterns.</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Prophet for capacity planning forecasting."""
+from prophet import Prophet
+import pandas as pd
+
+
+def forecast_with_prophet(data: pd.DataFrame, periods: int = 168,
+                           freq: str = "h") -&gt; dict:
+    """
+    Forecast using Prophet. Data must have 'ds' (datetime) and 'y' (value) columns.
+
+    Args:
+        data: DataFrame with 'ds' and 'y' columns
+        periods: Number of periods to forecast (168 = 1 week hourly)
+        freq: Frequency ('h' for hourly, 'D' for daily)
+    """
+    model = Prophet(
+        yearly_seasonality=True,
+        weekly_seasonality=True,
+        daily_seasonality=True,
+        changepoint_prior_scale=0.05,  # Flexibility of trend changes
+        seasonality_mode="multiplicative",  # Better for traffic patterns
+    )
+
+    # Add custom seasonality for business hours
+    model.add_seasonality(name="business_hours", period=1, fourier_order=8)
+
+    model.fit(data)
+
+    future = model.make_future_dataframe(periods=periods, freq=freq)
+    forecast = model.predict(future)
+
+    return {
+        "forecast": forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].tail(periods),
+        "components": model.plot_components(forecast),
+        "changepoints": model.changepoints.tolist(),
+    }
+
+
+def detect_capacity_breach(forecast_df: pd.DataFrame, threshold: float) -&gt; list:
+    """Find when forecasted value will exceed capacity threshold."""
+    breaches = forecast_df[forecast_df["yhat"] &gt; threshold]
+    if len(breaches) &gt; 0:
+        first_breach = breaches.iloc[0]
+        return {
+            "will_breach": True,
+            "first_breach_time": first_breach["ds"],
+            "predicted_value": first_breach["yhat"],
+            "threshold": threshold,
+            "hours_until_breach": (first_breach["ds"] - pd.Timestamp.now()).total_seconds() / 3600,
+        }
+    return {"will_breach": False}</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>LSTM for Time-Series</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>When to Use LSTM</h4>
+                    <p>LSTM captures complex non-linear patterns that ARIMA and Prophet miss. Use when: multiple correlated metrics (multivariate), non-linear relationships, or enough training data (10K+ data points).</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""LSTM for multivariate time-series forecasting."""
+import torch
+import torch.nn as nn
+import numpy as np
+from torch.utils.data import DataLoader, TensorDataset
+
+
+class LSTMForecaster(nn.Module):
+    """LSTM model for time-series forecasting."""
+
+    def __init__(self, input_dim: int, hidden_dim: int = 64,
+                 num_layers: int = 2, output_dim: int = 1):
+        super().__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers,
+                            batch_first=True, dropout=0.2)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, x):
+        # x shape: (batch, sequence_length, input_dim)
+        lstm_out, _ = self.lstm(x)
+        # Use last time step output
+        last_step = lstm_out[:, -1, :]
+        return self.fc(last_step)
+
+
+def create_sequences(data: np.ndarray, window: int = 24) -&gt; tuple:
+    """Create sliding window sequences for LSTM training."""
+    X, y = [], []
+    for i in range(len(data) - window):
+        X.append(data[i:i + window])
+        y.append(data[i + window, 0])  # Predict first feature (e.g., request count)
+    return np.array(X), np.array(y)
+
+
+def train_lstm(data: np.ndarray, window: int = 24,
+               epochs: int = 50, lr: float = 0.001) -&gt; LSTMForecaster:
+    """
+    Train LSTM on multivariate time-series data.
+
+    Args:
+        data: shape (timesteps, features) e.g., [requests, cpu, memory, latency]
+        window: lookback window in time steps
+    """
+    # Normalize
+    mean, std = data.mean(axis=0), data.std(axis=0)
+    normalized = (data - mean) / (std + 1e-8)
+
+    X, y = create_sequences(normalized, window)
+
+    # Train/val split
+    split = int(len(X) * 0.8)
+    X_train, X_val = X[:split], X[split:]
+    y_train, y_val = y[:split], y[split:]
+
+    # DataLoaders
+    train_ds = TensorDataset(torch.FloatTensor(X_train), torch.FloatTensor(y_train))
+    train_dl = DataLoader(train_ds, batch_size=32, shuffle=True)
+
+    model = LSTMForecaster(input_dim=data.shape[1])
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    criterion = nn.MSELoss()
+
+    for epoch in range(epochs):
+        model.train()
+        total_loss = 0
+        for X_batch, y_batch in train_dl:
+            optimizer.zero_grad()
+            pred = model(X_batch).squeeze()
+            loss = criterion(pred, y_batch)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+
+    return model
+
+
+# Usage: predict request volume using CPU, memory, latency as features
+# data = np.column_stack([requests, cpu, memory, latency])  # (timesteps, 4)
+# model = train_lstm(data, window=24)  # 24-hour lookback</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Algorithm Comparison</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);"></th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">ARIMA/SARIMA</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Prophet</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">LSTM</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Data needs</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100+ points</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">365+ daily points</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10K+ points</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Multivariate</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SARIMAX (limited)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Regressors only</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Native multivariate</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Interpretability</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (coefficients)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (decomposition)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low (black box)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Training time</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Seconds</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Seconds</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minutes-hours</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Best for ops</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single metric, short-term</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Capacity planning, business metrics</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex multi-signal patterns</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 2: ANOMALY DETECTION -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">2. Anomaly Detection</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Anomaly Detection for Production Metrics</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="border-left: 4px solid #f87171; background: var(--error-bg);">
+                        <h4>Why Static Thresholds Fail</h4>
+                        <p>Setting "alert if CPU &gt; 80%" fails because: traffic varies by time of day (80% at 2pm is normal, 80% at 3am is not), different services have different baselines, and gradual degradation is missed until it crosses the threshold. ML-based anomaly detection adapts to context.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Isolation Forest</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>How It Works</h4>
+                    <p>Isolation Forest isolates anomalies through random partitioning. Anomalies are "few and different" &mdash; they get isolated in fewer random splits than normal points. No need to model the normal distribution.</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Isolation Forest for real-time anomaly detection."""
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+import numpy as np
+import pandas as pd
+
+
+class MetricAnomalyDetector:
+    """Detects anomalies in production metrics using Isolation Forest."""
+
+    def __init__(self, contamination: float = 0.05):
+        """
+        Args:
+            contamination: Expected proportion of anomalies (0.01-0.1).
+                          Lower = fewer alerts, higher precision.
+        """
+        self.model = IsolationForest(
+            n_estimators=200,
+            contamination=contamination,
+            max_samples="auto",
+            random_state=42,
+            n_jobs=-1,
+        )
+        self.scaler = StandardScaler()
+        self.is_fitted = False
+
+    def fit(self, historical_data: pd.DataFrame):
+        """Train on historical normal metrics."""
+        X = self.scaler.fit_transform(historical_data)
+        self.model.fit(X)
+        self.is_fitted = True
+
+    def detect(self, current_metrics: pd.DataFrame) -&gt; pd.DataFrame:
+        """Score current metrics. Returns DataFrame with anomaly labels and scores."""
+        X = self.scaler.transform(current_metrics)
+        scores = self.model.decision_function(X)  # Lower = more anomalous
+        labels = self.model.predict(X)              # -1 = anomaly, 1 = normal
+
+        result = current_metrics.copy()
+        result["anomaly_score"] = -scores  # Invert so higher = more anomalous
+        result["is_anomaly"] = labels == -1
+        return result
+
+    def detect_with_context(self, metrics: dict, service: str) -&gt; dict:
+        """Detect anomaly and provide context for the AI agent."""
+        df = pd.DataFrame([metrics])
+        result = self.detect(df)
+
+        if result["is_anomaly"].iloc[0]:
+            # Identify which features contribute most to anomaly
+            feature_scores = {}
+            for col in df.columns:
+                single = df[[col]].copy()
+                for other in df.columns:
+                    if other != col:
+                        single[other] = 0  # Zero out other features
+                single_scaled = self.scaler.transform(single)
+                feature_scores[col] = -self.model.decision_function(single_scaled)[0]
+
+            top_contributors = sorted(feature_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+            return {
+                "is_anomaly": True,
+                "anomaly_score": float(result["anomaly_score"].iloc[0]),
+                "service": service,
+                "top_contributors": [
+                    {"metric": k, "anomaly_contribution": round(v, 3)}
+                    for k, v in top_contributors
+                ],
+                "raw_metrics": metrics,
+            }
+
+        return {"is_anomaly": False, "service": service}
+
+
+# Usage
+detector = MetricAnomalyDetector(contamination=0.03)
+# Train on 30 days of historical data
+# detector.fit(historical_metrics[["cpu", "memory", "latency_p99", "error_rate", "request_count"]])
+# Check current metrics
+# result = detector.detect_with_context(
+#     {"cpu": 0.92, "memory": 0.88, "latency_p99": 2.5, "error_rate": 0.03, "request_count": 15000},
+#     service="auth-service"
+# )</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Autoencoder-Based Anomaly Detection</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Intuition</h4>
+                    <p>Train an autoencoder to reconstruct normal metrics. When it sees anomalous data, reconstruction error spikes. The error magnitude tells you <em>how anomalous</em> the data is.</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Autoencoder for anomaly detection in multivariate metrics."""
+import torch
+import torch.nn as nn
+import numpy as np
+
+
+class MetricAutoencoder(nn.Module):
+    """Autoencoder that learns to reconstruct normal metric patterns."""
+
+    def __init__(self, input_dim: int, encoding_dim: int = 8):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, encoding_dim),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(encoding_dim, 16),
+            nn.ReLU(),
+            nn.Linear(16, 32),
+            nn.ReLU(),
+            nn.Linear(32, input_dim),
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+
+
+class AutoencoderAnomalyDetector:
+    """Detects anomalies via reconstruction error."""
+
+    def __init__(self, input_dim: int, threshold_percentile: float = 95):
+        self.model = MetricAutoencoder(input_dim)
+        self.threshold_percentile = threshold_percentile
+        self.threshold = None
+
+    def train(self, normal_data: np.ndarray, epochs: int = 100, lr: float = 0.001):
+        """Train on data known to be normal."""
+        tensor = torch.FloatTensor(normal_data)
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=lr)
+        criterion = nn.MSELoss()
+
+        self.model.train()
+        for epoch in range(epochs):
+            optimizer.zero_grad()
+            reconstructed = self.model(tensor)
+            loss = criterion(reconstructed, tensor)
+            loss.backward()
+            optimizer.step()
+
+        # Set threshold from training data reconstruction errors
+        self.model.eval()
+        with torch.no_grad():
+            recon = self.model(tensor)
+            errors = torch.mean((tensor - recon) ** 2, dim=1).numpy()
+            self.threshold = np.percentile(errors, self.threshold_percentile)
+
+    def detect(self, data: np.ndarray) -&gt; dict:
+        """Detect anomalies in new data."""
+        self.model.eval()
+        with torch.no_grad():
+            tensor = torch.FloatTensor(data)
+            recon = self.model(tensor)
+            errors = torch.mean((tensor - recon) ** 2, dim=1).numpy()
+
+        return {
+            "reconstruction_errors": errors.tolist(),
+            "threshold": self.threshold,
+            "is_anomaly": (errors &gt; self.threshold).tolist(),
+            "anomaly_scores": (errors / self.threshold).tolist(),  # &gt;1 = anomalous
+        }</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Anomaly Detection Algorithm Comparison</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Algorithm</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pros</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cons</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Z-Score / IQR</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Simple, fast, interpretable</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Assumes normal distribution</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single metric, quick checks</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Isolation Forest</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No distribution assumption, fast</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Contamination param needs tuning</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multivariate metrics, production use</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DBSCAN</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Finds clusters, no k needed</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sensitive to eps parameter</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Alert grouping, pattern discovery</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Autoencoder</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Captures complex patterns</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Needs more data, training time</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High-dimensional data, subtle anomalies</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">One-Class SVM</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Good with small datasets</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slow on large data, kernel choice</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Small training sets, high-dimensional</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 3: STATISTICAL MODELING -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">3. Statistical Modeling for Operations</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Change-Point Detection</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Why Change-Point Detection</h4>
+                    <p>Deployments, config changes, and infrastructure events cause distribution shifts in metrics. Change-point detection finds <em>when</em> a metric's behavior changed, which correlates with root cause.</p>
+
+                    <div class="code-block"><pre><code class="language-python">"""Change-point detection for deployment impact analysis."""
+import numpy as np
+from scipy import stats
+
+
+def cusum_detect(data: np.ndarray, threshold: float = 5.0,
+                 drift: float = 0.5) -&gt; list:
+    """
+    CUSUM (Cumulative Sum) change-point detection.
+    Detects shifts in mean level of a time series.
+
+    Args:
+        data: Time series values
+        threshold: Decision threshold (higher = fewer detections)
+        drift: Allowance for natural variation
+    """
+    mean = np.mean(data[:50])  # Baseline from first 50 points
+    std = np.std(data[:50])
+    if std == 0:
+        std = 1e-8
+
+    normalized = (data - mean) / std
+
+    s_pos, s_neg = 0, 0
+    change_points = []
+
+    for i, x in enumerate(normalized):
+        s_pos = max(0, s_pos + x - drift)
+        s_neg = max(0, s_neg - x - drift)
+
+        if s_pos &gt; threshold or s_neg &gt; threshold:
+            change_points.append({
+                "index": i,
+                "direction": "increase" if s_pos &gt; threshold else "decrease",
+                "magnitude": max(s_pos, s_neg),
+            })
+            s_pos, s_neg = 0, 0  # Reset after detection
+
+    return change_points
+
+
+def correlate_with_deployments(change_points: list, deployments: list,
+                                window_minutes: int = 10) -&gt; list:
+    """Match detected change points with recent deployments."""
+    correlated = []
+    for cp in change_points:
+        for deploy in deployments:
+            time_diff = abs(cp["timestamp"] - deploy["timestamp"]).total_seconds() / 60
+            if time_diff &lt; window_minutes:
+                correlated.append({
+                    "change_point": cp,
+                    "deployment": deploy,
+                    "time_diff_minutes": time_diff,
+                    "likely_cause": True,
+                })
+    return correlated</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 4: UNIFYING ML WITH AGENTS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">4. Unifying Classical ML with Agentic AI</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>ML Models as Agent Tools (Critical for Interview)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                        <h4>This Is THE Key Architecture Pattern</h4>
+                        <p>The JD says "unifying classical ML with agentic AI." This means: classical ML models (anomaly detection, forecasting) serve as <strong>tools</strong> that AI agents can call. The ML model detects; the LLM agent reasons about what to do.</p>
+                    </div>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Classical ML Layer (Always Running)"
+        AD[Anomaly Detector<br/>Isolation Forest]
+        TS[Forecaster<br/>Prophet]
+        CP[Change-Point Detector<br/>CUSUM]
+    end
+
+    subgraph "Agent Tool Interface"
+        T1["check_anomaly(service, metrics)"]
+        T2["forecast_capacity(service, hours)"]
+        T3["detect_changes(service, metric, window)"]
+    end
+
+    subgraph "AI Agent (Triggered on Alert)"
+        Agent[Diagnostic Agent]
+        Agent -->|"tool call"| T1
+        Agent -->|"tool call"| T2
+        Agent -->|"tool call"| T3
+    end
+
+    AD --> T1
+    TS --> T2
+    CP --> T3
+
+    T1 -->|"anomaly_score: 0.92, top_contributor: memory"| Agent
+    T2 -->|"will_breach: true, hours: 6"| Agent
+    T3 -->|"change_point at deploy v2.3.1"| Agent
+                        </div>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">"""Wrapping ML models as agent-callable tools."""
+
+
+class MLToolRegistry:
+    """Registry of classical ML models exposed as agent tools."""
+
+    def __init__(self):
+        self.anomaly_detector = MetricAnomalyDetector(contamination=0.03)
+        self.forecaster = None  # Lazy-loaded per service
+        self.change_detector = None
+
+    def get_tools(self) -&gt; list:
+        """Return OpenAI function-calling tool definitions."""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "check_anomaly",
+                    "description": "Check if current metrics for a service are anomalous. "
+                                   "Returns anomaly score and which metrics are unusual. "
+                                   "Use this to validate if an alert represents a real issue.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "service": {"type": "string"},
+                            "metrics": {
+                                "type": "object",
+                                "properties": {
+                                    "cpu": {"type": "number"},
+                                    "memory": {"type": "number"},
+                                    "latency_p99": {"type": "number"},
+                                    "error_rate": {"type": "number"},
+                                    "request_count": {"type": "number"},
+                                },
+                            },
+                        },
+                        "required": ["service", "metrics"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "forecast_capacity",
+                    "description": "Forecast if a service will exceed capacity in the next N hours. "
+                                   "Use this to determine if scaling is needed proactively.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "service": {"type": "string"},
+                            "metric": {"type": "string", "enum": ["cpu", "memory", "requests"]},
+                            "hours_ahead": {"type": "integer", "default": 24},
+                            "capacity_threshold": {"type": "number"},
+                        },
+                        "required": ["service", "metric"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "detect_change_points",
+                    "description": "Find when a metric's behavior changed significantly. "
+                                   "Use this to correlate issues with deployments or config changes.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "service": {"type": "string"},
+                            "metric": {"type": "string"},
+                            "lookback_hours": {"type": "integer", "default": 24},
+                        },
+                        "required": ["service", "metric"],
+                    },
+                },
+            },
+        ]
+
+    async def execute_tool(self, tool_name: str, args: dict) -&gt; dict:
+        """Execute an ML tool and return results."""
+        if tool_name == "check_anomaly":
+            return self.anomaly_detector.detect_with_context(
+                args["metrics"], args["service"]
+            )
+        elif tool_name == "forecast_capacity":
+            return await self._forecast(args)
+        elif tool_name == "detect_change_points":
+            return self._detect_changes(args)
+        else:
+            return {"error": f"Unknown tool: {tool_name}"}</code></pre>
+                    </div>
+
+                    <div class="card mt-2" style="border-left: 4px solid #11998e; background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.1));">
+                        <h4>When to Use Classical ML vs LLM</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                            <thead>
+                                <tr style="background: var(--border-color);">
+                                    <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Task</th>
+                                    <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use Classical ML</th>
+                                    <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use LLM</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Is this metric anomalous?"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Isolation Forest (fast, precise)</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Will we run out of capacity?"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prophet/ARIMA (statistical forecast)</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Why is this happening?"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM (reasoning over evidence)</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"What should we do about it?"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM (decision + action planning)</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Group these 500 alerts"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DBSCAN + embeddings</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Summarize this incident"</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">-</td>
+                                    <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM (natural language generation)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 5: FEATURE ENGINEERING -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">5. Feature Engineering for Production Data</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Common Features from Metrics and Logs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="code-block"><pre><code class="language-python">"""Feature engineering for production metrics."""
+import numpy as np
+import pandas as pd
+
+
+def engineer_metric_features(series: pd.Series, window: int = 60) -&gt; pd.DataFrame:
+    """Create features from a raw metric time series.
+
+    Args:
+        series: Raw metric values (e.g., request_count per minute)
+        window: Rolling window size in data points
+    """
+    features = pd.DataFrame(index=series.index)
+
+    # Rolling statistics
+    features["rolling_mean"] = series.rolling(window).mean()
+    features["rolling_std"] = series.rolling(window).std()
+    features["rolling_min"] = series.rolling(window).min()
+    features["rolling_max"] = series.rolling(window).max()
+
+    # Percentiles
+    features["rolling_p50"] = series.rolling(window).quantile(0.5)
+    features["rolling_p95"] = series.rolling(window).quantile(0.95)
+    features["rolling_p99"] = series.rolling(window).quantile(0.99)
+
+    # Rate of change
+    features["rate_of_change"] = series.pct_change(periods=5)
+    features["acceleration"] = features["rate_of_change"].diff()
+
+    # Seasonality features
+    if hasattr(series.index, 'hour'):
+        features["hour_of_day"] = series.index.hour
+        features["day_of_week"] = series.index.dayofweek
+        features["is_business_hours"] = features["hour_of_day"].between(9, 17).astype(int)
+        features["is_weekend"] = (features["day_of_week"] &gt;= 5).astype(int)
+
+    # Z-score (how many std devs from rolling mean)
+    features["z_score"] = (series - features["rolling_mean"]) / (features["rolling_std"] + 1e-8)
+
+    # Deployment features (if deployment timestamps available)
+    features["minutes_since_deploy"] = np.nan  # Fill from deployment log
+
+    return features.dropna()</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 6: MODEL LIFECYCLE -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">6. Model Lifecycle in Production</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Training, Monitoring, and Retraining</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    Train[Train Model<br/>on 30-day data] --> Deploy[Deploy to<br/>Inference Service]
+    Deploy --> Monitor[Monitor<br/>Predictions]
+    Monitor --> Drift{Drift<br/>Detected?}
+    Drift -->|No| Monitor
+    Drift -->|Yes| Retrain[Retrain on<br/>fresh data]
+    Retrain --> Eval[Evaluate on<br/>holdout set]
+    Eval --> Gate{Quality<br/>Gate}
+    Gate -->|Pass| Deploy
+    Gate -->|Fail| Alert[Alert ML Team]
+                        </div>
+                    </div>
+
+                    <h4>Drift Detection</h4>
+                    <div class="code-block"><pre><code class="language-python">"""Model drift detection for production ML models."""
+from scipy import stats
+import numpy as np
+
+
+def population_stability_index(expected: np.ndarray, actual: np.ndarray,
+                                bins: int = 10) -&gt; float:
+    """
+    Calculate PSI to detect distribution shift.
+    PSI &lt; 0.1: no shift. PSI 0.1-0.25: moderate shift. PSI &gt; 0.25: significant shift.
+    """
+    breakpoints = np.linspace(min(expected.min(), actual.min()),
+                              max(expected.max(), actual.max()), bins + 1)
+
+    expected_pct = np.histogram(expected, breakpoints)[0] / len(expected)
+    actual_pct = np.histogram(actual, breakpoints)[0] / len(actual)
+
+    # Avoid division by zero
+    expected_pct = np.clip(expected_pct, 0.001, None)
+    actual_pct = np.clip(actual_pct, 0.001, None)
+
+    psi = np.sum((actual_pct - expected_pct) * np.log(actual_pct / expected_pct))
+    return float(psi)
+
+
+def should_retrain(training_data: np.ndarray, recent_data: np.ndarray) -&gt; dict:
+    """Determine if a model needs retraining."""
+    psi = population_stability_index(training_data, recent_data)
+    ks_stat, ks_pvalue = stats.ks_2samp(training_data, recent_data)
+
+    return {
+        "psi": round(psi, 4),
+        "ks_statistic": round(ks_stat, 4),
+        "ks_pvalue": round(ks_pvalue, 4),
+        "needs_retrain": psi &gt; 0.2 or ks_pvalue &lt; 0.01,
+        "severity": "high" if psi &gt; 0.25 else "medium" if psi &gt; 0.1 else "low",
+    }</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 7: INTERVIEW PREP -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">7. Interview Prep</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Common Questions &amp; Flashcards</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <h4>"How would you build an anomaly detection system for API latency?"</h4>
+                        <p><strong>Answer framework:</strong> (1) Collect historical latency data (P50, P95, P99 per minute). (2) Feature engineering: rolling stats, z-score, rate of change, hour-of-day seasonality. (3) Train Isolation Forest on 30 days of "normal" data. (4) Real-time scoring: every minute, compute features and score. (5) Alert if anomaly score &gt; threshold. (6) Feed anomaly into AI agent for diagnosis. Key detail: the threshold depends on acceptable false-positive rate &mdash; start with contamination=0.03 (3% false positive) and tune based on ops team feedback.</p>
+                    </div>
+
+                    <div class="flashcard">
+                        <div class="fc-q">Q: Why use Isolation Forest over Z-score for anomaly detection in production?</div>
+                        <div class="fc-a">A: Z-score assumes normal distribution and works on single metrics. Production metrics are often multivariate (CPU+memory+latency correlated) and non-Gaussian (heavy tails, bimodal from traffic patterns). Isolation Forest handles multivariate, non-parametric data natively. Also handles the "normal at 2pm but anomalous at 3am" problem through feature engineering (hour_of_day as input feature).</div>
+                    </div>
+
+                    <div class="flashcard">
+                        <div class="fc-q">Q: How do you unify classical ML with AI agents?</div>
+                        <div class="fc-a">A: Classical ML models (anomaly detection, forecasting) run continuously and serve as tools the AI agent can call. The ML model answers "is this anomalous?" (classification) and "what will happen?" (forecasting). The LLM agent answers "why is this happening?" (reasoning) and "what should we do?" (action planning). Architecture: ML models expose tool interfaces (function calling / MCP), agent orchestrates investigation using both ML tools and production tools (Splunk, Grafana).</div>
+                    </div>
+
+                    <div class="flashcard">
+                        <div class="fc-q">Q: What is PSI and when do you retrain a model?</div>
+                        <div class="fc-a">A: PSI (Population Stability Index) measures distribution shift between training data and production data. PSI &lt; 0.1 = stable, 0.1-0.25 = moderate drift, &gt; 0.25 = significant drift (retrain). Also use KS test (p-value &lt; 0.01 = significant shift). Retrain triggers: PSI &gt; 0.2, prediction accuracy drops &gt; 5%, or scheduled (weekly/monthly for fast-changing environments).</div>
+                    </div>
+
+                    <div class="flashcard">
+                        <div class="fc-q">Q: ARIMA vs Prophet vs LSTM — when to use each?</div>
+                        <div class="fc-a">A: ARIMA: single metric, short-term forecast, small data, interpretable. Prophet: capacity planning, business metrics with known seasonality, handles missing data, easy to use. LSTM: multivariate (CPU+memory+latency together), complex non-linear patterns, need 10K+ data points. For ops: start with Prophet for capacity planning, Isolation Forest for anomaly detection. Graduate to LSTM only if Prophet's accuracy is insufficient.</div>
+                    </div>
+
+                    <div class="flashcard">
+                        <div class="fc-q">Q: What is CUSUM and why is it useful for deployment monitoring?</div>
+                        <div class="fc-a">A: CUSUM (Cumulative Sum) detects shifts in the mean level of a time series. It accumulates deviations from a baseline — small drifts that are invisible in individual data points become obvious when accumulated. Useful for deployments because: it detects gradual degradation (not just spike alerts), identifies the exact timestamp of the shift (correlate with deploy time), and works with minimal tuning (threshold + drift parameters).</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- QUIZ -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">8. Quiz</h2>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">1. Your anomaly detector flags CPU at 85% as anomalous at 3am but not at 2pm. How?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> By including hour_of_day and is_business_hours as features. The model learns that 85% CPU at 2pm is within the normal distribution for business hours, but 85% at 3am (when traffic is typically 20% of peak) is highly anomalous. This is why feature engineering with temporal context is critical for ops anomaly detection.</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">2. Your Prophet forecast says capacity will breach in 6 hours. The AI agent calls the forecast tool. What should it do next?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> (1) Verify with current metrics (is usage already trending up?). (2) Check if auto-scaling is configured and will handle it. (3) If not, propose proactive scaling (risk=MEDIUM). (4) Check deployment schedule (is a known traffic event coming?). (5) Notify the on-call team with the forecast and proposed action. This shows the agent reasoning about the ML output, not blindly acting on it.</p>
+                </div>
+            </details>
+
+            <details class="recall-question" style="background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(236, 72, 153, 0.1) 100%); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 0.75rem; padding: 1rem; margin: 0.75rem 0;">
+                <summary style="cursor: pointer; font-weight: 600; color: #8b5cf6;">3. You're choosing between Isolation Forest and an autoencoder for anomaly detection. What factors decide?</summary>
+                <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(139, 92, 246, 0.3);">
+                    <p><strong>Answer:</strong> Isolation Forest: fewer features (&lt;20), smaller dataset, need fast training, interpretability matters (can explain via feature contributions). Autoencoder: many features (&gt;50), large dataset (100K+), complex non-linear correlations, subtle anomalies that IF misses. For most ops use cases, start with Isolation Forest — it's simpler, faster, and good enough for 90% of cases.</p>
+                </div>
+            </details>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-23.html" class="btn btn-secondary">&larr; Previous: AI Agents for Ops</a>
+                <a href="module-25.html" class="btn btn-primary">Next: Secure Agent Execution &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+                sidebarOverlay.classList.toggle('open');
+            });
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+                sidebarOverlay.classList.remove('open');
+            });
+        }
+    </script>
+    <script src="sidebar.js"></script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>

@@ -75,6 +75,14 @@
                 { href: 'module-21.html', num: '21', text: 'Capstone Project' },
                 { href: 'module-22.html', num: '22', text: 'Career Goals' }
             ]
+        },
+        {
+            title: 'Phase 8: Production AI Ops',
+            links: [
+                { href: 'module-23.html', num: '23', text: 'AI Agents for Production Ops' },
+                { href: 'module-24.html', num: '24', text: 'Classical ML for Ops' },
+                { href: 'module-25.html', num: '25', text: 'Secure Agent Execution' }
+            ]
         }
     ];
 
