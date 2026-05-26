@@ -1174,6 +1174,133 @@ def choose_embedding_model(
                             </tr>
                         </tbody>
                     </table>
+                    <h4 class="mt-3">ANN Library & Algorithm Comparison</h4>
+                    <p>
+                        Beyond the index types above, production systems often use dedicated ANN (Approximate Nearest Neighbor) libraries.
+                        Each makes different tradeoffs between speed, memory, accuracy, and update support.
+                    </p>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Library / Algorithm</th>
+                                <th>Core Approach</th>
+                                <th>Speed</th>
+                                <th>Memory</th>
+                                <th>Dynamic Updates</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>FAISS</strong> (Meta)</td>
+                                <td>IVF, PQ, HNSW, flat; GPU-accelerated</td>
+                                <td class="highlight">Excellent</td>
+                                <td>Configurable</td>
+                                <td>Limited (rebuild for IVF)</td>
+                                <td>Large-scale batch search, GPU environments, research</td>
+                            </tr>
+                            <tr>
+                                <td><strong>HNSW</strong> (hnswlib)</td>
+                                <td>Hierarchical navigable small world graph</td>
+                                <td class="highlight">Very Fast</td>
+                                <td>High (graph overhead)</td>
+                                <td>Yes (incremental add)</td>
+                                <td>General purpose, low-latency serving, most RAG systems</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ScaNN</strong> (Google)</td>
+                                <td>Anisotropic vector quantization + reranking</td>
+                                <td class="highlight">Excellent</td>
+                                <td>Low (quantized)</td>
+                                <td>Limited</td>
+                                <td>Google-scale workloads, maximum throughput, TensorFlow ecosystem</td>
+                            </tr>
+                            <tr>
+                                <td><strong>LSH</strong> (Locality-Sensitive Hashing)</td>
+                                <td>Hash functions that map similar vectors to same buckets</td>
+                                <td>Good</td>
+                                <td>Medium</td>
+                                <td>Yes</td>
+                                <td>Very high-dimensional data, streaming scenarios, theoretical guarantees</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Annoy</strong> (Spotify)</td>
+                                <td>Random projection trees</td>
+                                <td>Good</td>
+                                <td>Low (memory-mapped)</td>
+                                <td>No (static index)</td>
+                                <td>Read-heavy workloads, shared memory across processes</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        <strong>Staff-level insight:</strong> HNSW dominates production vector databases (Pinecone, Weaviate, Qdrant all default to it)
+                        because it offers the best latency-recall tradeoff for datasets under ~100M vectors. FAISS with IVF+PQ is the go-to for
+                        billion-scale datasets where memory is the bottleneck. ScaNN wins on throughput benchmarks but has a smaller ecosystem.
+                    </p>
+
+                    <h4 class="mt-3">HyDE: Hypothetical Document Embeddings</h4>
+                    <div class="key-insight">
+                        <strong>The Insight:</strong> Instead of embedding the user's query directly (which may be short and vague),
+                        ask the LLM to generate a <em>hypothetical answer</em>, then embed <em>that</em> to search for similar real documents.
+                        The hypothetical answer is closer in embedding space to the actual documents than the original query.
+                    </div>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    A[User Query:\n'How does caching work?'] --> B[LLM generates\nhypothetical answer]
+    B --> C[Embed hypothetical\ndocument]
+    C --> D[Vector search\nfor similar docs]
+    D --> E[Retrieved real\ndocuments]
+    E --> F[LLM generates\nfinal answer]
+
+    style B fill:#2e1a2e,stroke:#9f7aea,color:#fff
+    style C fill:#1a2e1a,stroke:#48bb78,color:#fff
+    style D fill:#1e3a5f,stroke:#4facfe,color:#fff
+                        </div>
+                    </div>
+                    <div class="code-block">
+<code># HyDE Implementation
+from openai import OpenAI
+
+client = OpenAI()
+
+def hyde_retrieve(query: str, collection, k: int = 5):
+    """Generate hypothetical document, then use it for retrieval."""
+    # Step 1: Generate hypothetical answer
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{
+            "role": "user",
+            "content": f"Write a detailed paragraph answering: {query}"
+        }],
+        max_tokens=200
+    )
+    hypothetical_doc = response.choices[0].message.content
+
+    # Step 2: Embed the hypothetical document (not the original query)
+    results = collection.query(
+        query_texts=[hypothetical_doc],
+        n_results=k
+    )
+
+    return results
+
+# When to use HyDE:
+# - Short, vague queries ("how does X work?")
+# - Domain-specific queries where user language differs from document language
+# - When standard retrieval recall is low
+#
+# When NOT to use HyDE:
+# - Factual lookups ("What is the capital of France?")
+# - When query and documents use same terminology
+# - Latency-critical paths (adds one LLM call)</code>
+                    </div>
+                    <p>
+                        <strong>Tradeoff:</strong> HyDE adds one LLM call of latency (~200-500ms) and cost per query. Use it selectively
+                        for query types where standard embedding similarity underperforms. A/B test to confirm the recall improvement
+                        justifies the added cost.
+                    </p>
                 </div>
             </div>
 

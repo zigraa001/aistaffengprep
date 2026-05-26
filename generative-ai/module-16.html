@@ -1012,6 +1012,69 @@ def cached_llm_call(cache: SemanticCache, query: str, system: str) -&gt; str:
             </div>
 
             <!-- ═══════════════════════════════════════════════════ -->
+            <!-- 5b. SAFETY RISKS OF SEMANTIC CACHING                 -->
+            <!-- ═══════════════════════════════════════════════════ -->
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Safety Risks of Semantic Caching</span></div>
+                <div class="collapsible-content">
+                    <div class="danger-box" style="background: linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(220,38,38,0.1) 100%); border-left: 4px solid #ef4444; padding: 1rem; margin: 1rem 0; border-radius: 0 0.5rem 0.5rem 0;">
+                        <strong>Eugene Yan calls semantic caching "a disaster waiting to happen"</strong> if implemented without safeguards.
+                        The core risk: semantically similar queries can have <em>very different correct answers</em>.
+                    </div>
+
+                    <h4>Failure Modes</h4>
+                    <table class="price-table">
+                        <thead>
+                            <tr><th>Failure Mode</th><th>Example</th><th>Impact</th><th>Mitigation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>False positive match</strong></td>
+                                <td>"What's Apple's stock price?" matches cached "What's Apple's revenue?" (cosine sim 0.94)</td>
+                                <td>User gets completely wrong answer with high confidence</td>
+                                <td>Higher threshold (0.95+), domain-specific embedding models, keyword overlap check as secondary filter</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Stale context</strong></td>
+                                <td>Cached response about product pricing is served after a price change</td>
+                                <td>Incorrect information, potential legal/financial liability</td>
+                                <td>TTL tied to data freshness, cache invalidation on upstream data changes, version hashing</td>
+                            </tr>
+                            <tr>
+                                <td><strong>User-specific leakage</strong></td>
+                                <td>User A asks about their account, User B gets User A's cached response because query embeddings are similar</td>
+                                <td>Privacy violation, data leak between users</td>
+                                <td>Partition cache by user/tenant ID. Never share cache across security boundaries.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Adversarial cache poisoning</strong></td>
+                                <td>Attacker crafts query that produces a harmful cached response, then similar queries from other users hit the poisoned cache entry</td>
+                                <td>Serving harmful content at scale</td>
+                                <td>Output guardrails on cache writes (not just reads), cache entry moderation, anomaly detection</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Safe Semantic Caching Checklist</h4>
+                    <ul>
+                        <li><strong>Partition by tenant:</strong> Never share cached responses across users or organizations</li>
+                        <li><strong>Set aggressive TTLs:</strong> Hours, not days. Stale cache is worse than no cache for factual queries.</li>
+                        <li><strong>Validate before serving:</strong> Run a lightweight check &mdash; does the cached response actually answer the new query? A small classifier or keyword overlap check catches the worst false positives.</li>
+                        <li><strong>Monitor cache quality:</strong> Sample 1-5% of cache hits, score with LLM-as-judge, alert if quality drops below threshold</li>
+                        <li><strong>Exclude sensitive query types:</strong> Don't cache account-specific, PII-containing, or time-sensitive queries</li>
+                        <li><strong>Log cache hit metadata:</strong> Track which cache entry served which query. Essential for debugging and auditing.</li>
+                    </ul>
+
+                    <p>
+                        <strong>Staff-level insight:</strong> The decision to implement semantic caching should be driven by query distribution analysis.
+                        If &gt;30% of queries are near-duplicates (support bots, FAQ systems), the ROI is clear. If queries are diverse and
+                        context-dependent (coding assistants, analytical tools), caching may cause more harm than good. Always measure false
+                        positive rate before enabling in production.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════════════ -->
             <!-- 6. TIERED MODEL SELECTION                           -->
             <!-- ═══════════════════════════════════════════════════ -->
             <h2>Tiered Model Selection &amp; Routing</h2>

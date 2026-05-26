@@ -2092,6 +2092,135 @@ print(tokenizer.decode(outputs[0]))</code>
             </div>
 
             <!-- ============================================ -->
+            <!-- SECTION 6b: Beyond LoRA - PEFT Methods Survey -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">6b. Beyond LoRA: Parameter-Efficient Fine-Tuning Survey</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>The Full PEFT Landscape</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="key-insight">
+                        <strong>Why this matters:</strong> LoRA dominates in practice, but interviewers test whether you understand
+                        <em>why</em> it won and what alternatives exist. Each method modifies a different part of the model,
+                        trading off between parameter count, task performance, and implementation complexity.
+                    </div>
+
+                    <h4>PEFT Methods Comparison</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Method</th>
+                                <th>What It Modifies</th>
+                                <th>Trainable Params</th>
+                                <th>Strengths</th>
+                                <th>Weaknesses</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>LoRA</strong></td>
+                                <td>Adds low-rank matrices to attention weights</td>
+                                <td>0.01-0.1% of base model</td>
+                                <td>Best quality-efficiency tradeoff. Merges into base weights at inference (zero latency overhead). Multiple adapters can be hot-swapped.</td>
+                                <td>Requires choosing target modules and rank. Less effective for very different domains.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Prefix Tuning</strong></td>
+                                <td>Prepends learnable continuous vectors to each transformer layer's key/value pairs</td>
+                                <td>0.1-1% of base model</td>
+                                <td>Simple concept. Works across tasks without modifying model architecture. Good for NLG tasks.</td>
+                                <td>Reduces effective context length (prefix tokens consume positions). Harder to interpret. Training can be unstable.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Prompt Tuning</strong> (Soft Prompts)</td>
+                                <td>Prepends learnable embeddings to the input layer only</td>
+                                <td>~0.001% (tens of thousands of params)</td>
+                                <td>Extremely lightweight. Multiple tasks via different soft prompts. Scales well to large models (Lester et al. showed it matches fine-tuning for 10B+ models).</td>
+                                <td>Underperforms on smaller models (&lt;1B). Initialization matters a lot. Hard to debug.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Adapter Layers</strong></td>
+                                <td>Inserts small bottleneck layers (down-project, nonlinearity, up-project) between transformer layers</td>
+                                <td>1-5% of base model</td>
+                                <td>Original PEFT method (Houlsby et al., 2019). Well-studied. Modular &mdash; swap adapters per task.</td>
+                                <td>Adds inference latency (extra forward pass through adapter). More params than LoRA for similar quality. LoRA largely superseded it.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>IA3</strong> (Few-Shot Learning)</td>
+                                <td>Learns rescaling vectors for keys, values, and FFN outputs</td>
+                                <td>~0.01% of base model</td>
+                                <td>Even fewer params than LoRA. Good for few-shot tasks. Fast training.</td>
+                                <td>Less flexible than LoRA. Limited adoption and tooling.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[Need to adapt a pre-trained LLM] --> B{How much data?}
+    B -- "&lt;100 examples" --> C[Prompt Tuning / In-Context Learning]
+    B -- "100-10K examples" --> D{Priority?}
+    B -- "10K+ examples" --> E[LoRA or Full Fine-Tune]
+    D -- "Minimize params" --> F[IA3 or Prompt Tuning]
+    D -- "Best quality" --> G[LoRA]
+    D -- "Zero latency overhead" --> G
+    D -- "Multiple tasks, swap adapters" --> H{Latency budget?}
+    H -- "Strict" --> G
+    H -- "Flexible" --> I[Adapter Layers]
+
+    style A fill:#1e3a5f,stroke:#4facfe,color:#fff
+    style G fill:#1a2e1a,stroke:#48bb78,color:#fff
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Code: Using PEFT Methods with Hugging Face</h4>
+                    <div class="code-block">
+<code>from peft import get_peft_model, LoraConfig, PrefixTuningConfig, PromptTuningConfig, TaskType
+
+# LoRA (most common)
+lora_config = LoraConfig(
+    r=16, lora_alpha=32,
+    target_modules=["q_proj", "v_proj"],
+    lora_dropout=0.05,
+    task_type=TaskType.CAUSAL_LM
+)
+
+# Prefix Tuning
+prefix_config = PrefixTuningConfig(
+    num_virtual_tokens=20,       # Number of prefix tokens per layer
+    task_type=TaskType.CAUSAL_LM
+)
+
+# Prompt Tuning (Soft Prompts)
+prompt_config = PromptTuningConfig(
+    num_virtual_tokens=8,        # Prepended to input embeddings only
+    task_type=TaskType.CAUSAL_LM,
+    prompt_tuning_init="TEXT",   # Initialize from text (vs random)
+    prompt_tuning_init_text="Classify the sentiment of this text: "
+)
+
+# Apply any config to a model
+model = get_peft_model(base_model, lora_config)  # or prefix_config, prompt_config
+model.print_trainable_parameters()
+# LoRA:          trainable params: 4,194,304  || all params: 6,742,609,920 || trainable%: 0.0622
+# Prefix Tuning: trainable params: 9,830,400  || all params: 6,748,246,016 || trainable%: 0.1457
+# Prompt Tuning: trainable params: 32,768     || all params: 6,738,448,384 || trainable%: 0.0005</code>
+                    </div>
+
+                    <p>
+                        <strong>Staff-level takeaway:</strong> LoRA won because it offers the best quality-efficiency tradeoff
+                        and merges into base weights at inference (zero overhead). Know the alternatives for interview discussions,
+                        but default to LoRA/QLoRA in practice. Prompt tuning is worth considering for 10B+ models where you need
+                        extreme parameter efficiency and have limited data.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
             <!-- SECTION 7: PRUNING -->
             <!-- ============================================ -->
             <h2 class="mt-4">7. Pruning: Removing Unimportant Weights</h2>

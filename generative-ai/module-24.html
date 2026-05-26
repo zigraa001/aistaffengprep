@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 24: Defensive UX &amp; User Feedback - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    <style>
+        .ux-pattern {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin: 0.75rem 0;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+        .ux-pattern-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0.5rem;
+        }
+        .ux-do { border-left: 3px solid #10b981; }
+        .ux-dont { border-left: 3px solid #ef4444; }
+        .flywheel-stage {
+            display: flex; align-items: center; gap: 1rem;
+            padding: 1rem; margin: 0.5rem 0; border-radius: 0.5rem;
+            border-left: 4px solid;
+        }
+        .flywheel-stage.collect { background: rgba(59,130,246,0.08); border-color: #3b82f6; }
+        .flywheel-stage.analyze { background: rgba(139,92,246,0.08); border-color: #8b5cf6; }
+        .flywheel-stage.improve { background: rgba(16,185,129,0.08); border-color: #10b981; }
+        .flywheel-stage.deploy  { background: rgba(245,158,11,0.08); border-color: #f59e0b; }
+        .analogy-box {
+            background: linear-gradient(135deg, rgba(34,197,94,0.1) 0%, rgba(16,185,129,0.1) 100%);
+            border-left: 4px solid #22c55e; padding: 1rem; margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .warning-box {
+            background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(234,88,12,0.1) 100%);
+            border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .insight-box {
+            background: linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(37,99,235,0.1) 100%);
+            border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        .framework-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .framework-table th {
+            background: rgba(139,92,246,0.15); color: #a78bfa;
+            padding: 0.75rem; text-align: left; font-weight: 600;
+            border-bottom: 2px solid rgba(139,92,246,0.3);
+        }
+        .framework-table td { padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--border-color); }
+        .framework-table tr:hover td { background: rgba(255,255,255,0.03); }
+        .callout { display: flex; gap: 0.75rem; padding: 1rem; border-radius: 0.5rem; margin: 1rem 0; }
+        .callout.info { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); }
+        .callout-icon { font-size: 1.5rem; flex-shrink: 0; }
+        .quiz-question { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }
+        .reveal-btn {
+            background: var(--primary-color); color: white; border: none;
+            padding: 0.5rem 1rem; border-radius: 0.25rem; cursor: pointer; margin-top: 0.5rem;
+        }
+        .reveal-btn:hover { opacity: 0.9; }
+        .quiz-answer { display: none; margin-top: 0.5rem; padding: 0.75rem; background: rgba(34,197,94,0.1); border-radius: 0.25rem; }
+        .fc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin: 1rem 0; }
+        .flashcard {
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 0.75rem; padding: 1.25rem; cursor: pointer; transition: transform 0.2s;
+        }
+        .flashcard:hover { transform: translateY(-2px); }
+        .fc-q { font-weight: 600; margin-bottom: 0.5rem; }
+        .fc-a { display: none; padding-top: 0.75rem; border-top: 1px solid var(--border-color); color: var(--text-secondary); }
+        .flashcard.flipped .fc-a { display: block; }
+        .flashcard.flipped .fc-q { color: var(--text-secondary); }
+        .fc-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+        .signal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem; margin: 1rem 0;
+        }
+        .signal-card {
+            background: var(--card-bg); border: 1px solid var(--border-color);
+            border-radius: 0.75rem; padding: 1.25rem; text-align: center;
+        }
+        .signal-value { font-size: 1.5rem; font-weight: 700; color: #4facfe; }
+        .signal-label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Module 24: Defensive UX &amp; User Feedback</h1>
+            <p class="text-muted">Designing AI products users trust, collecting explicit and implicit feedback, building data flywheels, and creating competitive moats through feedback-driven improvement.</p>
+
+            <div class="card">
+                <h3>What You'll Learn</h3>
+                <ul>
+                    <li>Why defensive UX matters: the gap between LLM capabilities and user expectations</li>
+                    <li>UX patterns for setting expectations, handling errors, and building trust</li>
+                    <li>Interaction design: chat vs inline suggestions vs full-page generation</li>
+                    <li>The data flywheel concept: feedback &rarr; improvement &rarr; better UX &rarr; more feedback</li>
+                    <li>Explicit feedback (thumbs up/down, regenerate) and implicit signals (acceptance rate, session length)</li>
+                    <li>Closing the loop: feedback to eval datasets, fine-tuning data, and reward modeling</li>
+                </ul>
+            </div>
+
+            <!-- ================================================================
+                 PART 1: DEFENSIVE UX
+                 ================================================================ -->
+            <h2 style="color: #4facfe; border-bottom: 2px solid rgba(79,172,254,0.3); padding-bottom: 0.5rem;">Part 1: Defensive UX</h2>
+
+            <!-- ================================================================
+                 SECTION 1: WHY DEFENSIVE UX MATTERS
+                 ================================================================ -->
+            <h2>1. Why Defensive UX Matters</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>The Gap Between AI Capabilities and User Expectations</span></div>
+                <div class="collapsible-content">
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> An LLM is like a brilliant intern who is supremely confident, sometimes wrong, and never
+                        says "I don't know." Defensive UX is the management layer that presents this intern's work appropriately: with
+                        context, caveats, and easy ways for the user to course-correct.
+                    </div>
+
+                    <p>
+                        Eugene Yan identifies Defensive UX as a critical pattern for production LLM systems. The core problem:
+                        <strong>LLMs are probabilistic, but users expect deterministic.</strong> Every interaction risks over-promising
+                        and under-delivering.
+                    </p>
+
+                    <h4>Key Research & Guidelines</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Source</th><th>Key Principles</th><th>Why It Matters</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Microsoft HAX Toolkit</strong> (18 guidelines)</td>
+                                <td>Make clear what the system can do. Make clear how well it can do it. Time services based on context. Show contextually relevant information.</td>
+                                <td>Most comprehensive enterprise AI UX guidelines. Used by Copilot, Bing Chat, Office AI.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Google People+AI Guidebook</strong></td>
+                                <td>Explain how AI arrived at its suggestion. Calibrate confidence carefully. Let users provide feedback. Learn from mistakes.</td>
+                                <td>Research-backed patterns from Google's AI products (Search, Assistant, Lens).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Apple HI Guidelines (ML)</strong></td>
+                                <td>Anchor on familiarity. Minimize cognitive load. Make AI features discoverable but not intrusive.</td>
+                                <td>How Apple designs ML features that feel natural (autocorrect, Siri suggestions, on-device ML).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>The Effort-Outcome Correlation (Netflix Finding)</h4>
+                    <div class="insight-box">
+                        <strong>Key insight:</strong> Netflix found that the more effort a user puts into an interaction, the higher their
+                        expectations become. This is devastating for chat-based AI:
+                        <ul style="margin-top: 0.5rem;">
+                            <li>Typing a 3-word search query = low effort, low expectation</li>
+                            <li>Writing a detailed chat prompt = high effort, high expectation</li>
+                            <li>Multi-turn conversation = maximum effort, maximum expectation</li>
+                        </ul>
+                        <strong>Implication:</strong> Chat UX is the hardest to satisfy because users invest significant effort composing prompts.
+                        Inline suggestions (like Copilot) are easier to satisfy because the effort to consume them is low &mdash; just Tab to accept.
+                    </div>
+
+                    <h4>The "Wow to Meh" Curve</h4>
+                    <p>
+                        Every AI product follows a predictable user journey:
+                    </p>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph LR
+    A["Day 1\n'This is magic!'"] --> B["Week 1\n'It's pretty good'"]
+    B --> C["Month 1\n'It gets some things wrong'"]
+    C --> D["Month 3\n'I only use it for X'"]
+    D --> E["Retained or Churned"]
+
+    style A fill:#065f46,color:#6ee7b7
+    style B fill:#1a2e1a,color:#6ee7b7
+    style C fill:#2e2a1a,color:#fbbf24
+    style D fill:#2e1a1a,color:#fca5a5
+    style E fill:#1e3a5f,color:#93c5fd
+                        </div>
+                    </div>
+                    <p>
+                        <strong>Defensive UX manages this curve</strong> by setting realistic expectations from day 1,
+                        handling failures gracefully, and giving users agency when things go wrong.
+                    </p>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 2: SETTING EXPECTATIONS
+                 ================================================================ -->
+            <h2>2. Setting User Expectations</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Transparency, Confidence, and Progressive Disclosure</span></div>
+                <div class="collapsible-content">
+
+                    <h4>Disclaimers and Limitation Transparency</h4>
+                    <p>How leading products handle this:</p>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Product</th><th>Disclaimer Approach</th><th>Why It Works</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>ChatGPT</strong></td>
+                                <td>"ChatGPT can make mistakes. Check important info." (persistent footer)</td>
+                                <td>Always visible, non-intrusive, sets baseline expectation</td>
+                            </tr>
+                            <tr>
+                                <td><strong>GitHub Copilot</strong></td>
+                                <td>Ghost text (grayed out) + Tab to accept. No disclaimer needed.</td>
+                                <td>The suggestion format itself communicates uncertainty. Low-commitment interaction.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Perplexity</strong></td>
+                                <td>Inline citations [1][2][3] linked to sources</td>
+                                <td>Shifts trust from "AI said it" to "this source said it". User can verify.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Google AI Overview</strong></td>
+                                <td>"AI-generated" label + "Generative AI is experimental"</td>
+                                <td>Clear provenance label. Users know to verify.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Confidence Indicators</h4>
+                    <p>
+                        Showing certainty levels helps users calibrate trust. But it's hard to do well because
+                        LLMs are notoriously poorly calibrated &mdash; high confidence doesn't mean correct.
+                    </p>
+                    <ul>
+                        <li><strong>Token-level probabilities:</strong> Available from most APIs. Low average log-prob = uncertain response. Useful as backend signal, but don't show raw numbers to users.</li>
+                        <li><strong>Hedge phrases:</strong> Train the model (via system prompt or fine-tuning) to express uncertainty: "Based on available information...", "I'm not certain, but..."</li>
+                        <li><strong>Citation density:</strong> Responses with more grounded citations feel more trustworthy than ungrounded claims.</li>
+                        <li><strong>Visual confidence:</strong> Color-coding (green = high confidence, yellow = medium, red = low). Use sparingly &mdash; too many indicators overwhelm.</li>
+                    </ul>
+
+                    <h4>Progressive Disclosure</h4>
+                    <p>
+                        Don't dump everything at once. Reveal complexity as the user needs it:
+                    </p>
+                    <div class="ux-pattern ux-do">
+                        <div class="ux-pattern-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">DO</div>
+                        <div>
+                            <strong>Start with a concise answer</strong>, then offer "Show reasoning" or "See sources" expandable sections.
+                            Let power users dig deeper while casual users get a quick answer.
+                        </div>
+                    </div>
+                    <div class="ux-pattern ux-dont">
+                        <div class="ux-pattern-icon" style="background: rgba(239,68,68,0.15); color: #ef4444;">DON'T</div>
+                        <div>
+                            <strong>Show a 2000-word response</strong> with all reasoning, citations, and caveats upfront.
+                            Users will skim, miss important caveats, and trust the first sentence blindly.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 3: INTERACTION DESIGN
+                 ================================================================ -->
+            <h2>3. Interaction Design Patterns</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Chat, Inline Suggestions, and Graceful Degradation</span></div>
+                <div class="collapsible-content">
+
+                    <h4>Interaction Modality Comparison</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Modality</th><th>User Effort</th><th>Expectation Level</th><th>Dismissal Cost</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Inline suggestion</strong> (Copilot ghost text, Gmail Smart Compose)</td>
+                                <td>Zero (appears while typing)</td>
+                                <td>Low (free suggestion)</td>
+                                <td>Zero (just keep typing)</td>
+                                <td>Autocomplete, code generation, email drafts</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Command palette</strong> (Notion AI, Slack AI)</td>
+                                <td>Low (single command)</td>
+                                <td>Medium</td>
+                                <td>Low (close palette)</td>
+                                <td>Summarize, translate, rewrite, format</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Side panel</strong> (Copilot in Edge, Claude in Cursor)</td>
+                                <td>Medium (type question)</td>
+                                <td>Medium-High</td>
+                                <td>Low (collapse panel)</td>
+                                <td>Q&A about current context, code explanation</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Full chat</strong> (ChatGPT, Claude.ai)</td>
+                                <td>High (compose prompt)</td>
+                                <td>High</td>
+                                <td>High (abandon conversation)</td>
+                                <td>Complex reasoning, creative tasks, open-ended exploration</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="callout info">
+                        <span class="callout-icon">&#128161;</span>
+                        <div class="callout-body">
+                            <strong>Design principle:</strong> The best AI UX minimizes user effort while maximizing the ability to dismiss.
+                            Copilot's ghost text is near-perfect: zero effort to consume, zero effort to dismiss, and acceptance is a single keystroke.
+                        </div>
+                    </div>
+
+                    <h4>Streaming Responses: Why They Work</h4>
+                    <p>
+                        Streaming (token-by-token display) isn't just a technical choice &mdash; it's a UX decision:
+                    </p>
+                    <ul>
+                        <li><strong>Perceived latency:</strong> Users see content immediately instead of waiting 5-10s for a complete response. Time-to-first-token (TTFT) matters more than total time.</li>
+                        <li><strong>Early abandonment:</strong> If the first few tokens are off-topic, users can stop and rephrase immediately instead of waiting for a useless complete response.</li>
+                        <li><strong>Engagement:</strong> Watching text appear token-by-token creates a "conversational" feel that keeps attention.</li>
+                    </ul>
+
+                    <h4>Code: Streaming Response with Fallback UI</h4>
+                    <pre><code class="language-javascript">// Streaming with graceful degradation
+async function streamAIResponse(prompt, containerEl) {
+    containerEl.innerHTML = '';
+    const cursor = document.createElement('span');
+    cursor.className = 'streaming-cursor';
+    cursor.textContent = '|';
+    containerEl.appendChild(cursor);
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, stream: true })
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            fullText += chunk;
+
+            // Insert text before cursor
+            cursor.insertAdjacentText('beforebegin', chunk);
+        }
+
+        // Remove cursor when done
+        cursor.remove();
+
+    } catch (error) {
+        // Graceful degradation: show error with retry option
+        containerEl.innerHTML = `
+            &lt;div class="ai-error"&gt;
+                &lt;p&gt;I wasn't able to generate a response. This might be temporary.&lt;/p&gt;
+                &lt;button onclick="streamAIResponse('${prompt}', this.parentElement.parentElement)"&gt;
+                    Try Again
+                &lt;/button&gt;
+                &lt;button onclick="this.parentElement.remove()"&gt;
+                    Dismiss
+                &lt;/button&gt;
+            &lt;/div&gt;
+        `;
+    }
+}</code></pre>
+
+                    <h4>Error Handling UX Patterns</h4>
+                    <div class="ux-pattern ux-do">
+                        <div class="ux-pattern-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">DO</div>
+                        <div>
+                            <strong>"I'm not sure about this. Here's what I found, but you should verify with [source]."</strong>
+                            Acknowledge uncertainty, provide partial value, point to authoritative sources.
+                        </div>
+                    </div>
+                    <div class="ux-pattern ux-do">
+                        <div class="ux-pattern-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">DO</div>
+                        <div>
+                            <strong>Offer alternatives when the primary response fails.</strong>
+                            "I couldn't generate a summary, but here are the key sections you might want to read: [links]."
+                        </div>
+                    </div>
+                    <div class="ux-pattern ux-dont">
+                        <div class="ux-pattern-icon" style="background: rgba(239,68,68,0.15); color: #ef4444;">DON'T</div>
+                        <div>
+                            <strong>"An error occurred. Please try again later."</strong>
+                            Generic errors give users no actionable path forward. They don't know if they should retry, rephrase, or give up.
+                        </div>
+                    </div>
+                    <div class="ux-pattern ux-dont">
+                        <div class="ux-pattern-icon" style="background: rgba(239,68,68,0.15); color: #ef4444;">DON'T</div>
+                        <div>
+                            <strong>Silently degrade quality without telling the user.</strong>
+                            If you fall back to a cheaper model or cached response, label it. Trust requires transparency.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 4: TRUST BUILDING
+                 ================================================================ -->
+            <h2>4. Building Trust Over Time</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>User Journey: Initially, During, When Wrong, Over Time</span></div>
+                <div class="collapsible-content">
+                    <h4>User Journey Phases</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Phase</th><th>User Mindset</th><th>UX Strategy</th><th>Key Actions</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Initially</strong></td>
+                                <td>"What can this do?"</td>
+                                <td>Guide discovery, show capabilities, set boundaries</td>
+                                <td>Onboarding examples, capability statements, "I'm best at X, less reliable for Y"</td>
+                            </tr>
+                            <tr>
+                                <td><strong>During interaction</strong></td>
+                                <td>"Is this right?"</td>
+                                <td>Provide confidence signals, enable verification</td>
+                                <td>Citations, source links, "Show reasoning" toggle, confidence indicators</td>
+                            </tr>
+                            <tr>
+                                <td><strong>When wrong</strong></td>
+                                <td>"I can't trust this"</td>
+                                <td>Recover gracefully, learn from correction</td>
+                                <td>Easy correction UI, regenerate button, "Report inaccuracy" feedback, apologize concisely</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Over time</strong></td>
+                                <td>"Is this still useful?"</td>
+                                <td>Demonstrate improvement, personalize, show value</td>
+                                <td>Usage statistics, personalized suggestions, "We improved X based on feedback"</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Citation and Attribution Patterns</h4>
+                    <p>Citations transform "the AI said so" into "this source says so" &mdash; shifting the trust question from the model to the source.</p>
+                    <ul>
+                        <li><strong>Perplexity-style:</strong> Inline numbered citations [1][2] that link to source documents. Users can hover to preview.</li>
+                        <li><strong>Bing Chat-style:</strong> Footnotes with source URLs grouped at the bottom of the response.</li>
+                        <li><strong>ChatGPT-style (search):</strong> Expandable "Sources" section with site previews.</li>
+                        <li><strong>Staff-level insight:</strong> Citation quality matters more than quantity. Three highly relevant citations beat ten tangential ones. Implement citation relevance scoring.</li>
+                    </ul>
+
+                    <h4>User Control Mechanisms</h4>
+                    <ul>
+                        <li><strong>Edit:</strong> Let users modify the AI's response and regenerate from the edited version</li>
+                        <li><strong>Regenerate:</strong> One-click regeneration with different sampling (temperature). Shows the model isn't deterministic.</li>
+                        <li><strong>Thumbs up/down:</strong> Quick binary feedback. Low friction but low signal.</li>
+                        <li><strong>Report inaccuracy:</strong> Structured feedback for factual errors. Higher friction but higher signal.</li>
+                        <li><strong>Copy/Share:</strong> Implicit positive signal &mdash; users share content they find valuable.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 5: ACCESSIBILITY
+                 ================================================================ -->
+            <h2>5. Accessibility &amp; Inclusive AI UX</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Making AI Features Usable for Everyone</span></div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Screen readers:</strong> AI-generated content must be in semantic HTML (not just canvas/images). Stream tokens into aria-live regions so screen readers announce updates progressively.</li>
+                        <li><strong>Reduced motion:</strong> Respect <code>prefers-reduced-motion</code>. Streaming animations and typing indicators should degrade to instant-display for users with motion sensitivity.</li>
+                        <li><strong>Cognitive load:</strong> Long AI responses overwhelm. Default to concise answers with "Show more" expansion. Use headings and bullet points.</li>
+                        <li><strong>Keyboard navigation:</strong> All AI interactions (accept, dismiss, regenerate, feedback) must be keyboard-accessible. Tab order should be logical.</li>
+                        <li><strong>Multilingual:</strong> If your product serves multiple languages, AI responses should match the user's language preference, not the language of the prompt.</li>
+                    </ul>
+
+                    <pre><code class="language-css">/* Respect reduced-motion preferences for streaming */
+@media (prefers-reduced-motion: reduce) {
+    .streaming-cursor { animation: none; }
+    .ai-response { transition: none; }
+    /* Show complete response instead of token-by-token */
+    .ai-response[data-streaming] { opacity: 1 !important; }
+}</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 PART 2: USER FEEDBACK & DATA FLYWHEELS
+                 ================================================================ -->
+            <h2 style="color: #10b981; border-bottom: 2px solid rgba(16,185,129,0.3); padding-bottom: 0.5rem; margin-top: 3rem;">Part 2: User Feedback &amp; Data Flywheels</h2>
+
+            <!-- ================================================================
+                 SECTION 6: DATA FLYWHEEL CONCEPT
+                 ================================================================ -->
+            <h2>6. The Data Flywheel Concept</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>How Feedback Creates Competitive Moats</span></div>
+                <div class="collapsible-content">
+                    <div class="analogy-box">
+                        <strong>Analogy:</strong> A data flywheel is like a snowball rolling downhill. Each user interaction adds a little
+                        more snow (data). The bigger the snowball, the faster it rolls (better model), which attracts more snow (users).
+                        Companies with strong flywheels become almost impossible to catch because their data advantage compounds.
+                    </div>
+
+                    <h4>The Virtuous Cycle</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+graph TD
+    A["Users interact\nwith AI product"] --> B["Collect feedback\n(explicit + implicit)"]
+    B --> C["Curate training\n&amp; eval data"]
+    C --> D["Improve model\n(fine-tune, RLHF)"]
+    D --> E["Better predictions\n&amp; responses"]
+    E --> F["Higher user\nsatisfaction"]
+    F --> G["More usage\n&amp; retention"]
+    G --> A
+
+    style A fill:#1e3a5f,stroke:#4facfe,color:#fff
+    style B fill:#2e1a2e,stroke:#9f7aea,color:#fff
+    style C fill:#2e2a1a,stroke:#f6ad55,color:#fff
+    style D fill:#1a2e1a,stroke:#48bb78,color:#fff
+    style E fill:#065f46,stroke:#6ee7b7,color:#fff
+    style F fill:#1a1a2e,stroke:#818cf8,color:#fff
+    style G fill:#2a1a2e,stroke:#f472b6,color:#fff
+                        </div>
+                    </div>
+
+                    <h4>Real-World Flywheels</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Product</th><th>Feedback Signal</th><th>How It Improves the Model</th><th>Competitive Advantage</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>GitHub Copilot</strong></td>
+                                <td>Suggestion acceptance rate (~30%), post-acceptance edits, time-to-accept</td>
+                                <td>Accepted suggestions become positive training examples. Edits show what the model got wrong.</td>
+                                <td>Billions of code completions = unmatched training data for code generation</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Midjourney</strong></td>
+                                <td>Generate, Variation, Upscale buttons = multi-signal feedback per image</td>
+                                <td>Upscaled images = "this is good." Variations = "close but not right." Regenerate = "try again." Each action has different signal strength.</td>
+                                <td>Millions of aesthetic preference pairs from real users</td>
+                            </tr>
+                            <tr>
+                                <td><strong>ChatGPT</strong></td>
+                                <td>Thumbs up/down, message editing, conversation continuation vs abandonment</td>
+                                <td>Thumbs down + improved response = preference pair for RLHF. Long conversations = engaging topics.</td>
+                                <td>Largest conversational preference dataset in existence</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Tesla Autopilot</strong></td>
+                                <td>Human takeover events, disengagement patterns</td>
+                                <td>Every human intervention = labeled failure case. Fleet learning across millions of vehicles.</td>
+                                <td>10B+ miles of real-world driving data</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="warning-box">
+                        <strong>The cold start problem:</strong> Flywheels need initial momentum. Before you have enough user feedback,
+                        bootstrap with synthetic data, expert annotations, and public datasets. The flywheel only kicks in at scale
+                        (thousands of daily interactions minimum).
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 7: EXPLICIT FEEDBACK
+                 ================================================================ -->
+            <h2>7. Explicit Feedback Mechanisms</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Thumbs Up/Down, Regenerate, Corrections</span></div>
+                <div class="collapsible-content">
+                    <h4>Explicit Feedback Types</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Mechanism</th><th>User Effort</th><th>Signal Quality</th><th>Collection Rate</th><th>Best For</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Thumbs up/down</strong></td>
+                                <td>Very Low</td>
+                                <td>Low (binary, no reason)</td>
+                                <td>5-15% of interactions</td>
+                                <td>Aggregate quality tracking, basic preference signal</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Regenerate button</strong></td>
+                                <td>Low</td>
+                                <td>Medium (negative signal)</td>
+                                <td>10-20% of interactions</td>
+                                <td>Identifying responses that need improvement</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Accept/Reject</strong> (Copilot-style)</td>
+                                <td>Zero (Tab vs ignore)</td>
+                                <td>High (binary per suggestion)</td>
+                                <td>100% of suggestions</td>
+                                <td>Code completion, autocomplete, inline suggestions</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Edit the response</strong></td>
+                                <td>High</td>
+                                <td>Very High (shows exact correction)</td>
+                                <td>1-5% of interactions</td>
+                                <td>High-value training data: (wrong_response, corrected_response) pairs</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Free-text feedback</strong></td>
+                                <td>High</td>
+                                <td>Varies (needs NLP to process)</td>
+                                <td>1-3% of interactions</td>
+                                <td>Understanding failure modes, feature requests</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Star/Likert rating</strong></td>
+                                <td>Low</td>
+                                <td>Medium (ordinal scale)</td>
+                                <td>3-10% of interactions</td>
+                                <td>Quality comparison across model versions, A/B tests</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Code: Feedback Collection API</h4>
+                    <pre><code class="language-python">from datetime import datetime
+from enum import Enum
+from pydantic import BaseModel, Field
+from typing import Optional
+import hashlib
+
+class FeedbackType(str, Enum):
+    THUMBS_UP = "thumbs_up"
+    THUMBS_DOWN = "thumbs_down"
+    REGENERATE = "regenerate"
+    EDIT = "edit"
+    COPY = "copy"
+    REPORT = "report"
+
+class FeedbackEvent(BaseModel):
+    """Structured feedback event for storage and analysis."""
+    event_id: str = Field(default_factory=lambda: hashlib.md5(
+        str(datetime.utcnow().timestamp()).encode()).hexdigest()[:12])
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    user_id: str
+    session_id: str
+    conversation_id: str
+    message_id: str
+    feedback_type: FeedbackType
+    # Original interaction context
+    prompt_hash: str          # Hash of user prompt (privacy)
+    response_hash: str        # Hash of AI response
+    model_id: str             # Which model generated the response
+    # Optional detailed feedback
+    edited_response: Optional[str] = None     # User's corrected version
+    free_text: Optional[str] = None           # Open-ended feedback
+    categories: list[str] = Field(default_factory=list)  # e.g., ["inaccurate", "off-topic"]
+    # Context metadata
+    response_latency_ms: int = 0
+    token_count: int = 0
+
+class FeedbackCollector:
+    """Collects and stores user feedback for model improvement."""
+
+    def __init__(self, db_connection):
+        self.db = db_connection
+
+    async def record(self, event: FeedbackEvent):
+        """Store feedback event for later analysis."""
+        await self.db.execute(
+            """INSERT INTO feedback_events
+               (event_id, timestamp, user_id, session_id, conversation_id,
+                message_id, feedback_type, prompt_hash, response_hash,
+                model_id, edited_response, free_text, categories,
+                response_latency_ms, token_count)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)""",
+            event.event_id, event.timestamp, event.user_id, event.session_id,
+            event.conversation_id, event.message_id, event.feedback_type.value,
+            event.prompt_hash, event.response_hash, event.model_id,
+            event.edited_response, event.free_text, event.categories,
+            event.response_latency_ms, event.token_count
+        )
+
+    async def get_thumbs_down_rate(self, model_id: str, hours: int = 24) -&gt; float:
+        """Calculate negative feedback rate for a model version."""
+        result = await self.db.fetchrow(
+            """SELECT
+                 COUNT(*) FILTER (WHERE feedback_type = 'thumbs_down') as negative,
+                 COUNT(*) as total
+               FROM feedback_events
+               WHERE model_id = $1
+                 AND timestamp &gt; NOW() - INTERVAL '%s hours'""" % hours,
+            model_id
+        )
+        return result['negative'] / max(result['total'], 1)</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 8: IMPLICIT FEEDBACK
+                 ================================================================ -->
+            <h2>8. Implicit Feedback Signals</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Reading Between the Lines: Behavioral Signals</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        Implicit feedback is collected <em>without</em> the user taking any explicit action. It's higher volume
+                        (100% of interactions) but noisier. The art is inferring quality from behavior.
+                    </p>
+
+                    <h4>Key Implicit Signals</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Signal</th><th>What It Indicates</th><th>Strength</th><th>Gotchas</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Suggestion acceptance rate</strong></td>
+                                <td>Quality of inline suggestions (Copilot: ~30% baseline)</td>
+                                <td>High</td>
+                                <td>Acceptance doesn't mean correct. User may accept and then modify.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Time-to-accept</strong></td>
+                                <td>How quickly user accepts suggestion. Fast = obvious. Slow = needed review.</td>
+                                <td>Medium</td>
+                                <td>User may be reading other content, not evaluating suggestion.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Post-acceptance edit distance</strong></td>
+                                <td>How much the user changes the accepted suggestion. Low edit = good quality.</td>
+                                <td>High</td>
+                                <td>Requires tracking edits after acceptance, which is technically complex.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Conversation length</strong></td>
+                                <td>Longer conversations may indicate engagement OR frustration</td>
+                                <td>Low (ambiguous)</td>
+                                <td>Long could mean "exploring" (good) or "model doesn't understand me" (bad). Disambiguate with sentiment.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Copy-paste behavior</strong></td>
+                                <td>User found the content valuable enough to use elsewhere</td>
+                                <td>Medium-High</td>
+                                <td>Not all copied content is used. May copy to fact-check.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Session return rate</strong></td>
+                                <td>User comes back = product is valuable</td>
+                                <td>High (lagging indicator)</td>
+                                <td>Slow feedback loop. Takes days/weeks to measure.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Abandonment pattern</strong></td>
+                                <td>User leaves mid-conversation = frustration or lost interest</td>
+                                <td>Medium</td>
+                                <td>User may have gotten their answer and left (positive abandonment).</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="signal-grid">
+                        <div class="signal-card">
+                            <div class="signal-value">~30%</div>
+                            <div class="signal-label">Copilot suggestion acceptance rate (baseline)</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-value">~55%</div>
+                            <div class="signal-label">ChatGPT daily return rate (power users)</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-value">~15%</div>
+                            <div class="signal-label">Typical thumbs up/down participation rate</div>
+                        </div>
+                        <div class="signal-card">
+                            <div class="signal-value">4-6</div>
+                            <div class="signal-label">Avg turns per productive conversation</div>
+                        </div>
+                    </div>
+
+                    <h4>Midjourney's Multi-Signal Approach</h4>
+                    <div class="insight-box">
+                        <strong>Brilliant design:</strong> Midjourney presents 4 images and offers: Generate variants (V1-V4),
+                        Upscale (U1-U4), or Regenerate. Each button press is a different feedback signal:
+                        <ul style="margin-top: 0.5rem;">
+                            <li><strong>Upscale:</strong> "This image is great" &rarr; strong positive signal for this style/composition</li>
+                            <li><strong>Variation:</strong> "Close but not right" &rarr; partial positive + direction of improvement</li>
+                            <li><strong>Regenerate:</strong> "All 4 are bad" &rarr; strong negative signal for this prompt interpretation</li>
+                            <li><strong>No action + new prompt:</strong> "Giving up on this direction" &rarr; complete failure signal</li>
+                        </ul>
+                        <strong>Result:</strong> Every interaction produces 3-5 feedback signals without users explicitly "rating" anything.
+                    </div>
+
+                    <h4>Code: Implicit Signal Collection</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional
+
+@dataclass
+class ImplicitSignal:
+    """Captured behavioral signal from user interaction."""
+    signal_type: str       # "acceptance", "edit_distance", "copy", "abandon", "dwell_time"
+    value: float           # Numeric value (rate, distance, seconds)
+    message_id: str
+    user_id: str
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+    metadata: dict = field(default_factory=dict)
+
+class ImplicitSignalTracker:
+    """Track behavioral signals from user interactions."""
+
+    def __init__(self, event_store):
+        self.store = event_store
+
+    async def track_suggestion_outcome(
+        self, suggestion_id: str, accepted: bool,
+        time_to_decision_ms: int, post_edit_distance: int = 0
+    ):
+        """Track inline suggestion acceptance/rejection."""
+        signals = [
+            ImplicitSignal(
+                signal_type="acceptance",
+                value=1.0 if accepted else 0.0,
+                message_id=suggestion_id,
+                user_id="",  # Filled by middleware
+                metadata={"time_to_decision_ms": time_to_decision_ms}
+            )
+        ]
+        if accepted and post_edit_distance &gt; 0:
+            signals.append(ImplicitSignal(
+                signal_type="edit_distance",
+                value=float(post_edit_distance),
+                message_id=suggestion_id,
+                user_id=""
+            ))
+        for signal in signals:
+            await self.store.record(signal)
+
+    async def track_conversation_metrics(
+        self, conversation_id: str, turns: int,
+        total_duration_s: float, ended_naturally: bool
+    ):
+        """Track conversation-level quality signals."""
+        await self.store.record(ImplicitSignal(
+            signal_type="conversation_depth",
+            value=float(turns),
+            message_id=conversation_id,
+            user_id="",
+            metadata={
+                "duration_s": total_duration_s,
+                "natural_end": ended_naturally,
+                "avg_turn_time_s": total_duration_s / max(turns, 1)
+            }
+        ))</code></pre>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 9: CLOSING THE LOOP
+                 ================================================================ -->
+            <h2>9. Closing the Loop: Feedback to Model Improvement</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>From User Signals to Better Models</span></div>
+                <div class="collapsible-content">
+
+                    <h4>Feedback-to-Improvement Pipeline</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph COLLECT["Collect"]
+        A1[Explicit Feedback\nThumbs, edits, ratings]
+        A2[Implicit Signals\nAcceptance, dwell, copy]
+        A3[Conversation Logs\nFull interaction history]
+    end
+
+    subgraph CURATE["Curate"]
+        B1[Filter by quality\nRemove noise, spam]
+        B2[Anonymize PII\nGDPR compliance]
+        B3[Label &amp; categorize\nFailure modes]
+        B4[Create eval dataset\nGolden test cases]
+    end
+
+    subgraph IMPROVE["Improve"]
+        C1[Update eval suite\nRegression tests]
+        C2[Fine-tune on edits\nPreference pairs]
+        C3[RLHF / DPO training\nReward modeling]
+        C4[Prompt optimization\nBased on failure patterns]
+    end
+
+    subgraph DEPLOY["Deploy &amp; Measure"]
+        D1[A/B test new model\nAgainst baseline]
+        D2[Monitor feedback\nmetrics post-deploy]
+        D3[Close the loop\nBack to collection]
+    end
+
+    COLLECT --> CURATE --> IMPROVE --> DEPLOY
+    DEPLOY --> COLLECT
+
+    style COLLECT fill:#1e3a5f,stroke:#4facfe
+    style CURATE fill:#2e2a1a,stroke:#f6ad55
+    style IMPROVE fill:#1a2e1a,stroke:#48bb78
+    style DEPLOY fill:#2e1a2e,stroke:#9f7aea
+                        </div>
+                    </div>
+
+                    <h4>Feedback-Driven Eval Dataset Creation</h4>
+                    <p>
+                        The most valuable output of a feedback system isn't training data &mdash; it's <strong>eval data</strong>.
+                        Every thumbs-down is a test case your current model fails. Collecting 100+ failure cases gives you an
+                        eval suite that reflects real production failures.
+                    </p>
+                    <ol>
+                        <li><strong>Collect:</strong> All thumbs-down responses + the original prompt</li>
+                        <li><strong>Enrich:</strong> Add the user's edited/corrected version as the "gold answer" (if available)</li>
+                        <li><strong>Categorize:</strong> Tag failure mode (hallucination, wrong format, off-topic, toxic, incomplete)</li>
+                        <li><strong>Version:</strong> Store in a versioned dataset. Each model release is tested against the full history.</li>
+                        <li><strong>Automate:</strong> Integrate into CI/CD &mdash; new model versions must pass all historical failure cases.</li>
+                    </ol>
+
+                    <h4>Using Feedback for Fine-Tuning</h4>
+                    <ul>
+                        <li><strong>Preference pairs from edits:</strong> (original_response, user_edited_response) &rarr; DPO training data. The edit is the "chosen" response, the original is "rejected."</li>
+                        <li><strong>Positive examples from acceptance:</strong> Accepted suggestions (with low post-edit distance) become SFT training examples.</li>
+                        <li><strong>Reward modeling:</strong> Thumbs up/down at scale creates a reward signal. Train a reward model on (prompt, response, score) triples, then use for RLHF.</li>
+                    </ul>
+
+                    <h4>Privacy Considerations</h4>
+                    <div class="warning-box">
+                        <strong>Critical for staff engineers:</strong> Feedback data contains user interactions. You must:
+                        <ul>
+                            <li><strong>Anonymize:</strong> Remove PII before storing. Hash user IDs. Strip personal details from prompts.</li>
+                            <li><strong>Consent:</strong> Users must opt in to their data being used for model improvement. GDPR requires explicit consent for processing.</li>
+                            <li><strong>Right to deletion:</strong> Users can request deletion of their feedback data. Your system must support this.</li>
+                            <li><strong>Data retention:</strong> Define and enforce retention periods. Don't store feedback indefinitely.</li>
+                            <li><strong>Access control:</strong> Limit who can access raw feedback data. Audit access logs.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 10: INTERVIEW ANGLES
+                 ================================================================ -->
+            <h2>10. Staff-Level Interview Angles</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>How to Discuss UX and Feedback in Interviews</span></div>
+                <div class="collapsible-content">
+                    <h4>System Design: "Design a feedback system for an AI code assistant"</h4>
+                    <p><strong>Strong answer structure:</strong></p>
+                    <ol>
+                        <li><strong>Define signals:</strong> "Implicit signals: suggestion acceptance rate, post-acceptance edit distance, time-to-accept. Explicit signals: thumbs up/down on explanations, bug report on suggestions."</li>
+                        <li><strong>Storage architecture:</strong> "Event-sourced system. Every interaction logged with structured metadata. PostgreSQL for feedback events, S3 for full conversation logs."</li>
+                        <li><strong>Pipeline:</strong> "Nightly batch job aggregates signals, creates eval dataset from failures, generates DPO training pairs from edits. Weekly model retraining with holdout validation."</li>
+                        <li><strong>Privacy:</strong> "All PII stripped before storage. User consent via ToS. GDPR-compliant deletion support. Feedback data segregated from production data."</li>
+                        <li><strong>Metrics:</strong> "Track suggestion acceptance rate, thumbs-down rate per model version, time-to-productive-session. These drive A/B test decisions."</li>
+                    </ol>
+
+                    <h4>Behavioral: Data Flywheel Impact Story</h4>
+                    <p>
+                        "In my previous role, we built a support chatbot that initially had 40% resolution rate. We added thumbs down + 'What was wrong?' feedback. After analyzing 2000 negative signals, we found 60% were about a specific policy that had changed. We updated the knowledge base and resolution rate jumped to 65%. That single feedback insight had more impact than any model upgrade."
+                    </p>
+
+                    <h4>Common Questions</h4>
+                    <ul>
+                        <li><strong>"How would you measure if an AI feature is actually helping users?"</strong> &mdash; Task completion rate (not just engagement), time-to-completion comparison with/without AI, user return rate for AI-assisted features, Net Promoter Score delta.</li>
+                        <li><strong>"What's the difference between explicit and implicit feedback?"</strong> &mdash; Explicit: user takes deliberate action (thumb, rating, edit). Higher signal quality, lower volume. Implicit: inferred from behavior (acceptance, dwell, copy). Lower signal quality, 100% coverage.</li>
+                        <li><strong>"How do you prevent feedback loops from creating bias?"</strong> &mdash; Regularly inject diverse evaluation data not derived from user feedback. Monitor for feedback distribution shifts. Include underrepresented scenarios in eval suites manually.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 11: QUIZ
+                 ================================================================ -->
+            <h2>11. Self-Check Quiz</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Test Your Understanding</span></div>
+                <div class="collapsible-content">
+                    <div class="quiz-question">
+                        <h4>Q1: Why does chat UX create higher user expectations than inline suggestions?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> The effort-outcome correlation (Netflix finding): higher effort interactions create higher expectations. Chat requires composing a prompt (high effort) while inline suggestions appear automatically (zero effort). Higher expectations are harder to satisfy, making chat the riskiest UX modality for AI products.
+                        </div>
+                    </div>
+
+                    <div class="quiz-question">
+                        <h4>Q2: What are three implicit feedback signals, and which is highest quality?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> (1) Suggestion acceptance rate, (2) Post-acceptance edit distance, (3) Session return rate. Post-acceptance edit distance is highest quality because it directly measures how much the user had to fix the AI's output. But it's technically complex to collect (requires tracking edits after acceptance).
+                        </div>
+                    </div>
+
+                    <div class="quiz-question">
+                        <h4>Q3: How does Midjourney extract multiple feedback signals from a single interaction?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> Each action is a different signal: Upscale = strong positive, Variation = partial positive + direction, Regenerate = strong negative for all 4, No action + new prompt = complete failure. Users "rate" images through natural interaction without any explicit rating UI.
+                        </div>
+                    </div>
+
+                    <div class="quiz-question">
+                        <h4>Q4: What is a data flywheel and why does it create a competitive moat?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> A data flywheel is the virtuous cycle: more users &rarr; more feedback &rarr; better model &rarr; better product &rarr; more users. It creates a moat because the data advantage compounds &mdash; each iteration makes the product harder to replicate. Competitors can copy the architecture but not the accumulated user preference data.
+                        </div>
+                    </div>
+
+                    <div class="quiz-question">
+                        <h4>Q5: How do you turn thumbs-down feedback into model improvement?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> (1) Collect all thumbs-down responses + original prompts as eval test cases. (2) If user provided an edited correction, create a DPO preference pair (edited = chosen, original = rejected). (3) Categorize failure modes to identify patterns. (4) Integrate failure cases into CI/CD eval suite. (5) Prioritize fixes based on frequency and severity of failure categories.
+                        </div>
+                    </div>
+
+                    <div class="quiz-question">
+                        <h4>Q6: What privacy considerations must a feedback system address?</h4>
+                        <button class="reveal-btn" onclick="this.nextElementSibling.style.display='block'">Reveal Answer</button>
+                        <div class="quiz-answer">
+                            <strong>Answer:</strong> (1) Anonymization: strip PII before storage, hash user IDs. (2) Consent: users must opt in to data use for model improvement (GDPR). (3) Right to deletion: support data deletion requests. (4) Retention policies: don't store indefinitely. (5) Access control: limit who sees raw feedback data, audit access logs.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 12: FLASHCARDS
+                 ================================================================ -->
+            <h2>12. Flashcards</h2>
+            <div class="fc-grid">
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div class="fc-q">Q: What is the effort-outcome correlation and what does it mean for AI UX?</div>
+                    <div class="fc-a">Higher user effort = higher expectations. Chat (high effort) is hardest to satisfy. Inline suggestions (zero effort) are easiest. Design for minimal user effort and easy dismissal.</div>
+                    <span class="fc-hint">tap to flip</span>
+                </div>
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div class="fc-q">Q: Name two UX patterns that build user trust in AI systems.</div>
+                    <div class="fc-a">(1) Inline citations with source links (Perplexity-style) shift trust from model to source. (2) Progressive disclosure: concise answer first, expandable reasoning/sources for verification.</div>
+                    <span class="fc-hint">tap to flip</span>
+                </div>
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div class="fc-q">Q: Why is streaming (token-by-token) important for AI UX?</div>
+                    <div class="fc-a">Reduces perceived latency (content appears immediately), enables early abandonment if off-topic, and creates conversational engagement. TTFT matters more than total generation time.</div>
+                    <span class="fc-hint">tap to flip</span>
+                </div>
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div class="fc-q">Q: What is Copilot's suggestion acceptance rate and why does it matter?</div>
+                    <div class="fc-a">~30% acceptance rate. It's the primary quality metric for inline suggestion products. Each acceptance = implicit positive training signal. Combined with post-edit distance, it drives the code generation flywheel.</div>
+                    <span class="fc-hint">tap to flip</span>
+                </div>
+                <div class="flashcard" onclick="this.classList.toggle('flipped')">
+                    <div class="fc-q">Q: How do you create DPO training data from user feedback?</div>
+                    <div class="fc-a">When user edits a response: (original_response = rejected, user_edited_version = chosen). This is a natural preference pair. Also: thumbs-up responses vs thumbs-down responses for the same prompt create preference pairs for reward modeling.</div>
+                    <span class="fc-hint">tap to flip</span>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 13: MINI PROJECT
+                 ================================================================ -->
+            <h2>13. Mini Project: Build a Feedback Collection System</h2>
+            <div class="collapsible">
+                <div class="collapsible-header"><span>Hands-On: Feedback Pipeline with Flywheel</span></div>
+                <div class="collapsible-content">
+                    <h4>Project Requirements</h4>
+                    <ol>
+                        <li><strong>Feedback API:</strong> Build a REST API that accepts explicit feedback (thumbs up/down, edited responses) and stores in PostgreSQL</li>
+                        <li><strong>Implicit signal tracking:</strong> Track suggestion acceptance, conversation depth, and copy events via client-side JavaScript events</li>
+                        <li><strong>Eval dataset generation:</strong> Nightly batch job that converts thumbs-down responses into eval test cases (prompt + expected_response)</li>
+                        <li><strong>DPO pair generation:</strong> Extract (original, edited) response pairs as DPO preference data</li>
+                        <li><strong>Dashboard:</strong> Simple page showing: thumbs-down rate over time, top failure categories, acceptance rate trend</li>
+                    </ol>
+
+                    <h4>Success Criteria</h4>
+                    <ul>
+                        <li>API handles 100+ feedback events per second</li>
+                        <li>PII stripped from all stored data</li>
+                        <li>Eval dataset generated from at least 50 feedback events</li>
+                        <li>Dashboard shows real-time feedback metrics</li>
+                    </ul>
+
+                    <h4>Stretch Goals</h4>
+                    <ul>
+                        <li>Build an A/B testing framework that routes users to different model versions and compares feedback metrics</li>
+                        <li>Implement Midjourney-style multi-signal feedback (generate, variation, refine) for a text generation use case</li>
+                        <li>Create a "feedback quality" classifier that filters spam/noise from genuine feedback</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="module-23.html" class="btn btn-secondary">&larr; Previous: Production Guardrails</a>
+                <a href="module-18.html" class="btn btn-primary">Next: Thinking Models &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../assets/js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script>
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        if (sidebarToggle) { sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('open'); }); }
+        if (sidebarOverlay) { sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('open'); }); }
+    </script>
+    <script src="sidebar.js"></script>
+    <script src="../assets/js/navbar.js"></script>
+</body>
+</html>

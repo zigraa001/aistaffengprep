@@ -58,7 +58,9 @@
                 { href: 'module-14.html', num: '14', text: 'Model Routing & Gateway' },
                 { href: 'module-15.html', num: '15', text: 'Observability for AI' },
                 { href: 'module-16.html', num: '16', text: 'Cost Optimization' },
-                { href: 'module-17.html', num: '17', text: 'Evals Deep Dive' }
+                { href: 'module-17.html', num: '17', text: 'Evals Deep Dive' },
+                { href: 'module-23.html', num: '23', text: 'Production Guardrails' },
+                { href: 'module-24.html', num: '24', text: 'Defensive UX & Feedback' }
             ]
         },
         {

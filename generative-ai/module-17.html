@@ -513,6 +513,142 @@ graph TD
             </div>
 
             <!-- ================================================================
+                 SECTION 2b: Benchmark Frameworks & Leaderboards
+                 ================================================================ -->
+            <h2>2b. Benchmark Frameworks & Leaderboards</h2>
+            <div class="collapsible open">
+                <div class="collapsible-header"><span>Industry-Standard Benchmarks for Model Evaluation</span></div>
+                <div class="collapsible-content">
+                    <p>
+                        Before building custom evals, understand the landscape of public benchmarks. These shape how models are compared
+                        industry-wide and directly influence procurement decisions. Staff engineers must know their strengths <em>and</em> limitations.
+                    </p>
+
+                    <div class="callout info">
+                        <span class="callout-icon">&#128161;</span>
+                        <div class="callout-body">
+                            <strong>Eugene Yan's take:</strong> "Evals are the major differentiator between folks rushing out hot garbage
+                            and those seriously building products." Public benchmarks are starting points, but production systems need
+                            task-specific evals that reflect your actual use case.
+                        </div>
+                    </div>
+
+                    <h4>Major Benchmark Suites</h4>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Benchmark</th><th>What It Measures</th><th>Key Details</th><th>Limitations</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>MMLU</strong></td>
+                                <td>Broad knowledge across 57 subjects (STEM, humanities, social science, professional)</td>
+                                <td>14,042 multiple-choice questions. Gold standard for general capability. GPT-4 scores ~86%, Claude 3.5 Sonnet ~89%.</td>
+                                <td>Multiple-choice format doesn't test generation quality. Some questions are noisy or ambiguous. Saturating for frontier models.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>HELM</strong> (Stanford)</td>
+                                <td>Holistic evaluation: accuracy, calibration, robustness, fairness, bias, toxicity, efficiency</td>
+                                <td>42 scenarios, 7 metric categories. Evaluates the same model across many dimensions simultaneously. Produces radar charts.</td>
+                                <td>Expensive to run (thousands of API calls). Scenarios may not match your domain. Updated infrequently.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>AlpacaEval</strong></td>
+                                <td>Instruction-following quality via automated LLM-as-judge</td>
+                                <td>805 instructions. GPT-4 judges which response is better. AlpacaEval 2.0 uses length-controlled win rates to reduce verbosity bias. Fast and cheap.</td>
+                                <td>Single judge model = single point of failure. Favors verbose, agreeable responses. Gaming is possible.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>EleutherAI Eval Harness</strong></td>
+                                <td>Open-source framework for running 200+ benchmarks (MMLU, HellaSwag, ARC, TruthfulQA, Winogrande, GSM8K)</td>
+                                <td>De facto standard for open-source model evaluation. Powers the Open LLM Leaderboard on Hugging Face.</td>
+                                <td>Primarily log-probability based. Not designed for chat/instruction models. Benchmark contamination is a growing problem.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>MT-Bench</strong></td>
+                                <td>Multi-turn conversation quality</td>
+                                <td>80 multi-turn questions across 8 categories. GPT-4 judges on 1-10 scale. Tests instruction following, reasoning, and coherence across turns.</td>
+                                <td>Small dataset. Judge model bias. Second-turn questions are templated.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>HumanEval / MBPP</strong></td>
+                                <td>Code generation correctness</td>
+                                <td>164 (HumanEval) / 974 (MBPP) programming problems with unit tests. Execution-based evaluation = ground truth. pass@k metric.</td>
+                                <td>Python-only (HumanEval). Easy problems for frontier models. Doesn't test real-world software engineering tasks.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>"Vibe Checks" vs Systematic Evaluation</h4>
+                    <p>
+                        Many teams evaluate models by manually testing a few prompts and going with "gut feel." This is what the community
+                        calls <strong>"vibe checks"</strong> &mdash; and while they're useful for initial exploration, they are insufficient
+                        for production decisions.
+                    </p>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Approach</th><th>When Appropriate</th><th>When Dangerous</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Vibe check</strong> (manual testing, 10-20 examples)</td>
+                                <td>Early prototyping, initial model selection, debugging specific failures</td>
+                                <td>Production deployment decisions, model migration, prompt optimization at scale</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Systematic eval</strong> (100+ examples, automated scoring)</td>
+                                <td>CI/CD gates, model comparison, regression testing, stakeholder reporting</td>
+                                <td>Overkill for quick experiments or one-off analyses</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p>
+                        <strong>The staff-engineer move:</strong> Start with vibe checks to form hypotheses, then validate with systematic
+                        evals before any production change. Never skip the second step.
+                    </p>
+
+                    <h4>Context-Free vs Context-Dependent Metrics</h4>
+                    <ul>
+                        <li><strong>Context-free metrics</strong> (BLEU, ROUGE, BERTScore) compare output against a reference without considering the input or retrieved context. Fast and cheap but miss whether the answer is actually correct <em>for the given question</em>.</li>
+                        <li><strong>Context-dependent metrics</strong> (faithfulness, answer relevancy, RAGAS suite) consider the input query, retrieved context, and generated answer together. More expensive but catch hallucination and relevance failures that context-free metrics miss.</li>
+                    </ul>
+                    <p>
+                        <strong>Rule of thumb:</strong> Use context-free metrics as fast pre-filters in CI, then context-dependent metrics
+                        for deeper analysis. Never rely solely on context-free metrics for RAG or chat systems.
+                    </p>
+
+                    <h4>LLM Evaluator Biases (Beyond Position Bias)</h4>
+                    <p>When using LLMs as judges, be aware of these systematic biases:</p>
+                    <table class="framework-table">
+                        <thead>
+                            <tr><th>Bias</th><th>Description</th><th>Mitigation</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Position bias</strong></td>
+                                <td>Judges prefer the first (or last) response in pairwise comparison. GPT-4 shows ~10-15% first-position preference.</td>
+                                <td>Run comparisons in both orders and average scores. Flag disagreements for human review.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Verbosity bias</strong></td>
+                                <td>Judges rate longer, more detailed responses higher even when shorter answers are more accurate.</td>
+                                <td>Use length-controlled scoring (AlpacaEval 2.0 approach). Add explicit rubric: "penalize unnecessary verbosity."</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Self-enhancement bias</strong></td>
+                                <td>Models rate their own outputs higher than outputs from other models. GPT-4 favors GPT-4 outputs.</td>
+                                <td>Use a different model family as judge than the model being evaluated. Cross-validate with multiple judges.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Authority bias</strong></td>
+                                <td>Judges favor responses that sound confident and authoritative, even if factually wrong.</td>
+                                <td>Include factual verification as separate eval dimension. Ground judge with reference answers.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ================================================================
                  SECTION 3: RAGAS
                  ================================================================ -->
             <h2>3. RAG Evaluation: The RAGAS Framework</h2>
@@ -1988,7 +2124,7 @@ if __name__ == "__main__":
             <!-- Navigation -->
             <div style="display:flex;justify-content:space-between;margin-top:3rem;padding-top:1.5rem;border-top:1px solid rgba(255,255,255,0.08);">
                 <a href="module-16.html" class="btn btn-secondary">&larr; Previous: Cost Optimization</a>
-                <a href="module-18.html" class="btn btn-primary">Next: Thinking Models &rarr;</a>
+                <a href="module-23.html" class="btn btn-primary">Next: Production Guardrails &rarr;</a>
             </div>
         </main>
     </div>

@@ -2339,6 +2339,120 @@ if __name__ == "__main__":
                 </ul>
             </div>
 
+            <!-- Fine-Tuning Strategy & Taxonomy -->
+            <h2 class="mt-4">Fine-Tuning Strategy: Taxonomy & Decision Framework</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Choosing the Right Fine-Tuning Approach</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>
+                        Not all fine-tuning is the same. Eugene Yan identifies four distinct strategies, each with different data requirements,
+                        cost profiles, and outcomes. The staff-level skill is knowing <em>which</em> to use and when.
+                    </p>
+
+                    <h4>Taxonomy of Fine-Tuning Approaches</h4>
+                    <table class="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Approach</th>
+                                <th>What It Does</th>
+                                <th>Data Needed</th>
+                                <th>When to Use</th>
+                                <th>Example</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Continued Pre-training</strong> (Domain Adaptation)</td>
+                                <td>Train on domain-specific unlabeled text to teach the model new vocabulary and concepts</td>
+                                <td>Large corpus (100M+ tokens), unlabeled</td>
+                                <td>Model doesn't understand your domain (medicine, law, finance). RAG alone isn't enough because the model can't reason about domain concepts.</td>
+                                <td>Bloomberg trained BloombergGPT on financial data. Med-PaLM trained on medical literature.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Instruction Fine-Tuning</strong></td>
+                                <td>Train on (instruction, response) pairs to improve general instruction following</td>
+                                <td>10K-100K high-quality instruction pairs</td>
+                                <td>Making an open-source base model useful as a general assistant. This is what turns a "completion model" into a "chat model."</td>
+                                <td>Alpaca (52K instructions), Vicuna (ShareGPT conversations), Orca (complex reasoning traces).</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Task-Specific Fine-Tuning</strong></td>
+                                <td>Train on labeled examples for one specific task (classification, extraction, formatting)</td>
+                                <td>500-10K labeled examples</td>
+                                <td>You need consistent, reliable performance on one narrow task. Prompt engineering isn't reliable enough.</td>
+                                <td>Sentiment classifier, entity extractor, SQL generator, code reviewer for your codebase.</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Alignment (RLHF/DPO)</strong></td>
+                                <td>Train on human preferences to align model behavior with human values</td>
+                                <td>10K-100K preference pairs (chosen vs rejected)</td>
+                                <td>Model gives technically correct but unhelpful, unsafe, or poorly formatted responses.</td>
+                                <td>ChatGPT's RLHF training, Llama 2 Chat, Claude's Constitutional AI.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">The "Army of Specialized Models" Pattern</h4>
+                    <div class="scale-card">
+                        <p style="color: #e2e8f0;">
+                            Instead of one large general-purpose model, production systems often deploy <strong>multiple small, fine-tuned models</strong>
+                            each specialized for one task. This pattern gives you:
+                        </p>
+                        <ul style="color: #e2e8f0;">
+                            <li><strong>Better quality:</strong> A 7B model fine-tuned for SQL generation often beats GPT-4 on that specific task</li>
+                            <li><strong>Lower cost:</strong> Small models are 10-100x cheaper per token than frontier models</li>
+                            <li><strong>Lower latency:</strong> 7B model serves in ~50ms vs ~500ms for 70B</li>
+                            <li><strong>Full control:</strong> No API dependency, data stays on your infrastructure</li>
+                        </ul>
+                        <p style="color: #a0aec0; margin-top: 1rem;">
+                            <strong>Real-world example:</strong> A fintech company might use: (1) fine-tuned 7B for intent classification,
+                            (2) fine-tuned 13B for SQL generation, (3) GPT-4o for complex multi-step reasoning, (4) fine-tuned 7B for
+                            response formatting. The router (Module 14) decides which model handles each request.
+                        </p>
+                    </div>
+
+                    <h4 class="mt-3">Model Selection Decision Tree</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    A[New AI feature needed] --> B{Can prompting alone\nsolve it reliably?}
+    B -- Yes --> C[Use frontier model\nwith prompt engineering]
+    B -- No --> D{Is the gap about\nmissing knowledge?}
+    D -- Yes --> E{Is knowledge\nstructured & queryable?}
+    E -- Yes --> F[RAG]
+    E -- No --> G[Continued Pre-training\n+ RAG]
+    D -- No --> H{Is the gap about\nbehavior/format?}
+    H -- Yes --> I{How much labeled data?}
+    I -- "&lt;500 examples" --> J[Few-shot prompting\nor prompt tuning]
+    I -- "500-10K" --> K[LoRA fine-tuning\ntask-specific]
+    I -- "10K+" --> L[Full fine-tuning\nor LoRA + more epochs]
+    H -- No --> M{Is the gap about\nsafety/alignment?}
+    M -- Yes --> N[RLHF or DPO\nalignment training]
+
+    style C fill:#1a2e1a,stroke:#48bb78,color:#fff
+    style F fill:#1e3a5f,stroke:#4facfe,color:#fff
+    style K fill:#2e1a2e,stroke:#9f7aea,color:#fff
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">The Alignment Tax</h4>
+                    <p>
+                        <strong>Critical concept:</strong> Fine-tuning a model on Task A often <em>degrades</em> performance on Task B.
+                        This is called the <strong>alignment tax</strong> or <strong>catastrophic forgetting</strong>. The more narrowly you
+                        fine-tune, the more general capability you lose.
+                    </p>
+                    <ul>
+                        <li><strong>Mitigation 1:</strong> Use LoRA instead of full fine-tuning. Since base weights are frozen, general knowledge is preserved.</li>
+                        <li><strong>Mitigation 2:</strong> Mix general-purpose data into your fine-tuning dataset (e.g., 10% general + 90% task-specific).</li>
+                        <li><strong>Mitigation 3:</strong> Use the "army of specialists" pattern &mdash; each model handles one task, so forgetting doesn't matter.</li>
+                        <li><strong>Mitigation 4:</strong> Evaluate on a held-out general benchmark after fine-tuning to quantify the tax.</li>
+                    </ul>
+                </div>
+            </div>
+
             <!-- How This Connects Forward -->
             <h2 class="mt-4">How This Connects Forward</h2>
 
@@ -2346,7 +2460,7 @@ if __name__ == "__main__":
                 <p>With training fundamentals covered, you are ready for:</p>
 
                 <ul>
-                    <li><strong>Module 7 (Optimization Hacks):</strong> Inference-time optimizations - KV caching, quantization, LoRA</li>
+                    <li><strong>Module 7 (Optimization Hacks):</strong> Inference-time optimizations - KV caching, quantization, LoRA, and a full PEFT methods survey</li>
                     <li><strong>Module 8 (RAG):</strong> How to extend LLMs with external knowledge</li>
                     <li><strong>Module 12 (AI Engineering):</strong> Production deployment, monitoring, and iteration</li>
                 </ul>

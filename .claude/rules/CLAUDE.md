@@ -96,8 +96,9 @@ This is an interactive GitHub Pages site for staff engineer interview preparatio
 │   ├── index.html            # Course overview (6 modules)
 │   └── module-01.html - module-06.html
 ├── generative-ai/
-│   ├── index.html            # Course overview (16 modules)
-│   └── module-01.html - module-16.html
+│   ├── index.html            # Course overview (24 modules, 7 phases)
+│   ├── sidebar.js            # Shared sidebar component
+│   └── module-01.html - module-24.html
 ├── metrics-tradeoffs/
 │   ├── index.html            # Course overview (15 modules)
 │   └── module-01.html - module-15.html
