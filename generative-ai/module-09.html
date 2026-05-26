@@ -3468,9 +3468,207 @@ print(f"Spearman correlation: {correlation['spearman_correlation']}")
             </div>
 
             <!-- ============================================ -->
-            <!-- SECTION 4: ACTIVE RECALL QUESTIONS -->
+            <!-- SECTION 4: RAG FOR OPERATIONS DOMAINS -->
             <!-- ============================================ -->
-            <h2 class="mt-4">4. Active Recall Questions</h2>
+            <h2 class="mt-4">4. RAG for Operations &amp; Production Domains</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                <h4>Why Operations RAG Is Different</h4>
+                <p>Most RAG tutorials use static knowledge bases (docs, wikis). Operations RAG faces unique challenges: data changes constantly (runbooks evolve, infrastructure changes), freshness is critical (stale remediation steps can cause outages), and the cost of hallucination is high (wrong fix = worse incident).</p>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Ops-Domain Knowledge Curation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Goes Into an Ops Knowledge Base</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Source</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Content Type</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Freshness Need</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Chunking Strategy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Runbooks</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Step-by-step procedures</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (re-index on every change)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-procedure (keep steps together)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Post-mortems</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Root cause + resolution</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low (historical)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-incident (timeline + RCA + actions)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CMDB</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Service topology, owners, dependencies</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (real-time sync preferred)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-service (include dependencies)</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Architecture docs</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">System design, data flows</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Medium (quarterly refresh)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-component or per-diagram</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slack/Teams threads</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tribal knowledge, ad-hoc fixes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low (ingest weekly)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-thread (include resolution)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block"><pre><code class="language-python">from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+
+@dataclass
+class OpsDocument:
+    """Metadata-rich document for operations RAG."""
+    content: str
+    source: str                # "runbook", "postmortem", "cmdb", "architecture"
+    service: str               # Which service this relates to
+    last_verified: datetime    # When a human last verified accuracy
+    freshness_ttl_days: int    # After this, flag as potentially stale
+    severity_relevance: list   # ["P1", "P2"] - which severity levels this applies to
+    tags: list                 # ["database", "scaling", "auth"]
+
+    @property
+    def is_stale(self) -&gt; bool:
+        age = (datetime.utcnow() - self.last_verified).days
+        return age &gt; self.freshness_ttl_days
+
+
+class OpsKnowledgeIndexer:
+    """Indexes operations knowledge with freshness tracking."""
+
+    def __init__(self, vector_store, embedding_model):
+        self.vector_store = vector_store
+        self.embedding_model = embedding_model
+
+    def index_document(self, doc: OpsDocument):
+        embedding = self.embedding_model.encode(doc.content)
+        metadata = {
+            "source": doc.source,
+            "service": doc.service,
+            "last_verified": doc.last_verified.isoformat(),
+            "is_stale": doc.is_stale,
+            "severity_relevance": doc.severity_relevance,
+            "tags": doc.tags,
+        }
+        self.vector_store.upsert(embedding=embedding, metadata=metadata, text=doc.content)
+
+    def query_with_freshness(self, query: str, service: str = None,
+                              severity: str = None, max_stale: bool = False):
+        """Retrieve docs with freshness-aware filtering."""
+        filters = {}
+        if service:
+            filters["service"] = service
+        if severity:
+            filters["severity_relevance"] = {"$contains": severity}
+        if not max_stale:
+            filters["is_stale"] = False
+
+        results = self.vector_store.query(
+            query_embedding=self.embedding_model.encode(query),
+            filters=filters,
+            top_k=10,
+        )
+
+        # Boost fresh, verified documents
+        for r in results:
+            if r.metadata.get("is_stale"):
+                r.score *= 0.7  # Penalize stale docs
+        return sorted(results, key=lambda r: r.score, reverse=True)</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Data Quality Validation for Ops RAG</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Bad data in → bad answers out. For operations, bad answers = wrong remediation = bigger outage. Validation framework:</p>
+
+                    <div class="code-block"><pre><code class="language-python">class OpsRAGValidator:
+    """Validate RAG pipeline data quality for operations domains."""
+
+    def validate_runbook(self, doc: dict) -&gt; dict:
+        """Ensure runbook meets minimum quality standards."""
+        issues = []
+
+        # Must have clear steps
+        if "steps" not in doc and not any(
+            line.strip().startswith(("1.", "Step", "-")) for line in doc["content"].split("\n")
+        ):
+            issues.append("No clear step-by-step procedure found")
+
+        # Must reference a service
+        if not doc.get("service"):
+            issues.append("No service specified — cannot route to correct team")
+
+        # Must have been verified recently
+        if doc.get("last_verified"):
+            from datetime import datetime, timedelta
+            verified = datetime.fromisoformat(doc["last_verified"])
+            if (datetime.utcnow() - verified).days &gt; 90:
+                issues.append(f"Not verified in {(datetime.utcnow() - verified).days} days")
+
+        # Must not contain deprecated commands
+        deprecated = ["kubectl rolling-update", "docker-compose", "systemctl restart"]
+        for cmd in deprecated:
+            if cmd in doc["content"]:
+                issues.append(f"Contains deprecated command: {cmd}")
+
+        return {"valid": len(issues) == 0, "issues": issues}
+
+    def validate_retrieval_quality(self, query: str, results: list, context: dict) -&gt; dict:
+        """Check if retrieved docs are actually relevant to the incident."""
+        checks = {
+            "service_match": any(
+                r.metadata.get("service") == context.get("affected_service")
+                for r in results
+            ),
+            "severity_match": any(
+                context.get("severity") in r.metadata.get("severity_relevance", [])
+                for r in results
+            ),
+            "freshness": all(
+                not r.metadata.get("is_stale") for r in results[:3]  # Top 3 must be fresh
+            ),
+            "diversity": len(set(r.metadata.get("source") for r in results)) &gt;= 2,
+        }
+        checks["overall"] = all(checks.values())
+        return checks</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Feedback Loops for Knowledge Freshness</h4>
+                    <p>Without feedback loops, RAG knowledge bases decay. Build these into your ops RAG pipeline:</p>
+                    <ul>
+                        <li><strong>Resolution feedback:</strong> After an incident, did the retrieved runbook actually work? Track success/failure per document.</li>
+                        <li><strong>Staleness detection:</strong> If a retrieved doc hasn't been verified in 90+ days, flag it in the agent response: "Note: this runbook was last verified 120 days ago."</li>
+                        <li><strong>Auto-deprecation:</strong> If a runbook references infrastructure that no longer exists (checked against CMDB), auto-flag for review.</li>
+                        <li><strong>Crowdsourced updates:</strong> After successful remediation, prompt the on-call engineer: "Would you like to update this runbook with what you actually did?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============================================ -->
+            <!-- SECTION 5: ACTIVE RECALL QUESTIONS -->
+            <!-- ============================================ -->
+            <h2 class="mt-4">5. Active Recall Questions</h2>
 
             <div class="quiz-question">
                 <h4>Q1: What is the difference between direct and indirect prompt injection attacks?</h4>

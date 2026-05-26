@@ -1992,9 +1992,139 @@ asyncio.run(run_benchmark())
             </div>
 
             <!-- ============================================== -->
-            <!-- SECTION 11: FLASHCARDS -->
+            <!-- SECTION 11: PARALLEL TOOL-CALLS & AGENT PERF -->
             <!-- ============================================== -->
-            <h2 class="mt-4">11. Flashcard Suggestions</h2>
+            <h2 class="mt-4">11. Parallel Tool-Calls Under SLO</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                <h4>Why This Matters for Agent Performance</h4>
+                <p>AI agents that call tools sequentially are bottlenecked by the <strong>sum</strong> of all tool latencies. An agent that queries Splunk (2s), Grafana (1.5s), and PagerDuty (0.5s) sequentially takes 4s. In parallel: 2s. Under strict SLOs (e.g., "triage within 30s"), parallel execution is mandatory.</p>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Parallel Tool Execution Patterns</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Pattern 1: Independent Parallel Calls</h4>
+                    <p>When tool calls have no dependencies, fire them all at once:</p>
+
+                    <div class="code-block"><pre><code class="language-python">import asyncio
+from typing import Any
+
+
+class ParallelToolExecutor:
+    """Execute multiple tool calls in parallel with SLO enforcement."""
+
+    def __init__(self, slo_timeout_sec: float = 10.0):
+        self.slo_timeout = slo_timeout_sec
+
+    async def execute_parallel(self, tool_calls: list[dict]) -&gt; dict:
+        """Run independent tool calls in parallel, respecting SLO."""
+
+        async def run_tool(call: dict) -&gt; tuple[str, Any]:
+            tool_fn = call["function"]
+            args = call.get("args", {})
+            try:
+                result = await asyncio.wait_for(
+                    tool_fn(**args),
+                    timeout=self.slo_timeout * 0.8,  # 80% of SLO per tool
+                )
+                return call["name"], {"status": "success", "result": result}
+            except asyncio.TimeoutError:
+                return call["name"], {"status": "timeout", "result": None}
+            except Exception as e:
+                return call["name"], {"status": "error", "result": str(e)}
+
+        tasks = [asyncio.create_task(run_tool(c)) for c in tool_calls]
+        done, pending = await asyncio.wait(tasks, timeout=self.slo_timeout)
+
+        results = {}
+        for task in done:
+            name, result = task.result()
+            results[name] = result
+        for task in pending:
+            task.cancel()
+            results[f"cancelled_{id(task)}"] = {"status": "slo_exceeded"}
+
+        return results
+
+
+# Usage: Agent needs logs, metrics, and topology simultaneously
+executor = ParallelToolExecutor(slo_timeout_sec=5.0)
+results = await executor.execute_parallel([
+    {"name": "splunk_logs", "function": query_splunk, "args": {"query": "error", "last": "5m"}},
+    {"name": "grafana_metrics", "function": query_grafana, "args": {"dashboard": "api-latency"}},
+    {"name": "cmdb_topology", "function": query_cmdb, "args": {"service": "auth-service"}},
+])</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Pattern 2: DAG-Based Execution</h4>
+                    <p>When some tools depend on others, model as a DAG and parallelize independent branches:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    subgraph "Parallel Phase 1"
+        A[Get alert details] --> B[Query logs]
+        A --> C[Query metrics]
+    end
+    subgraph "Parallel Phase 2"
+        B --> D[Correlate log+metric]
+        C --> D
+    end
+    subgraph "Sequential"
+        D --> E[Generate diagnosis]
+        E --> F[Suggest remediation]
+    end
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Agent-Specific SLO Budgeting</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Phase</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Budget</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Triage (classify alert)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3s</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Small model, pre-cached similar alerts</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data gathering (tools)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5s</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Parallel execution, per-tool timeouts</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Diagnosis (LLM reasoning)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10s</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Streaming, semantic cache hits</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Remediation plan</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">5s</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pre-built templates, LLM fills params</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Total SLO</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>30s</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">7s buffer for retries/fallbacks</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- SECTION 12: FLASHCARDS -->
+            <!-- ============================================== -->
+            <h2 class="mt-4">12. Flashcard Suggestions</h2>
             <p>These 5 Q/A pairs are designed for Anki import or spaced repetition. Export by copying to a CSV with fields: Front, Back.</p>
 
             <div class="flashcard-grid">

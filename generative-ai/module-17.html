@@ -2079,9 +2079,365 @@ if __name__ == "__main__":
             </div>
 
             <!-- ================================================================
-                 SECTION 13: Flashcard Suggestions
+                 SECTION 13: Self-Correction Loops & Response Validation
                  ================================================================ -->
-            <h2>13. Flashcard Suggestions</h2>
+            <h2>13. Self-Correction Loops &amp; Response Validation</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                <h4>Why This Matters</h4>
+                <p>Evals catch problems <em>after</em> they happen. Self-correction loops catch problems <em>before</em> the user sees them. For production agents that take real actions (restart services, execute queries, modify infrastructure), self-correction is not optional — it's a safety requirement.</p>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Response Validation Chains</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>A validation chain runs the LLM output through multiple checks before it reaches the user or triggers an action:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart LR
+    LLM[LLM Response] --> V1[Format Validator]
+    V1 -->|pass| V2[Factual Consistency Check]
+    V2 -->|pass| V3[Safety Filter]
+    V3 -->|pass| V4[Domain Validator]
+    V4 -->|pass| Action[Execute / Return]
+    V1 -->|fail| Retry[Retry with Feedback]
+    V2 -->|fail| Retry
+    V3 -->|fail| Block[Block + Log]
+    V4 -->|fail| Retry
+    Retry --> LLM
+                        </div>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">from dataclasses import dataclass
+from typing import Callable, Optional
+from enum import Enum
+
+
+class ValidationResult(Enum):
+    PASS = "pass"
+    FAIL_RETRY = "fail_retry"      # Can retry with modified prompt
+    FAIL_BLOCK = "fail_block"      # Must block, cannot retry
+    FAIL_ESCALATE = "fail_escalate"  # Needs human review
+
+
+@dataclass
+class Validator:
+    name: str
+    check: Callable[[str, dict], ValidationResult]
+    feedback_fn: Optional[Callable[[str], str]] = None  # Generates retry guidance
+
+
+class ValidationChain:
+    """Runs LLM output through a chain of validators."""
+
+    def __init__(self, validators: list[Validator], max_retries: int = 3):
+        self.validators = validators
+        self.max_retries = max_retries
+
+    async def validate_and_correct(
+        self, llm_fn: Callable, prompt: str, context: dict
+    ) -&gt; dict:
+        for attempt in range(self.max_retries + 1):
+            response = await llm_fn(prompt)
+
+            all_passed = True
+            for validator in self.validators:
+                result = validator.check(response, context)
+
+                if result == ValidationResult.FAIL_BLOCK:
+                    return {"status": "blocked", "reason": validator.name,
+                            "response": response, "attempt": attempt}
+
+                if result == ValidationResult.FAIL_ESCALATE:
+                    return {"status": "escalated", "reason": validator.name,
+                            "response": response, "attempt": attempt}
+
+                if result == ValidationResult.FAIL_RETRY:
+                    all_passed = False
+                    if validator.feedback_fn:
+                        feedback = validator.feedback_fn(response)
+                        prompt = f"{prompt}\n\nPrevious attempt failed validation " \
+                                 f"({validator.name}): {feedback}\nPlease correct."
+                    break  # Retry from the top
+
+            if all_passed:
+                return {"status": "passed", "response": response,
+                        "attempt": attempt}
+
+        return {"status": "max_retries_exceeded", "response": response,
+                "attempt": self.max_retries}
+
+
+# Example validators
+def json_format_check(response: str, ctx: dict) -&gt; ValidationResult:
+    """Ensure response is valid JSON."""
+    import json
+    try:
+        json.loads(response)
+        return ValidationResult.PASS
+    except json.JSONDecodeError:
+        return ValidationResult.FAIL_RETRY
+
+def sql_safety_check(response: str, ctx: dict) -&gt; ValidationResult:
+    """Block dangerous SQL operations."""
+    dangerous = ["DROP", "DELETE", "TRUNCATE", "ALTER"]
+    upper = response.upper()
+    if any(kw in upper for kw in dangerous):
+        return ValidationResult.FAIL_BLOCK
+    return ValidationResult.PASS
+
+def confidence_check(response: str, ctx: dict) -&gt; ValidationResult:
+    """Escalate to human if confidence is low."""
+    # Assume response includes a confidence field
+    import json
+    try:
+        data = json.loads(response)
+        if data.get("confidence", 1.0) &lt; 0.6:
+            return ValidationResult.FAIL_ESCALATE
+    except (json.JSONDecodeError, KeyError):
+        pass
+    return ValidationResult.PASS</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Automated Retry with Modified Strategy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Naive retry (same prompt, hope for different result) wastes tokens. Smart retry <strong>modifies the strategy</strong> on each attempt:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Attempt</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy Change</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 (original)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Standard prompt</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Happy path</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Add chain-of-thought + error feedback</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">More reasoning reduces errors</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Switch to stronger model (e.g., GPT-4o → Claude Opus)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model diversity catches different errors</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">4 (fallback)</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deterministic rule-based fallback</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Guaranteed output, no LLM needed</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div class="code-block"><pre><code class="language-python">class AdaptiveRetryStrategy:
+    """Retry with escalating strategies: prompt refinement → model upgrade → deterministic fallback."""
+
+    def __init__(self, strategies: list[dict]):
+        self.strategies = strategies  # [{model, prompt_modifier, temperature}, ...]
+
+    async def execute_with_retry(self, base_prompt: str, validators: list) -&gt; dict:
+        last_error = None
+        for i, strategy in enumerate(self.strategies):
+            model = strategy.get("model", "gpt-4o-mini")
+            modifier = strategy.get("prompt_modifier", lambda p, e: p)
+            temp = strategy.get("temperature", 0.7)
+
+            prompt = modifier(base_prompt, last_error)
+            response = await call_llm(model=model, prompt=prompt, temperature=temp)
+
+            # Run validators
+            passed = True
+            for v in validators:
+                result = v.check(response, {})
+                if result != ValidationResult.PASS:
+                    last_error = f"Failed {v.name}: {response[:200]}"
+                    passed = False
+                    break
+
+            if passed:
+                return {"response": response, "attempt": i, "model": model}
+
+        # All strategies exhausted — use deterministic fallback
+        return {"response": self.deterministic_fallback(base_prompt),
+                "attempt": len(self.strategies), "model": "rule-based"}
+
+    def deterministic_fallback(self, prompt: str) -&gt; str:
+        """Rule-based fallback when all LLM strategies fail."""
+        return '{"status": "unable_to_process", "action": "escalate_to_human"}'
+
+
+# Usage
+strategy = AdaptiveRetryStrategy([
+    {"model": "gpt-4o-mini", "temperature": 0.3},
+    {"model": "gpt-4o", "temperature": 0.2,
+     "prompt_modifier": lambda p, e: f"{p}\n\nThink step by step. Previous error: {e}"},
+    {"model": "claude-opus-4-6", "temperature": 0.1,
+     "prompt_modifier": lambda p, e: f"{p}\n\nBe extremely careful. Errors so far: {e}"},
+])</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Confidence-Based Human Escalation</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Not every response should reach a human. Use confidence scoring to decide when to escalate:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TD
+    R[LLM Response + Confidence] --> C{Confidence Score}
+    C -->|"> 0.85"| Auto[Auto-execute]
+    C -->|"0.60 - 0.85"| Review[Queue for Human Review]
+    C -->|"< 0.60"| Escalate[Immediate Escalation]
+    Review --> Timer{Reviewed in 5 min?}
+    Timer -->|Yes| Decision[Human Decision]
+    Timer -->|No| AutoApprove[Auto-approve if low-risk]
+    Timer -->|No| Escalate2[Escalate if high-risk]
+                        </div>
+                    </div>
+
+                    <div class="code-block"><pre><code class="language-python">@dataclass
+class ConfidenceEscalation:
+    """Route agent decisions based on confidence and risk level."""
+
+    auto_threshold: float = 0.85
+    review_threshold: float = 0.60
+    review_timeout_sec: float = 300  # 5 minutes
+
+    async def route(self, response: dict, risk_level: str = "medium") -&gt; dict:
+        confidence = response.get("confidence", 0.5)
+
+        if confidence &gt;= self.auto_threshold:
+            return {"action": "auto_execute", "confidence": confidence}
+
+        if confidence &gt;= self.review_threshold:
+            # Queue for human review with timeout
+            approved = await self._wait_for_human(response, timeout=self.review_timeout_sec)
+            if approved is None:  # Timeout
+                if risk_level == "low":
+                    return {"action": "auto_approve_timeout", "confidence": confidence}
+                else:
+                    return {"action": "escalate_timeout", "confidence": confidence}
+            return {"action": "human_decided", "approved": approved}
+
+        # Low confidence — immediate escalation
+        return {"action": "escalate_immediate", "confidence": confidence,
+                "reason": "Confidence below threshold"}
+
+    async def _wait_for_human(self, response: dict, timeout: float):
+        """Send to Slack/PagerDuty and wait for approval."""
+        # Implementation: post to approval channel, wait for reaction
+        import asyncio
+        try:
+            return await asyncio.wait_for(self._poll_approval(), timeout=timeout)
+        except asyncio.TimeoutError:
+            return None</code></pre>
+                    </div>
+
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(79, 172, 254, 0.1), rgba(0, 242, 254, 0.1)); border-left: 4px solid #4facfe;">
+                        <h4>Interview Tip: Self-Correction Design Questions</h4>
+                        <ul>
+                            <li><strong>"How would you ensure an AI agent doesn't take harmful actions?"</strong> — Describe the validation chain + confidence escalation pattern</li>
+                            <li><strong>"What happens when the LLM gives a wrong answer?"</strong> — Discuss adaptive retry with strategy escalation, not just "retry the same thing"</li>
+                            <li><strong>"How do you balance automation speed with safety?"</strong> — Confidence thresholds: auto-execute above 0.85, human review 0.60-0.85, block below 0.60</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 14: Evaluate Outcomes Not Trajectories
+                 ================================================================ -->
+            <h2>14. Evaluate Outcomes, Not Trajectories</h2>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1)); border-left: 4px solid #3b82f6;">
+                <h4>Key Insight</h4>
+                <p>Autonomous agents (coding agents, research agents, ops agents) exhibit high <strong>trajectory variance</strong> &mdash; the same task solved by the same model often takes different paths each run. This is expected and healthy. What matters is <strong>outcome variance</strong>: do different trajectories converge on the same correct result?</p>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Trajectory Variance vs Outcome Variance</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Consider a coding agent asked to "add input validation to the signup form." Across 40 independent runs you might observe:</p>
+                    <ul>
+                        <li>25 distinct solution paths (different files edited first, different validation libraries, different test approaches)</li>
+                        <li>But 38/40 produce functionally equivalent, correct output that passes the test suite</li>
+                    </ul>
+                    <p>This means trajectory variance is <strong>high</strong> but outcome variance is <strong>low</strong>. The verifier (test suite, eval, human review) projects diverse trajectories onto a binary pass/fail outcome.</p>
+
+                    <table style="width:100%; border-collapse:collapse; margin:1rem 0;">
+                        <thead>
+                            <tr style="background:rgba(102,126,234,0.2);">
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Scenario</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Trajectory Variance</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Outcome Variance</th>
+                                <th style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Verdict</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Coding agent with test suite</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">High (many paths)</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Low (tests pass/fail)</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);"><span class="eval-score high">Healthy</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Research agent with rubric</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">High (different sources)</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Medium (rubric scores vary)</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);"><span class="eval-score medium">Needs tighter verifier</span></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">Content agent, no verifier</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">High</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);">High (no verification)</td>
+                                <td style="padding:0.6rem; border:1px solid rgba(255,255,255,0.1);"><span class="eval-score low">Dangerous</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4>Implications for Eval Design</h4>
+                    <ul>
+                        <li><strong>Don't assert on intermediate steps.</strong> An agent that reads file A before file B is not "wrong" compared to one that reads B first. Step-level assertions make evals brittle and reject valid solutions.</li>
+                        <li><strong>Build outcome verifiers, not trajectory checkers.</strong> For code: test suites. For analysis: rubrics with clear criteria. For actions: state assertions (did the pod restart? is the metric recovering?).</li>
+                        <li><strong>Run multiple trials.</strong> A single pass/fail tells you little. Run 10-40 trials and measure pass rate. A 95% pass rate across 40 trials is a statistically meaningful signal. A single pass is anecdotal.</li>
+                        <li><strong>Verification is the hard part.</strong> Many tasks (refactoring quality, design quality, content tone) lack clean automated verifiers. Building the verifier is often harder than building the agent. Budget accordingly.</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(234, 88, 12, 0.1)); border-left: 4px solid #f59e0b;">
+                        <h4>Warning: The Verifier Problem</h4>
+                        <p>The trajectory-to-outcome paradigm only works when you have a reliable verifier. For many real tasks (code refactoring quality, design decisions, nuanced content), automated verification is an open problem. Don't assume the verifier exists &mdash; building it is often the primary engineering challenge. When no automated verifier is feasible, use LLM-as-judge with rubrics (Section 5) or human eval workflows (Section 6) as imperfect but necessary substitutes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ================================================================
+                 SECTION 15: Flashcard Suggestions
+                 ================================================================ -->
+            <h2>15. Flashcard Suggestions</h2>
             <p style="color:var(--text-secondary,#a0aec0);font-size:0.9rem;">
                 Export these to Anki, use them for spaced repetition, or quiz a colleague.
             </p>

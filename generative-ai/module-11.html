@@ -2124,6 +2124,235 @@ result = crew.kickoff()</code></pre>
 
             <div class="collapsible">
                 <div class="collapsible-header">
+                    <span>Production Multi-Agent Orchestration (5+ Agents)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(245, 158, 11, 0.1)); border-left: 4px solid #ef4444;">
+                        <h4>Why This Matters for Staff-Level Roles</h4>
+                        <p>JDs for staff ML/AI roles explicitly require "orchestrating multi-agent systems." The patterns above cover 2-4 agents. Production systems often need <strong>5-10+ agents</strong> with shared state, conflict resolution, and SLO-aware choreography. This section covers what changes at scale.</p>
+                    </div>
+
+                    <h4 class="mt-3">Agent-to-Agent Delegation Patterns</h4>
+                    <p>When agents need to delegate sub-tasks to other agents (not just the manager), you need explicit delegation protocols:</p>
+
+                    <div class="diagram-container">
+                        <div class="mermaid">
+flowchart TB
+    subgraph "Delegation Mesh (5+ Agents)"
+        Orchestrator[Orchestrator Agent]
+        Orchestrator --> Triage[Triage Agent]
+        Orchestrator --> Diag[Diagnostic Agent]
+        Orchestrator --> Remediation[Remediation Agent]
+        Triage -->|"escalate"| Diag
+        Diag -->|"delegate sub-check"| LogAgent[Log Analysis Agent]
+        Diag -->|"delegate sub-check"| MetricAgent[Metric Agent]
+        LogAgent -->|"findings"| Diag
+        MetricAgent -->|"findings"| Diag
+        Diag -->|"root cause + plan"| Remediation
+        Remediation -->|"result"| Orchestrator
+    end
+    subgraph "Shared State Store"
+        SS[(Redis / Shared Context)]
+    end
+    Orchestrator ---|read/write| SS
+    Triage ---|read/write| SS
+    Diag ---|read/write| SS
+    Remediation ---|read/write| SS
+                        </div>
+                    </div>
+
+                    <h4 class="mt-3">Shared State Management</h4>
+                    <p>When 5+ agents operate concurrently, they need shared state. Options:</p>
+
+                    <div class="code-block"><pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Any
+import asyncio
+import json
+import time
+
+
+@dataclass
+class SharedAgentState:
+    """Thread-safe shared state for multi-agent orchestration."""
+
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    _state: dict = field(default_factory=dict)
+    _history: list = field(default_factory=list)
+
+    async def get(self, key: str, default: Any = None) -&gt; Any:
+        async with self._lock:
+            return self._state.get(key, default)
+
+    async def set(self, key: str, value: Any, agent_id: str = "") -&gt; None:
+        async with self._lock:
+            old = self._state.get(key)
+            self._state[key] = value
+            self._history.append({
+                "ts": time.time(),
+                "agent": agent_id,
+                "key": key,
+                "old": old,
+                "new": value,
+            })
+
+    async def get_snapshot(self) -&gt; dict:
+        """Return a read-only snapshot for agent context injection."""
+        async with self._lock:
+            return dict(self._state)
+
+    async def get_updates_since(self, timestamp: float) -&gt; list:
+        """Get state changes since a given time (for incremental context)."""
+        async with self._lock:
+            return [h for h in self._history if h["ts"] &gt; timestamp]
+
+
+class MultiAgentChoreographer:
+    """
+    Orchestrates 5+ agents with shared state, conflict resolution,
+    and SLO-aware execution.
+    """
+
+    def __init__(self, agents: dict, slo_timeout_sec: float = 30.0):
+        self.agents = agents
+        self.state = SharedAgentState()
+        self.slo_timeout = slo_timeout_sec
+
+    async def run_parallel_with_slo(self, tasks: list) -&gt; dict:
+        """Run multiple agent tasks in parallel, respecting SLO timeout."""
+        results = {}
+
+        async def run_one(task):
+            agent = self.agents[task["agent"]]
+            snapshot = await self.state.get_snapshot()
+            result = await agent.execute(task["prompt"], context=json.dumps(snapshot))
+            await self.state.set(task["id"], result, agent_id=task["agent"])
+            return task["id"], result
+
+        try:
+            coros = [run_one(t) for t in tasks]
+            done, pending = await asyncio.wait(
+                [asyncio.create_task(c) for c in coros],
+                timeout=self.slo_timeout,
+            )
+            for fut in done:
+                tid, res = fut.result()
+                results[tid] = res
+            for fut in pending:
+                fut.cancel()
+                # Record timeout in shared state
+                await self.state.set("timeout_agents", list(pending), "choreographer")
+        except Exception as e:
+            await self.state.set("error", str(e), "choreographer")
+
+        return results
+
+    async def resolve_conflicts(self) -&gt; str:
+        """When agents disagree, use a resolution strategy."""
+        snapshot = await self.state.get_snapshot()
+        diagnoses = {k: v for k, v in snapshot.items() if k.startswith("diagnosis_")}
+
+        if len(set(str(v) for v in diagnoses.values())) == 1:
+            return list(diagnoses.values())[0]  # Unanimous
+
+        # Conflict: ask a judge agent or use voting
+        judge = self.agents.get("judge")
+        if judge:
+            verdict = await judge.execute(
+                f"These agents disagree. Resolve:\n{json.dumps(diagnoses, indent=2)}"
+            )
+            return verdict
+
+        # Fallback: majority vote
+        from collections import Counter
+        votes = Counter(str(v) for v in diagnoses.values())
+        return votes.most_common(1)[0][0]</code></pre>
+                    </div>
+
+                    <h4 class="mt-3">Conflict Resolution Strategies</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <thead>
+                            <tr style="background: var(--border-color);">
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strategy</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">When to Use</th>
+                                <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Trade-off</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Majority Vote</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3+ agents, classification tasks</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cheap but ignores nuance</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Judge Agent</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex reasoning, high-stakes</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Extra LLM call, but higher quality</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Confidence-Weighted</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agents report confidence scores</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requires calibrated confidence</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Human Escalation</strong></td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Disagreement on high-risk actions</td>
+                                <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Breaks automation, but safest</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 class="mt-3">Production Choreography Patterns</h4>
+                    <div class="diagram-container">
+                        <div class="mermaid">
+sequenceDiagram
+    participant O as Orchestrator
+    participant T as Triage Agent
+    participant L as Log Agent
+    participant M as Metric Agent
+    participant D as Diag Agent
+    participant R as Remediation Agent
+    participant S as Shared State
+
+    O->>S: Initialize incident context
+    O->>T: Classify alert severity
+    T->>S: Write: severity=P1, category=latency
+    T-->>O: P1 latency spike
+
+    par Parallel Investigation
+        O->>L: Analyze recent error logs
+        O->>M: Check CPU, memory, latency metrics
+    end
+
+    L->>S: Write: log_findings={error_spike: true}
+    M->>S: Write: metric_findings={cpu: 95%}
+
+    O->>D: Synthesize findings from shared state
+    D->>S: Read all findings
+    D->>S: Write: root_cause="memory leak in auth-service"
+    D-->>O: Root cause identified
+
+    O->>R: Execute remediation plan
+    R->>S: Write: action="restart auth-service pods"
+    R-->>O: Remediation complete
+                        </div>
+                    </div>
+
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(17, 153, 142, 0.1), rgba(56, 239, 125, 0.1)); border-left: 4px solid #11998e;">
+                        <h4>Key Design Decisions at Scale</h4>
+                        <ul>
+                            <li><strong>State store choice:</strong> Redis for speed, Postgres for durability, or in-memory for single-process</li>
+                            <li><strong>Fan-out limit:</strong> Never fan out to more than 5-7 parallel agents — diminishing returns, coordination cost explodes</li>
+                            <li><strong>Context injection:</strong> Give each agent only the state keys it needs, not the full state (reduces token usage, prevents confusion)</li>
+                            <li><strong>Timeout strategy:</strong> Use <code>asyncio.wait</code> with SLO timeout, cancel stragglers, proceed with partial results</li>
+                            <li><strong>Idempotency:</strong> Every agent action must be idempotent — retries should be safe</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
                     <span>Common Mistakes</span>
                     <span class="collapsible-icon">&#9660;</span>
                 </div>
@@ -2532,6 +2761,7 @@ async def demo_personal_assistant():
                     <li><strong>Summarization is an art</strong> - Rolling, hierarchical, and semantic compression each have their place</li>
                     <li><strong>MCP standardizes AI-data connections</strong> - Resources, Tools, Prompts, Sampling</li>
                     <li><strong>Multi-agent systems need coordination</strong> - Hierarchical, sequential, debate, or ensemble patterns</li>
+                    <li><strong>At scale (5+ agents)</strong> - Shared state, conflict resolution, SLO-aware timeouts, and idempotent actions become critical</li>
                     <li><strong>Start simple</strong> - Single agent first, add complexity only when needed</li>
                 </ol>
 
@@ -2542,6 +2772,7 @@ async def demo_personal_assistant():
                     <li>Create summarization strategies for long conversations</li>
                     <li>Build and connect MCP servers</li>
                     <li>Design multi-agent systems with appropriate coordination patterns</li>
+                    <li>Orchestrate 5+ agents with shared state, conflict resolution, and SLO budgets</li>
                     <li>Choose between AutoGen and CrewAI patterns based on use case</li>
                 </ul>
             </div>
