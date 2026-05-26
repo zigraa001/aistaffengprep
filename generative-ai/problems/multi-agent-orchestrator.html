@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: Multi-Agent Task Orchestrator - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Multi-Agent Task Orchestrator</h1>
+            <p class="text-muted">Examples: Claude Code, Devin, AutoGPT, CrewAI, LangGraph</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 2px solid rgba(239, 68, 68, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- 1. REQUIREMENTS -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Task decomposition</strong> &mdash; break complex user goals into sub-tasks</li>
+                        <li><strong>Multi-agent execution</strong> &mdash; specialized agents (researcher, coder, reviewer, executor) collaborate</li>
+                        <li><strong>Tool calling</strong> &mdash; agents invoke external tools (APIs, databases, file systems, browsers)</li>
+                        <li><strong>DAG execution</strong> &mdash; parallel where possible, sequential when dependent</li>
+                        <li><strong>State management</strong> &mdash; shared context, intermediate results, conversation memory</li>
+                        <li><strong>Error recovery</strong> &mdash; retry, fallback, human escalation on failure</li>
+                        <li><strong>Observability</strong> &mdash; trace every step, token usage, tool calls, decisions</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Latency:</strong> Complex tasks complete in seconds-minutes, not hours</li>
+                        <li><strong>Cost control:</strong> Budget limits per task (max tokens, max tool calls)</li>
+                        <li><strong>Safety:</strong> Agents cannot take irreversible actions without human approval</li>
+                        <li><strong>Determinism:</strong> Same input should produce similar (if not identical) results</li>
+                        <li><strong>Extensibility:</strong> Easy to add new agents and tools without rewriting orchestrator</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 2. AGENT PATTERNS -->
+            <h2 class="mt-4">2. Agent Orchestration Patterns</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Patterns: ReAct, DAG, Supervisor, Swarm</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pattern</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How It Works</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Best For</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Weakness</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>ReAct Loop</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Think &rarr; Act &rarr; Observe &rarr; Repeat</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single-agent tasks, exploration</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Gets stuck in loops, no parallelism</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>DAG Orchestration</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Plan as directed graph, execute in topological order</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Known workflows, parallelizable tasks</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rigid, hard to adapt mid-execution</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Supervisor</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Central LLM delegates to specialized agents</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complex multi-step tasks</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Supervisor bottleneck, token expensive</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Swarm / Handoff</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agents pass control to each other based on context</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Conversational flows, customer support</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hard to debug, no central view</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> In practice, combine patterns. Use a Supervisor for high-level planning, DAG for known sub-workflows, and ReAct for individual agent steps. The supervisor creates the plan, the orchestrator manages execution, and each agent runs its own tool-calling loop.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CORE ARCHITECTURE -->
+            <h2 class="mt-4">3. Core Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Orchestrator, Agents, Tools, State</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    U[User Goal] --> PL[Planner Agent<br/>Decompose into sub-tasks]
+    PL --> DAG[Task DAG<br/>Dependencies + Parallelism]
+
+    DAG --> O[Orchestrator<br/>Execute DAG]
+    O --> A1[Research Agent<br/>Web Search + RAG]
+    O --> A2[Coder Agent<br/>Write + Edit Code]
+    O --> A3[Reviewer Agent<br/>Code Review + Tests]
+    O --> A4[Executor Agent<br/>Run Commands]
+
+    A1 --> TG[Tool Gateway<br/>Auth + Rate Limit + Sandbox]
+    A2 --> TG
+    A3 --> TG
+    A4 --> TG
+
+    TG --> T1[Web Search API]
+    TG --> T2[File System]
+    TG --> T3[Code Executor<br/>Sandboxed]
+    TG --> T4[Database]
+    TG --> T5[External APIs]
+
+    O --> SS[Shared State<br/>Context + Results]
+    SS --> O
+
+    O --> OBS[Observability<br/>Traces + Costs]
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Code Sample: Orchestrator Core</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Optional
+import asyncio
+
+class TaskStatus(Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    BLOCKED = "blocked"  # Waiting for dependency
+
+@dataclass
+class Task:
+    id: str
+    description: str
+    agent_type: str           # "researcher", "coder", "reviewer"
+    dependencies: list[str] = field(default_factory=list)
+    status: TaskStatus = TaskStatus.PENDING
+    result: Optional[Any] = None
+    error: Optional[str] = None
+    retries: int = 0
+    max_retries: int = 2
+
+@dataclass
+class ExecutionPlan:
+    tasks: dict[str, Task]
+    goal: str
+
+class Orchestrator:
+    """DAG-based multi-agent task orchestrator."""
+
+    def __init__(self, agents: dict, state_store, budget):
+        self.agents = agents      # agent_type -> Agent instance
+        self.state = state_store  # Shared state across agents
+        self.budget = budget      # Token/cost budget
+
+    async def execute(self, plan: ExecutionPlan) -&gt; dict:
+        """Execute task DAG with maximum parallelism."""
+        while not self._all_done(plan):
+            # Find tasks ready to run (deps satisfied)
+            ready = [
+                t for t in plan.tasks.values()
+                if t.status == TaskStatus.PENDING
+                and self._deps_satisfied(t, plan)
+            ]
+
+            if not ready and not self._any_running(plan):
+                raise RuntimeError("Deadlock: no ready tasks, none running")
+
+            # Execute ready tasks in parallel
+            tasks_coros = []
+            for task in ready:
+                task.status = TaskStatus.RUNNING
+                tasks_coros.append(self._run_task(task, plan))
+
+            if tasks_coros:
+                await asyncio.gather(*tasks_coros)
+
+            # Check budget
+            if self.budget.exceeded:
+                raise BudgetExceededError(
+                    f"Budget exceeded: {self.budget.used}/{self.budget.limit}"
+                )
+
+        return {
+            t.id: t.result for t in plan.tasks.values()
+            if t.status == TaskStatus.COMPLETED
+        }
+
+    async def _run_task(self, task: Task, plan: ExecutionPlan):
+        """Execute a single task with the appropriate agent."""
+        agent = self.agents[task.agent_type]
+
+        # Gather dependency results as context
+        dep_results = {
+            dep_id: plan.tasks[dep_id].result
+            for dep_id in task.dependencies
+        }
+
+        try:
+            result = await agent.execute(
+                task=task.description,
+                context=dep_results,
+                shared_state=self.state,
+            )
+            task.result = result
+            task.status = TaskStatus.COMPLETED
+
+            # Update shared state
+            await self.state.set(f"task:{task.id}", result)
+
+        except Exception as e:
+            task.retries += 1
+            if task.retries &lt;= task.max_retries:
+                task.status = TaskStatus.PENDING  # Retry
+                task.error = str(e)
+            else:
+                task.status = TaskStatus.FAILED
+                task.error = str(e)
+
+    def _deps_satisfied(self, task, plan):
+        return all(
+            plan.tasks[d].status == TaskStatus.COMPLETED
+            for d in task.dependencies
+        )
+
+    def _all_done(self, plan):
+        return all(
+            t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED)
+            for t in plan.tasks.values()
+        )
+
+    def _any_running(self, plan):
+        return any(
+            t.status == TaskStatus.RUNNING
+            for t in plan.tasks.values()
+        )</code></pre>
+                </div>
+            </div>
+
+            <!-- 4. TOOL GATEWAY -->
+            <h2 class="mt-4">4. Tool Gateway &amp; Sandboxing</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Secure Tool Execution</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>The Tool Gateway is the security boundary between AI decisions and real-world actions.</p>
+
+                    <h4>Gateway Responsibilities</h4>
+                    <ul>
+                        <li><strong>Authentication:</strong> Each tool call carries agent identity; scoped permissions per agent type</li>
+                        <li><strong>Rate limiting:</strong> Per-agent, per-tool limits (prevent runaway loops)</li>
+                        <li><strong>Sandboxing:</strong> Code execution in isolated containers (Docker/Firecracker)</li>
+                        <li><strong>Approval gates:</strong> Destructive actions (delete, deploy, send email) require human confirmation</li>
+                        <li><strong>Audit logging:</strong> Every tool call logged with input, output, agent, timestamp</li>
+                    </ul>
+
+                    <h4>Permission Model</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass
+
+@dataclass
+class ToolPermission:
+    tool_name: str
+    allowed_agents: list[str]
+    requires_approval: bool = False
+    max_calls_per_task: int = 50
+    timeout_seconds: int = 30
+
+# Example permission config
+PERMISSIONS = [
+    ToolPermission("web_search", ["researcher"], max_calls_per_task=20),
+    ToolPermission("file_read", ["coder", "reviewer"], max_calls_per_task=100),
+    ToolPermission("file_write", ["coder"], max_calls_per_task=50),
+    ToolPermission("run_command", ["executor"], requires_approval=True, timeout_seconds=60),
+    ToolPermission("git_push", ["executor"], requires_approval=True, max_calls_per_task=1),
+    ToolPermission("send_email", ["communicator"], requires_approval=True, max_calls_per_task=5),
+]
+
+class ToolGateway:
+    """Secure gateway for agent tool calls."""
+
+    def __init__(self, permissions, sandbox, approval_queue):
+        self.perms = {p.tool_name: p for p in permissions}
+        self.sandbox = sandbox
+        self.approval = approval_queue
+        self.call_counts: dict[str, dict[str, int]] = {}  # task_id -> tool -> count
+
+    async def execute(self, tool_name: str, args: dict,
+                      agent_type: str, task_id: str) -&gt; dict:
+        perm = self.perms.get(tool_name)
+        if not perm:
+            raise PermissionError(f"Unknown tool: {tool_name}")
+
+        # Check agent is allowed
+        if agent_type not in perm.allowed_agents:
+            raise PermissionError(
+                f"Agent '{agent_type}' not allowed to use '{tool_name}'"
+            )
+
+        # Check rate limit
+        counts = self.call_counts.setdefault(task_id, {})
+        counts[tool_name] = counts.get(tool_name, 0) + 1
+        if counts[tool_name] &gt; perm.max_calls_per_task:
+            raise RateLimitError(f"Tool '{tool_name}' limit exceeded")
+
+        # Human approval if required
+        if perm.requires_approval:
+            approved = await self.approval.request(
+                tool=tool_name, args=args, agent=agent_type
+            )
+            if not approved:
+                return {"status": "denied", "reason": "Human denied action"}
+
+        # Execute in sandbox with timeout
+        result = await asyncio.wait_for(
+            self.sandbox.run(tool_name, args),
+            timeout=perm.timeout_seconds,
+        )
+
+        return result</code></pre>
+                </div>
+            </div>
+
+            <!-- 5. STATE MANAGEMENT -->
+            <h2 class="mt-4">5. Shared State &amp; Memory</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Context Sharing Between Agents</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>State Layers</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Layer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scope</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Contents</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Storage</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent Context</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Single agent's conversation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">System prompt, messages, tool results</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">In-memory (agent process)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Task State</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Current task execution</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Plan, sub-task results, intermediate artifacts</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Redis / in-memory store</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Session State</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User session</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Conversation history, user preferences</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Database</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Global Knowledge</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">All users</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Learned patterns, tool docs, cached results</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Vector DB + PostgreSQL</td>
+                        </tr>
+                    </table>
+
+                    <h4>Context Passing Problem</h4>
+                    <p>Each agent has limited context window. How to pass information between agents efficiently:</p>
+                    <ul>
+                        <li><strong>Summary injection:</strong> Summarize upstream agent's output before passing to next agent</li>
+                        <li><strong>Artifact store:</strong> Agents write artifacts (code files, research docs) to shared store; downstream agents read what they need</li>
+                        <li><strong>Structured handoff:</strong> Each agent outputs a structured JSON summary, not raw conversation history</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 6. ERROR RECOVERY -->
+            <h2 class="mt-4">6. Error Recovery &amp; Self-Correction</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Handling Failures Gracefully</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Error Taxonomy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Error Type</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Example</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Recovery Strategy</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tool failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">API timeout, 500 error</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Retry with backoff (up to 3x)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Invalid tool call</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Wrong arguments, missing params</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Feed error back to agent, ask to fix</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent stuck in loop</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Repeating same action</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Detect loop (N repeated actions), force re-plan</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sub-task failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent can't complete task</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Try different agent, decompose further, or escalate</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Budget exceeded</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Too many tokens/tool calls</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Return partial results + explain what's left</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Plan invalidated</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Early result changes requirements</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Re-plan from current state</td>
+                        </tr>
+                    </table>
+
+                    <h4>Self-Correction Pattern</h4>
+                    <pre><code class="language-python">class SelfCorrectingAgent:
+    """Agent that detects and recovers from its own mistakes."""
+
+    def __init__(self, llm, tools, max_iterations=10):
+        self.llm = llm
+        self.tools = tools
+        self.max_iter = max_iterations
+
+    async def execute(self, task: str, context: dict,
+                      shared_state) -&gt; dict:
+        messages = [
+            {"role": "system", "content": self._build_system_prompt()},
+            {"role": "user", "content": self._format_task(task, context)},
+        ]
+
+        action_history = []
+        for i in range(self.max_iter):
+            response = await self.llm.chat(
+                messages=messages, tools=self.tools.schemas()
+            )
+
+            # Check for completion
+            if response.stop_reason == "end_turn":
+                return {"output": response.content, "steps": i + 1}
+
+            # Execute tool call
+            tool_call = response.tool_calls[0]
+
+            # Loop detection
+            action_key = f"{tool_call.name}:{hash(str(tool_call.args))}"
+            if action_history.count(action_key) &gt;= 3:
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "You are repeating the same action. "
+                        "Try a completely different approach."
+                    ),
+                })
+                action_history.clear()
+                continue
+
+            action_history.append(action_key)
+
+            try:
+                result = await self.tools.execute(
+                    tool_call.name, tool_call.args
+                )
+                messages.append({
+                    "role": "tool",
+                    "content": str(result),
+                    "tool_call_id": tool_call.id,
+                })
+            except Exception as e:
+                # Feed error back for self-correction
+                messages.append({
+                    "role": "tool",
+                    "content": f"ERROR: {e}. Please fix and try again.",
+                    "tool_call_id": tool_call.id,
+                })
+
+        return {"output": "Max iterations reached", "steps": self.max_iter}</code></pre>
+                </div>
+            </div>
+
+            <!-- 7. ARCHITECTURE DIAGRAM -->
+            <h2 class="mt-4">7. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "User Interface"
+        UI[Chat / IDE / API] --> GW[API Gateway]
+    end
+
+    subgraph "Planning Layer"
+        GW --> PL[Planner Agent<br/>Decompose Goal]
+        PL --> DAG[Task DAG Builder<br/>Dependencies + Priority]
+    end
+
+    subgraph "Execution Layer"
+        DAG --> ORCH[Orchestrator<br/>DAG Executor]
+        ORCH --> |parallel| A1[Agent: Researcher]
+        ORCH --> |parallel| A2[Agent: Coder]
+        ORCH --> |sequential| A3[Agent: Reviewer]
+        ORCH --> |sequential| A4[Agent: Executor]
+    end
+
+    subgraph "Tool Layer"
+        A1 & A2 & A3 & A4 --> TGW[Tool Gateway<br/>Auth + Sandbox + Audit]
+        TGW --> TOOLS[Web Search / File I/O<br/>Code Runner / DB / APIs]
+    end
+
+    subgraph "State & Memory"
+        ORCH --> SS[Shared State Store]
+        SS --> ART[Artifact Store<br/>Files, Code, Docs]
+        SS --> MEM[Conversation Memory]
+    end
+
+    subgraph "Safety & Observability"
+        TGW --> APR[Human Approval<br/>Destructive Actions]
+        ORCH --> TRACE[Distributed Tracing<br/>OpenTelemetry]
+        ORCH --> BUDGET[Budget Monitor<br/>Tokens + Cost]
+    end
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. FAILURE MODES -->
+            <h2 class="mt-4">8. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Infinite agent loop</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Token budget burned, no progress</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Max iterations + loop detection + forced re-plan</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agent takes destructive action</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Deletes files, sends wrong email</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Approval gates; sandbox execution; undo capability</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Context overflow</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agents forget earlier context</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Structured handoffs; artifact store; summary compression</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Plan is wrong</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Agents execute bad plan perfectly</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Checkpoint after each phase; human review of plan; re-plan capability</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM provider outage</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">All agents stop</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-provider fallback; checkpoint + resume from saved state</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 9. STAFF-LEVEL DISCUSSION -->
+            <h2 class="mt-4">9. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Deep Architecture Decisions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Determinism vs Flexibility</h4>
+                    <ul>
+                        <li><strong>More deterministic:</strong> Pre-defined DAG workflows, fixed agent roles, structured outputs. Predictable, testable, auditable.</li>
+                        <li><strong>More flexible:</strong> LLM decides the plan at runtime, agents can spawn sub-agents. Handles novel tasks, but harder to debug and predict cost.</li>
+                        <li><strong>Sweet spot:</strong> Deterministic skeleton (known workflow steps) with flexible agent behavior within each step.</li>
+                    </ul>
+
+                    <h4>Cost Control Strategies</h4>
+                    <ul>
+                        <li><strong>Token budgets:</strong> Each agent gets a max token allocation; orchestrator tracks global spend</li>
+                        <li><strong>Model routing:</strong> Simple sub-tasks use cheaper models; complex reasoning uses expensive ones</li>
+                        <li><strong>Caching:</strong> Cache tool results and LLM responses for repeated patterns</li>
+                        <li><strong>Early termination:</strong> If first agent answers the question directly, skip remaining plan</li>
+                    </ul>
+
+                    <h4>When Multi-Agent vs Single Agent</h4>
+                    <ul>
+                        <li><strong>Single agent wins when:</strong> Task is well-defined, single domain, fits in context window</li>
+                        <li><strong>Multi-agent wins when:</strong> Task requires multiple domains (code + research + review), needs parallelism, or exceeds single context window</li>
+                        <li><strong>Don't over-engineer:</strong> Start with single agent + tools. Add multi-agent only when you hit single-agent limitations.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 10. INTERVIEW TIPS -->
+            <h2 class="mt-4">10. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li>Understanding different orchestration patterns and when to use each</li>
+                        <li>Security mindset: sandboxing, approval gates, least-privilege tools</li>
+                        <li>Error recovery: not just happy path, but loops, failures, budget limits</li>
+                        <li>Practical cost awareness: token budgets, model routing, not "use GPT-4 for everything"</li>
+                    </ul>
+
+                    <h4>Common Follow-ups</h4>
+                    <ul>
+                        <li>"How do you test a multi-agent system? How do you write unit tests for non-deterministic agents?"</li>
+                        <li>"Two agents disagree on the approach. How does the system resolve conflicts?"</li>
+                        <li>"How do you handle a task that takes 10 minutes? User disconnect, state recovery?"</li>
+                        <li>"How would you add a new agent type to the system?"</li>
+                        <li>"What observability do you need to debug a failed 15-step task?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 11. ACTIVE RECALL -->
+            <h2 class="mt-4">11. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Compare DAG orchestration vs Supervisor pattern. When would you choose each?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>DAG: when you know the workflow upfront, want maximum parallelism, and need predictable execution. Supervisor: when the plan needs to adapt based on intermediate results, tasks are exploratory, or you need dynamic re-planning. In practice, combine both: Supervisor creates the plan, DAG executes it.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> What is a Tool Gateway and why is it critical for multi-agent safety?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>The Tool Gateway is the security boundary between AI decisions and real-world actions. It enforces: per-agent permissions (coder can't send emails), rate limits (prevent runaway loops), sandboxed execution (code runs in containers), approval gates (destructive actions need human OK), and audit logging. Without it, a misbehaving agent could delete databases or leak data.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> How do you detect and break an agent stuck in an infinite loop?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Track action history (tool name + args hash). If the same action appears 3+ times, inject a message telling the agent to try a different approach. Also enforce max_iterations as a hard limit. If both fail, escalate to the supervisor/planner for re-planning or to a human.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> How do agents share context without each one having the full conversation history?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Three strategies: (1) Structured handoffs &mdash; each agent outputs a JSON summary, downstream agents receive only relevant fields. (2) Artifact store &mdash; agents write files/docs to shared storage, others read what they need. (3) Summary injection &mdash; summarize upstream output before injecting into next agent's context. This keeps each agent's context window focused.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> When should you use multi-agent vs a single agent with tools?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Single agent: task is well-defined, single domain, fits in one context window. Multi-agent: task spans multiple domains (research + code + review), benefits from parallelism, or exceeds single agent's context. Start simple &mdash; add multi-agent only when you hit single-agent limits. Over-engineering the orchestration wastes tokens and adds complexity.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> How do you control costs in a multi-agent system where each agent makes LLM calls?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Per-agent token budgets tracked by orchestrator. Model routing: simple tasks use cheap models, complex reasoning uses expensive ones. Cache tool results and LLM responses. Early termination if first agent resolves the task. Max iterations per agent. Global task budget with hard stop.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="ai-content-moderation.html" class="btn btn-secondary">&larr; Previous: Content Moderation</a>
+                <a href="real-time-ai-chatbot.html" class="btn btn-primary">Next: Real-Time AI Chatbot &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            if (sidebarToggle) { sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('open'); }); }
+            if (sidebarOverlay) { sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('open'); }); }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

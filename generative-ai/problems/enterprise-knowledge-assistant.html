@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: Enterprise Knowledge Assistant - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Enterprise Knowledge Assistant</h1>
+            <p class="text-muted">Conversational Q&amp;A over Confluence, Slack, JIRA, Google Drive</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 2px solid rgba(239, 68, 68, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============ 1. REQUIREMENTS ============ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Conversational Q&amp;A</strong> over enterprise knowledge bases (Confluence, Slack, JIRA, Google Drive)</li>
+                        <li><strong>Multi-turn conversations</strong> with context retention across messages</li>
+                        <li><strong>Cited answers</strong> &mdash; every response links back to source documents</li>
+                        <li><strong>Role-based access control</strong> &mdash; respects existing document permissions</li>
+                        <li><strong>Feedback loop</strong> &mdash; thumbs up/down, flag incorrect answers</li>
+                        <li><strong>Structured data queries</strong> &mdash; "How many P0 bugs were filed this sprint?" via SQL agent</li>
+                        <li><strong>Escalation</strong> &mdash; route to human expert when confidence is low</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>SOC2 compliance</strong> &mdash; data encryption, audit logs, no data leaves tenant boundary</li>
+                        <li><strong>Latency:</strong> P95 &lt; 3 seconds for response</li>
+                        <li><strong>Concurrency:</strong> 10K concurrent users</li>
+                        <li><strong>Data freshness:</strong> Incremental sync within 30 minutes</li>
+                        <li><strong>PII handling:</strong> Detect and redact PII before sending to LLM</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 2. SCALE ESTIMATION ============ -->
+            <h2 class="mt-4">2. Scale &amp; Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Back-of-Envelope Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Data Sources (mid-size enterprise, ~5K employees):</strong><br>
+                        - Confluence: 500K pages<br>
+                        - Slack: 2M messages/month (6 months history = 12M messages)<br>
+                        - JIRA: 200K tickets<br>
+                        - Google Drive: 1M documents<br>
+                        - Total: ~14M source items<br><br>
+
+                        <strong>After Chunking:</strong><br>
+                        - Confluence: 500K &times; 8 chunks = 4M chunks<br>
+                        - Slack: Thread-based grouping &rarr; 2M thread chunks<br>
+                        - JIRA: 200K tickets (1 chunk each, metadata-heavy)<br>
+                        - Drive: 1M &times; 5 chunks = 5M chunks<br>
+                        - Total: ~<strong>11M vectors</strong><br><br>
+
+                        <strong>Query Load:</strong><br>
+                        - 10K concurrent users, avg 5 queries/hour each<br>
+                        - Peak: 50K queries/hour &asymp; <strong>~14 QPS</strong><br>
+                        - Each query: multi-turn context (avg 3 turns) + retrieval + generation<br>
+                        - Token budget per query: ~6K input + ~800 output<br><br>
+
+                        <strong>Monthly Cost:</strong><br>
+                        - ~2M queries/month &times; 6.8K tokens &times; $3/1M = ~$40K LLM<br>
+                        - Vector DB: ~$1.5K/month<br>
+                        - Connectors + compute: ~$3K/month<br>
+                        - <strong>Total: ~$45K/month</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. DATA INTEGRATION LAYER ============ -->
+            <h2 class="mt-4">3. Data Integration Layer</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Connectors &amp; Sync Strategy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Connector Architecture</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Source</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">API</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Sync Method</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">ACL Strategy</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Confluence</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">REST API v2 + Webhooks</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Incremental (lastModified)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Space + page restrictions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slack</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Events API + conversations.history</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Real-time events + backfill</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Channel membership</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">JIRA</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">REST API + Webhooks</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Webhook on issue update</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Project role + issue security</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Google Drive</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Drive API v3 + Push notifications</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Changes.list (pageToken)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">File-level ACL via permissions</td>
+                        </tr>
+                    </table>
+
+                    <h4>PII Detection &amp; Redaction</h4>
+                    <ul>
+                        <li><strong>Pre-indexing scan:</strong> Run PII detector (Presidio, AWS Comprehend) on all ingested text</li>
+                        <li><strong>Redaction options:</strong> Mask ("[EMAIL_REDACTED]"), hash, or skip chunk</li>
+                        <li><strong>Query-time guard:</strong> Scan retrieved chunks before sending to LLM</li>
+                        <li><strong>Output filter:</strong> Final check on LLM response for leaked PII</li>
+                    </ul>
+
+                    <h4>Schema Normalization</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+
+class SourceType(Enum):
+    CONFLUENCE = "confluence"
+    SLACK = "slack"
+    JIRA = "jira"
+    GOOGLE_DRIVE = "google_drive"
+
+@dataclass
+class NormalizedDocument:
+    """Unified document representation across all sources."""
+    source_id: str            # Original ID in source system
+    source_type: SourceType
+    title: str
+    content: str              # Cleaned text content
+    url: str                  # Deep link back to source
+    author: str
+    created_at: datetime
+    updated_at: datetime
+    access_groups: list[str]  # ACL groups that can access this doc
+    metadata: dict = field(default_factory=dict)  # Source-specific fields
+
+    @property
+    def global_id(self) -&gt; str:
+        return f"{self.source_type.value}:{self.source_id}"
+
+
+class SlackConnector:
+    """Incremental Slack sync with thread-aware chunking."""
+
+    def __init__(self, client, acl_resolver):
+        self.client = client
+        self.acl = acl_resolver
+
+    async def sync_channel(self, channel_id: str,
+                           since: datetime) -&gt; list[NormalizedDocument]:
+        docs = []
+        # Fetch messages since last sync
+        messages = await self.client.conversations_history(
+            channel=channel_id, oldest=since.timestamp()
+        )
+
+        # Group by thread
+        threads = {}
+        for msg in messages["messages"]:
+            thread_ts = msg.get("thread_ts", msg["ts"])
+            threads.setdefault(thread_ts, []).append(msg)
+
+        for thread_ts, thread_msgs in threads.items():
+            # Resolve channel ACL
+            members = await self.acl.get_channel_members(channel_id)
+            access_groups = [f"slack:channel:{channel_id}"]
+
+            combined_text = "\n".join(
+                f"{m.get('user', 'unknown')}: {m.get('text', '')}"
+                for m in sorted(thread_msgs, key=lambda x: x["ts"])
+            )
+
+            docs.append(NormalizedDocument(
+                source_id=f"{channel_id}:{thread_ts}",
+                source_type=SourceType.SLACK,
+                title=f"Slack thread in #{channel_id}",
+                content=combined_text,
+                url=f"https://slack.com/archives/{channel_id}/p{thread_ts.replace('.', '')}",
+                author=thread_msgs[0].get("user", "unknown"),
+                created_at=datetime.fromtimestamp(float(thread_ts)),
+                updated_at=datetime.fromtimestamp(
+                    float(thread_msgs[-1]["ts"])
+                ),
+                access_groups=access_groups,
+            ))
+
+        return docs</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 4. RAG PIPELINE ============ -->
+            <h2 class="mt-4">4. RAG Pipeline</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Source-Aware Retrieval</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Per-Source Chunking Strategy</h4>
+                    <ul>
+                        <li><strong>Confluence:</strong> Section-based chunking (H1/H2 boundaries), preserve table structure</li>
+                        <li><strong>Slack:</strong> Thread-level chunks with user attribution, skip bot messages</li>
+                        <li><strong>JIRA:</strong> Whole ticket as one chunk (title + description + comments), extract structured fields as metadata</li>
+                        <li><strong>Google Drive:</strong> Semantic chunking for docs, slide-level for presentations</li>
+                    </ul>
+
+                    <h4>Permission-Aware Filtering</h4>
+                    <p>At query time, resolve user's access groups and apply as vector DB filter:</p>
+                    <pre><code class="language-python">class PermissionAwareRetriever:
+    """Retriever that enforces document-level ACL."""
+
+    def __init__(self, vector_db, acl_store, reranker):
+        self.vector_db = vector_db
+        self.acl_store = acl_store
+        self.reranker = reranker
+
+    async def retrieve(self, query: str, user_id: str,
+                       top_k: int = 10) -&gt; list[dict]:
+        # Step 1: Resolve user's access groups across all sources
+        user_groups = await self.acl_store.get_user_groups(user_id)
+        # e.g., ["confluence:space:ENG", "slack:channel:C1234",
+        #        "jira:project:PLAT", "gdrive:folder:shared-eng"]
+
+        # Step 2: Query vector DB with ACL filter
+        results = await self.vector_db.query(
+            query_text=query,
+            filter={
+                "access_groups": {"$overlap": user_groups}
+            },
+            top_k=50,  # Over-fetch for reranking
+        )
+
+        # Step 3: Rerank with source diversity
+        reranked = await self.reranker.rerank(
+            query=query,
+            documents=[r["text"] for r in results],
+            top_k=top_k,
+        )
+
+        # Step 4: Ensure source diversity (at least 2 different sources)
+        final = self._diversify_sources(
+            [results[i] for i in reranked.indices], min_sources=2
+        )
+
+        return final[:top_k]
+
+    def _diversify_sources(self, results, min_sources=2):
+        """Ensure results come from multiple sources when possible."""
+        sources_seen = set()
+        diverse, remaining = [], []
+
+        for r in results:
+            src = r["metadata"]["source_type"]
+            if src not in sources_seen:
+                diverse.append(r)
+                sources_seen.add(src)
+            else:
+                remaining.append(r)
+
+        return diverse + remaining</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 5. CONVERSATIONAL MEMORY ============ -->
+            <h2 class="mt-4">5. Conversational Memory</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Multi-Turn Context Management</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Memory Architecture</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory Type</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Scope</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Implementation</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">TTL</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Buffer Memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Current conversation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Last N messages in prompt</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Session</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Summary Memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Older turns in session</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM-generated summary of prior turns</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Session</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Long-term Memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cross-session</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User preferences, past topics (vector store)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">30 days</td>
+                        </tr>
+                    </table>
+
+                    <h4>Code Sample: Conversation Memory Manager</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from datetime import datetime
+
+@dataclass
+class Message:
+    role: str  # "user" or "assistant"
+    content: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    sources: list[dict] = field(default_factory=list)
+
+class ConversationMemory:
+    """Manages multi-turn context with sliding window + summary."""
+
+    def __init__(self, llm_client, max_buffer=6, max_tokens=4000):
+        self.llm = llm_client
+        self.max_buffer = max_buffer
+        self.max_tokens = max_tokens
+        self.sessions: dict[str, list[Message]] = {}
+        self.summaries: dict[str, str] = {}
+
+    def add_message(self, session_id: str, message: Message):
+        self.sessions.setdefault(session_id, []).append(message)
+
+    async def get_context(self, session_id: str) -&gt; list[dict]:
+        """Build context window: summary + recent messages."""
+        history = self.sessions.get(session_id, [])
+
+        if len(history) &lt;= self.max_buffer:
+            return [{"role": m.role, "content": m.content} for m in history]
+
+        # Summarize older messages
+        older = history[:-self.max_buffer]
+        recent = history[-self.max_buffer:]
+
+        if older and session_id not in self.summaries:
+            self.summaries[session_id] = await self._summarize(older)
+
+        context = []
+        if session_id in self.summaries:
+            context.append({
+                "role": "system",
+                "content": f"Previous conversation summary: {self.summaries[session_id]}"
+            })
+
+        context.extend(
+            {"role": m.role, "content": m.content} for m in recent
+        )
+        return context
+
+    async def _summarize(self, messages: list[Message]) -&gt; str:
+        text = "\n".join(f"{m.role}: {m.content}" for m in messages)
+        response = await self.llm.chat(messages=[{
+            "role": "user",
+            "content": (
+                f"Summarize this conversation in 2-3 sentences, "
+                f"preserving key facts and questions:\n\n{text}"
+            ),
+        }], temperature=0, max_tokens=200)
+        return response.content</code></pre>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> For enterprise, use query rewriting instead of sending full conversation history. Rewrite the user's current query to be self-contained: "What about the latency?" becomes "What is the latency of the payment processing service discussed earlier?" This keeps retrieval focused and reduces token waste.
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 6. AGENT ARCHITECTURE ============ -->
+            <h2 class="mt-4">6. Agent Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Router Agent &amp; Specialized Sub-Agents</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Agent Topology</h4>
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    U[User Query] --> R[Router Agent<br/>Classify Intent]
+    R -->|Document Q&A| RA[Retrieval Agent<br/>RAG Pipeline]
+    R -->|Structured Data| SA[SQL Agent<br/>JIRA/Analytics]
+    R -->|Clarification| CL[Clarifier<br/>Ask Follow-up]
+    R -->|Out of Scope| ESC[Escalation<br/>Route to Human]
+
+    RA --> GEN[Generator<br/>LLM + Citations]
+    SA --> GEN
+    GEN --> VER[Verifier<br/>Faithfulness Check]
+    VER --> RESP[Response + Sources]
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Router Agent Logic</h4>
+                    <pre><code class="language-python">from enum import Enum
+from dataclasses import dataclass
+
+class Intent(Enum):
+    DOCUMENT_QA = "document_qa"       # "What is our deployment process?"
+    STRUCTURED_QUERY = "structured"   # "How many P0 bugs this sprint?"
+    CLARIFICATION = "clarification"   # Ambiguous query
+    CHITCHAT = "chitchat"             # "Hello", "Thanks"
+    OUT_OF_SCOPE = "out_of_scope"     # "What's the weather?"
+
+@dataclass
+class RoutingDecision:
+    intent: Intent
+    confidence: float
+    rewritten_query: str  # Self-contained version of query
+
+class RouterAgent:
+    def __init__(self, llm_client):
+        self.llm = llm_client
+
+    async def route(self, query: str,
+                    conversation_context: list[dict]) -&gt; RoutingDecision:
+        response = await self.llm.chat(
+            messages=[
+                {"role": "system", "content": ROUTER_PROMPT},
+                *conversation_context,
+                {"role": "user", "content": query},
+            ],
+            temperature=0,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.content)
+        return RoutingDecision(
+            intent=Intent(result["intent"]),
+            confidence=result["confidence"],
+            rewritten_query=result["rewritten_query"],
+        )
+
+ROUTER_PROMPT = """You are a query router for an enterprise knowledge assistant.
+Classify the user query into one of these intents:
+- document_qa: Questions answerable from documents (Confluence, Drive, Slack threads)
+- structured: Questions requiring data queries (JIRA stats, metrics, counts)
+- clarification: Query is ambiguous, need more info from user
+- chitchat: Greeting, thanks, or social interaction
+- out_of_scope: Questions outside enterprise knowledge
+
+Also rewrite the query to be self-contained (resolve pronouns, references from conversation history).
+
+Respond in JSON: {"intent": "...", "confidence": 0.0-1.0, "rewritten_query": "..."}"""</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 7. ACCESS CONTROL & SECURITY ============ -->
+            <h2 class="mt-4">7. Access Control &amp; Security</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>ACL Propagation &amp; SOC2 Compliance</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>ACL Architecture</h4>
+                    <ul>
+                        <li><strong>Index-time ACL tagging:</strong> Each chunk stores <code>access_groups[]</code> from source system</li>
+                        <li><strong>Query-time enforcement:</strong> Vector DB filter on user's resolved groups</li>
+                        <li><strong>Real-time ACL sync:</strong> Webhooks from Confluence/Slack/Drive update ACL tags within minutes</li>
+                        <li><strong>Deny-by-default:</strong> If ACL resolution fails, return no results (never over-expose)</li>
+                    </ul>
+
+                    <h4>Security Layers</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Layer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Implementation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Encryption at rest</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">AES-256 for vector DB and chunk store</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Encryption in transit</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">TLS 1.3 for all API calls including LLM provider</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PII masking</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Presidio scan on chunks before LLM prompt</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Audit logging</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Every query, retrieval, and response logged with user ID</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prompt injection defense</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Input sanitization + output validation + system prompt isolation</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Data residency</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Self-hosted LLM option for regulated industries</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============ 8. ARCHITECTURE DIAGRAM ============ -->
+            <h2 class="mt-4">8. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "Data Connectors"
+        C1[Confluence<br/>Webhooks + API]
+        C2[Slack<br/>Events API]
+        C3[JIRA<br/>Webhooks]
+        C4[Google Drive<br/>Push Notifications]
+    end
+
+    subgraph "Ingestion Pipeline"
+        C1 & C2 & C3 & C4 --> NM[Normalizer<br/>Schema Unification]
+        NM --> PII[PII Detector<br/>Presidio]
+        PII --> CK[Chunker<br/>Source-Aware]
+        CK --> EMB[Embedder]
+        NM --> ACL[ACL Extractor]
+    end
+
+    subgraph "Storage"
+        EMB --> VDB[("Vector DB<br/>11M vectors")]
+        CK --> TXT[("Chunk Store<br/>PostgreSQL")]
+        ACL --> ACS[("ACL Store<br/>Redis")]
+    end
+
+    subgraph "Query Pipeline"
+        UI[Chat UI] --> GW[API Gateway]
+        GW --> AUTH[Auth + ACL Resolve]
+        AUTH --> MEM[Memory Manager]
+        MEM --> RT[Router Agent]
+        RT --> RAG[Retrieval Agent]
+        RT --> SQL[SQL Agent]
+        RAG --> VDB
+        SQL --> JIRA_DB[("JIRA DB")]
+        RAG --> GEN[Generator + Verifier]
+        SQL --> GEN
+        GEN --> FB[Feedback Collector]
+        FB --> UI
+    end
+
+    ACS --> AUTH
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 9. EVAL & FEEDBACK ============ -->
+            <h2 class="mt-4">9. Evaluation &amp; Feedback Loop</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Metrics, A/B Testing &amp; Continuous Improvement</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Key Metrics</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Metric</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Target</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How to Measure</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Answer Relevance</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 0.85</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RAGAS answer_relevancy score</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Faithfulness</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 0.90</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">RAGAS faithfulness (claims vs context)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User Satisfaction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 80% positive</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Thumbs up/down ratio</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Response Latency (P95)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 3s</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">End-to-end timer</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Abstention Rate</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 15%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">% of queries where system declines to answer</td>
+                        </tr>
+                    </table>
+
+                    <h4>Feedback-Driven Improvement</h4>
+                    <ul>
+                        <li><strong>Thumbs down pipeline:</strong> Flag &rarr; human review &rarr; add to eval set &rarr; fix retrieval or prompt</li>
+                        <li><strong>A/B testing:</strong> Test prompt variants, chunking strategies, reranker models on 10% traffic</li>
+                        <li><strong>Weekly eval runs:</strong> Run RAGAS on golden dataset (200+ Q&amp;A pairs) after every change</li>
+                        <li><strong>Drift detection:</strong> Monitor embedding distribution shift; alert when retrieval quality degrades</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 10. FAILURE MODES ============ -->
+            <h2 class="mt-4">10. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stale Permissions</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User sees docs after access revoked</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Real-time ACL sync via webhooks; short cache TTL on permissions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Connector Failure</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Missing recent data from one source</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Circuit breaker per connector; show "source unavailable" warning</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Context Overflow</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Long conversations exceed token limit</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sliding window + summary compression; query rewriting</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hallucination on Policy Docs</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Incorrect HR/legal/compliance answers</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Higher faithfulness threshold for tagged policy docs; mandatory citation</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slack Noise</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low-quality chunks from casual messages</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quality filter: skip short messages, reactions-only, bot messages</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============ 11. STAFF-LEVEL DISCUSSION ============ -->
+            <h2 class="mt-4">11. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Build vs Buy, Cost Modeling, Strategic Decisions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Build vs Buy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Option</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Pros</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cons</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Glean</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Turnkey, 100+ connectors, great UX</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$15-30/user/month, limited customization</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$75K-150K/yr for 5K users</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Guru / Notion AI</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Integrated into existing workflow</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Limited sources, less powerful RAG</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$50K-100K/yr</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Custom Build</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Full control, custom agents, differentiation</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">6+ months to build, ongoing maintenance</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$45K/month infra + 3-4 FTE</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Take:</strong> Start with Glean/buy for 80% of use cases. Build custom only when: (1) you need deep workflow integration (e.g., auto-creating JIRA tickets from answers), (2) compliance requires self-hosted LLM, or (3) the assistant is a core product differentiator, not internal tooling.
+                    </div>
+
+                    <h4>When to Add Fine-Tuning</h4>
+                    <ul>
+                        <li><strong>Not day 1.</strong> Start with good retrieval + prompting.</li>
+                        <li><strong>Fine-tune retriever</strong> when eval shows relevant docs exist but aren't being retrieved (low recall despite good chunking)</li>
+                        <li><strong>Fine-tune generator</strong> when output format/tone is consistently wrong despite prompt engineering</li>
+                        <li><strong>Distill to smaller model</strong> when cost exceeds budget &mdash; use GPT-4 for training data, deploy fine-tuned GPT-3.5/Llama</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 12. INTERVIEW TIPS ============ -->
+            <h2 class="mt-4">12. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li><strong>Data integration thinking:</strong> Not just "connect to APIs" but handling incremental sync, schema normalization, and ACL propagation</li>
+                        <li><strong>Agent design:</strong> Router pattern with specialized agents, not a monolithic prompt</li>
+                        <li><strong>Security-first:</strong> ACL enforcement at retrieval level, PII handling, audit trails</li>
+                        <li><strong>Feedback loop:</strong> System gets better over time via user feedback and eval</li>
+                    </ul>
+
+                    <h4>Common Follow-up Questions</h4>
+                    <ul>
+                        <li>"How do you handle when Confluence and Slack have contradictory information?"</li>
+                        <li>"A user reports the assistant leaked information from a private channel. How do you debug?"</li>
+                        <li>"How would you add support for a new data source (e.g., GitHub)?"</li>
+                        <li>"What happens when the LLM provider is down? What's your fallback?"</li>
+                        <li>"How do you measure ROI of this system for the business?"</li>
+                    </ul>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Ignoring access control ("just index everything")</li>
+                        <li>No mention of PII handling for enterprise data</li>
+                        <li>Treating all data sources identically (same chunking for Slack and Confluence)</li>
+                        <li>No feedback loop or eval strategy</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 13. ACTIVE RECALL ============ -->
+            <h2 class="mt-4">13. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Why do you need different chunking strategies for Slack vs Confluence?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Slack is conversational (short messages, threads), so you chunk by thread to preserve context. Confluence is structured (pages, sections, tables), so you chunk by headings/sections to preserve document structure. One-size-fits-all chunking loses important structural cues from each source.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> Explain query rewriting for multi-turn conversations and why it's better than sending full history.
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Query rewriting transforms a context-dependent query ("What about its latency?") into a self-contained one ("What is the latency of the payment service?"). This is better because: (1) the retriever gets a focused query instead of noisy history, (2) fewer tokens sent to embedding model, (3) retrieval quality is higher since the query is unambiguous.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> How does the router agent pattern differ from a single monolithic prompt?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Router classifies intent first, then dispatches to specialized agents (RAG, SQL, escalation). Each agent has focused instructions and tools. A monolithic prompt tries to handle everything &mdash; it's harder to optimize, debug, and extend. Router pattern also allows different models per agent (cheap for routing, powerful for generation).</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> What's the difference between index-time and query-time ACL enforcement, and why do you need both?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Index-time ACL tags chunks with access groups during ingestion. Query-time enforcement filters retrieval results by user's current groups. You need both because: index-time tags enable efficient DB-level filtering, while query-time checks handle permission changes since last index (e.g., user removed from a Confluence space).</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> When would you choose to build this system custom vs buying Glean?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Build custom when: (1) need deep workflow integration (auto-create tickets, trigger deployments), (2) compliance requires self-hosted LLM (healthcare, finance), (3) the assistant is a core product, not internal tool. Buy Glean when: fast time-to-value matters, broad connector coverage needed, and standard Q&amp;A use case is sufficient.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> How do you handle PII in an enterprise knowledge assistant pipeline?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Four-layer approach: (1) Pre-indexing scan with Presidio/Comprehend to redact or mask PII before embedding. (2) Query-time scan on retrieved chunks before LLM prompt. (3) Output filter on LLM response to catch any leaked PII. (4) Audit log all queries touching PII-flagged documents for compliance review.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="rag-10m-docs.html" class="btn btn-secondary">&larr; Previous: RAG Over 10M Docs</a>
+                <a href="ai-code-assistant.html" class="btn btn-primary">Next: AI Code Assistant &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('open');
+                });
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('open');
+                });
+            }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

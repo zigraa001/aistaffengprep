@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: AI Content Moderation Pipeline - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: AI Content Moderation Pipeline</h1>
+            <p class="text-muted">Examples: OpenAI Moderation API, Perspective API, Trust &amp; Safety at Meta/TikTok</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(234, 88, 12, 0.1) 100%); border: 2px solid rgba(245, 158, 11, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- 1. REQUIREMENTS -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Multi-modal content classification</strong> &mdash; text, images, video, audio</li>
+                        <li><strong>Category detection</strong> &mdash; hate speech, violence, sexual content, self-harm, misinformation, spam</li>
+                        <li><strong>Real-time input moderation</strong> &mdash; block harmful prompts before they reach the LLM</li>
+                        <li><strong>Output moderation</strong> &mdash; filter LLM responses before showing to user</li>
+                        <li><strong>Configurable policies</strong> &mdash; different thresholds per platform/market/use-case</li>
+                        <li><strong>Human-in-the-loop</strong> &mdash; escalation for edge cases, appeal workflow</li>
+                        <li><strong>Explainability</strong> &mdash; why content was flagged (for appeals and auditing)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Latency:</strong> P95 &lt; 100ms for text, &lt; 500ms for images (inline with user request)</li>
+                        <li><strong>Throughput:</strong> 500K+ content items/minute at peak</li>
+                        <li><strong>Precision:</strong> &gt; 95% precision (minimize false positives that censor valid content)</li>
+                        <li><strong>Recall:</strong> &gt; 99% for high-severity categories (CSAM, violence)</li>
+                        <li><strong>Multi-language:</strong> Support 50+ languages</li>
+                        <li><strong>Regulatory compliance:</strong> GDPR, DSA (EU Digital Services Act), local laws</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 2. SCALE ESTIMATION -->
+            <h2 class="mt-4">2. Scale &amp; Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Back-of-Envelope Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Content Volume (social platform scale):</strong><br>
+                        - 500M posts/day (text + image + video)<br>
+                        - 80% text-only, 15% image, 5% video<br>
+                        - Peak: ~10K items/second<br><br>
+
+                        <strong>For LLM guardrails (API platform):</strong><br>
+                        - 100M API calls/day<br>
+                        - Each call: input moderation + output moderation = 2 checks<br>
+                        - Peak: ~4K checks/second<br><br>
+
+                        <strong>Model Inference:</strong><br>
+                        - Text classifier: ~5ms per item (lightweight BERT-class)<br>
+                        - Image classifier: ~50ms per item (ViT/CLIP)<br>
+                        - LLM-based nuance check: ~200ms (for edge cases only, ~5% of traffic)<br><br>
+
+                        <strong>Human Review:</strong><br>
+                        - 2-5% of content escalated to human review<br>
+                        - At 500M/day = 10-25M items/day for humans<br>
+                        - 1 reviewer handles ~500 items/day = 20K-50K reviewers needed (or heavy pre-filtering)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. MULTI-TIER CLASSIFICATION -->
+            <h2 class="mt-4">3. Multi-Tier Classification Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Cascading Classifier Design</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Not every content item needs the same level of analysis. Use a <strong>cascade</strong> to balance speed and accuracy:</p>
+
+                    <h4>Tier Architecture</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tier</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Model</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Traffic</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Purpose</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1 - Fast Filter</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Keyword blocklist + regex</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 1ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">100%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Catch obvious violations fast</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2 - ML Classifier</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fine-tuned BERT/DistilBERT</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~5ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~95%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Multi-label classification</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3 - LLM Judge</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPT-4 / Claude with policy prompt</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~200ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~5%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Nuanced/ambiguous cases</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">4 - Human Review</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Human reviewer + tooling</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minutes-Hours</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~1%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Appeals, policy edge cases</td>
+                        </tr>
+                    </table>
+
+                    <h4>Code Sample: Cascading Moderation Pipeline</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from enum import Enum
+
+class Severity(Enum):
+    SAFE = "safe"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"  # CSAM, imminent violence
+
+class Action(Enum):
+    ALLOW = "allow"
+    FLAG = "flag"           # Show but flag for review
+    BLUR = "blur"           # Show with warning
+    BLOCK = "block"         # Remove content
+    ESCALATE = "escalate"   # Human review required
+
+@dataclass
+class ModerationResult:
+    action: Action
+    categories: dict[str, float]   # category -> confidence
+    severity: Severity
+    explanation: str
+    tier_reached: int              # Which tier made the decision
+    latency_ms: float
+
+class CascadingModerator:
+    """Multi-tier content moderation pipeline."""
+
+    def __init__(self, keyword_filter, ml_classifier,
+                 llm_judge, policy_config):
+        self.keyword = keyword_filter
+        self.ml = ml_classifier
+        self.llm = llm_judge
+        self.policy = policy_config
+
+    async def moderate(self, content: str,
+                       content_type: str = "text") -&gt; ModerationResult:
+        import time
+        start = time.monotonic()
+
+        # Tier 1: Keyword/regex blocklist (&lt;1ms)
+        keyword_match = self.keyword.check(content)
+        if keyword_match.is_critical:
+            return ModerationResult(
+                action=Action.BLOCK,
+                categories=keyword_match.categories,
+                severity=Severity.CRITICAL,
+                explanation=f"Matched blocklist: {keyword_match.pattern}",
+                tier_reached=1,
+                latency_ms=(time.monotonic() - start) * 1000,
+            )
+
+        # Tier 2: ML classifier (~5ms)
+        ml_result = await self.ml.classify(content)
+        max_category = max(ml_result.scores, key=ml_result.scores.get)
+        max_score = ml_result.scores[max_category]
+
+        # High confidence -&gt; decide immediately
+        if max_score &gt; 0.95:
+            action = self.policy.get_action(max_category, max_score)
+            return ModerationResult(
+                action=action,
+                categories=ml_result.scores,
+                severity=self._score_to_severity(max_score),
+                explanation=f"ML classifier: {max_category} ({max_score:.2f})",
+                tier_reached=2,
+                latency_ms=(time.monotonic() - start) * 1000,
+            )
+
+        # Low confidence -&gt; safe
+        if max_score &lt; 0.3:
+            return ModerationResult(
+                action=Action.ALLOW,
+                categories=ml_result.scores,
+                severity=Severity.SAFE,
+                explanation="Below threshold",
+                tier_reached=2,
+                latency_ms=(time.monotonic() - start) * 1000,
+            )
+
+        # Tier 3: Ambiguous zone (0.3-0.95) -&gt; LLM judge
+        llm_result = await self.llm.judge(
+            content=content,
+            ml_categories=ml_result.scores,
+            policy=self.policy.get_rules(max_category),
+        )
+
+        return ModerationResult(
+            action=llm_result.action,
+            categories=llm_result.categories,
+            severity=llm_result.severity,
+            explanation=llm_result.explanation,
+            tier_reached=3,
+            latency_ms=(time.monotonic() - start) * 1000,
+        )
+
+    def _score_to_severity(self, score: float) -&gt; Severity:
+        if score &gt; 0.99: return Severity.CRITICAL
+        if score &gt; 0.95: return Severity.HIGH
+        if score &gt; 0.8: return Severity.MEDIUM
+        return Severity.LOW</code></pre>
+                </div>
+            </div>
+
+            <!-- 4. LLM GUARDRAILS -->
+            <h2 class="mt-4">4. LLM Input/Output Guardrails</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Protecting LLM Applications</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Input Guardrails (Pre-LLM)</h4>
+                    <ul>
+                        <li><strong>Prompt injection detection:</strong> Classify if user input attempts to override system prompt</li>
+                        <li><strong>Toxicity filter:</strong> Block abusive/hateful user messages</li>
+                        <li><strong>PII detection:</strong> Redact personal information before sending to LLM</li>
+                        <li><strong>Topic guardrails:</strong> Reject out-of-scope queries (e.g., medical advice for a cooking bot)</li>
+                    </ul>
+
+                    <h4>Output Guardrails (Post-LLM)</h4>
+                    <ul>
+                        <li><strong>Toxicity check:</strong> Ensure model response isn't harmful</li>
+                        <li><strong>Factuality check:</strong> Cross-reference claims against retrieved sources</li>
+                        <li><strong>PII leak detection:</strong> Catch if model reveals PII from training data</li>
+                        <li><strong>Policy compliance:</strong> Verify response doesn't violate brand guidelines</li>
+                    </ul>
+
+                    <h4>Architecture: Guardrails Sandwich</h4>
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph LR
+    U[User Input] --> IG[Input Guards<br/>Injection + Toxicity<br/>+ PII + Topic]
+    IG -->|Pass| LLM[LLM<br/>Generation]
+    IG -->|Block| BR1[Block Response<br/>+ Explain]
+    LLM --> OG[Output Guards<br/>Toxicity + Facts<br/>+ PII + Policy]
+    OG -->|Pass| R[Response<br/>to User]
+    OG -->|Block| BR2[Fallback<br/>Response]
+    OG -->|Rephrase| LLM
+                            </div>
+                        </div>
+                    </div>
+
+                    <pre><code class="language-python">class LLMGuardrails:
+    """Input/output guardrails for LLM applications."""
+
+    def __init__(self, input_moderator, output_moderator,
+                 pii_detector, injection_detector):
+        self.input_mod = input_moderator
+        self.output_mod = output_moderator
+        self.pii = pii_detector
+        self.injection = injection_detector
+
+    async def check_input(self, user_message: str) -&gt; dict:
+        """Pre-LLM guardrails. Returns sanitized message or block signal."""
+        # Parallel checks for speed
+        import asyncio
+        injection, toxicity, pii_scan = await asyncio.gather(
+            self.injection.detect(user_message),
+            self.input_mod.classify(user_message),
+            self.pii.scan(user_message),
+        )
+
+        if injection.is_injection:
+            return {"action": "block", "reason": "Prompt injection detected"}
+
+        if toxicity.scores.get("hate", 0) &gt; 0.9:
+            return {"action": "block", "reason": "Harmful content"}
+
+        # Redact PII
+        sanitized = user_message
+        if pii_scan.entities:
+            sanitized = self.pii.redact(user_message, pii_scan.entities)
+
+        return {"action": "pass", "sanitized_message": sanitized}
+
+    async def check_output(self, response: str,
+                           context_sources: list[str]) -&gt; dict:
+        """Post-LLM guardrails."""
+        import asyncio
+        toxicity, pii_leak = await asyncio.gather(
+            self.output_mod.classify(response),
+            self.pii.scan(response),
+        )
+
+        if toxicity.max_score &gt; 0.8:
+            return {"action": "block", "reason": "Harmful response generated"}
+
+        if pii_leak.entities:
+            return {"action": "redact", "clean_response":
+                    self.pii.redact(response, pii_leak.entities)}
+
+        return {"action": "pass", "response": response}</code></pre>
+                </div>
+            </div>
+
+            <!-- 5. MULTI-MODAL MODERATION -->
+            <h2 class="mt-4">5. Multi-Modal Moderation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Image, Video &amp; Audio</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Image Moderation Pipeline</h4>
+                    <ul>
+                        <li><strong>Perceptual hashing (pHash):</strong> Match against known harmful image database (PhotoDNA for CSAM)</li>
+                        <li><strong>CLIP-based classification:</strong> Zero-shot or fine-tuned CLIP for category detection</li>
+                        <li><strong>OCR + text moderation:</strong> Extract text from images, run through text pipeline</li>
+                        <li><strong>NSFW classifier:</strong> Dedicated model for nudity/sexual content detection</li>
+                    </ul>
+
+                    <h4>Video Moderation</h4>
+                    <ul>
+                        <li>Sample keyframes (1 per second for short videos, 1 per 5s for long)</li>
+                        <li>Run image moderation on each keyframe</li>
+                        <li>Audio transcription (Whisper) &rarr; text moderation</li>
+                        <li>Scene-level aggregation: flag video if any segment exceeds threshold</li>
+                    </ul>
+
+                    <h4>Cross-Modal Attacks</h4>
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> Adversaries exploit modality gaps. Text says "beautiful sunset" but image is violent. Or text in an image bypasses text filters. Multi-modal moderation must fuse signals across modalities, not treat them independently. CLIP-based joint embeddings help, but dedicated fusion models are needed for production.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. ARCHITECTURE DIAGRAM -->
+            <h2 class="mt-4">6. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "Content Ingestion"
+        UI[User Content] --> PRE[Pre-processor<br/>Extract text, images, audio]
+    end
+
+    subgraph "Tier 1: Fast Filters"
+        PRE --> KW[Keyword Blocklist<br/>&lt;1ms]
+        PRE --> PH[Perceptual Hash<br/>Known Bad Images]
+    end
+
+    subgraph "Tier 2: ML Classifiers"
+        KW -->|Pass| TC[Text Classifier<br/>Fine-tuned BERT<br/>~5ms]
+        PH -->|Pass| IC[Image Classifier<br/>CLIP + NSFW<br/>~50ms]
+        PRE --> AC[Audio Transcribe<br/>Whisper &rarr; Text]
+        AC --> TC
+    end
+
+    subgraph "Tier 3: LLM Judge"
+        TC -->|Ambiguous| LJ[LLM Judge<br/>Policy-Aware<br/>~200ms]
+        IC -->|Ambiguous| LJ
+    end
+
+    subgraph "Tier 4: Human Review"
+        LJ -->|Uncertain| HQ[Review Queue<br/>Priority Ranked]
+        HQ --> HR[Human Reviewers<br/>+ Tooling]
+        HR --> FB[Feedback &rarr;<br/>Retrain Models]
+    end
+
+    subgraph "Actions"
+        TC -->|Safe| ALLOW[Allow]
+        TC -->|Unsafe| BLOCK[Block + Log]
+        IC -->|Safe| ALLOW
+        IC -->|Unsafe| BLOCK
+        LJ -->|Decision| ALLOW
+        LJ -->|Decision| BLOCK
+        HR -->|Decision| ALLOW
+        HR -->|Decision| BLOCK
+    end
+
+    BLOCK --> AL[Audit Log<br/>+ Appeals]
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. HUMAN-IN-THE-LOOP -->
+            <h2 class="mt-4">7. Human-in-the-Loop &amp; Active Learning</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Review Workflows &amp; Model Improvement</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Review Queue Prioritization</h4>
+                    <ul>
+                        <li><strong>Severity-first:</strong> CSAM and imminent violence always top priority</li>
+                        <li><strong>Uncertainty sampling:</strong> Items where ML confidence is 0.4-0.6 (most informative for retraining)</li>
+                        <li><strong>High-reach content:</strong> Posts from accounts with large followings get faster review</li>
+                        <li><strong>Appeal queue:</strong> User-contested decisions within SLA</li>
+                    </ul>
+
+                    <h4>Active Learning Loop</h4>
+                    <ul>
+                        <li>Human decisions become training labels for next model iteration</li>
+                        <li>Focus labeling budget on ambiguous cases (uncertainty sampling)</li>
+                        <li>Weekly model retrain with new labels + evaluation on held-out test set</li>
+                        <li>A/B test new model on 5% traffic before full rollout</li>
+                    </ul>
+
+                    <h4>Reviewer Wellness</h4>
+                    <div class="card mt-2" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 1px solid rgba(239, 68, 68, 0.3);">
+                        <strong>Important:</strong> Content reviewers see the worst content on the internet. System design must include: exposure limits (no more than 4 hours/day on severe content), auto-blurring with opt-in to view, rotation across severity levels, mandatory breaks, and access to mental health support. This is a staff-level consideration that shows maturity.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. FAILURE MODES -->
+            <h2 class="mt-4">8. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adversarial bypass</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Harmful content evades detection</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Red team regularly; adversarial training; multi-modal fusion</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Over-moderation (false positives)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Censoring valid content, user trust loss</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Precision-focused thresholds; appeal workflow; A/B test changes</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cultural/language bias</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model underperforms on non-English content</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Per-language eval sets; multilingual training; local reviewer teams</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model degradation over time</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">New slang/memes bypass classifiers</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Continuous retraining; trend monitoring; human feedback loop</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM judge inconsistency</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Same content gets different verdicts</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Temperature=0; structured output; inter-rater agreement metrics</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 9. STAFF-LEVEL DISCUSSION -->
+            <h2 class="mt-4">9. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Precision vs Recall Tradeoff &amp; Policy Design</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Precision vs Recall: Context Matters</h4>
+                    <ul>
+                        <li><strong>CSAM / imminent violence:</strong> Optimize for recall (99.9%+). False positives are acceptable &mdash; the cost of missing one is catastrophic.</li>
+                        <li><strong>Hate speech / misinformation:</strong> Balance precision and recall. High false positives erode user trust and create censorship concerns.</li>
+                        <li><strong>Spam:</strong> Optimize for precision. Blocking a legitimate post is worse than letting some spam through.</li>
+                    </ul>
+
+                    <h4>Policy-as-Code</h4>
+                    <p>Moderation policies should be configurable, not hardcoded:</p>
+                    <ul>
+                        <li>Different thresholds per market (EU DSA requirements vs US)</li>
+                        <li>Different rules per content type (user post vs comment vs DM)</li>
+                        <li>Version-controlled policy configs with audit trail</li>
+                        <li>A/B testing policy changes before global rollout</li>
+                    </ul>
+
+                    <h4>The Evals Problem</h4>
+                    <ul>
+                        <li>Content moderation is inherently subjective &mdash; even humans disagree (inter-rater agreement ~70-80% for hate speech)</li>
+                        <li>Ground truth labels shift as social norms change</li>
+                        <li>Must maintain per-category, per-language eval sets and refresh quarterly</li>
+                        <li>Cohen's Kappa or Krippendorff's Alpha for measuring agreement</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 10. INTERVIEW TIPS -->
+            <h2 class="mt-4">10. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li><strong>Cascade thinking:</strong> Not one model for everything &mdash; tiered approach with cost/latency awareness</li>
+                        <li><strong>Precision/recall tradeoff awareness:</strong> Different categories need different operating points</li>
+                        <li><strong>Human-in-the-loop:</strong> ML alone can't solve moderation; show the full human+AI system</li>
+                        <li><strong>Adversarial mindset:</strong> How will users try to bypass your system?</li>
+                    </ul>
+
+                    <h4>Common Follow-ups</h4>
+                    <ul>
+                        <li>"How do you handle content in a language your model doesn't support well?"</li>
+                        <li>"A new meme format is being used for hate speech. How fast can your system adapt?"</li>
+                        <li>"How do you balance free speech vs safety? Who decides the policy?"</li>
+                        <li>"How do you evaluate and prevent bias in your moderation model?"</li>
+                        <li>"How does your system handle context-dependent moderation?" (e.g., 'kill' in gaming vs threat)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 11. ACTIVE RECALL -->
+            <h2 class="mt-4">11. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Why use a cascading classifier instead of one powerful model for all content?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Cost and latency. At 500M items/day, running an LLM on everything is prohibitively expensive. Keyword filters catch ~5% instantly (&lt;1ms), ML classifiers handle ~90% in 5ms, and only ~5% ambiguous cases need the expensive LLM judge. This keeps average latency low and cost manageable.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> When should you optimize for recall over precision in content moderation?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>For high-severity categories like CSAM and imminent violence &mdash; the cost of missing one harmful item is catastrophic (legal liability, real harm). False positives (over-blocking) are acceptable here and can be resolved through human review and appeals.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> What is a cross-modal attack and how do you defend against it?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Adversary uses one modality to bypass filters in another &mdash; e.g., harmful text embedded in an image (bypasses text filters), or benign caption with violent image. Defense: multi-modal fusion models that consider all modalities together, OCR on images, and cross-modal consistency checks.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> How does active learning improve moderation models over time?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Route ambiguous cases (ML confidence 0.4-0.6) to human reviewers. These are the most informative training examples. Human decisions become labels for the next model retrain. This focuses labeling budget on the decision boundary where the model struggles most, maximizing improvement per label.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> Why is content moderation evaluation harder than typical ML evaluation?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Moderation is inherently subjective &mdash; even humans only agree 70-80% on hate speech. Social norms shift (yesterday's acceptable is today's harmful). Adversaries constantly evolve tactics. Need per-category, per-language eval sets refreshed quarterly, with inter-rater agreement metrics (Cohen's Kappa) as a ceiling on model performance.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> How do you design guardrails for LLM output moderation specifically?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>"Guardrails sandwich": input guards (prompt injection, toxicity, PII detection) before the LLM, output guards (toxicity, factuality, PII leak, policy compliance) after. Run checks in parallel for speed. On output violation: either block with fallback response, redact PII, or re-prompt with tighter constraints.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="ai-code-assistant.html" class="btn btn-secondary">&larr; Previous: AI Code Assistant</a>
+                <a href="multi-agent-orchestrator.html" class="btn btn-primary">Next: Multi-Agent Orchestrator &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            if (sidebarToggle) { sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('open'); }); }
+            if (sidebarOverlay) { sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('open'); }); }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

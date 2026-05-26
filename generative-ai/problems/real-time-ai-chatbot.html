@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: Real-Time AI Chatbot - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: Real-Time AI Chatbot</h1>
+            <p class="text-muted">ChatGPT / Claude-Scale Conversational AI</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 2px solid rgba(239, 68, 68, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============ 1. REQUIREMENTS ============ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Real-time streaming chat</strong> &mdash; token-by-token response delivery</li>
+                        <li><strong>Multi-turn conversations</strong> with persistent history</li>
+                        <li><strong>File/image upload</strong> and multi-modal processing</li>
+                        <li><strong>Model selection</strong> &mdash; user picks GPT-4, Claude, open-source models</li>
+                        <li><strong>Conversation management</strong> &mdash; history, search, share, branch/regenerate</li>
+                        <li><strong>System prompt customization</strong> (custom instructions)</li>
+                        <li><strong>Code execution</strong> sandbox (like ChatGPT Code Interpreter)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>TTFT (Time to First Token):</strong> P95 &lt; 500ms</li>
+                        <li><strong>Concurrency:</strong> 1M concurrent conversations</li>
+                        <li><strong>Availability:</strong> 99.95% uptime</li>
+                        <li><strong>Graceful degradation</strong> under GPU pressure</li>
+                        <li><strong>Data privacy:</strong> Conversations encrypted, GDPR-compliant deletion</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 2. SCALE ESTIMATION ============ -->
+            <h2 class="mt-4">2. Scale &amp; Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Back-of-Envelope Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>User Base:</strong><br>
+                        - 10M registered users, 1M DAU<br>
+                        - Average 8 messages/session, 2 sessions/day<br>
+                        - Peak: 1M concurrent conversations<br><br>
+
+                        <strong>Message Throughput:</strong><br>
+                        - 16M messages/day = ~185 messages/sec average<br>
+                        - Peak: 3x = ~555 messages/sec<br>
+                        - Each message: avg 500 input tokens + 800 output tokens<br><br>
+
+                        <strong>GPU Requirements:</strong><br>
+                        - 555 req/sec &times; 800 output tokens = 444K tokens/sec output<br>
+                        - A100 (80GB) with vLLM: ~2,000 tokens/sec for 70B model<br>
+                        - Need: 444K / 2K = ~222 A100 GPUs at peak<br>
+                        - With batching efficiency (3x): ~75 A100 GPUs<br><br>
+
+                        <strong>Storage:</strong><br>
+                        - 16M messages/day &times; 1.3KB avg = ~20 GB/day<br>
+                        - 1 year: ~7.3 TB conversation history<br><br>
+
+                        <strong>WebSocket Connections:</strong><br>
+                        - 1M concurrent = ~1M persistent connections<br>
+                        - Each connection: ~10KB memory = 10 GB RAM for connections<br>
+                        - At 50K connections/server: 20 WebSocket gateway instances<br><br>
+
+                        <strong>Monthly Cost:</strong><br>
+                        - GPU (75 A100s, cloud): ~$150K/month<br>
+                        - Storage + DB: ~$5K/month<br>
+                        - Networking/CDN: ~$10K/month<br>
+                        - <strong>Total: ~$165K/month infra</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. STREAMING ARCHITECTURE ============ -->
+            <h2 class="mt-4">3. Streaming Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>SSE vs WebSocket &amp; Token Streaming</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>SSE vs WebSocket</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Server-Sent Events (SSE)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">WebSocket</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Direction</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Server &rarr; Client only</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Bidirectional</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Protocol</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTTP/2 (auto-reconnect)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Custom protocol over TCP</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Load Balancing</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Standard HTTP LB works</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sticky sessions needed</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Proxy Friendly</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Yes (standard HTTP)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requires upgrade support</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Best For</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LLM token streaming (our case)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Real-time collaborative features</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> ChatGPT and Claude both use SSE over HTTP, not WebSocket. SSE is simpler, works with standard HTTP infrastructure, auto-reconnects, and LLM streaming is server-to-client only. Use WebSocket only if you need client-to-server streaming (e.g., voice input).
+                    </div>
+
+                    <h4>Code Sample: SSE Streaming Endpoint</h4>
+                    <pre><code class="language-python">import asyncio
+import json
+import time
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
+
+app = FastAPI()
+
+async def stream_llm_response(conversation_id: str, messages: list,
+                                model: str, llm_client):
+    """Stream LLM tokens as SSE events."""
+    start = time.monotonic()
+    first_token = True
+
+    async for chunk in llm_client.stream(model=model, messages=messages):
+        token = chunk.content
+        if not token:
+            continue
+
+        if first_token:
+            ttft = time.monotonic() - start
+            metrics.record_ttft(conversation_id, ttft)
+            first_token = False
+
+        # SSE format: "data: {json}\n\n"
+        event = {
+            "type": "token",
+            "content": token,
+            "conversation_id": conversation_id,
+        }
+        yield f"data: {json.dumps(event)}\n\n"
+
+    # Final event with metadata
+    yield f"data: {json.dumps({'type': 'done', 'usage': chunk.usage.dict()})}\n\n"
+
+
+@app.post("/v1/chat/{conversation_id}")
+async def chat_stream(conversation_id: str, request: Request):
+    body = await request.json()
+
+    # Build context (history + new message)
+    messages = await conversation_store.get_context(
+        conversation_id, max_tokens=body.get("max_context", 8000)
+    )
+    messages.append({"role": "user", "content": body["message"]})
+
+    # Persist user message
+    await conversation_store.save_message(
+        conversation_id, "user", body["message"]
+    )
+
+    return StreamingResponse(
+        stream_llm_response(
+            conversation_id, messages,
+            model=body.get("model", "gpt-4"),
+            llm_client=model_gateway,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )</code></pre>
+
+                    <h4>Connection Lifecycle</h4>
+                    <ul>
+                        <li><strong>Open:</strong> Client sends POST, server returns SSE stream</li>
+                        <li><strong>Streaming:</strong> Tokens arrive as <code>data:</code> events, client renders incrementally</li>
+                        <li><strong>Complete:</strong> Server sends <code>done</code> event with usage stats</li>
+                        <li><strong>Abort:</strong> Client closes connection &rarr; server cancels LLM inference (saves GPU)</li>
+                        <li><strong>Reconnect:</strong> Client resumes from last received token using <code>Last-Event-ID</code></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 4. MULTI-MODEL GATEWAY ============ -->
+            <h2 class="mt-4">4. Multi-Model Gateway</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Routing, Fallback &amp; Load Balancing</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Model Routing Strategy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Routing Type</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Logic</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Example</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User-selected</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Explicit model dropdown</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User picks "Claude Sonnet"</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Complexity-based</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Classifier routes simple/complex</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">"Hi" &rarr; small model; "Explain quantum physics" &rarr; large</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost-based</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Free tier uses cheaper models</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Free &rarr; Llama 3; Pro &rarr; GPT-4</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fallback</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Primary down &rarr; secondary provider</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OpenAI timeout &rarr; Anthropic &rarr; self-hosted</td>
+                        </tr>
+                    </table>
+
+                    <h4>Code Sample: Model Gateway with Fallback</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass
+from typing import AsyncIterator
+import asyncio
+
+@dataclass
+class ModelConfig:
+    provider: str        # "openai", "anthropic", "self-hosted"
+    model_id: str        # "gpt-4", "claude-sonnet-4-6", "llama-3-70b"
+    max_tokens: int
+    cost_per_1k_input: float
+    cost_per_1k_output: float
+    timeout_ms: int = 30000
+
+class ModelGateway:
+    """Multi-provider gateway with fallback and load balancing."""
+
+    def __init__(self, providers: dict, fallback_chain: list[str]):
+        self.providers = providers  # provider_name -&gt; client
+        self.chain = fallback_chain
+        self.circuit_breakers = {p: CircuitBreaker() for p in providers}
+
+    async def stream(self, model: str, messages: list,
+                     **kwargs) -&gt; AsyncIterator[str]:
+        config = MODEL_REGISTRY[model]
+        errors = []
+
+        # Try primary, then fallbacks
+        for provider_name in self._get_chain(config.provider):
+            breaker = self.circuit_breakers[provider_name]
+
+            if breaker.is_open:
+                continue  # Skip providers with recent failures
+
+            try:
+                client = self.providers[provider_name]
+                async for token in client.stream(
+                    model=config.model_id,
+                    messages=messages,
+                    timeout=config.timeout_ms,
+                    **kwargs,
+                ):
+                    yield token
+                return  # Success — exit
+
+            except (TimeoutError, ProviderError) as e:
+                breaker.record_failure()
+                errors.append(f"{provider_name}: {e}")
+                continue
+
+        raise AllProvidersFailedError(errors)
+
+    def _get_chain(self, primary: str) -&gt; list[str]:
+        """Return fallback chain starting with primary provider."""
+        chain = [primary]
+        chain.extend(p for p in self.chain if p != primary)
+        return chain
+
+
+class CircuitBreaker:
+    """Simple circuit breaker: open after 3 failures in 60s."""
+
+    def __init__(self, threshold=3, window=60):
+        self.threshold = threshold
+        self.window = window
+        self.failures: list[float] = []
+
+    @property
+    def is_open(self) -&gt; bool:
+        now = asyncio.get_event_loop().time()
+        self.failures = [t for t in self.failures if now - t &lt; self.window]
+        return len(self.failures) &gt;= self.threshold
+
+    def record_failure(self):
+        self.failures.append(asyncio.get_event_loop().time())</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 5. CONVERSATION MANAGEMENT ============ -->
+            <h2 class="mt-4">5. Conversation Management</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Context Windows, Branching &amp; Token Budgets</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Context Window Strategy</h4>
+                    <p>Long conversations exceed model context limits. Strategy:</p>
+                    <ul>
+                        <li><strong>Recent window:</strong> Keep last N messages verbatim</li>
+                        <li><strong>Summary compression:</strong> Summarize older messages into 200-300 tokens</li>
+                        <li><strong>Token budget:</strong> Reserve tokens for system prompt (500) + summary (300) + recent turns (variable) + generation (max_tokens)</li>
+                    </ul>
+
+                    <h4>Conversation Branching</h4>
+                    <p>"Edit &amp; Regenerate" creates a tree, not a linear history:</p>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional
+import uuid
+
+@dataclass
+class Message:
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    role: str = ""           # "user", "assistant", "system"
+    content: str = ""
+    parent_id: Optional[str] = None  # For branching
+    model: Optional[str] = None
+    tokens_used: int = 0
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+class ConversationManager:
+    """Manages conversation tree with branching and context windows."""
+
+    def __init__(self, db, summarizer, token_counter):
+        self.db = db
+        self.summarizer = summarizer
+        self.count_tokens = token_counter
+
+    async def get_context(self, conversation_id: str, leaf_msg_id: str,
+                          max_tokens: int = 8000) -&gt; list[dict]:
+        """Build context by walking from leaf to root of message tree."""
+        # Get the path from leaf to root
+        path = await self._get_path_to_root(conversation_id, leaf_msg_id)
+        path.reverse()  # Root to leaf order
+
+        # Token budgeting
+        system_budget = 500
+        summary_budget = 300
+        generation_budget = 2000
+        available = max_tokens - system_budget - summary_budget - generation_budget
+
+        # Take as many recent messages as fit
+        recent, tokens_used = [], 0
+        for msg in reversed(path):
+            msg_tokens = self.count_tokens(msg.content)
+            if tokens_used + msg_tokens &gt; available:
+                break
+            recent.insert(0, msg)
+            tokens_used += msg_tokens
+
+        # Summarize older messages if any were cut
+        context = []
+        older = [m for m in path if m not in recent]
+        if older:
+            summary = await self.summarizer.summarize(older)
+            context.append({
+                "role": "system",
+                "content": f"Earlier conversation summary: {summary}"
+            })
+
+        context.extend(
+            {"role": m.role, "content": m.content} for m in recent
+        )
+        return context
+
+    async def branch(self, conversation_id: str, parent_msg_id: str,
+                     new_content: str) -&gt; Message:
+        """Create a new branch from an existing message."""
+        msg = Message(
+            role="user",
+            content=new_content,
+            parent_id=parent_msg_id,
+        )
+        await self.db.save_message(conversation_id, msg)
+        return msg
+
+    async def _get_path_to_root(self, conv_id, msg_id):
+        """Walk parent pointers from leaf to root."""
+        path, current_id = [], msg_id
+        while current_id:
+            msg = await self.db.get_message(conv_id, current_id)
+            path.append(msg)
+            current_id = msg.parent_id
+        return path</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 6. SAFETY & GUARDRAILS ============ -->
+            <h2 class="mt-4">6. Safety &amp; Guardrails</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Input/Output Moderation Pipeline</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Safety Pipeline</h4>
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph LR
+    U[User Message] --> IF[Input Filter]
+    IF -->|Block| R1[Reject + Explanation]
+    IF -->|Pass| PI[Prompt Injection<br/>Detector]
+    PI -->|Detected| R2[Reject]
+    PI -->|Clean| LLM[LLM Inference]
+    LLM --> OF[Output Filter]
+    OF -->|Block| R3[Regenerate / Refuse]
+    OF -->|Pass| RESP[Stream to User]
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Moderation Layers</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Layer</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">What It Catches</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Keyword blocklist</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Known harmful patterns, slurs</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;1ms</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ML classifier (toxicity)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hate speech, harassment, NSFW</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~20ms</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prompt injection detector</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">System prompt extraction, jailbreaks</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~30ms</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Output PII scanner</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model leaking training data PII</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~10ms (runs on buffer)</td>
+                        </tr>
+                    </table>
+
+                    <h4>Rate Limiting Strategy</h4>
+                    <ul>
+                        <li><strong>Per-user:</strong> Free tier: 20 msg/hour, Pro: 200 msg/hour</li>
+                        <li><strong>Per-model:</strong> GPT-4 has stricter limits than smaller models</li>
+                        <li><strong>Token budget:</strong> Daily token cap per user tier</li>
+                        <li><strong>Abuse detection:</strong> Flag accounts with high toxicity rejection rate</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 7. STORAGE & PERSISTENCE ============ -->
+            <h2 class="mt-4">7. Storage &amp; Persistence</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Conversation Storage, Search &amp; Compliance</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Storage Schema</h4>
+                    <pre><code class="language-python"># PostgreSQL schema (simplified)
+"""
+conversations:
+    id              UUID PRIMARY KEY
+    user_id         UUID NOT NULL
+    title           TEXT              -- Auto-generated from first message
+    model           VARCHAR(50)
+    system_prompt   TEXT
+    created_at      TIMESTAMPTZ
+    updated_at      TIMESTAMPTZ
+    is_shared       BOOLEAN DEFAULT FALSE
+    share_token     VARCHAR(64) UNIQUE
+
+messages:
+    id              UUID PRIMARY KEY
+    conversation_id UUID REFERENCES conversations(id)
+    parent_id       UUID REFERENCES messages(id)  -- For branching
+    role            VARCHAR(20)       -- user, assistant, system
+    content         TEXT
+    model           VARCHAR(50)       -- Which model generated this
+    input_tokens    INT
+    output_tokens   INT
+    latency_ms      INT
+    created_at      TIMESTAMPTZ
+
+INDEX idx_conv_user ON conversations(user_id, updated_at DESC)
+INDEX idx_msg_conv ON messages(conversation_id, created_at)
+"""</code></pre>
+
+                    <h4>Tiered Storage</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tier</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Age</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Storage</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Access Pattern</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Hot</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 7 days</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL + Redis cache</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Active conversations</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Warm</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">7-90 days</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PostgreSQL</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">History browsing</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cold</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 90 days</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">S3 + Parquet (compressed)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Rare access, compliance</td>
+                        </tr>
+                    </table>
+
+                    <h4>GDPR Compliance</h4>
+                    <ul>
+                        <li><strong>Right to deletion:</strong> Hard delete all messages + embeddings within 30 days</li>
+                        <li><strong>Data export:</strong> Download all conversations as JSON</li>
+                        <li><strong>Encryption:</strong> AES-256 at rest, per-user encryption keys for enterprise</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 8. ARCHITECTURE DIAGRAM ============ -->
+            <h2 class="mt-4">8. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "Client Layer"
+        WEB[Web App<br/>React + SSE]
+        MOB[Mobile App]
+        API_C[API Clients]
+    end
+
+    subgraph "Edge &amp; Gateway"
+        CDN[CDN / CloudFlare]
+        LB[Load Balancer]
+        GW[API Gateway<br/>Auth + Rate Limit]
+    end
+
+    subgraph "Safety Pipeline"
+        IF[Input Filter<br/>Toxicity + PI Detection]
+        OF[Output Filter<br/>Content + PII Check]
+    end
+
+    subgraph "Core Services"
+        CS[Chat Service<br/>SSE Streaming]
+        CM[Conversation Manager<br/>Context + Branching]
+        MG[Model Gateway<br/>Routing + Fallback]
+    end
+
+    subgraph "Inference Layer"
+        GPU1[GPU Pool A<br/>GPT-4 / Claude]
+        GPU2[GPU Pool B<br/>Open Source<br/>vLLM]
+        GPU3[GPU Pool C<br/>Small Models<br/>Free Tier]
+    end
+
+    subgraph "Storage"
+        PG[("PostgreSQL<br/>Conversations")]
+        RD[("Redis<br/>Session + Cache")]
+        S3[("S3<br/>Cold Storage + Files")]
+    end
+
+    WEB & MOB & API_C --> CDN --> LB --> GW
+    GW --> IF --> CS
+    CS --> CM --> PG
+    CS --> MG
+    MG --> GPU1 & GPU2 & GPU3
+    CS --> OF
+    CM --> RD
+    PG --> S3
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 9. PERFORMANCE OPTIMIZATION ============ -->
+            <h2 class="mt-4">9. Performance Optimization</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>KV Cache, Prefix Caching &amp; Admission Control</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Key Optimizations</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Optimization</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Speedup</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">How It Works</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">KV Cache Reuse</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-5x TTFT</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reuse previous turns' KV cache; only compute new message attention</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prefix Caching</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3-10x for shared prompts</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cache system prompt KV across users with same instructions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Continuous Batching</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3-5x throughput</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">New requests join batch as old ones finish (vLLM)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Speculative Decoding</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-3x tokens/sec</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Draft model proposes N tokens; large model verifies in one pass</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Quantization (INT8/INT4)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">2-4x memory savings</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Reduce model precision with minimal quality loss</td>
+                        </tr>
+                    </table>
+
+                    <h4>Admission Control Under Load</h4>
+                    <ul>
+                        <li><strong>Queue-based:</strong> When GPU utilization &gt; 90%, queue new requests (show "Thinking..." with ETA)</li>
+                        <li><strong>Priority queue:</strong> Pro users skip ahead of free tier</li>
+                        <li><strong>Model downgrade:</strong> Under extreme load, auto-route free tier to smaller model</li>
+                        <li><strong>Request shedding:</strong> Return 503 with retry-after header as last resort</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 10. FAILURE MODES ============ -->
+            <h2 class="mt-4">10. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPU OOM</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Inference fails mid-stream</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory-aware scheduler; reject requests exceeding available KV cache</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Provider Outage</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Primary model unavailable</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Circuit breaker + fallback chain (OpenAI &rarr; Anthropic &rarr; self-hosted)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SSE Disconnect</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User loses partial response</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Buffer full response server-side; client can fetch remaining on reconnect</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Token Limit Exceeded</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Generation cut off mid-sentence</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pre-compute token budget; warn user; offer "continue" button</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Conversation State Loss</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">History disappears</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Write-ahead log; save each message before streaming starts</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Viral Traffic Spike</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Service overwhelmed</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Auto-scaling GPU pods (5min warm-up); queue + graceful degradation</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============ 11. STAFF-LEVEL DISCUSSION ============ -->
+            <h2 class="mt-4">11. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Self-Hosted vs API, Cost, Multi-Region</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Self-Hosted vs API-Based</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Self-Hosted (vLLM)</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">API-Based (OpenAI/Anthropic)</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost at Scale</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cheaper above ~$50K/month</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Pay-per-token, no GPU management</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency Control</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Full control over batching/caching</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Subject to provider's queue</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Model Quality</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Open-source (Llama 3, Mistral)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best frontier models (GPT-4, Claude)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ops Burden</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (GPU cluster management)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Minimal (REST API calls)</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Take:</strong> Use API for frontier models (quality matters, GPT-4/Claude), self-host for free tier and high-volume use cases (cost matters). Hybrid approach: route premium users to API providers, free tier to self-hosted Llama 3. This optimizes cost while maintaining quality where it matters.
+                    </div>
+
+                    <h4>Cost Per Conversation</h4>
+                    <ul>
+                        <li>Average conversation: 8 turns &times; (500 input + 800 output) = ~10.4K tokens</li>
+                        <li>GPT-4: $0.03/1K input + $0.06/1K output &asymp; <strong>$0.50/conversation</strong></li>
+                        <li>Self-hosted Llama 3 70B: ~$0.002/1K tokens &asymp; <strong>$0.02/conversation</strong></li>
+                        <li>At 8M conversations/month: $4M (GPT-4) vs $160K (self-hosted) = <strong>25x cost difference</strong></li>
+                    </ul>
+
+                    <h4>Multi-Region Deployment</h4>
+                    <ul>
+                        <li><strong>GPU scarcity:</strong> Not all regions have A100/H100 availability</li>
+                        <li><strong>Latency:</strong> TTFT dominated by inference, not network. Region matters less than GPU availability.</li>
+                        <li><strong>Data residency:</strong> EU users' conversations stored in EU region (GDPR)</li>
+                        <li><strong>Strategy:</strong> GPU clusters in 2-3 regions, route by user location + GPU capacity</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 12. INTERVIEW TIPS ============ -->
+            <h2 class="mt-4">12. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li><strong>Streaming expertise:</strong> Understanding SSE/WebSocket tradeoffs and why SSE is preferred for LLM streaming</li>
+                        <li><strong>GPU-awareness:</strong> KV cache, continuous batching, speculative decoding &mdash; not just "call an API"</li>
+                        <li><strong>Cost thinking:</strong> Free vs paid tiers, model routing by cost, self-hosted vs API analysis</li>
+                        <li><strong>Safety as first-class:</strong> Not an afterthought &mdash; input/output moderation pipeline</li>
+                    </ul>
+
+                    <h4>Common Follow-up Questions</h4>
+                    <ul>
+                        <li>"What happens when a user's conversation exceeds the model's context window?"</li>
+                        <li>"How do you handle a user who stops a generation mid-stream?"</li>
+                        <li>"How do you measure user satisfaction? What metrics would you track?"</li>
+                        <li>"How would you implement the 'edit and regenerate' feature?"</li>
+                        <li>"How would you add code execution (like Code Interpreter)?"</li>
+                    </ul>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Using WebSocket "because it's real-time" without understanding SSE tradeoffs</li>
+                        <li>Treating LLM as a black box API call with no inference layer discussion</li>
+                        <li>No safety/moderation pipeline</li>
+                        <li>Ignoring cost implications at scale</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 13. ACTIVE RECALL ============ -->
+            <h2 class="mt-4">13. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Why is SSE preferred over WebSocket for LLM chat streaming?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>LLM streaming is server-to-client only (unidirectional). SSE works over standard HTTP, supports auto-reconnect, works with normal load balancers and proxies, and doesn't need sticky sessions. WebSocket's bidirectionality is unnecessary overhead for this use case.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> Explain KV cache reuse in multi-turn conversations and its impact on TTFT.
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>In multi-turn chat, previous turns' key-value attention states are cached. When a new message arrives, only the new tokens need attention computation (the "prefill" phase). This reduces TTFT from O(full_context) to O(new_message), typically 2-5x faster. vLLM and TensorRT-LLM both support automatic KV cache management.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> How would you implement "edit and regenerate" (conversation branching)?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Model conversations as a tree, not a list. Each message has a <code>parent_id</code> pointer. "Edit and regenerate" creates a new branch from the edited message's parent. The UI shows siblings as alternatives. Context window is built by walking from current leaf to root.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> What is continuous batching and why is it critical for chat workloads?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Traditional batching waits for all requests in a batch to complete before starting new ones. Continuous batching (iteration-level scheduling) allows new requests to join an in-progress batch as old requests finish generating. This is critical for chat because response lengths vary wildly &mdash; a "yes" answer shouldn't hold GPU capacity while a 2000-token answer completes.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> How do you prevent a user from extracting the system prompt?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Multi-layer: (1) Prompt injection classifier on input to detect extraction attempts. (2) System prompt instructs model to never reveal instructions. (3) Output filter checks for system prompt substrings in response. (4) Use API-level system message separation (not concatenated with user text). None are foolproof &mdash; defense in depth.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> At 1M DAU, when does self-hosting become cheaper than API-based inference?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Self-hosting breaks even around $50K/month in API costs. At 8M conversations/month, GPT-4 costs ~$4M/month vs ~$160K self-hosted Llama 3. But self-hosting needs GPU ops team (3-4 engineers), so factor in human cost. Strategy: API for frontier models (paid tier), self-hosted for free tier and high-volume.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="multi-agent-orchestrator.html" class="btn btn-secondary">&larr; Previous: Multi-Agent Orchestrator</a>
+                <a href="../index.html" class="btn btn-primary">Back to AI Engineering &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('open');
+                });
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('open');
+                });
+            }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

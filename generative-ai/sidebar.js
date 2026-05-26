@@ -83,6 +83,17 @@
                 { href: 'module-24.html', num: '24', text: 'Classical ML for Ops' },
                 { href: 'module-25.html', num: '25', text: 'Secure Agent Execution' }
             ]
+        },
+        {
+            title: 'Practice Problems',
+            links: [
+                { href: 'problems/rag-10m-docs.html', text: 'RAG Over 10M Docs' },
+                { href: 'problems/enterprise-knowledge-assistant.html', text: 'Enterprise Knowledge Assistant' },
+                { href: 'problems/ai-code-assistant.html', text: 'AI Code Assistant' },
+                { href: 'problems/ai-content-moderation.html', text: 'AI Content Moderation' },
+                { href: 'problems/multi-agent-orchestrator.html', text: 'Multi-Agent Orchestrator' },
+                { href: 'problems/real-time-ai-chatbot.html', text: 'Real-Time AI Chatbot' }
+            ]
         }
     ];
 

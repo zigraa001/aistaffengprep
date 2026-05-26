@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: RAG Over 10M Docs - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: RAG Over 10M Documents</h1>
+            <p class="text-muted">Zero Hallucinations, Sub-2s Latency</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 2px solid rgba(239, 68, 68, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- ============ 1. REQUIREMENTS ============ -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Query 10M+ documents</strong> across PDF, HTML, Markdown, and code files</li>
+                        <li><strong>Natural language Q&amp;A</strong> with cited, grounded answers</li>
+                        <li><strong>Zero hallucination guarantee</strong> &mdash; abstain rather than fabricate</li>
+                        <li><strong>Access control</strong> &mdash; users only see docs they're authorized for</li>
+                        <li><strong>Multi-format ingestion</strong> &mdash; PDF, HTML, DOCX, source code, Markdown</li>
+                        <li><strong>Incremental updates</strong> &mdash; new/modified docs reflected within minutes</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Latency:</strong> P95 &lt; 2 seconds end-to-end</li>
+                        <li><strong>Availability:</strong> 99.9% uptime</li>
+                        <li><strong>Scalability:</strong> Horizontal scaling for both ingestion and query paths</li>
+                        <li><strong>Audit trail:</strong> Every answer traceable to source chunks</li>
+                        <li><strong>Freshness:</strong> Index lag &lt; 15 minutes for updated docs</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 2. SCALE ESTIMATION ============ -->
+            <h2 class="mt-4">2. Scale &amp; Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Back-of-Envelope Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Document Corpus:</strong><br>
+                        - 10M documents, average 10 pages each<br>
+                        - Average 5 chunks per document (semantic chunking)<br>
+                        - Total chunks: 10M &times; 5 = <strong>50M vectors</strong><br><br>
+
+                        <strong>Embedding Storage:</strong><br>
+                        - Embedding dimension: 1536 (OpenAI) or 1024 (Cohere v3)<br>
+                        - Bytes per vector: 1536 &times; 4 (float32) = 6,144 bytes<br>
+                        - Raw vector storage: 50M &times; 6 KB &asymp; <strong>300 GB</strong><br>
+                        - With HNSW index overhead (~1.5x): <strong>~450 GB</strong><br><br>
+
+                        <strong>Chunk Text Storage:</strong><br>
+                        - Average chunk: 512 tokens &asymp; 2 KB text<br>
+                        - 50M &times; 2 KB = <strong>100 GB</strong> raw text<br><br>
+
+                        <strong>Query Load:</strong><br>
+                        - 1,000 queries/minute peak (enterprise)<br>
+                        - Each query: 1 embedding call + 1 vector search + 1 rerank + 1 LLM call<br>
+                        - LLM tokens per query: ~4K input + ~500 output = ~4.5K tokens<br><br>
+
+                        <strong>Cost Estimate (monthly):</strong><br>
+                        - Embedding generation (one-time): 50M &times; $0.0001/1K tokens &asymp; $2,500<br>
+                        - Query embeddings: 1M queries &times; $0.0001 &asymp; $100<br>
+                        - LLM calls: 1M &times; 4.5K tokens &times; $3/1M &asymp; $13,500<br>
+                        - Vector DB hosting (managed): ~$2,000-5,000/month<br>
+                        - <strong>Total: ~$18K-21K/month</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 3. INGESTION PIPELINE ============ -->
+            <h2 class="mt-4">3. Ingestion Pipeline</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Document Parsing &amp; Chunking</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Parsing Strategy by Format</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Format</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Parser</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Challenges</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">PDF</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LlamaParse, Unstructured, PyMuPDF</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tables, images, multi-column layouts</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">HTML</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">BeautifulSoup + Trafilatura</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Boilerplate removal, navigation noise</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Tree-sitter + custom splitter</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Preserving function boundaries</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">DOCX</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">python-docx + Unstructured</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Embedded images, headers/footers</td>
+                        </tr>
+                    </table>
+
+                    <h4>Chunking Strategies</h4>
+                    <ul>
+                        <li><strong>Semantic Chunking:</strong> Split at topic boundaries using embedding similarity. Best for prose documents.</li>
+                        <li><strong>Recursive Character Splitting:</strong> Split by paragraph &rarr; sentence &rarr; word with overlap. Good baseline.</li>
+                        <li><strong>Parent-Document Chunking:</strong> Store small chunks for retrieval, but return parent (larger) chunk for context. Key for maintaining coherence.</li>
+                        <li><strong>Code-Aware Chunking:</strong> Use AST-based splitting to keep functions/classes intact.</li>
+                    </ul>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> Use parent-document retrieval at 10M scale. Small chunks (256 tokens) give better retrieval precision, but the LLM needs surrounding context (1024+ tokens) to generate coherent answers. Store both granularities.
+                    </div>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Embedding &amp; Indexing Pipeline</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Pipeline Architecture</h4>
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph LR
+    A[Doc Source] --> B[Parser Workers]
+    B --> C[Chunker]
+    C --> D[Metadata Extractor]
+    D --> E[Embedding Batch API]
+    E --> F[Vector DB Writer]
+    F --> G[("Pinecone / Qdrant")]
+    D --> H[Text Store]
+    H --> I[("PostgreSQL")]
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4>Metadata Extraction</h4>
+                    <p>Each chunk carries metadata for filtering and attribution:</p>
+                    <ul>
+                        <li><code>doc_id</code>, <code>chunk_index</code>, <code>parent_chunk_id</code></li>
+                        <li><code>source_url</code>, <code>title</code>, <code>author</code></li>
+                        <li><code>created_at</code>, <code>updated_at</code></li>
+                        <li><code>access_groups[]</code> &mdash; ACL tags for permission filtering</li>
+                        <li><code>doc_type</code> (pdf, html, code, etc.)</li>
+                    </ul>
+
+                    <h4>Code Sample: Chunking Pipeline</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass, field
+from typing import Optional
+import hashlib
+
+@dataclass
+class Chunk:
+    text: str
+    doc_id: str
+    chunk_index: int
+    parent_chunk_id: Optional[str] = None
+    metadata: dict = field(default_factory=dict)
+
+    @property
+    def chunk_id(self) -&gt; str:
+        return hashlib.sha256(
+            f"{self.doc_id}:{self.chunk_index}".encode()
+        ).hexdigest()[:16]
+
+class SemanticChunker:
+    """Split documents at topic boundaries using embedding similarity."""
+
+    def __init__(self, embed_fn, similarity_threshold=0.75,
+                 min_chunk_size=128, max_chunk_size=512):
+        self.embed_fn = embed_fn
+        self.threshold = similarity_threshold
+        self.min_size = min_chunk_size
+        self.max_size = max_chunk_size
+
+    def chunk(self, text: str, doc_id: str) -&gt; list[Chunk]:
+        sentences = self._split_sentences(text)
+        embeddings = self.embed_fn([s for s in sentences])
+
+        chunks, current = [], []
+        for i, sentence in enumerate(sentences):
+            current.append(sentence)
+            current_len = sum(len(s.split()) for s in current)
+
+            # Check if next sentence is a topic shift
+            if i &lt; len(sentences) - 1 and current_len &gt;= self.min_size:
+                sim = self._cosine_sim(embeddings[i], embeddings[i + 1])
+                if sim &lt; self.threshold or current_len &gt;= self.max_size:
+                    chunks.append(Chunk(
+                        text=" ".join(current),
+                        doc_id=doc_id,
+                        chunk_index=len(chunks),
+                    ))
+                    current = []
+
+        if current:
+            chunks.append(Chunk(
+                text=" ".join(current),
+                doc_id=doc_id,
+                chunk_index=len(chunks),
+            ))
+
+        # Create parent chunks (groups of 3 child chunks)
+        parent_chunks = []
+        for i in range(0, len(chunks), 3):
+            group = chunks[i:i+3]
+            parent = Chunk(
+                text=" ".join(c.text for c in group),
+                doc_id=doc_id,
+                chunk_index=i // 3,
+                metadata={"is_parent": True},
+            )
+            parent_chunks.append(parent)
+            for c in group:
+                c.parent_chunk_id = parent.chunk_id
+
+        return chunks + parent_chunks
+
+    def _split_sentences(self, text):
+        import re
+        return [s.strip() for s in re.split(r'(?&lt;=[.!?])\s+', text) if s.strip()]
+
+    def _cosine_sim(self, a, b):
+        import numpy as np
+        return float(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 4. RETRIEVAL ARCHITECTURE ============ -->
+            <h2 class="mt-4">4. Retrieval Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Hybrid Search: Dense + Sparse</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Neither dense (embedding) nor sparse (BM25) search alone is sufficient at 10M scale. Hybrid search combines both:</p>
+
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Method</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Strengths</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Weaknesses</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dense (Embedding)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Semantic understanding, paraphrase matching</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Misses exact terms, acronyms, IDs</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Sparse (BM25)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Exact keyword match, rare terms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No semantic understanding</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Hybrid</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Best of both; Reciprocal Rank Fusion</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slightly higher latency</td>
+                        </tr>
+                    </table>
+
+                    <h4>Advanced Retrieval Techniques</h4>
+                    <ul>
+                        <li><strong>Query Decomposition:</strong> Break complex questions into sub-queries, retrieve for each, merge results</li>
+                        <li><strong>HyDE (Hypothetical Document Embeddings):</strong> Generate a hypothetical answer, embed it, search for similar real chunks</li>
+                        <li><strong>Multi-hop Retrieval:</strong> First retrieval informs second query for questions requiring reasoning chains</li>
+                        <li><strong>Cross-encoder Re-ranking:</strong> After initial retrieval (top-100), re-rank with a cross-encoder model for precision (top-10)</li>
+                    </ul>
+
+                    <h4>Code Sample: Hybrid Retrieval + Rerank</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass
+
+@dataclass
+class SearchResult:
+    chunk_id: str
+    text: str
+    score: float
+    metadata: dict
+
+class HybridRetriever:
+    def __init__(self, vector_db, bm25_index, reranker, embed_fn):
+        self.vector_db = vector_db
+        self.bm25 = bm25_index
+        self.reranker = reranker
+        self.embed_fn = embed_fn
+
+    async def retrieve(self, query: str, user_groups: list[str],
+                       top_k: int = 10) -&gt; list[SearchResult]:
+        # Step 1: Parallel dense + sparse search
+        query_embedding = self.embed_fn(query)
+
+        # Permission filter applied at vector DB level
+        acl_filter = {"access_groups": {"$in": user_groups}}
+
+        dense_results = await self.vector_db.query(
+            vector=query_embedding,
+            filter=acl_filter,
+            top_k=100,
+        )
+        sparse_results = await self.bm25.search(
+            query, filter_groups=user_groups, top_k=100
+        )
+
+        # Step 2: Reciprocal Rank Fusion
+        fused = self._rrf_merge(dense_results, sparse_results, k=60)
+
+        # Step 3: Cross-encoder rerank (top 50 -&gt; top_k)
+        candidates = fused[:50]
+        reranked = await self.reranker.rerank(
+            query=query,
+            documents=[c.text for c in candidates],
+            top_k=top_k,
+        )
+
+        return [candidates[i] for i in reranked.indices]
+
+    def _rrf_merge(self, dense, sparse, k=60):
+        """Reciprocal Rank Fusion: score = sum(1 / (k + rank))"""
+        scores = {}
+        for rank, r in enumerate(dense):
+            scores[r.chunk_id] = scores.get(r.chunk_id, 0) + 1 / (k + rank)
+        for rank, r in enumerate(sparse):
+            scores[r.chunk_id] = scores.get(r.chunk_id, 0) + 1 / (k + rank)
+
+        # Merge results, sort by fused score
+        all_results = {r.chunk_id: r for r in dense + sparse}
+        merged = sorted(
+            all_results.values(),
+            key=lambda r: scores.get(r.chunk_id, 0),
+            reverse=True,
+        )
+        return merged</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 5. ZERO HALLUCINATION STRATEGY ============ -->
+            <h2 class="mt-4">5. Zero Hallucination Strategy</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Grounded Generation &amp; Verification</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Zero hallucination is the hardest requirement. It requires a <strong>defense-in-depth</strong> approach across multiple layers:</p>
+
+                    <h4>Layer 1: Constrained Prompting</h4>
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>System Prompt Pattern:</strong><br><br>
+                        <code>
+                        You are a document Q&amp;A assistant. Answer ONLY based on the provided context.<br>
+                        Rules:<br>
+                        1. Every claim must cite a source: [Source: doc_title, chunk_id]<br>
+                        2. If the context doesn't contain the answer, say "I don't have enough information to answer this."<br>
+                        3. Never speculate, infer, or use prior knowledge.<br>
+                        4. If partially answerable, answer what you can and explicitly state what's missing.
+                        </code>
+                    </div>
+
+                    <h4>Layer 2: Faithfulness Scoring</h4>
+                    <p>After generation, score the answer against retrieved chunks using NLI (Natural Language Inference):</p>
+                    <ul>
+                        <li><strong>RAGAS Faithfulness:</strong> Decompose answer into claims, check each claim against context</li>
+                        <li><strong>NLI Model:</strong> Cross-encoder trained on NLI data (entailment/contradiction/neutral)</li>
+                        <li><strong>Threshold:</strong> Reject answers with faithfulness &lt; 0.85</li>
+                    </ul>
+
+                    <h4>Layer 3: Abstention Mechanism</h4>
+                    <ul>
+                        <li>If retrieval confidence (max similarity score) &lt; threshold &rarr; abstain</li>
+                        <li>If LLM confidence (token probabilities) shows high entropy &rarr; abstain</li>
+                        <li>If faithfulness score &lt; 0.85 &rarr; return "Could not verify answer" with retrieved chunks</li>
+                    </ul>
+
+                    <h4>Layer 4: Fact-Verification Chain</h4>
+                    <p>Use a second LLM call as a verifier:</p>
+
+                    <h4>Code Sample: Hallucination Detector</h4>
+                    <pre><code class="language-python">from dataclasses import dataclass
+
+@dataclass
+class VerificationResult:
+    is_faithful: bool
+    score: float
+    unfaithful_claims: list[str]
+    verified_claims: list[str]
+
+class HallucinationDetector:
+    """Multi-layer hallucination detection pipeline."""
+
+    def __init__(self, nli_model, llm_client, threshold=0.85):
+        self.nli = nli_model
+        self.llm = llm_client
+        self.threshold = threshold
+
+    async def verify(self, answer: str, context_chunks: list[str]) -&gt; VerificationResult:
+        # Step 1: Decompose answer into atomic claims
+        claims = await self._extract_claims(answer)
+
+        # Step 2: Check each claim against context via NLI
+        context = "\n\n".join(context_chunks)
+        verified, unfaithful = [], []
+
+        for claim in claims:
+            entailment_score = self.nli.predict(
+                premise=context, hypothesis=claim
+            )
+            if entailment_score &gt; self.threshold:
+                verified.append(claim)
+            else:
+                unfaithful.append(claim)
+
+        score = len(verified) / max(len(claims), 1)
+
+        return VerificationResult(
+            is_faithful=score &gt;= self.threshold and len(unfaithful) == 0,
+            score=score,
+            unfaithful_claims=unfaithful,
+            verified_claims=verified,
+        )
+
+    async def _extract_claims(self, answer: str) -&gt; list[str]:
+        """Use LLM to decompose answer into atomic, verifiable claims."""
+        response = await self.llm.chat(
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Decompose this answer into atomic factual claims. "
+                    f"Each claim should be a single verifiable statement.\n\n"
+                    f"Answer: {answer}\n\n"
+                    f"Return one claim per line, no numbering."
+                ),
+            }],
+            temperature=0,
+        )
+        return [c.strip() for c in response.content.split("\n") if c.strip()]
+
+
+class RAGPipeline:
+    """End-to-end RAG with hallucination prevention."""
+
+    def __init__(self, retriever, llm, detector):
+        self.retriever = retriever
+        self.llm = llm
+        self.detector = detector
+
+    async def query(self, question: str, user_groups: list[str]) -&gt; dict:
+        # Retrieve
+        chunks = await self.retriever.retrieve(
+            question, user_groups=user_groups, top_k=10
+        )
+
+        # Check retrieval confidence
+        if not chunks or chunks[0].score &lt; 0.3:
+            return {
+                "answer": "I don't have enough information to answer this question.",
+                "sources": [],
+                "confidence": 0.0,
+            }
+
+        # Generate
+        context = "\n\n".join(
+            f"[Source: {c.metadata.get('title', 'Unknown')}, {c.chunk_id}]\n{c.text}"
+            for c in chunks
+        )
+        answer = await self.llm.chat(messages=[
+            {"role": "system", "content": GROUNDED_SYSTEM_PROMPT},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+        ], temperature=0)
+
+        # Verify
+        verification = await self.detector.verify(
+            answer.content, [c.text for c in chunks]
+        )
+
+        if not verification.is_faithful:
+            return {
+                "answer": (
+                    "I found relevant documents but could not verify "
+                    "a fully accurate answer. Here are the relevant sources:"
+                ),
+                "sources": [{"title": c.metadata.get("title"), "text": c.text[:200]} for c in chunks[:3]],
+                "confidence": verification.score,
+            }
+
+        return {
+            "answer": answer.content,
+            "sources": [{"title": c.metadata.get("title"), "chunk_id": c.chunk_id} for c in chunks],
+            "confidence": verification.score,
+        }</code></pre>
+                </div>
+            </div>
+
+            <!-- ============ 6. VECTOR DATABASE DESIGN ============ -->
+            <h2 class="mt-4">6. Vector Database Design</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Sharding, Indexing &amp; Multi-Tenancy</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Index Algorithm: HNSW vs IVF</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Aspect</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">HNSW</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">IVF-PQ</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Query Latency</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt;10ms (fast)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">10-50ms</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Memory</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High (graph in RAM)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low (compressed)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Insert Speed</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Slow (rebuild graph)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fast (append to cluster)</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Recall@10</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">99%+</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">90-95%</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);"><strong>Best For</strong></td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Low-latency, high-recall (our case)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost-sensitive, billions of vectors</td>
+                        </tr>
+                    </table>
+
+                    <h4>Sharding Strategy</h4>
+                    <ul>
+                        <li><strong>Namespace-based sharding:</strong> Each tenant/org gets a namespace (Pinecone) or collection (Qdrant)</li>
+                        <li><strong>Metadata filtering:</strong> Single index with <code>access_groups</code> filter &mdash; simpler ops, works to ~100M vectors</li>
+                        <li><strong>Horizontal partitioning:</strong> Shard by doc_type or department for query locality</li>
+                    </ul>
+
+                    <h4>Index Refresh Strategy</h4>
+                    <ul>
+                        <li>New documents: Insert immediately (HNSW supports online insertion)</li>
+                        <li>Updated documents: Delete old chunks + insert new (transactional via doc_id filter)</li>
+                        <li>Deleted documents: Soft delete with TTL, batch cleanup weekly</li>
+                        <li><strong>Embedding model change:</strong> Full re-index required. Run shadow index, atomic swap.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 7. ARCHITECTURE DIAGRAM ============ -->
+            <h2 class="mt-4">7. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "Ingestion Pipeline"
+        S1[Doc Sources<br/>S3/GCS/API] --> P[Parser Workers<br/>PDF/HTML/Code]
+        P --> CH[Chunker<br/>Semantic + Parent]
+        CH --> ME[Metadata Extractor]
+        ME --> EB[Embedding Batch<br/>OpenAI/Cohere]
+        EB --> VW[Vector DB Writer]
+    end
+
+    subgraph "Storage Layer"
+        VW --> VDB[("Vector DB<br/>Qdrant/Pinecone<br/>50M vectors")]
+        ME --> PG[("PostgreSQL<br/>Chunk text + metadata")]
+        ACL[("ACL Store<br/>User → Groups")]
+    end
+
+    subgraph "Query Pipeline"
+        Q[User Query] --> QE[Query Encoder]
+        QE --> HS[Hybrid Search<br/>Dense + BM25]
+        HS --> VDB
+        HS --> BM[BM25 Index<br/>Elasticsearch]
+        HS --> RR[Reranker<br/>Cross-Encoder]
+        RR --> CTX[Context Builder<br/>Parent Chunk Fetch]
+        CTX --> PG
+    end
+
+    subgraph "Generation + Verification"
+        CTX --> LLM[LLM Generator<br/>GPT-4/Claude]
+        LLM --> VER[Faithfulness Verifier<br/>NLI + Claim Check]
+        VER -->|Pass| RES[Cited Answer]
+        VER -->|Fail| ABS[Abstain + Show Sources]
+    end
+
+    ACL --> HS
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============ 8. FAILURE MODES ============ -->
+            <h2 class="mt-4">8. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Stale Index</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Answers based on outdated docs</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">CDC pipeline with &lt;15min lag; show "last updated" timestamps</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Embedding Drift</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Old embeddings incompatible with new model</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Version embeddings; shadow re-index + atomic swap</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adversarial Queries</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Prompt injection via user query</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Input sanitization, system prompt hardening, output filtering</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Context Window Overflow</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Too many retrieved chunks exceed model limit</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Dynamic context budget; summarize low-rank chunks</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Vector DB Outage</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No retrieval possible</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fallback to BM25-only; read replicas; multi-region</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">ACL Propagation Delay</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">User sees docs after access revoked</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Real-time ACL check at query time, not just index time</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ============ 9. STAFF-LEVEL DISCUSSION ============ -->
+            <h2 class="mt-4">9. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Cost, Tradeoffs &amp; Deep Decisions</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Embedding Model Selection</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Model</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Dimensions</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">MTEB Score</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost/1M tokens</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tradeoff</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">OpenAI text-embedding-3-large</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">3072 (or 1536)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">64.6</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$0.13</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High quality, vendor lock-in</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cohere embed-v3</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1024</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">64.5</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">$0.10</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Cheaper, built-in compression</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">BGE-large (self-hosted)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">1024</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">63.9</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPU cost only</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">No vendor lock-in, ops burden</td>
+                        </tr>
+                    </table>
+
+                    <h4>When to Fine-Tune Retriever vs Generator</h4>
+                    <ul>
+                        <li><strong>Fine-tune retriever</strong> when domain has specialized vocabulary (legal, medical, code) and general embeddings miss relevant chunks</li>
+                        <li><strong>Fine-tune generator</strong> when you need consistent output format, specific citation style, or domain-specific reasoning</li>
+                        <li><strong>Neither:</strong> Start with better chunking and prompting &mdash; 80% of RAG quality comes from retrieval quality, not model tuning</li>
+                    </ul>
+
+                    <h4>Cost Optimization at Scale</h4>
+                    <ul>
+                        <li><strong>Semantic caching:</strong> Cache answers for similar queries (embedding similarity &gt; 0.95)</li>
+                        <li><strong>Tiered retrieval:</strong> Fast BM25 first, upgrade to hybrid only if confidence low</li>
+                        <li><strong>Quantized vectors:</strong> int8 quantization reduces storage 4x with ~1% recall loss</li>
+                        <li><strong>Matryoshka embeddings:</strong> Use fewer dimensions for initial search, full dimensions for rerank</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 10. INTERVIEW TIPS ============ -->
+            <h2 class="mt-4">10. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li>Understanding that RAG quality is primarily a <strong>retrieval problem</strong>, not a generation problem</li>
+                        <li>Concrete zero-hallucination strategy &mdash; not just "use a good prompt"</li>
+                        <li>Scale awareness: chunking choices, vector DB selection, cost estimation</li>
+                        <li>Security: ACL-aware retrieval, not just post-filtering</li>
+                    </ul>
+
+                    <h4>Common Follow-up Questions</h4>
+                    <ul>
+                        <li>"How do you handle a document update? Do you re-embed the whole doc?"</li>
+                        <li>"What if the embedding model provider changes their model?"</li>
+                        <li>"How do you evaluate your RAG system? What metrics?"</li>
+                        <li>"Walk me through what happens when a query returns no good results."</li>
+                        <li>"How would you handle multi-language documents?"</li>
+                    </ul>
+
+                    <h4>Red Flags to Avoid</h4>
+                    <ul>
+                        <li>Saying "just use GPT-4 with a big context window" instead of RAG</li>
+                        <li>Ignoring chunking strategy or treating all docs the same</li>
+                        <li>No verification layer &mdash; trusting LLM output blindly</li>
+                        <li>Skipping access control in retrieval</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- ============ 11. ACTIVE RECALL ============ -->
+            <h2 class="mt-4">11. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Why use hybrid search (dense + sparse) instead of just embedding search?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Dense embeddings miss exact keyword matches (acronyms, IDs, product codes). BM25 catches these. Hybrid with Reciprocal Rank Fusion combines semantic understanding with exact matching for best recall.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> What is the parent-document retrieval pattern and why is it important at scale?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Store small chunks (~256 tokens) for precise retrieval, but fetch the parent chunk (~1024 tokens) for generation context. Small chunks match queries better, but the LLM needs surrounding context for coherent answers.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> Describe three layers of defense against hallucination.
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>(1) Constrained prompting with citation requirements. (2) NLI-based faithfulness scoring that decomposes answer into claims and checks entailment. (3) Abstention mechanism when retrieval confidence or faithfulness score is below threshold.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> HNSW vs IVF-PQ &mdash; which would you choose for 50M vectors with &lt;2s latency requirement and why?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>HNSW. At 50M vectors, HNSW gives &lt;10ms query latency with 99%+ recall. The ~450GB memory requirement is manageable with modern servers. IVF-PQ saves memory but sacrifices recall (90-95%) which is unacceptable for a zero-hallucination system.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> How do you handle embedding model migration without downtime?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Shadow re-indexing: build new index with new embeddings alongside existing one. Run queries against both, validate new index quality with eval set. Atomic swap once quality is confirmed. Roll back if metrics degrade.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> Why should ACL filtering happen at the vector DB level, not as post-processing?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Post-filtering can return fewer than top-K results (or empty results) if many top matches are filtered out. DB-level filtering ensures you always get K results from the authorized set, maintaining result quality and avoiding information leakage through result count.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="../index.html" class="btn btn-secondary">&larr; Back to AI Engineering</a>
+                <a href="enterprise-knowledge-assistant.html" class="btn btn-primary">Next: Enterprise Knowledge Assistant &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => {
+                    sidebar.classList.toggle('open');
+                    sidebarOverlay.classList.toggle('open');
+                });
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                    sidebarOverlay.classList.remove('open');
+                });
+            }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>

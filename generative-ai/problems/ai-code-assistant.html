@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Design: AI Code Assistant (Copilot) - Staff Engineer Prep</title>
+    <link rel="stylesheet" href="../../assets/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+</head>
+<body>
+    <nav class="navbar" id="main-navbar" data-base="../../"></nav>
+
+    <div class="layout-with-sidebar">
+        <aside class="sidebar" id="sidebar"></aside>
+        <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <main class="main-content">
+            <h1>Design: AI Code Assistant (Copilot)</h1>
+            <p class="text-muted">Examples: GitHub Copilot, Cursor, Codeium, Amazon CodeWhisperer</p>
+
+            <div class="card mt-3" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(220, 38, 38, 0.1) 100%); border: 2px solid rgba(239, 68, 68, 0.4);">
+                <strong>Difficulty:</strong> Hard | <strong>Time:</strong> 45-60 minutes
+            </div>
+
+            <!-- 1. REQUIREMENTS -->
+            <h2 class="mt-4">1. Requirements Clarification</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Inline code completion</strong> &mdash; predict next lines as user types (ghost text)</li>
+                        <li><strong>Chat-based code generation</strong> &mdash; explain, refactor, generate from natural language</li>
+                        <li><strong>Codebase-aware context</strong> &mdash; understand project structure, imports, types, related files</li>
+                        <li><strong>Multi-language support</strong> &mdash; Python, TypeScript, Java, Go, Rust, etc.</li>
+                        <li><strong>Streaming responses</strong> &mdash; token-by-token for real-time UX</li>
+                        <li><strong>Privacy controls</strong> &mdash; opt-out of telemetry, no training on private repos</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Non-Functional Requirements</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <ul>
+                        <li><strong>Latency:</strong> First token &lt; 200ms for inline completion (TTFT critical)</li>
+                        <li><strong>Throughput:</strong> Handle 1M+ developers, ~10 completions/minute each</li>
+                        <li><strong>Accuracy:</strong> Acceptance rate &gt; 30% for inline suggestions</li>
+                        <li><strong>Availability:</strong> 99.9% &mdash; IDE can't hang waiting for completions</li>
+                        <li><strong>Cost efficiency:</strong> Sub-$0.01 per completion to be viable at $10-20/user/month pricing</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 2. SCALE ESTIMATION -->
+            <h2 class="mt-4">2. Scale &amp; Capacity Estimation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Back-of-Envelope Math</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>User Scale:</strong><br>
+                        - 1M active developers<br>
+                        - Average coding session: 4 hours/day<br>
+                        - ~10 completion triggers/minute while coding<br>
+                        - Many are debounced/cancelled (only ~30% reach backend)<br><br>
+
+                        <strong>Request Volume:</strong><br>
+                        - Peak: 1M &times; 3 req/min = <strong>3M req/min = 50K QPS</strong><br>
+                        - Each request: ~2K tokens input context, ~100 tokens output<br>
+                        - 70% are inline completions (fast, small), 30% chat (slower, larger)<br><br>
+
+                        <strong>Inference Cost:</strong><br>
+                        - Inline: use speculative decoding or smaller model (7B-13B)<br>
+                        - Chat: larger model (70B or GPT-4 class)<br>
+                        - Cost per inline completion: ~$0.001<br>
+                        - Cost per chat request: ~$0.01<br>
+                        - Monthly: ~$3-5M inference cost for 1M users<br><br>
+
+                        <strong>GPU Fleet:</strong><br>
+                        - 50K QPS with ~50ms/completion = ~2,500 GPU-seconds/sec<br>
+                        - ~800-1,200 A100/H100 GPUs for inference
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. CONTEXT ENGINEERING -->
+            <h2 class="mt-4">3. Context Engineering</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Building the Perfect Context Window</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <p>Context quality is the #1 driver of suggestion accuracy. The challenge: fit the most relevant code into a limited token budget.</p>
+
+                    <h4>Context Sources (Priority Order)</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Source</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tokens</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Current file (cursor prefix/suffix)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~800</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Immediate context, most relevant</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Recently edited files</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~400</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Related work context</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Imported modules/types</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~300</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Type signatures, API surface</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Similar code (embedding search)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~300</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Patterns from codebase</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">LSP diagnostics/errors</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~100</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fix-aware suggestions</td>
+                        </tr>
+                    </table>
+
+                    <h4>Fill-in-the-Middle (FIM) Format</h4>
+                    <p>Inline completion uses FIM, not standard left-to-right generation:</p>
+                    <pre><code class="language-python"># FIM prompt format for inline completion
+def build_fim_prompt(prefix: str, suffix: str,
+                     context_snippets: list[str]) -&gt; str:
+    """Build Fill-in-the-Middle prompt for code completion.
+
+    The model sees code BEFORE and AFTER the cursor,
+    then generates what goes in between.
+    """
+    # Repo-level context (snippets from other files)
+    repo_context = "\n".join(
+        f"# File: {s['path']}\n{s['content']}"
+        for s in context_snippets
+    )
+
+    return (
+        f"&lt;|repo_context|&gt;\n{repo_context}\n"
+        f"&lt;|fim_prefix|&gt;{prefix}"
+        f"&lt;|fim_suffix|&gt;{suffix}"
+        f"&lt;|fim_middle|&gt;"
+    )
+
+
+class ContextBuilder:
+    """Assemble optimal context for code completion."""
+
+    def __init__(self, index, lsp_client, max_tokens=2048):
+        self.index = index       # Codebase embedding index
+        self.lsp = lsp_client    # Language Server Protocol client
+        self.max_tokens = max_tokens
+
+    async def build(self, file_path: str, cursor_offset: int,
+                    open_files: list[str]) -&gt; dict:
+        content = await self._read_file(file_path)
+        prefix = content[:cursor_offset]
+        suffix = content[cursor_offset:]
+
+        budget = self.max_tokens
+        snippets = []
+
+        # 1. Current file prefix/suffix (highest priority)
+        prefix_tokens = self._truncate_start(prefix, budget // 2)
+        suffix_tokens = self._truncate_end(suffix, budget // 4)
+        budget -= len(prefix_tokens) + len(suffix_tokens)
+
+        # 2. Imported type signatures
+        imports = await self.lsp.get_imports(file_path)
+        for imp in imports[:5]:
+            sig = await self.lsp.get_signature(imp)
+            if sig and budget &gt; 0:
+                snippets.append({"path": imp, "content": sig})
+                budget -= self._count_tokens(sig)
+
+        # 3. Recently edited files (recency-weighted)
+        for f in open_files[:3]:
+            if f != file_path and budget &gt; 100:
+                excerpt = await self._get_relevant_excerpt(f, prefix)
+                snippets.append({"path": f, "content": excerpt})
+                budget -= self._count_tokens(excerpt)
+
+        # 4. Similar code from codebase index
+        if budget &gt; 100:
+            similar = await self.index.search(
+                prefix[-500:], top_k=3, exclude=file_path
+            )
+            for s in similar:
+                if budget &gt; 0:
+                    snippets.append(s)
+                    budget -= self._count_tokens(s["content"])
+
+        return {
+            "prefix": prefix_tokens,
+            "suffix": suffix_tokens,
+            "snippets": snippets,
+        }</code></pre>
+                </div>
+            </div>
+
+            <!-- 4. INFERENCE ARCHITECTURE -->
+            <h2 class="mt-4">4. Inference Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Model Serving &amp; Speculative Decoding</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Two-Tier Model Strategy</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Tier</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Model</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Use Case</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Latency</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Cost</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Fast (Draft)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">7B code model (quantized)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Inline completions</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">TTFT &lt; 100ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$0.001/req</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Power</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">70B+ or GPT-4 class</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Chat, refactor, explain</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">TTFT &lt; 500ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~$0.01/req</td>
+                        </tr>
+                    </table>
+
+                    <h4>Speculative Decoding</h4>
+                    <p>Key optimization: small draft model generates N candidate tokens, large verifier model checks all N in one forward pass. 2-3x speedup.</p>
+                    <pre><code class="language-python">class SpeculativeDecoder:
+    """Speculative decoding: draft model proposes, target verifies."""
+
+    def __init__(self, draft_model, target_model, n_speculative=5):
+        self.draft = draft_model
+        self.target = target_model
+        self.n_spec = n_speculative
+
+    async def generate(self, prompt: str, max_tokens: int) -&gt; str:
+        tokens = []
+        while len(tokens) &lt; max_tokens:
+            # Draft model generates N candidate tokens autoregressively
+            draft_tokens = []
+            draft_probs = []
+            ctx = prompt + self._decode(tokens)
+
+            for _ in range(self.n_spec):
+                logits = await self.draft.forward(ctx + self._decode(draft_tokens))
+                prob = self._softmax(logits)
+                token = self._sample(prob)
+                draft_tokens.append(token)
+                draft_probs.append(prob[token])
+
+            # Target model verifies ALL draft tokens in single forward pass
+            target_logits = await self.target.forward_batch(
+                ctx, draft_tokens
+            )
+
+            # Accept tokens until first rejection
+            for i, dt in enumerate(draft_tokens):
+                target_prob = self._softmax(target_logits[i])
+                # Rejection sampling
+                if target_prob[dt] / draft_probs[i] &gt;= self._random():
+                    tokens.append(dt)
+                else:
+                    # Reject: sample from adjusted distribution
+                    adjusted = self._adjust_distribution(
+                        target_prob, self._softmax(target_logits[i])
+                    )
+                    tokens.append(self._sample(adjusted))
+                    break
+
+        return self._decode(tokens)</code></pre>
+
+                    <h4>Request Lifecycle</h4>
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+sequenceDiagram
+    participant IDE as IDE Extension
+    participant GW as API Gateway
+    participant LB as Load Balancer
+    participant GPU as GPU Inference
+    participant Cache as Prompt Cache
+
+    IDE->>IDE: Debounce (150ms)
+    IDE->>GW: POST /complete {prefix, suffix, context}
+    GW->>Cache: Check prompt cache
+    alt Cache Hit
+        Cache-->>GW: Cached completion
+        GW-->>IDE: Stream tokens (SSE)
+    else Cache Miss
+        GW->>LB: Route to GPU pool
+        LB->>GPU: Inference (FIM prompt)
+        GPU-->>GW: Stream tokens
+        GW-->>IDE: Stream tokens (SSE)
+        GW->>Cache: Store completion
+    end
+    IDE->>IDE: Render ghost text
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. STREAMING & CANCELLATION -->
+            <h2 class="mt-4">5. Streaming &amp; Request Management</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Debouncing, Cancellation &amp; Caching</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Client-Side Debouncing</h4>
+                    <p>User types fast &mdash; don't send a request on every keystroke:</p>
+                    <ul>
+                        <li><strong>Debounce:</strong> Wait 150-300ms after last keystroke before sending</li>
+                        <li><strong>Cancel in-flight:</strong> If user keeps typing, abort previous request</li>
+                        <li><strong>Prefix matching:</strong> If new input is an extension of old prompt, reuse partial result</li>
+                    </ul>
+
+                    <h4>Server-Side Optimizations</h4>
+                    <ul>
+                        <li><strong>KV Cache reuse:</strong> For prefix-sharing requests, reuse computed KV cache from previous request</li>
+                        <li><strong>Prompt caching:</strong> Hash the prompt &mdash; identical context = identical completion (high cache hit for boilerplate)</li>
+                        <li><strong>Continuous batching:</strong> vLLM/TensorRT-LLM batch incoming requests dynamically, maximizing GPU utilization</li>
+                        <li><strong>Early stopping:</strong> Stop generation when model outputs newline (single-line completion) or closing bracket</li>
+                    </ul>
+
+                    <h4>Latency Budget Breakdown</h4>
+                    <div class="card" style="background: var(--code-bg); color: #e2e8f0;">
+                        <strong>Target: First token &lt; 200ms</strong><br><br>
+                        Client debounce: 150ms (not counted, user is still typing)<br>
+                        Network RTT: ~30ms<br>
+                        Context assembly: ~20ms<br>
+                        Prompt encoding (prefill): ~50ms<br>
+                        First token decode: ~10ms<br>
+                        Network back: ~30ms<br>
+                        <strong>Total: ~140ms</strong> (within budget)
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. ARCHITECTURE DIAGRAM -->
+            <h2 class="mt-4">6. End-to-End Architecture</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Full System Architecture</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card">
+                        <div class="diagram-container">
+                            <div class="mermaid">
+graph TB
+    subgraph "IDE / Client"
+        ED[IDE Extension] --> DB[Debouncer]
+        ED --> CTX[Context Builder<br/>LSP + AST + Recent Files]
+        DB --> REQ[Request Manager<br/>Cancel / Retry]
+    end
+
+    subgraph "Backend"
+        REQ --> GW[API Gateway<br/>Auth + Rate Limit]
+        GW --> PC[Prompt Cache<br/>Redis]
+        GW --> RT[Router<br/>Inline vs Chat]
+        RT -->|Inline| FP[Fast Pool<br/>7B Quantized<br/>Speculative Decoding]
+        RT -->|Chat| PP[Power Pool<br/>70B+ Models]
+        FP --> VL[vLLM / TGI<br/>Continuous Batching]
+        PP --> VL
+    end
+
+    subgraph "Codebase Intelligence"
+        CTX --> CI[Code Index<br/>Embeddings per repo]
+        CI --> VDB[("Vector DB<br/>Code Chunks")]
+    end
+
+    subgraph "Observability"
+        VL --> TEL[Telemetry<br/>Acceptance Rate<br/>Latency Percentiles]
+        TEL --> DASH[Dashboard<br/>Model Quality Metrics]
+    end
+
+    VL --> GW
+    GW --> ED
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 7. QUALITY & EVALUATION -->
+            <h2 class="mt-4">7. Quality &amp; Evaluation</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Metrics &amp; Feedback Loops</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Key Metrics</h4>
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Metric</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Target</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Why It Matters</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Acceptance Rate</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 30%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Primary quality signal &mdash; user accepted suggestion</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Persistence Rate</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 70%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Accepted code not deleted within 30 seconds</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">TTFT (P50)</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&lt; 200ms</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Must feel instant for inline</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Code compiled/ran</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">&gt; 85%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Generated code passes syntax check</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Lines of code suggested / total</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">~40%</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Productivity multiplier metric</td>
+                        </tr>
+                    </table>
+
+                    <div class="card mt-2" style="background: var(--success-bg);">
+                        <strong>Staff-Level Insight:</strong> Acceptance rate alone is misleading &mdash; a model that only suggests obvious one-liners will have high acceptance but low value. Track <strong>accepted characters per session</strong> (volume &times; quality) and <strong>persistence rate</strong> (code kept after 30 seconds) as the true north-star metrics.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 8. FAILURE MODES -->
+            <h2 class="mt-4">8. Failure Modes &amp; Mitigations</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>What Can Go Wrong</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <table style="width: 100%; border-collapse: collapse; margin: 1rem 0;">
+                        <tr style="background: var(--border-color);">
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Failure</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Impact</th>
+                            <th style="padding: 0.75rem; border: 1px solid var(--border-color);">Mitigation</th>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">High latency spike</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Ghost text appears too late, annoying UX</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Timeout at 500ms; show nothing rather than stale suggestion</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">GPU pool overloaded</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Requests queued, latency degrades</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Adaptive load shedding; serve cached/shorter completions</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Security: code exfiltration</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Private code sent to external API</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">On-prem deployment option; .copilotignore files; audit logs</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Vulnerable code generated</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">SQL injection, XSS in suggestions</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Static analysis filter on output; security-aware fine-tuning</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">License-infringing code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Legal liability for verbatim OSS code</td>
+                            <td style="padding: 0.75rem; border: 1px solid var(--border-color);">Code duplication filter; attribution detection; training data filtering</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 9. STAFF-LEVEL DISCUSSION -->
+            <h2 class="mt-4">9. Staff-Level Discussion Points</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>Deep Tradeoffs</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>Model Selection: Self-Hosted vs API</h4>
+                    <ul>
+                        <li><strong>Self-hosted (StarCoder, CodeLlama):</strong> Full control, lower per-request cost at scale, data stays internal. But: GPU ops burden, slower iteration on model quality.</li>
+                        <li><strong>API (OpenAI, Anthropic):</strong> Best quality, zero ops. But: latency depends on provider, cost per token, data privacy concerns.</li>
+                        <li><strong>Hybrid:</strong> Self-hosted 7B for inline completions (latency-critical, high volume), API for chat (quality-critical, lower volume).</li>
+                    </ul>
+
+                    <h4>Codebase Indexing Strategy</h4>
+                    <ul>
+                        <li><strong>On-device:</strong> Index on user's machine using local embedding model. Fast, private. Limited by client compute.</li>
+                        <li><strong>Server-side:</strong> Index per-repo in cloud. Shared across team. Higher quality embeddings. Privacy trade-off.</li>
+                        <li><strong>Hybrid:</strong> Local index for open files + server index for broader repo search.</li>
+                    </ul>
+
+                    <h4>Privacy vs Quality Tension</h4>
+                    <p>Better context = better suggestions, but enterprise customers won't send code to external APIs. Solutions:</p>
+                    <ul>
+                        <li>On-prem deployment with customer-managed keys</li>
+                        <li>Federated learning for model improvement without code access</li>
+                        <li>Differential privacy for telemetry data</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 10. INTERVIEW TIPS -->
+            <h2 class="mt-4">10. Interview Tips &amp; Follow-ups</h2>
+
+            <div class="collapsible open">
+                <div class="collapsible-header">
+                    <span>How to Ace This Problem</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <h4>What Interviewers Look For</h4>
+                    <ul>
+                        <li>Understanding that <strong>latency is king</strong> for inline completions &mdash; sub-200ms TTFT</li>
+                        <li>Context engineering depth: FIM format, repo-level context, not just "send the file to GPT"</li>
+                        <li>Two-tier model strategy &mdash; don't use GPT-4 for every keystroke completion</li>
+                        <li>Streaming, cancellation, debouncing &mdash; real client-server interaction design</li>
+                    </ul>
+
+                    <h4>Common Follow-ups</h4>
+                    <ul>
+                        <li>"How do you handle a 100K-line monorepo? What goes in context?"</li>
+                        <li>"How do you measure if the copilot is actually making developers more productive?"</li>
+                        <li>"What happens when the user is offline? Any local fallback?"</li>
+                        <li>"How do you prevent the model from suggesting insecure code?"</li>
+                        <li>"How would you add multi-file editing capabilities?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 11. ACTIVE RECALL -->
+            <h2 class="mt-4">11. Active Recall Quiz</h2>
+
+            <div class="collapsible">
+                <div class="collapsible-header">
+                    <span>Test Your Understanding (6 Questions)</span>
+                    <span class="collapsible-icon">&#9660;</span>
+                </div>
+                <div class="collapsible-content">
+                    <div class="card mt-2">
+                        <strong>Q1:</strong> Why use Fill-in-the-Middle (FIM) instead of standard left-to-right generation for inline code completion?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>FIM sees code both BEFORE and AFTER the cursor. This allows the model to generate code that fits the surrounding context (e.g., matching variable names, return types). Standard L-to-R only sees the prefix and might generate code that conflicts with what comes next.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q2:</strong> Explain speculative decoding and why it's critical for code completion.
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>A small draft model generates N candidate tokens fast. A larger verifier checks all N in one forward pass (parallelizable). Accepted tokens are kept, first rejected token is resampled. This gives 2-3x speedup with no quality loss &mdash; critical for the &lt;200ms TTFT requirement.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q3:</strong> Why is acceptance rate alone insufficient as a quality metric?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>A model suggesting only trivial one-liners (closing brackets, obvious variable names) will have high acceptance but low value. Better metrics: accepted characters per session (volume &times; quality) and persistence rate (code not deleted within 30 seconds).</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q4:</strong> How would you handle a 100K-line monorepo for context? You can't fit it all in the prompt.
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Prioritized context: (1) cursor prefix/suffix, (2) imported type signatures via LSP, (3) recently edited files, (4) similar code from embedding index. Use AST-aware chunking to index the repo. Budget ~2K tokens total with priority ordering.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q5:</strong> Why use a two-tier model strategy (7B for inline, 70B+ for chat)?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Inline completions are 70% of requests, latency-critical (&lt;200ms TTFT), and short output (~1-3 lines). A 7B model handles this fine at $0.001/req. Chat requests need deeper reasoning, can tolerate 500ms+ TTFT, and are 30% of volume. Different cost/latency/quality trade-offs per tier.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card mt-2">
+                        <strong>Q6:</strong> What are the key differences between client-side debouncing and server-side request cancellation?
+                        <div class="collapsible mt-2">
+                            <div class="collapsible-header"><span>Show Answer</span><span class="collapsible-icon">&#9660;</span></div>
+                            <div class="collapsible-content">
+                                <p>Client debouncing (150ms delay) prevents sending requests while the user is actively typing &mdash; reduces request volume by ~70%. Server-side cancellation aborts in-flight GPU work when a new request arrives from the same user &mdash; frees GPU resources immediately rather than completing a stale completion no one will see.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="flex flex-between mt-4">
+                <a href="enterprise-knowledge-assistant.html" class="btn btn-secondary">&larr; Previous: Enterprise Knowledge Assistant</a>
+                <a href="ai-content-moderation.html" class="btn btn-primary">Next: AI Content Moderation &rarr;</a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../../assets/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => { sidebar.classList.toggle('open'); sidebarOverlay.classList.toggle('open'); });
+            }
+            if (sidebarOverlay) {
+                sidebarOverlay.addEventListener('click', () => { sidebar.classList.remove('open'); sidebarOverlay.classList.remove('open'); });
+            }
+        });
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+    <script src="../../assets/js/navbar.js"></script>
+    <script src="../sidebar.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+</body>
+</html>
